@@ -1,0 +1,1 @@
+export type TicketStatus = 'created' | 'opened' | 'closed' | 'error';
