@@ -1,7 +1,8 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { GuildTextBasedChannel, Message} from 'discord.js';
 import fs from 'fs';
 import path from 'path';
+import JSZip from 'jszip';
+import axios from 'axios';
 
 export async function fetchMessagesAndSaveToFile(channel: GuildTextBasedChannel, outputPath: string): Promise<void> {
 
@@ -10,6 +11,7 @@ export async function fetchMessagesAndSaveToFile(channel: GuildTextBasedChannel,
         throw new Error('Invalid channel or channel is not a text channel.');
     }
 
+    /* SAVING TRANSCRIPT */
     let messages: Message[] = [];
     let lastId: string | undefined;
 
@@ -27,7 +29,12 @@ export async function fetchMessagesAndSaveToFile(channel: GuildTextBasedChannel,
     }
 
     // resolve the full file path
-    const fullPath = path.resolve(outputPath);
+    let fullPath = path.resolve(outputPath + `${channel.id}.txt`);
+
+    // header for the transcript
+    const date = new Date();
+    const now: string = date.toLocaleString();
+    const header = 'Transcript Created - ' + now + '\n\n';
 
     // write messages to a file
     const fileContent = messages
@@ -35,6 +42,32 @@ export async function fetchMessagesAndSaveToFile(channel: GuildTextBasedChannel,
         .map((msg) => `[${msg.author.tag}]: ${msg.content}`)
         .join('\n');
 
-    fs.writeFileSync(outputPath, fileContent);
-    console.log(`Transcript saved!`);
+    // full file contents
+    const fullFile = header + fileContent;
+    fs.writeFileSync(fullPath, fullFile);
+    console.log('Transcript saved!');
+
+    /* SAVING ATTACHMENTS */
+    const zip = new JSZip();
+    let attachmentCount = 0;
+
+    for (const msg of messages) {
+        for (const attach of msg.attachments.values()) {
+            // find only images
+            if (attach.contentType?.startsWith('image/')) {
+                const resp = await axios.get(attach.url, { responseType: 'arraybuffer' });
+                zip.file(attach.name, resp.data);
+                attachmentCount++;
+            }
+        }
+    }
+
+    // if we got any attachments
+    if (attachmentCount > 0) {
+        fullPath = path.resolve(outputPath + `attachments_${channel.id}.zip`);
+        const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+        fs.writeFileSync(fullPath, zipBuffer);
+        console.log('Attachments saved!');
+    }
+    
 }

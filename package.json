@@ -1,6 +1,6 @@
 {
   "name": "cogworks-bot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Discord ticketing bot developed for ease-of-use",
   "main": "index.js",
   "scripts": {
@@ -28,7 +28,9 @@
   },
   "dependencies": {
     "@discordjs/rest": "^2.4.2",
+    "axios": "^1.8.4",
     "discord.js": "^14.17.3",
+    "jszip": "^3.10.1",
     "mysql2": "^3.12.0",
     "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.20"

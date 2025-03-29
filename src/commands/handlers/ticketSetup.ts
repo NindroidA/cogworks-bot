@@ -101,13 +101,14 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
         try {
             // if we don't have an archived ticket config
             if (!archivedTicketConfig) {
-                // send main message to designated channel
+                // send main message to designated channel and pin it
                 const msg = await channel.threads.create({
                     name: 'Ticket Archive',
                     message: {
                         content: 'This channel has been made as an archive for tickets. Once a ticket is closed, you it can be found and referenced again in this channel.'
                     },
                 });
+                msg.pin();
 
                 // make a new config containing the guildId, main message id, and channel id
                 const newArchivedTicketConfig = archivedTicketConfigRepo.create({
@@ -132,6 +133,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
                         content: 'This channel has been made as an archive for tickets. Once a ticket is closed, you it can be found and referenced again in this channel.'
                     },
                 });
+                msg.pin();
 
                 // update the config channelId and messageId and save
                 archivedTicketConfig.channelId = channel.id;

@@ -1,11 +1,12 @@
 import { Client, GatewayIntentBits, REST, RESTPostAPIApplicationCommandsJSONBody, Routes } from 'discord.js';
 import dotenv from 'dotenv';
 import 'reflect-metadata';
-import { handleTicketCommand } from './commands/ticketCommands';
+import { handleSlashCommand } from './commands/commands';
 import { AppDataSource } from './typeorm';
 import { handleTicketInteraction } from './events/ticketInteraction';
 import { ticketSetup } from './commands/builders/ticketSetup';
 import { ticketReply } from './commands/builders/ticketReply';
+import { botSetup } from './commands/builders/botSetup';
 dotenv.config();
 
 const TOKEN = process.env.BOT_TOKEN!;
@@ -25,6 +26,9 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 /* Slash Commands */
 const commands: RESTPostAPIApplicationCommandsJSONBody[] = [
+    // bot setup
+    botSetup,
+
     // ticket setup
     ticketSetup,
 
@@ -51,9 +55,9 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// when setup command is sent, handleTickeCommand will run
-client.on('chatInputCommand', handleTicketCommand);
-// when ticket button is pressed, handleTicketInteraction will run
+// when slash commands are sent, handleSlashCommand will run
+client.on('chatInputCommand', handleSlashCommand);
+// when button is pressed, handleTicketInteraction will run
 client.on('buttonInteraction', handleTicketInteraction);
 
 // main function to do all the things
