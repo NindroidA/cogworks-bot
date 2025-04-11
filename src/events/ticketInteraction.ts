@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import { Interaction, ActionRowBuilder, GuildMember, TextChannel, Client, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, GuildTextBasedChannel, ForumChannel, ForumThreadChannel } from "discord.js";
+import { Interaction, ActionRowBuilder, GuildMember, TextChannel, Client, ButtonBuilder, ButtonStyle, ModalBuilder, PermissionFlagsBits } from "discord.js";
 import { AppDataSource } from "../typeorm";
 import { TicketConfig } from "../typeorm/entities/TicketConfig";
 import dotenv from 'dotenv';
@@ -11,11 +10,13 @@ import { playerReportMessage, playerReportModal } from "./ticket/playerReport";
 import { bugReportMessage, bugReportModal } from "./ticket/bugReport";
 import { otherMessage, otherModal } from "./ticket/other";
 import { ticketOptions } from "./ticket";
+import { SavedRole } from "../typeorm/entities/SavedRole";
 
 dotenv.config();
 
 const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
 const ticketRepo = AppDataSource.getRepository(Ticket);
+const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 
 export const handleTicketInteraction = async(client: Client, interaction: Interaction) => {
 
@@ -96,77 +97,116 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             return;
         }
 
-        // get user input from modal
-        const fields = interaction.fields;
-        let description = '';
+        try {
+            // get user input from modal
+            const fields = interaction.fields;
+            let description = '';
 
-        switch (ticketType) {
-            case '18_verify':
-                description = await ageVerifyMessage(fields);
-                break;
-            case 'ban_appeal':
-                description = await banAppealMessage(fields);
-                break;
-            case 'player_report':
-                description = await playerReportMessage(fields);
-                break;
-            case 'bug_report':
-                description = await bugReportMessage(fields);
-                break;
-            case 'other':
-                description = await otherMessage(fields);
-                break;
+            switch (ticketType) {
+                case '18_verify':
+                    description = await ageVerifyMessage(fields);
+                    break;
+                case 'ban_appeal':
+                    description = await banAppealMessage(fields);
+                    break;
+                case 'player_report':
+                    description = await playerReportMessage(fields);
+                    break;
+                case 'bug_report':
+                    description = await bugReportMessage(fields);
+                    break;
+                case 'other':
+                    description = await otherMessage(fields);
+                    break;
+            }
+
+            // create new ticket in the database
+            const newTicket = ticketRepo.create({
+                createdBy: interaction.user.id,
+                type: ticketType,
+            });
+            const savedTicket = await ticketRepo.save(newTicket);
+
+            // helper function to extract ID from mention
+            function extractIdFromMention(mention: string): string | null {
+                const matches = mention.match(/^<@&?(\d+)>$/);
+                return matches ? matches[1] : null;
+            }
+
+            // create the ticket channel
+            const CATEGORY = process.env.TICKET_CATEGORY_ID!;
+            const channelName = `${savedTicket.id}-${ticketType}-${member.user.username}`;
+
+            // get the staff/admin roles from the database
+            const rolePerms = await savedRoleRepo.createQueryBuilder()
+                .select(['type', 'role'])
+                .where('guildId = :guildId', { guildId: guildId })
+                .getRawMany();
+
+            // base perms
+            const permOverwrites = [
+                { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, // deny everyone
+                { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }, // allow ticket creator
+            ];
+
+            // add permissions for each staff/admin role
+            rolePerms.forEach(role => {
+                const roleId = extractIdFromMention(role.role);
+                if (!roleId) {
+                    console.log(`Invalid role format: ${role.role}`);
+                    return; // skip this role
+                }
+
+                permOverwrites.push(
+                    { id: roleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
+                );
+            });
+
+            // create the channel with all perms
+            const channel = await guild.channels.create({
+                name: channelName,
+                type: 0, // text channel
+                parent: CATEGORY, // category
+                permissionOverwrites: permOverwrites,
+            });
+
+            await interaction.reply({
+                content: `Your ticket has been created: ${channel}`,
+                ephemeral: true,
+            });
+
+            // send ticket welcome message
+            //const welcomeMsg = `Welcome, ${member.user.displayName}!\n\n**Ticket Type:**${ticketType.replace('_',' ')}\n\n${description}`;
+            const welcomeMsg = `Welcome, ${member.user.displayName}! Please wait for a staff member to assist you. Once the issue is resolved, you or a staff member can close the ticket with the button below.`;
+            const closeButton = new ActionRowBuilder<ButtonBuilder>().setComponents(
+                new ButtonBuilder()
+                .setCustomId('close_ticket')
+                .setLabel('Close Ticket')
+                .setStyle(ButtonStyle.Danger)
+            );
+            const descriptionMsg = `${description}`;
+            const newChannel = channel as TextChannel;
+
+            const welc = await newChannel.send({
+                content: welcomeMsg,
+                components: [closeButton],
+            })
+            await newChannel.send(descriptionMsg);
+
+            ticketRepo.update({ id: savedTicket.id }, {
+                messageId: welc.id,
+                channelId: newChannel.id,
+                status: 'opened',
+            });
+
+        } catch (error) {
+            console.log(error);
+            await interaction.reply({
+                content: 'Could not create ticket!',
+                ephemeral: true
+            });
+            return;
         }
-
-        // create new ticket in the database
-        const newTicket = ticketRepo.create({
-            createdBy: interaction.user.id,
-            type: ticketType,
-        });
-        const savedTicket = await ticketRepo.save(newTicket);
-
-        // create the ticket channel
-        const CATEGORY = process.env.TICKET_CATEGORY_ID!;
-        const channelName = `${savedTicket.id}-${ticketType}-${member.user.username}`;
-        const channel = await guild.channels.create({
-            name: channelName,
-            type: 0, // text channel
-            parent: CATEGORY, // category
-            permissionOverwrites: [
-                { id: guild.id, deny: ['ViewChannel'] }, // deny everyone
-                { id: member.id, allow: ['ViewChannel', 'SendMessages'] }, // allow ticket creator
-                //{ id: process.env.MOD_ROLE_ID!, allow: ['ViewChannel', 'SendMessages'] }, // allow moderators
-            ],
-        });
-
-        await interaction.reply({
-            content: `Your ticket has been created: ${channel}`,
-            ephemeral: true,
-        });
-
-        // send ticket welcome message
-        //const welcomeMsg = `Welcome, ${member.user.displayName}!\n\n**Ticket Type:**${ticketType.replace('_',' ')}\n\n${description}`;
-        const welcomeMsg = `Welcome, ${member.user.displayName}! Please wait for a staff member to assist you. Once the issue is resolved, you or a staff member can close the ticket with the button below.`;
-        const closeButton = new ActionRowBuilder<ButtonBuilder>().setComponents(
-            new ButtonBuilder()
-            .setCustomId('close_ticket')
-            .setLabel('Close Ticket')
-            .setStyle(ButtonStyle.Danger)
-        );
-        const descriptionMsg = `${description}`;
-        const newChannel = channel as TextChannel;
-
-        const welc = await newChannel.send({
-            content: welcomeMsg,
-            components: [closeButton],
-        })
-        await newChannel.send(descriptionMsg);
-
-        ticketRepo.update({ id: savedTicket.id }, {
-            messageId: welc.id,
-            channelId: newChannel.id,
-            status: 'opened',
-        });
     }
     
     /* CLOSING A TICKET */

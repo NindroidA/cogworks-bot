@@ -2,6 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, TextChannel, Chat
 import { AppDataSource } from "../../typeorm";
 import { TicketConfig } from "../../typeorm/entities/TicketConfig";
 import { ArchivedTicketConfig } from "../../typeorm/entities/ArchivedTicketConfig";
+import lang from "../../utils/lang.json";
 
 const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
 const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
@@ -26,14 +27,14 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
         const channel = interaction.options.getChannel('channel') as TextChannel;
         
         const mainMsg = {
-            content: 'Need help? Press the button below to create a ticket!',
+            content: lang.ticketSetup.createTicket,
             components: [row],
         }
         
         // make sure the channel exists
         if (!channel) {
             await interaction.reply({
-                content: 'The selected channel was not found.',
+                content: lang.general.channelNotFound,
                 ephemeral: true,
             });
             return;
@@ -57,7 +58,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
 
                 // after completion, send an ephemeral success message
                 await interaction.reply({
-                    content: `The setup message was sent in ${channel}`,
+                    content: lang.ticketSetup.successSet + `${channel}`,
                     ephemeral: true,
                 });
 
@@ -73,14 +74,14 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
 
                 // after completion, send an ephemeral success message
                 await interaction.reply({
-                    content: `The setup channel was updated to ${channel}`,
+                    content: lang.ticketSetup.successUpdate + `${channel}`,
                     ephemeral: true,
                 });
             }
         } catch (error) {
-            console.error('Failed to setup Ticket Channel:', error);
+            console.error(lang.ticketSetup.fail, error);
             await interaction.reply({
-                content: 'Setup failed!',
+                content: lang.ticketSetup.fail,
                 ephemeral: true,
             });
         }
@@ -92,7 +93,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
         // make sure the channel exists
         if (!channel) {
             await interaction.reply({
-                content: 'The selected channel was not found.',
+                content: lang.general.channelNotFound,
                 ephemeral: true,
             });
             return;
@@ -105,7 +106,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
                 const msg = await channel.threads.create({
                     name: 'Ticket Archive',
                     message: {
-                        content: 'This channel has been made as an archive for tickets. Once a ticket is closed, you it can be found and referenced again in this channel.'
+                        content: lang.archiveSetup.initialMsg
                     },
                 });
                 msg.pin();
@@ -122,7 +123,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
 
                 // after completion, send an ephemeral success message
                 await interaction.reply({
-                    content: `The setup message was sent in ${channel}`,
+                    content: lang.ticketSetup.successSet + `${channel}`,
                     ephemeral: true,
                 });
             } else {
@@ -130,7 +131,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
                 const msg = await channel.threads.create({
                     name: 'Ticket Archive',
                     message: {
-                        content: 'This channel has been made as an archive for tickets. Once a ticket is closed, you it can be found and referenced again in this channel.'
+                        content: lang.archiveSetup.initialMsg
                     },
                 });
                 msg.pin();
@@ -142,14 +143,14 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
 
                 // after completion, send an ephemeral success message
                 await interaction.reply({
-                    content: `The setup channel was updated to ${channel}`,
+                    content: lang.ticketSetup.successUpdate + ` ${channel}`,
                     ephemeral: true,
                 });
             }
         } catch (error) {
-            console.error('Failed to setup Ticket Archive Channel:', error);
+            console.error(lang.archiveSetup.fail, error);
             await interaction.reply({
-                content: 'Setup failed!',
+                content: lang.archiveSetup.fail,
                 ephemeral: true,
             });
         }

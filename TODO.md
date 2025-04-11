@@ -1,0 +1,2 @@
+[x] do the logic of getting each saved role (if any) and add them to the perms of ticket channels
+[] make command for ticket 'admin only' (removes everyone from being able to see the ticket except for ticket creator and admins)

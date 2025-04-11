@@ -1,7 +1,9 @@
 import { Client, ChatInputCommandInteraction, CacheType } from "discord.js";
 import { ticketSetupHandler } from "./handlers/ticketSetup";
 import { ticketReplyHandler } from "./handlers/ticketReply";
-import { botSetupHandler } from "./handlers/botSetup";
+import { addRoleHandler } from "./handlers/addRole";
+import { removeRoleHandler } from "./handlers/removeRole";
+import { getRolesHandler } from "./handlers/getRoles";
 
 export const handleSlashCommand = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
 
@@ -15,9 +17,17 @@ export const handleSlashCommand = async(client: Client, interaction: ChatInputCo
             ticketReplyHandler(client, interaction);
             break;
         }
-        case 'bot-setup': {
-            console.log('bot-setup command received')
-            botSetupHandler(client, interaction);
+        case 'add-role': {
+            //console.log('bot-setup command received')
+            addRoleHandler(client, interaction);
+            break;
+        }
+        case 'remove-role': {
+            removeRoleHandler(client, interaction);
+            break;
+        }
+        case 'get-roles': {
+            getRolesHandler(client, interaction);
             break;
         }
     }

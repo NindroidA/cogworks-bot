@@ -6,7 +6,9 @@ import { AppDataSource } from './typeorm';
 import { handleTicketInteraction } from './events/ticketInteraction';
 import { ticketSetup } from './commands/builders/ticketSetup';
 import { ticketReply } from './commands/builders/ticketReply';
-import { botSetup } from './commands/builders/botSetup';
+import { addRole } from './commands/builders/addRole';
+import { removeRole } from './commands/builders/removeRole';
+import { getRoles } from './commands/builders/getRoles';
 dotenv.config();
 
 const TOKEN = process.env.BOT_TOKEN!;
@@ -26,8 +28,12 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 /* Slash Commands */
 const commands: RESTPostAPIApplicationCommandsJSONBody[] = [
-    // bot setup
-    botSetup,
+    // add/remove roles
+    addRole,
+    removeRole,
+
+    // get roles
+    getRoles,
 
     // ticket setup
     ticketSetup,

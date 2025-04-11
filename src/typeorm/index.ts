@@ -5,6 +5,7 @@ import { Ticket } from './entities/Ticket';
 import { ArchivedTicketConfig } from './entities/ArchivedTicketConfig';
 import { ArchivedTicket } from './entities/ArchivedTicket';
 import { ServerConfig } from './entities/ServerConfig';
+import { SavedRole } from './entities/SavedRole';
 dotenv.config();
 
 export const AppDataSource = new DataSource({
@@ -15,5 +16,5 @@ export const AppDataSource = new DataSource({
     password: process.env.MYSQL_DB_PASSWORD,
     database: process.env.MYSQL_DB_DATABASE,
     synchronize: true,
-    entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, ServerConfig],
+    entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, ServerConfig, SavedRole],
 });
