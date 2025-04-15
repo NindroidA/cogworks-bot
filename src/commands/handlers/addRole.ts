@@ -12,7 +12,7 @@ export const addRoleHandler = async(client: Client, interaction: ChatInputComman
     const alias = interaction.options.getString('alias') || '';
     const roleFinder = await savedRoleRepo.findOneBy({ role });
 
-    // check to see if rold id is already saved
+    // check to see if role id is already saved
     if (roleFinder) {
         await interaction.reply({
             content: lang.addRole.alreadyAdded,

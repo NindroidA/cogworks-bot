@@ -14,4 +14,7 @@ export class TicketConfig {
 
     @Column()
     channelId: string;
+
+    @Column({ nullable: true })
+    categoryId: string;
 }

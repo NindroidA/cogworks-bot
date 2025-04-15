@@ -1,9 +1,19 @@
 {
     "general": {
         "fatalError": "There was a fatal error! Please contact your admin!",
-        "channelNotFound": "The selected channel was not found."
+        "channelNotFound": "The selected channel was not found.",
+        "cmdTicketNotFound": "This command can only be used in a ticket!",
+        "cmdGuildNotFound": "This command can only be used in a server!"
     },
     "ticketSetup": {
+        "cmdDescrp": "Initializes bot ticketing system",
+        "subcmdDescrp": {
+            "channel": "Sets the global ticket channel",
+            "category": "Sets the global ticket category",
+            "archive": "Sets the archive ticket channel",
+            "option": "Channel to send the message to",
+            "catset": "Category to set the global ticket category to"
+        },
         "createTicket": "Need help? Press the button below to create a ticket!",
         "fail": "Failed to setup Ticket Channel!",
         "successSet": "The setup message was sent in ",
@@ -13,8 +23,59 @@
         "initialMsg": "This channel has been made as an archive for tickets. Once a ticket is closed, you it can be found and referenced again in this channel.",
         "fail": "Failed to setup Ticket Archive Channel!"
     },
-    "ticketReply": {
+    "categorySetup": {
+        "setChannelFirst": "You need to set the Ticket Channel first!",
+        "success": "Ticket Category successfully set!",
+        "fail": "Failed to setup the Ticket Category Channel!"
+    },
+    "ticket": {
+        "error": "Could not create ticket!",
+        "ticketConfigNotFound": "Ticket config does not exist!",
+        "ticketCategoryNotFound": "Ticket Category does not exist!",
+        "archiveTicketConfigNotFound": "Archived Ticket Config does not exist!",
+        "selectTicketType": "Please select the type of ticket you want to create:",
+        "created": "Your ticket has been created: ",
+        "welcomeMsg": "Please wait for a staff member to assist you. Once the issue is resolved, you or a staff member can close the ticket with the button below. If you believe only Admins should view this ticket (due to confidentiality, etc.) you can use the Admin Only button below.",
+        "cancelled": "Ticket creation cancelled.",
+        "adminOnly": {
+            "confirm": "⚠️ Are you sure you want to make this ticket Admin Only?",
+            "changing": "Changing to Admin Only...",
+            "cancel": "Change to Admin Only canceled."
+        },
+        "close": {
+            "confirm": "⚠️ Are you sure you want to close this ticket?",
+            "closing": "Closing ticket...",
+            "cancel": "Ticket close cancelled",
+            "byUser": "User who created a ticket is now closing the ticket...",
+            "transcriptCreate": {
+                "success": "Transcript successfully sent to channel and deleted from memory!",
+                "error": "Error making transcript file!",
+                "attachmentFound": "Attachment file found; adding to message.",
+                "attachmentNotFound": "Attachments not found; continuing ..."
+            },
+            "transcriptDelete": {
+                "error1": "Error deleting the transcript txt file!",
+                "error2": "Could not properly send transcript!",
+                "attachmentError": "Error deleting transcript attachments zip file!"
+            }
+        }
         
+    },
+    "ticketReply": {
+        "cmdDescrp": "Various replies for tickets",
+        "subcmdGroupDescrp": {
+            "bapple": "Dealing with ban appeals"
+        },
+        "subcmdDescrp": {
+            "approve": "Approve a Ban Appeal",
+            "deny": "Deny a Ban Appeal"
+        },
+        "bapple": {
+            "approve": "Your appeal has been approved and you may rejoin the server at your convenience. Please make sure to review our /rules once you do. This ticket will be closed in 24 hours or upon acknowledgement.",
+            "approveSent": "Approve message sent!",
+            "deny": "Your appeal was denied; Staff do not feel comfortable letting you back on the server at this time. You may re-appeal your ban in 6 months from now. In that time, please use it as an opportunity to grow and understand why your actions were unacceptable and necessitated the ban in the first place. This ticket will be closed in 24 hours or upon acknowledgement.",
+            "denySent": "Deny message sent!"
+        }
     },
     "addRole": {
         "cmdDescrp": "Adds a role to the Cogworks database",

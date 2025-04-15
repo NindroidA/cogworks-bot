@@ -7,6 +7,9 @@
 `/ticket-setup archive [channel]`
 - [channel] Forum channel to send the setup message to
 
+`/ticket-setup category [category]`
+- [category] Category to set the global ticket category to
+
 ## Roles
 ### Adding Roles
 `/add-role admin [role_id] [alias]`

@@ -4,9 +4,8 @@ import { Ticket } from "../../typeorm/entities/Ticket";
 import { ArchivedTicket } from "../../typeorm/entities/ArchivedTicket";
 import { ArchivedTicketConfig } from "../../typeorm/entities/ArchivedTicketConfig";
 import fs from 'fs';
-import dotenv from 'dotenv';
 import { fetchMessagesAndSaveToFile } from "../../utils/fetchAllMessages";
-dotenv.config();
+import lang from "../../utils/lang.json";
 
 const ticketRepo = AppDataSource.getRepository(Ticket);
 const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
@@ -22,15 +21,18 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
     const ticket = await ticketRepo.findOneBy({ channelId: channelId }); // // get the ticket this event was initiated from the Ticket database using channelId
 
     // check if the archived ticket config exists
-    if (!archivedConfig) { return console.log('Archived Ticket Config does not exist!'); }
+    if (!archivedConfig) { return console.log(lang.ticket.archiveTicketConfigNotFound); }
 
     // check if the ticket exists
-    if (!ticket) { return console.log('Ticket not Found!') };
+    if (!ticket) { return console.log(lang.general.fatalError) };
+
+    // check to see if the user has a saved staff role
+
 
     // make sure the ticket close is permitted
     // TODO: add ability for mod role to close it aswell
     if (user.id === ticket.createdBy) {
-        console.log('User who created a ticket is now closing the ticket...');
+        console.log(lang.ticket.close.byUser);
 
         // update the ticket status
         await ticketRepo.update({ id: ticket.id }, { status: 'closed' });
@@ -44,9 +46,9 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
     try {
         await fetchMessagesAndSaveToFile(channel, transcriptPath);
     } catch (error) {
-        console.error('Error making transcript file!', error);
+        console.error(lang.ticket.close.transcriptCreate.error, error);
         await interaction.reply({
-            content: 'Could not create a transcript!'
+            content: lang.ticket.close.transcriptCreate.error
         });
         return;
     }
@@ -63,10 +65,10 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
         // if we have attachments, add them to the files array
         if (fs.existsSync(zipPath)) {
             files.push(zipPath);
-            console.log('Attachment file found; adding to message.');
+            console.log(lang.ticket.close.transcriptCreate.attachmentFound);
             zipCheck = true;
         } else {
-            console.log('Attachments not found; continuing ...');
+            console.log(lang.ticket.close.transcriptCreate.attachmentNotFound);
         }
 
         // if transcript channel doesn't exist, make one and put the transcript
@@ -99,22 +101,22 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
 
         // delete the saved txt file
         fs.unlink(txtPath, (error) => {
-            if (error) console.error('Error deleting transcript txt file!', error);
+            if (error) console.error(lang.ticket.close.transcriptDelete.error1, error);
         });
 
         if (zipCheck) {
             // delete the saved zip file
             fs.unlink(zipPath, (error) => {
-                if (error) console.error('Error deleting transcript attachments zip file!', error);
+                if (error) console.error(lang.ticket.close.transcriptDelete.attachmentError, error);
             });
         }
 
     } catch (error) {
-        return console.error('Could not properly send transcript!', error);
+        return console.error(lang.ticket.close.transcriptDelete.error2, error);
     }
 
     // log success message
-    console.log('Transcript successfully sent to channel and deleted from memory!');
+    console.log(lang.ticket.close.transcriptCreate.success);
 
     // delete the channel
     await channel.delete(ticket.channelId);

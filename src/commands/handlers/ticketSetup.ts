@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, TextChannel, ChatInputCommandInteraction, CacheType, ForumChannel } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, TextChannel, ChatInputCommandInteraction, CacheType, ForumChannel, CategoryChannel } from "discord.js";
 import { AppDataSource } from "../../typeorm";
 import { TicketConfig } from "../../typeorm/entities/TicketConfig";
 import { ArchivedTicketConfig } from "../../typeorm/entities/ArchivedTicketConfig";
@@ -86,9 +86,44 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
             });
         }
 
+    /* CATEGORY SUBCOMMAND */
+    } else if (subCommand == 'category') {
+        const category = interaction.options.getChannel('category') as CategoryChannel;
+        const categoryId = category.id;
+
+        try {
+            // check to make sure we have a ticket config
+            if (!ticketConfig) {
+                await interaction.reply({
+                    content: lang.categorySetup.setChannelFirst,
+                    ephemeral: true,
+                });
+                return;
+            }
+
+            // save the categoryId to the ticket config
+            ticketConfig.categoryId = categoryId;
+            ticketConfigRepo.save(ticketConfig);
+
+            await interaction.reply({
+                content: lang.categorySetup.success,
+                ephemeral: true,
+            });
+
+        } catch (error) {
+            console.error(lang.categorySetup.fail, error);
+            await interaction.reply({
+                content: lang.categorySetup.fail,
+                ephemeral: true,
+            });
+
+        }
+
+        
+
     /* ARCHIVE SUBCOMMAND */    
     } else if (subCommand == 'archive') {
-        const channel = interaction.options.getChannel('channel') as ForumChannel
+        const channel = interaction.options.getChannel('channel') as ForumChannel;
 
         // make sure the channel exists
         if (!channel) {

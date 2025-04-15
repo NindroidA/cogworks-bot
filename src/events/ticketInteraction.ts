@@ -1,7 +1,6 @@
 import { Interaction, ActionRowBuilder, GuildMember, TextChannel, Client, ButtonBuilder, ButtonStyle, ModalBuilder, PermissionFlagsBits } from "discord.js";
 import { AppDataSource } from "../typeorm";
 import { TicketConfig } from "../typeorm/entities/TicketConfig";
-import dotenv from 'dotenv';
 import { Ticket } from "../typeorm/entities/Ticket";
 import { ticketCloseEvent } from "./ticket/close";
 import { ageVerifyMessage, ageVerifyModal } from "./ticket/ageVerify";
@@ -11,8 +10,9 @@ import { bugReportMessage, bugReportModal } from "./ticket/bugReport";
 import { otherMessage, otherModal } from "./ticket/other";
 import { ticketOptions } from "./ticket";
 import { SavedRole } from "../typeorm/entities/SavedRole";
-
-dotenv.config();
+import { ticketAdminOnlyEvent } from "./ticket/adminOnly";
+import { extractIdFromMention } from "../utils/extractIdFromMention";
+import lang from "../utils/lang.json";
 
 const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
 const ticketRepo = AppDataSource.getRepository(Ticket);
@@ -21,14 +21,14 @@ const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 export const handleTicketInteraction = async(client: Client, interaction: Interaction) => {
 
     const guildId = interaction.guildId || '';
+    const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
 
     // handle button presses
     if (interaction.isButton() && interaction.customId === 'create_ticket'){
-        const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
 
         // check if the ticket config exists
         if (!ticketConfig) {
-            console.log('Ticket config does not exsit!');
+            console.log(lang.ticket.ticketConfigNotFound);
             return;
         }
 
@@ -36,7 +36,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         if (ticketConfig.messageId === interaction.message.id) {
             const options = ticketOptions();
             await interaction.reply({
-                content: 'Please select the type of ticket you want to create:',
+                content: lang.ticket.selectTicketType,
                 components: [options],
                 ephemeral: true,
             });
@@ -46,7 +46,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
     /* Cancel Ticket Button */
     if (interaction.isButton() && interaction.customId === 'cancel_ticket') {
         await interaction.reply({
-            content: 'Ticket creation cancelled.',
+            content: lang.ticket.cancelled,
             ephemeral: true
         });
     }
@@ -87,13 +87,21 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         const ticketType = interaction.customId.replace('ticket_modal_', '');
         const member = interaction.member as GuildMember;
         const guild = interaction.guild;
+        const category = ticketConfig?.categoryId;
 
         if (!guild) {
             await interaction.reply({
-                content: 'This command can only be used in a server!',
+                content: lang.general.cmdGuildNotFound,
                 ephemeral: true,
             });
+            return;
+        }
 
+        if (!category) {
+            await interaction.reply({
+                content: lang.ticket.ticketCategoryNotFound,
+                ephemeral: true,
+            });
             return;
         }
 
@@ -127,14 +135,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             });
             const savedTicket = await ticketRepo.save(newTicket);
 
-            // helper function to extract ID from mention
-            function extractIdFromMention(mention: string): string | null {
-                const matches = mention.match(/^<@&?(\d+)>$/);
-                return matches ? matches[1] : null;
-            }
-
             // create the ticket channel
-            const CATEGORY = process.env.TICKET_CATEGORY_ID!;
             const channelName = `${savedTicket.id}-${ticketType}-${member.user.username}`;
 
             // get the staff/admin roles from the database
@@ -166,19 +167,22 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             const channel = await guild.channels.create({
                 name: channelName,
                 type: 0, // text channel
-                parent: CATEGORY, // category
+                parent: category, // category
                 permissionOverwrites: permOverwrites,
             });
 
             await interaction.reply({
-                content: `Your ticket has been created: ${channel}`,
+                content: lang.ticket.created + `${channel}`,
                 ephemeral: true,
             });
 
             // send ticket welcome message
-            //const welcomeMsg = `Welcome, ${member.user.displayName}!\n\n**Ticket Type:**${ticketType.replace('_',' ')}\n\n${description}`;
-            const welcomeMsg = `Welcome, ${member.user.displayName}! Please wait for a staff member to assist you. Once the issue is resolved, you or a staff member can close the ticket with the button below.`;
-            const closeButton = new ActionRowBuilder<ButtonBuilder>().setComponents(
+            const welcomeMsg = `Welcome, ${member.user.displayName}! ` + lang.ticket.welcomeMsg;
+            const buttonOptions = new ActionRowBuilder<ButtonBuilder>().setComponents(
+                new ButtonBuilder()
+                .setCustomId('admin_only_ticket')
+                .setLabel('Admin Only')
+                .setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder()
                 .setCustomId('close_ticket')
                 .setLabel('Close Ticket')
@@ -189,7 +193,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
 
             const welc = await newChannel.send({
                 content: welcomeMsg,
-                components: [closeButton],
+                components: [buttonOptions],
             })
             await newChannel.send(descriptionMsg);
 
@@ -200,18 +204,51 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             });
 
         } catch (error) {
-            console.log(error);
+            console.log(lang.ticket.error + " " + error);
             await interaction.reply({
-                content: 'Could not create ticket!',
+                content: lang.ticket.error,
                 ephemeral: true
             });
             return;
         }
     }
+
+    /* MAKING A TICKET ADMIN ONLY */
+    if (interaction.isButton() && interaction.customId === 'admin_only_ticket') {
+        // build a confirmation message with buttons
+        const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+                .setCustomId('confirm_admin_only_ticket')
+                .setLabel('Confirm')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('cancel_admin_only_ticket')
+                .setLabel('Cancel')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        await interaction.reply({
+            content: lang.ticket.adminOnly.confirm,
+            components: [confirmRow],
+            ephemeral: true,
+        });
+    }
+    if (interaction.isButton() && interaction.customId === 'confirm_admin_only_ticket') {
+        await interaction.update({
+            content: lang.ticket.adminOnly.changing,
+            components: [],
+        });
+        await ticketAdminOnlyEvent(client, interaction);
+    }
+    if (interaction.isButton() && interaction.customId === 'cancel_admin_only_ticket') {
+        await interaction.update({
+            content: lang.ticket.adminOnly.cancel,
+            components: [],
+        });
+    }
     
     /* CLOSING A TICKET */
     if (interaction.isButton() && interaction.customId === 'close_ticket') {
-
         // build a confirmation message with buttons
         const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder()
@@ -225,21 +262,21 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         );
 
         await interaction.reply({
-            content: '⚠️ Are you sure you want to close this ticket?',
+            content: lang.ticket.close.confirm,
             components: [confirmRow],
             ephemeral: true,
         });
     }
     if (interaction.isButton() && interaction.customId === 'confirm_close_ticket') {
         await interaction.update({
-            content: 'Closing ticket...',
+            content: lang.ticket.close.closing,
             components: [],
         });
         await ticketCloseEvent(client, interaction);
     }
     if (interaction.isButton() && interaction.customId === 'cancel_close_ticket') {
         await interaction.update({
-            content: 'Ticket close canceled.',
+            content: lang.ticket.close.cancel,
             components: [],
         });
     }

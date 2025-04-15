@@ -1,11 +1,7 @@
 import { Client, ChatInputCommandInteraction, CacheType, TextChannel } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { Ticket } from "../../typeorm/entities/Ticket";
-import dotenv from 'dotenv';
-dotenv.config();
-
-const bappleApprove = process.env.BAPPLE_APPROVE!;
-const bappleDeny = process.env.BAPPLE_DENY!;
+import lang from "../../utils/lang.json";
 
 const ticketRepo = AppDataSource.getRepository(Ticket);
 
@@ -20,7 +16,7 @@ export const ticketReplyHandler = async(client: Client, interaction: ChatInputCo
     const ticket = await ticketRepo.findOneBy({ channelId: channelId });
     if (!ticket) {
         await interaction.reply({
-            content: 'This command can only be used in a ticket!',
+            content: lang.general.cmdTicketNotFound,
             ephemeral: true, 
         });
         return console.log('Ticket not Found!'); 
@@ -31,16 +27,16 @@ export const ticketReplyHandler = async(client: Client, interaction: ChatInputCo
         // replies for ban appeals
         case 'bapple': {
             if (subcommand == 'approve') { 
-                await channel.send(`<@${ticketUser}>` + ", " + bappleApprove);
+                await channel.send(`<@${ticketUser}>` + ", " + lang.ticketReply.bapple.approve);
                 await interaction.reply({
-                    content: 'Approve message sent!',
+                    content: lang.ticketReply.bapple.approveSent,
                     ephemeral: true
                 });
             } 
             else if (subcommand == 'deny') { 
-                await channel.send(`<@${ticketUser}>` + ", " + bappleDeny);
+                await channel.send(`<@${ticketUser}>` + ", " + lang.ticketReply.bapple.deny);
                 await interaction.reply({
-                    content: 'Deny message sent!',
+                    content: lang.ticketReply.bapple.denySent,
                     ephemeral: true
                 }); 
             }

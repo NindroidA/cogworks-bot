@@ -18,7 +18,6 @@ export const handleSlashCommand = async(client: Client, interaction: ChatInputCo
             break;
         }
         case 'add-role': {
-            //console.log('bot-setup command received')
             addRoleHandler(client, interaction);
             break;
         }
