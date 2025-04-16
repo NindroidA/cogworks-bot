@@ -46,7 +46,7 @@
             "confirm": "⚠️ Are you sure you want to close this ticket?",
             "closing": "Closing ticket...",
             "cancel": "Ticket close cancelled",
-            "byUser": "User who created a ticket is now closing the ticket...",
+            "byUser": "User has initiated the ticket to close...",
             "transcriptCreate": {
                 "success": "Transcript successfully sent to channel and deleted from memory!",
                 "error": "Error making transcript file!",

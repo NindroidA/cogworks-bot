@@ -1,3 +1,7 @@
+# Dev Update v1.1.0
+- First 'Beta' version! (I'm putting this on a larger server)
+- Fixed tickets so anyone that can view the ticket can close/admin only it (since the logic to make sure only specific roles see tickets is in place)
+
 # Dev Update v1.0.3
 - Utility function for extracting role ids from the database
 - Added 'Admin Only' button next to ticket close button

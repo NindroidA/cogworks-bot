@@ -6,8 +6,13 @@ import { removeRoleHandler } from "./handlers/removeRole";
 import { getRolesHandler } from "./handlers/getRoles";
 
 export const handleSlashCommand = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+    const user = interaction.user.username;
+    const commandName = interaction.commandName;
 
-    switch (interaction.commandName) {
+    // send a log to le console
+    console.log(`User ${user} has issued a command: ${commandName}`);
+
+    switch (commandName) {
         // setup command
         case 'ticket-setup': {
             ticketSetupHandler(client, interaction);

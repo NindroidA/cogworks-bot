@@ -13,7 +13,6 @@ const archivedTicketRepo = AppDataSource.getRepository(ArchivedTicket);
 
 export const ticketCloseEvent = async(client: Client, interaction: ButtonInteraction) => {
     const guildId = interaction.guildId || ''; // guild where the event was initiated
-    const user = interaction.user; // user who initiated the event
     const channel = interaction.channel as GuildTextBasedChannel; // text channel the event was initiated
     const channelId = interaction.channelId || '';
     const transcriptPath = `src/archivedTickets/`; // path to temporarily save ticket transcripts
@@ -25,18 +24,6 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
 
     // check if the ticket exists
     if (!ticket) { return console.log(lang.general.fatalError) };
-
-    // check to see if the user has a saved staff role
-
-
-    // make sure the ticket close is permitted
-    // TODO: add ability for mod role to close it aswell
-    if (user.id === ticket.createdBy) {
-        console.log(lang.ticket.close.byUser);
-
-        // update the ticket status
-        await ticketRepo.update({ id: ticket.id }, { status: 'closed' });
-    }
 
     // get archived channel from ArchivedTicket database using createdBy
     const createdBy = ticket.createdBy;
@@ -114,6 +101,9 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
     } catch (error) {
         return console.error(lang.ticket.close.transcriptDelete.error2, error);
     }
+
+    // update the ticket status 
+    await ticketRepo.update({ id: ticket.id }, { status: 'closed' });
 
     // log success message
     console.log(lang.ticket.close.transcriptCreate.success);
