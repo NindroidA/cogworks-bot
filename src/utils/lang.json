@@ -104,8 +104,20 @@
         "dne": "This role doesn't exist in the database!"
     },
     "getRoles": {
-        "cmdDescrp": "",
+        "cmdDescrp": "Gets your saved roles from the Cogworks database",
         "fail": "Failed to get saved roles!",
         "noGuild": "Your server doesn't have any roles!"
+    },
+    "console": {
+        "createTicketAttempt": "is attempting to create a ticket.",
+        "cancelTicketRequest": "cancelled a ticket request.",
+        "modalSubmit": "submitted modal and a ticket will now be created.",
+        "creatTicketSuccess": "successfully created a ticket!",
+        "adminOnlyAttempt": "is attempting to make a ticket Admin Only.",
+        "adminOnlyConfirm": "confirmed making a ticket Admin Only.",
+        "adminOnlyCancel": "cancelled making a ticket Admin Only.",
+        "closeTicketAttempt": "is attempting to close a ticket.",
+        "closeTicketConfirm": "confirmed closing a ticket",
+        "closeTicketCancel": "cancelled closing a ticket"
     }
 }

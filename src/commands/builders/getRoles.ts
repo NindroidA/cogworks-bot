@@ -4,6 +4,6 @@ import lang from "../../utils/lang.json";
 /* main slash command */
 export const getRoles = new SlashCommandBuilder()
     .setName('get-roles')
-    .setDescription(lang.removeRole.cmdDescrp)
+    .setDescription(lang.getRoles.cmdDescrp)
     .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
     .toJSON();

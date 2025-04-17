@@ -11,9 +11,18 @@ import { removeRole } from './commands/builders/removeRole';
 import { getRoles } from './commands/builders/getRoles';
 dotenv.config();
 
-const TOKEN = process.env.BOT_TOKEN!;
 const GUILD = process.env.GUILD_ID!;
-const CLIENT = process.env.CLIENT_ID!;
+const RELEASE = process.env.RELEASE!;   // determines which bot we're using
+let TOKEN = process.env.BOT_TOKEN!;     // default production bot token
+let CLIENT = process.env.CLIENT_ID!;    // default production bot client
+
+// if release is dev, use development bot credentials
+if (RELEASE == 'dev') {
+    TOKEN = process.env.DEV_BOT_TOKEN!;
+    CLIENT = process.env.DEV_CLIENT_ID!;
+    // log that we're using the development bot
+    console.log('');
+}
 
 const client = new Client({
     intents: [
@@ -38,13 +47,9 @@ const commands: RESTPostAPIApplicationCommandsJSONBody[] = [
     // ticket setup
     ticketSetup,
 
-    // ticket adminOnly
     // ticket reply 
-        // bapple (approve/deny)
     ticketReply,
 
-    // set 'moderator' role
-    // set admin role
 ];
 
 client.once('ready', () => {
@@ -52,8 +57,6 @@ client.once('ready', () => {
 });
 
 client.on('interactionCreate', async (interaction) => {
-    //if (!interaction.isCommand()) return;
-  
     if (interaction.isChatInputCommand()) {
       client.emit('chatInputCommand', client, interaction);
     } else if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
