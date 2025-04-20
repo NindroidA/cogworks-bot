@@ -11,7 +11,7 @@ import { removeRole } from './commands/builders/removeRole';
 import { getRoles } from './commands/builders/getRoles';
 dotenv.config();
 
-const GUILD = process.env.GUILD_ID!;
+const GUILD = process.env.GUILD_ID!;    // (want to eventually deprecate this)
 const RELEASE = process.env.RELEASE!;   // determines which bot we're using
 let TOKEN = process.env.BOT_TOKEN!;     // default production bot token
 let CLIENT = process.env.CLIENT_ID!;    // default production bot client
@@ -37,19 +37,11 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 /* Slash Commands */
 const commands: RESTPostAPIApplicationCommandsJSONBody[] = [
-    // add/remove roles
-    addRole,
-    removeRole,
-
-    // get roles
-    getRoles,
-
-    // ticket setup
-    ticketSetup,
-
-    // ticket reply 
-    ticketReply,
-
+    addRole,        // add a role
+    removeRole,     // remove a role
+    getRoles,       // get roles
+    ticketSetup,    // ticket setup
+    ticketReply,    // ticket reply
 ];
 
 client.once('ready', () => {
@@ -72,13 +64,27 @@ client.on('buttonInteraction', handleTicketInteraction);
 // main function to do all the things
 async function main() {
     try {
-        await rest.put(Routes.applicationGuildCommands(CLIENT, GUILD), {
+        // remove any 'guild specific' commands we had in place
+        // (this will eventually be removed once i'm done doing the things)
+        await rest.put(Routes.applicationGuildCommands(CLIENT, GUILD), { 
+                body: [], // empty array removes all commands
+            });
+
+        // remove any application commands we had in place (refresh it basically)
+        await rest.put(Routes.applicationCommands(CLIENT), {
+            body: [],
+        });
+
+        // register le commands we currently have
+        await rest.put(Routes.applicationCommands(CLIENT), {
             body: commands,
         });
+
+        // initialize typeORM shtuff
         await AppDataSource.initialize();
         client.login(TOKEN);
     } catch(err) {
-        console.log(err);
+        console.log("Startup Error:", err);
     }
 }
 

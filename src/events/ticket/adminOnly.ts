@@ -12,6 +12,8 @@ export const ticketAdminOnlyEvent = async(client: Client, interaction: ButtonInt
     const channel = interaction.channel as TextChannel;
     const channelId = interaction.channelId;
     const guild = interaction.guild;
+    const user = interaction.user.displayName;
+    const userId = interaction.user.id;
     const ticket = await ticketRepo.findOneBy({ channelId: channelId });
 
     if (!guild) { 
@@ -24,6 +26,15 @@ export const ticketAdminOnlyEvent = async(client: Client, interaction: ButtonInt
 
     // check if the ticket exists in the database
     if (!ticket) { return console.log(lang.general.fatalError); }
+
+    // check if the person hitting the button is the ticket creator
+    if (userId == ticket.createdBy) {
+        // send a request message (for a staff member to do it for them)
+        await channel.send({
+            content: `❗Oh, Mods!❗ ${user} ` + lang.ticket.adminOnly.request
+        });
+        return;
+    }
 
     const savedRoles = await savedRoleRepo.createQueryBuilder()
         .select(['role'])

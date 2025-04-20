@@ -1,3 +1,7 @@
+# Dev Update v1.1.2
+- Made it so when the ticket creator presses the Admin Only button, instead of running the logic it will send a request so that a staff member can do it.
+- Fixed slash commands only showing up on set discord server
+
 # Dev Update v1.1.1
 - Added logic for determining if we're using the Production bot or the Development bot
 - Added more console logging

@@ -40,7 +40,8 @@
         "adminOnly": {
             "confirm": "⚠️ Are you sure you want to make this ticket Admin Only?",
             "changing": "Changing to Admin Only...",
-            "cancel": "Change to Admin Only canceled."
+            "cancel": "Change to Admin Only canceled.",
+            "request": "has requested to make this ticket Admin Only."
         },
         "close": {
             "confirm": "⚠️ Are you sure you want to close this ticket?",

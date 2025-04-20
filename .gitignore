@@ -2,3 +2,4 @@ dist
 .env
 node_modules
 archivedTickets
+src/utils/baResponses.json
