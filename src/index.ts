@@ -73,11 +73,10 @@ client.once('ready', () => {
 async function main() {
     try {
 
-        /*
         // remove any application commands we had in place (refresh it basically)
         await rest.put(Routes.applicationCommands(CLIENT), {
             body: [],
-        });*/
+        });
 
         // register le commands we currently have
         await rest.put(Routes.applicationCommands(CLIENT), {

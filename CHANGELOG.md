@@ -1,3 +1,6 @@
+# Dev Update v1.2.2
+- Just fixed a lil oopsie :3
+
 # Dev Update v1.2.1
 - Ticket creator and staff can send reactions, emojis, and attachments in tickets
 - Added command `/bot-setup` that allows for some initial configuration. 
