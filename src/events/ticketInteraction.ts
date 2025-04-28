@@ -126,7 +126,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
                     description = await banAppealMessage(fields);
                     break;
                 case 'player_report':
-                    description = await playerReportMessage(fields);
+                    description = await playerReportMessage(fields, interaction);
                     break;
                 case 'bug_report':
                     description = await bugReportMessage(fields);
@@ -155,7 +155,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             // base perms
             const permOverwrites = [
                 { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, // deny everyone
-                { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }, // allow ticket creator
+                { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.AddReactions, PermissionFlagsBits.UseExternalEmojis] }, // allow ticket creator
             ];
 
             // add permissions for each staff/admin role
@@ -167,7 +167,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
                 }
 
                 permOverwrites.push(
-                    { id: roleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
+                    { id: roleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.AddReactions, PermissionFlagsBits.UseExternalEmojis] }
                 );
             });
 
@@ -297,5 +297,16 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             content: lang.ticket.close.cancel,
             components: [],
         });
+    }
+
+    /* BOTSETUP SHTUFF */
+    /* Select 1 Yes */
+    if (interaction.isButton() && interaction.customId === 'botsetup_s1_yes') {
+        console.log();
+    }
+
+    /* Select 1 No */
+    if (interaction.isButton() && interaction.customId === 'botsetup_s1_no') {
+        console.log();
     }
 }

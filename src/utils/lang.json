@@ -1,9 +1,26 @@
 {
     "general": {
+        "presenceMsg": "⚙️ LOOK AT ME GO!",
+        "usingDev": "Using the Dev Bot!",
         "fatalError": "There was a fatal error! Please contact your admin!",
         "channelNotFound": "The selected channel was not found.",
         "cmdTicketNotFound": "This command can only be used in a ticket!",
         "cmdGuildNotFound": "This command can only be used in a server!"
+    },
+    "botConfig": {
+        "notFound": "This server has not setup a Bot Config!",
+        "noStaffRole": "This server has not setup a Global Staff Role but has it enabled!"
+    },
+    "botSetup": {
+        "cmdDescrp": "Sets up the bot for your server",
+        "error": "❌ An error occured!",
+        "timeout": "⏳ Setup Timed Out!",
+        "fail": "❌ Setup Failed!",
+        "select1": "Would you like to enable a Global Staff Role?",
+        "select2": "Please select which role you would like to be the Global Staff Role.",
+        "select3": "Bot Setup Complete!",
+        "noRoleSelected": "No role was selected.",
+        "roleSelectTimeout": "Role selection timed out."
     },
     "ticketSetup": {
         "cmdDescrp": "Initializes bot ticketing system",

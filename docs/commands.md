@@ -1,5 +1,8 @@
 # Admin Commands
 ## Setup
+### Bot Setup
+`/bot-setup`
+
 ### Ticket Setup
 `/ticket-setup channel [channel]`
 - [channel] Text channel to send the setup message to

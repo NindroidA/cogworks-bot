@@ -1,7 +1,8 @@
 # Priority
-[] deprecate the env variable GUILD_ID
+[] clean up the new bot setup shtuff
 
 # Here-and-There
+[] maybe make it easier to set things up instead of having multiple different commands
 [] have a way to transfer email appeals/tickets into the discord
 [] make the console logging a lot better in case of unknown issues
 
@@ -19,3 +20,8 @@
 [x] Handle a better way to allow ticket creators to use the Admin Only button
 [x] make more replies for bapples (like our shtuff)
 [x] fix slash commands only showing up on one server
+[x] deprecate the env variable GUILD_ID
+[x] make sure the ticket creator can send images into tickets
+[x] make a config option for a global staff role
+[x] when a player report ticket is made, @ the global staff role
+[x] actually get the custom status working lol

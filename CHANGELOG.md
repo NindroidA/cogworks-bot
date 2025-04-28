@@ -1,3 +1,14 @@
+# Dev Update v1.2.1
+- Ticket creator and staff can send reactions, emojis, and attachments in tickets
+- Added command `/bot-setup` that allows for some initial configuration. 
+- If the bot setup has not been ran, no other commands are usable.
+- Added Global Staff Role which can be configured in the bot setup.
+- When a player report ticket is made, if the Global Staff Role is enabled and set, then that role will be mentioned in the main message of the ticket.
+- Added custom presense
+
+# Dev Update v1.1.3
+- Deprecated env variable GUILD_ID since it isn't necessary now
+
 # Dev Update v1.1.2
 - Made it so when the ticket creator presses the Admin Only button, instead of running the logic it will send a request so that a staff member can do it.
 - Fixed slash commands only showing up on set discord server
