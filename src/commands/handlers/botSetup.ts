@@ -81,7 +81,7 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
                     embeds: []
                 });
 
-                // Role selection collector
+                // role selection collector
                 const roleCollector = roleMessage.createMessageComponentCollector({
                     componentType: ComponentType.RoleSelect,
                     time: TIMEOUT,
@@ -95,6 +95,7 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
                             content: lang.botSetup.noRoleSelected, 
                             components: [] 
                         });
+                        buttonCollector.stop();
                         return roleCollector.stop();
                     }
 
@@ -103,6 +104,7 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
                         enableGlobalStaffRole: true, 
                         globalStaffRole: role.toString() 
                     });
+                    buttonCollector.stop();
                     roleCollector.stop();
                 });
 
@@ -151,7 +153,7 @@ async function saveConfig(interaction: any, config: Partial<BotConfig>) {
     await repo.save(repo.create(config));
     await interaction.update({
         content: `✅ Config saved: ${config.enableGlobalStaffRole ? 
-            `Staff role enabled (<@&${config.globalStaffRole}>)` : 
+            `Staff role enabled (${config.globalStaffRole})` : 
             "Staff role disabled"}`,
         components: [],
         embeds: []
@@ -163,7 +165,7 @@ async function updateConfig(interaction: any, config: BotConfig) {
     await repo.save(config);
     await interaction.update({
         content: `✅ Config updated: ${config.enableGlobalStaffRole ? 
-            `Staff role enabled (<@&${config.globalStaffRole}>)` : 
+            `Staff role enabled (${config.globalStaffRole})` : 
             "Staff role disabled"}`,
         components: [],
         embeds: []
@@ -217,6 +219,7 @@ async function handleExistingConfig(interaction: ChatInputCommandInteraction<Cac
                         content: "No role selected", 
                         components: [] 
                     });
+                    buttonCollector.stop();
                     return roleCollector.stop();
                 }
 
@@ -225,6 +228,7 @@ async function handleExistingConfig(interaction: ChatInputCommandInteraction<Cac
 
                 await updateConfig(roleInteraction, config);
                 
+                buttonCollector.stop();
                 roleCollector.stop();
             });
 

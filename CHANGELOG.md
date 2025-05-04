@@ -1,3 +1,7 @@
+# Dev Update v1.2.3
+- Fixed bot-setup rollCollector/buttonCollector not technically stopping (just end up showing the timeout message)
+- Cleaned up a few lang shtuff to make it nicer
+
 # Dev Update v1.2.2
 - Just fixed a lil oopsie :3
 
