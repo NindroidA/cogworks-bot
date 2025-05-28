@@ -1,8 +1,8 @@
-name: Changelog Update
+name: Discord Changelog Update
 
 on:
   push:
-    branches: [main] # or your default branch
+    branches: [main]
     paths:
       - 'CHANGELOG.md'
 
@@ -10,57 +10,44 @@ jobs:
   send-changelog:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      - name: Get changelog diff
-        id: changelog_diff
+      - name: Get changelog changes
+        id: changes
         run: |
-          # get the latest changes from the changelog
-          DIFF=$(git diff HEAD~1 HEAD -- changelog.md || git diff HEAD~1 HEAD -- CHANGELOG.md)
+          # Get the changes from changelog
+          CHANGES=$(git diff HEAD~1 HEAD -- changelog.md CHANGELOG.md | grep "^+" | grep -v "^+++" | sed 's/^+//' | head -5)
           
-          # extract only added lines
-          ADDED_LINES=$(echo "$DIFF" | grep "^+" | grep -v "^+++" | sed 's/^+//')
+          # If no changes in diff, use commit message
+          if [ -z "$CHANGES" ]; then
+            CHANGES="${{ github.event.head_commit.message }}"
+          fi
           
-          # escape the content for JSON
-          ESCAPED_CONTENT=$(echo "$ADDED_LINES" | jq -sR .)
+          # Clean up and format
+          CHANGES=$(echo "$CHANGES" | head -c 400 | sed 's/"/\\"/g')
           
-          # store in output
-          echo "content<<EOF" >> $GITHUB_OUTPUT
-          echo "$ESCAPED_CONTENT" >> $GITHUB_OUTPUT
+          # Set output
+          echo "changes<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Send to Discord
+      - name: Send to Discord Webhook
+        uses: Ilshidur/action-discord@master
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        run: |
-          # Create the webhook payload
-          CONTENT=${{ steps.changelog_diff.outputs.content }}
-          
-          # Format the message
-          MESSAGE=$(cat <<EOF
-          {
-            "embeds": [{
-              "title": "📋 Bot Update",
-              "description": "New changes have been pushed!",
-              "color": 3066993,
-              "fields": [{
-                "name": "Latest Changes",
-                "value": ${CONTENT:0:1000}
-              }],
-              "footer": {
-                "text": "Commit: ${{ github.sha }}"
-              },
-              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            }]
-          }
-          EOF
-          )
-          
-          # Send to Discord
-          curl -H "Content-Type: application/json" \
-               -X POST \
-               -d "$MESSAGE" \
-               "$DISCORD_WEBHOOK"
+        with:
+          args: |
+            **📋 Cogworks Bot Update**
+            
+            New changes have been pushed to the repository!
+            
+            **Changes:**
+            ```
+            ${{ steps.changes.outputs.changes }}
+            ```
+            
+            **Repository:** ${{ github.repository }}
+            **Commit:** ${{ github.sha }}

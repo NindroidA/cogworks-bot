@@ -1,3 +1,6 @@
+# Dev Update v1.3.2
+- (Hopefully) fixed github action to actually work.
+
 # Dev Update v1.3.1
 - Fixed small format issue with player report ticket and global staff command. 
 - (Cogdeck is NOT aincluded in this update, as it is still in development)
