@@ -1,5 +1,5 @@
 import { PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
-import lang from "../../utils/lang.json";
+import lang from '../../utils/lang.json';
 
 /* subcommands */
 const staff = new SlashCommandSubcommandBuilder()

@@ -1,11 +1,30 @@
 {
     "general": {
-        "presenceMsg": "⚙️ YOU SPIN ME RIGHT ROUND!",
-        "usingDev": "Using the Dev Bot!",
+        "presenceMsg": "⚙️ Look at me go!",
+        "descriptionMsg": "A special lil bot made by a special lil Nindroid :3",
         "fatalError": "There was a fatal error! Please contact your admin!",
         "channelNotFound": "The selected channel was not found.",
         "cmdTicketNotFound": "This command can only be used in a ticket!",
         "cmdGuildNotFound": "This command can only be used in a server!"
+    },
+    "main": {
+        "usingDev": "Using the Dev Bot!",
+        "ready": "Logged in as ",
+        "error": "Startup Error: ",
+        "regCmdsSuccess": "Registered commands for guild: ",
+        "regCmdsFail": "Failed to register commands for guild "
+    },
+    "console": {
+        "createTicketAttempt": "is attempting to create a ticket.",
+        "cancelTicketRequest": "cancelled a ticket request.",
+        "modalSubmit": "submitted modal and a ticket will now be created.",
+        "creatTicketSuccess": "successfully created a ticket!",
+        "adminOnlyAttempt": "is attempting to make a ticket Admin Only.",
+        "adminOnlyConfirm": "confirmed making a ticket Admin Only.",
+        "adminOnlyCancel": "cancelled making a ticket Admin Only.",
+        "closeTicketAttempt": "is attempting to close a ticket.",
+        "closeTicketConfirm": "confirmed closing a ticket",
+        "closeTicketCancel": "cancelled closing a ticket"
     },
     "botConfig": {
         "notFound": "This server has not setup a Bot Config!",
@@ -126,16 +145,7 @@
         "fail": "Failed to get saved roles!",
         "noGuild": "Your server doesn't have any roles!"
     },
-    "console": {
-        "createTicketAttempt": "is attempting to create a ticket.",
-        "cancelTicketRequest": "cancelled a ticket request.",
-        "modalSubmit": "submitted modal and a ticket will now be created.",
-        "creatTicketSuccess": "successfully created a ticket!",
-        "adminOnlyAttempt": "is attempting to make a ticket Admin Only.",
-        "adminOnlyConfirm": "confirmed making a ticket Admin Only.",
-        "adminOnlyCancel": "cancelled making a ticket Admin Only.",
-        "closeTicketAttempt": "is attempting to close a ticket.",
-        "closeTicketConfirm": "confirmed closing a ticket",
-        "closeTicketCancel": "cancelled closing a ticket"
+    "cogdeck": {
+        "cmdDescrp": "Base command for the Cogworks Card Game"
     }
 }

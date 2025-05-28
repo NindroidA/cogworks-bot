@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Client, ChatInputCommandInteraction, CacheType, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, RoleSelectMenuBuilder, ComponentType } from "discord.js";
-import lang from "../../utils/lang.json";
-import { BotConfig } from "../../typeorm/entities/BotConfig";
-import { AppDataSource } from "../../typeorm";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, ChatInputCommandInteraction, Client, ComponentType, EmbedBuilder, RoleSelectMenuBuilder } from 'discord.js';
+import { AppDataSource } from '../../typeorm';
+import { BotConfig } from '../../typeorm/entities/BotConfig';
+import lang from '../../utils/lang.json';
 
 export const botSetupNotFound = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
     console.log(lang.botConfig.notFound);
@@ -10,7 +10,7 @@ export const botSetupNotFound = async(client: Client, interaction: ChatInputComm
         content: lang.botConfig.notFound,
         ephemeral: true
     });
-}
+};
 
 const TIMEOUT = 60_000; // 1 minute timeout
 
@@ -23,20 +23,20 @@ const embed1 = new EmbedBuilder()
 // buttons for initial embed
 const buttons1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-        .setCustomId("enable_staff_role")
-        .setLabel("Enable")
+        .setCustomId('enable_staff_role')
+        .setLabel('Enable')
         .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
-        .setCustomId("disable_staff_role")
-        .setLabel("Disable")
+        .setCustomId('disable_staff_role')
+        .setLabel('Disable')
         .setStyle(ButtonStyle.Danger)
 );
 
 // role selector dropbox
 const roleDropbox = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(
     new RoleSelectMenuBuilder()
-        .setCustomId("staff_role_select")
-        .setPlaceholder("Choose a role")
+        .setCustomId('staff_role_select')
+        .setPlaceholder('Choose a role')
         .setMinValues(1)
         .setMaxValues(1)
 );
@@ -69,14 +69,14 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
 
         buttonCollector.on('collect', async buttonInteraction => {
             try {
-                if (buttonInteraction.customId === "disable_staff_role") {
+                if (buttonInteraction.customId === 'disable_staff_role') {
                     await saveConfig(buttonInteraction, { guildId, enableGlobalStaffRole: false });
                     return buttonCollector.stop();
                 }
 
                 // role selection
                 const roleMessage = await buttonInteraction.update({
-                    content: "Select staff role:",
+                    content: 'Select staff role:',
                     components: [roleDropbox],
                     embeds: []
                 });
@@ -109,7 +109,7 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
                 });
 
                 roleCollector.on('end', async () => {
-                    if (roleCollector.endReason !== "time") return;
+                    if (roleCollector.endReason !== 'time') return;
                     await roleMessage.edit({ 
                         content: lang.botSetup.roleSelectTimeout, 
                         components: [] 
@@ -117,7 +117,7 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
                 });
 
             } catch (error) {
-                console.error("Button handler error:", error);
+                console.error('Button handler error:', error);
                 await buttonInteraction.followUp({ 
                     content: lang.botSetup.error, 
                     ephemeral: true 
@@ -126,7 +126,7 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
         });
 
         buttonCollector.on('end', async (collected, reason) => {
-            if (reason !== "time") return;
+            if (reason !== 'time') return;
             // update the message, remove components and embeds
             await setupMessage.edit({ 
                 content: lang.botSetup.timeout, 
@@ -136,7 +136,7 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
         });
 
     } catch (error) {
-        console.error("Setup error:", error);
+        console.error('Setup error:', error);
         if (interaction.replied || interaction.deferred) {
             await interaction.editReply(lang.botSetup.fail);
         } else {
@@ -154,7 +154,7 @@ async function saveConfig(interaction: any, config: Partial<BotConfig>) {
     await interaction.update({
         content: `✅ Config saved: ${config.enableGlobalStaffRole ? 
             `Staff role enabled (${config.globalStaffRole})` : 
-            "Staff role disabled"}`,
+            'Staff role disabled'}`,
         components: [],
         embeds: []
     });
@@ -166,7 +166,7 @@ async function updateConfig(interaction: any, config: BotConfig) {
     await interaction.update({
         content: `✅ Config updated: ${config.enableGlobalStaffRole ? 
             `Staff role enabled (${config.globalStaffRole})` : 
-            "Staff role disabled"}`,
+            'Staff role disabled'}`,
         components: [],
         embeds: []
     });
@@ -192,7 +192,7 @@ async function handleExistingConfig(interaction: ChatInputCommandInteraction<Cac
 
     buttonCollector.on('collect', async buttonInteraction => {
         try {
-            if (buttonInteraction.customId === "disable_staff_role") {
+            if (buttonInteraction.customId === 'disable_staff_role') {
                 config.enableGlobalStaffRole = false;
                 await updateConfig(buttonInteraction, config);
                 return buttonCollector.stop();
@@ -216,7 +216,7 @@ async function handleExistingConfig(interaction: ChatInputCommandInteraction<Cac
                 const role = roleInteraction.roles.first();
                 if (!role) {
                     await roleInteraction.update({ 
-                        content: "No role selected", 
+                        content: 'No role selected', 
                         components: [] 
                     });
                     buttonCollector.stop();
@@ -233,14 +233,14 @@ async function handleExistingConfig(interaction: ChatInputCommandInteraction<Cac
             });
 
             roleCollector.on('end', async () => {
-                if (roleCollector.endReason !== "time") return;
+                if (roleCollector.endReason !== 'time') return;
                 await roleMessage.edit({ 
                     content: lang.botSetup.timeout, 
                     components: [] 
                 });
             });
         } catch (error) {
-            console.error("Button handler error:", error);
+            console.error('Button handler error:', error);
             await buttonInteraction.followUp({ 
                 content: lang.botSetup.error, 
                 ephemeral: true 

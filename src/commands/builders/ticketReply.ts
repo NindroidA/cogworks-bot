@@ -1,5 +1,5 @@
-import { PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder, SlashCommandSubcommandGroupBuilder } from "discord.js";
-import lang from "../../utils/lang.json";
+import { PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder, SlashCommandSubcommandGroupBuilder } from 'discord.js';
+import lang from '../../utils/lang.json';
 
 /* subcommands */
 const approve = new SlashCommandSubcommandBuilder()

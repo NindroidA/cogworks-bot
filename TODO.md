@@ -1,12 +1,16 @@
 # Priority
+[] implement the new card and card ability tables into the battle manager logic
+[] create sql dump file for card and card ability tables
+[] have a way to transfer email appeals/tickets into the discord
 [] clean up the new bot setup shtuff
 
 # Here-and-There
 [] maybe make it easier to set things up instead of having multiple different commands
-[] have a way to transfer email appeals/tickets into the discord
 [] make the console logging a lot better in case of unknown issues
 
 # Back-Burner
+[] i kinda wanna make a card game so to say
+[] have a bot log system
 [] maybe change the admin only replies just to make things look nicer (not a priority)
 [] maybe make an archive for tickets that are made admin only?
 [] maybe make a revert button for the admin only button?
@@ -25,3 +29,4 @@
 [x] make a config option for a global staff role
 [x] when a player report ticket is made, @ the global staff role
 [x] actually get the custom status working lol
+[x] do some type shite for slash commands where we yoink the guilds that have done the bot setup command (from bot config) and use guild commands, otherwise stick to application commands

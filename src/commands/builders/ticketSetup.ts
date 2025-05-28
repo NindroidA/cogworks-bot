@@ -1,5 +1,5 @@
 import { ChannelType, PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
-import lang from "../../utils/lang.json";
+import lang from '../../utils/lang.json';
 
 /* subcommands */
 const channel = new SlashCommandSubcommandBuilder()

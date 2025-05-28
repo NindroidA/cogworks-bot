@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ModalBuilder, TextInputStyle, TextInputBuilder, ModalSubmitFields} from "discord.js";
+import { ActionRowBuilder, ModalBuilder, ModalSubmitFields, TextInputBuilder, TextInputStyle } from 'discord.js';
 
 export const banAppealModal = async(modal: ModalBuilder) => {
     const modalIGN = new ActionRowBuilder<TextInputBuilder>().addComponents(
@@ -38,14 +38,14 @@ export const banAppealModal = async(modal: ModalBuilder) => {
     );
 
     return modal.addComponents(modalIGN, modalRFB, modalDOB, modalS, modalR);
-}
+};
 
 export const banAppealMessage = async(fields: ModalSubmitFields) => {
-    const header = `# Ban Appeal\n`;
+    const header = '# Ban Appeal\n';
     const ign = `In Game Name: ${fields.getTextInputValue('appeal_ign_input')}\n`;
     const rfb = `Reason for Ban: ${fields.getTextInputValue('appeal_rfb_input')}\n`;
     const dob = `Date of Ban: ${fields.getTextInputValue('appeal_dob_input')}\n`;
     const s = `Staff who banned you: ${fields.getTextInputValue('appeal_staff_input')}\n\n`;
     const r = `Why you think you should be unbanned: ${fields.getTextInputValue('appeal_reason_input')}\n`;
     return header + ign + rfb + dob + s + r;
-}
+};

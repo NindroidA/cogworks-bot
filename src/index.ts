@@ -1,17 +1,19 @@
 import { Client, GatewayIntentBits, REST, RESTPostAPIApplicationCommandsJSONBody, Routes } from 'discord.js';
 import dotenv from 'dotenv';
 import 'reflect-metadata';
-import { handleSlashCommand } from './commands/commands';
-import { AppDataSource } from './typeorm';
-import { handleTicketInteraction } from './events/ticketInteraction';
-import { ticketSetup } from './commands/builders/ticketSetup';
-import { ticketReply } from './commands/builders/ticketReply';
 import { addRole } from './commands/builders/addRole';
-import { removeRole } from './commands/builders/removeRole';
-import { getRoles } from './commands/builders/getRoles';
-import lang from './utils/lang.json';
 import { botSetup } from './commands/builders/botSetup';
-import { setStatus } from './utils/setStatus';
+import { cogdeck } from './commands/builders/cogdeck';
+import { getRoles } from './commands/builders/getRoles';
+import { removeRole } from './commands/builders/removeRole';
+import { ticketReply } from './commands/builders/ticketReply';
+import { ticketSetup } from './commands/builders/ticketSetup';
+import { handleSlashCommand } from './commands/commands';
+import { handleTicketInteraction } from './events/ticketInteraction';
+import { AppDataSource } from './typeorm';
+import { BotConfig } from './typeorm/entities/BotConfig';
+import lang from './utils/lang.json';
+import { setDescription, setStatus } from './utils/profileFunctions';
 dotenv.config();
 
 const RELEASE = process.env.RELEASE!;   // determines which bot we're using
@@ -23,7 +25,7 @@ if (RELEASE == 'dev') {
     TOKEN = process.env.DEV_BOT_TOKEN!;
     CLIENT = process.env.DEV_CLIENT_ID!;
     // log that we're using the development bot
-    console.log(lang.general.usingDev);
+    console.log(lang.main.usingDev);
 }
 
 const client = new Client({
@@ -45,6 +47,7 @@ const commands: RESTPostAPIApplicationCommandsJSONBody[] = [
     getRoles,       // get roles
     ticketSetup,    // ticket setup
     ticketReply,    // ticket reply
+    cogdeck,        // cogworks card game
 ];
 
 client.on('interactionCreate', async (interaction) => {
@@ -63,33 +66,57 @@ client.on('buttonInteraction', handleTicketInteraction);
 // once we reday, LEGGO
 client.once('ready', () => {
     // log that we logged in
-    console.log(`Logged in as ${client.user?.tag}`);
+    console.log(lang.main.ready + `${client.user?.tag}`);
 
     // set status
     setStatus(client);
+
+    // set description
+    setDescription(client);
 });
 
 // main function to do all the things
 async function main() {
     try {
 
-        // remove any application commands we had in place (refresh it basically)
+        // remove any global application commands we had in place (refresh it)
         await rest.put(Routes.applicationCommands(CLIENT), {
             body: [],
-        });
-
-        // register le commands we currently have
-        await rest.put(Routes.applicationCommands(CLIENT), {
-            body: commands,
         });
 
         // initialize typeORM shtuff
         await AppDataSource.initialize();
 
+        // get all guild ids that have done the bot setup
+        const botConfigRepo = AppDataSource.getRepository(BotConfig);
+        const botConfig = await botConfigRepo.find();
+
+        // set for guilds that have registered commands
+        const registeredGuildIds = new Set();
+
+        // register commands for each guild found in database
+        for (const config of botConfig) {
+            try {
+                await rest.put(Routes.applicationGuildCommands(CLIENT, config.guildId), {
+                    body: commands,
+                });
+                registeredGuildIds.add(config.guildId);
+                console.log(lang.main.regCmdsSuccess + `${config.guildId}`);
+            } catch (error) {
+                console.error(lang.main.regCmdsFail + `${config.guildId}:`, error);
+            }
+        }
+
+        /*
+        // register le commands for guilds we don't have the id for
+        await rest.put(Routes.applicationCommands(CLIENT), {
+            body: commands,
+        }); */
+
         // log in
         client.login(TOKEN);
-    } catch(err) {
-        console.log("Startup Error:", err);
+    } catch(error) {
+        console.error(lang.main.error, error);
     }
 }
 

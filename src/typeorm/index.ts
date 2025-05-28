@@ -1,12 +1,12 @@
-import { DataSource } from 'typeorm';
 import dotenv from 'dotenv';
-import { TicketConfig } from './entities/TicketConfig';
-import { Ticket } from './entities/Ticket';
-import { ArchivedTicketConfig } from './entities/ArchivedTicketConfig';
+import { DataSource } from 'typeorm';
 import { ArchivedTicket } from './entities/ArchivedTicket';
-import { ServerConfig } from './entities/ServerConfig';
-import { SavedRole } from './entities/SavedRole';
+import { ArchivedTicketConfig } from './entities/ArchivedTicketConfig';
 import { BotConfig } from './entities/BotConfig';
+import { SavedRole } from './entities/SavedRole';
+import { ServerConfig } from './entities/ServerConfig';
+import { Ticket } from './entities/Ticket';
+import { TicketConfig } from './entities/TicketConfig';
 dotenv.config();
 
 export const AppDataSource = new DataSource({
@@ -18,4 +18,5 @@ export const AppDataSource = new DataSource({
     database: process.env.MYSQL_DB_DATABASE,
     synchronize: true,
     entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, ServerConfig, SavedRole, BotConfig],
+    // entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, ServerConfig, SavedRole, BotConfig, BattleAbilityUses, BattleCardStates, GameSession, PlayerStats],
 });

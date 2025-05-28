@@ -1,8 +1,8 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, TextChannel, ChatInputCommandInteraction, CacheType, ForumChannel, CategoryChannel } from "discord.js";
-import { AppDataSource } from "../../typeorm";
-import { TicketConfig } from "../../typeorm/entities/TicketConfig";
-import { ArchivedTicketConfig } from "../../typeorm/entities/ArchivedTicketConfig";
-import lang from "../../utils/lang.json";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, CategoryChannel, ChatInputCommandInteraction, Client, ForumChannel, TextChannel } from 'discord.js';
+import { AppDataSource } from '../../typeorm';
+import { ArchivedTicketConfig } from '../../typeorm/entities/ArchivedTicketConfig';
+import { TicketConfig } from '../../typeorm/entities/TicketConfig';
+import lang from '../../utils/lang.json';
 
 const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
 const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
@@ -29,7 +29,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
         const mainMsg = {
             content: lang.ticketSetup.createTicket,
             components: [row],
-        }
+        };
         
         // make sure the channel exists
         if (!channel) {
@@ -190,4 +190,4 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
             });
         }
     }
-}
+};

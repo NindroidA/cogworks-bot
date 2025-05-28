@@ -1,13 +1,14 @@
-import { Client, ChatInputCommandInteraction, CacheType } from "discord.js";
-import { ticketSetupHandler } from "./handlers/ticketSetup";
-import { ticketReplyHandler } from "./handlers/ticketReply";
-import { addRoleHandler } from "./handlers/addRole";
-import { removeRoleHandler } from "./handlers/removeRole";
-import { getRolesHandler } from "./handlers/getRoles";
-import { AppDataSource } from "../typeorm";
-import { BotConfig } from "../typeorm/entities/BotConfig";
-import lang from "../utils/lang.json";
-import { botSetupHandler, botSetupNotFound } from "./handlers/botSetup";
+import { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
+import { AppDataSource } from '../typeorm';
+import { BotConfig } from '../typeorm/entities/BotConfig';
+import lang from '../utils/lang.json';
+import { addRoleHandler } from './handlers/addRole';
+import { botSetupHandler, botSetupNotFound } from './handlers/botSetup';
+import { cogdeckHandler } from './handlers/cogdeck';
+import { getRolesHandler } from './handlers/getRoles';
+import { removeRoleHandler } from './handlers/removeRole';
+import { ticketReplyHandler } from './handlers/ticketReply';
+import { ticketSetupHandler } from './handlers/ticketSetup';
 
 export const handleSlashCommand = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
     const user = interaction.user.username;
@@ -55,6 +56,10 @@ export const handleSlashCommand = async(client: Client, interaction: ChatInputCo
                 getRolesHandler(client, interaction);
                 break;
             }
+            case 'cogdeck': {
+                cogdeckHandler(client, interaction);
+                break;
+            }
         }
     }
-}
+};

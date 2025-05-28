@@ -1,18 +1,18 @@
-import { Interaction, ActionRowBuilder, GuildMember, TextChannel, Client, ButtonBuilder, ButtonStyle, ModalBuilder, PermissionFlagsBits } from "discord.js";
-import { AppDataSource } from "../typeorm";
-import { TicketConfig } from "../typeorm/entities/TicketConfig";
-import { Ticket } from "../typeorm/entities/Ticket";
-import { ticketCloseEvent } from "./ticket/close";
-import { ageVerifyMessage, ageVerifyModal } from "./ticket/ageVerify";
-import { banAppealMessage, banAppealModal } from "./ticket/banAppeal";
-import { playerReportMessage, playerReportModal } from "./ticket/playerReport";
-import { bugReportMessage, bugReportModal } from "./ticket/bugReport";
-import { otherMessage, otherModal } from "./ticket/other";
-import { ticketOptions } from "./ticket";
-import { SavedRole } from "../typeorm/entities/SavedRole";
-import { ticketAdminOnlyEvent } from "./ticket/adminOnly";
-import { extractIdFromMention } from "../utils/extractIdFromMention";
-import lang from "../utils/lang.json";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GuildMember, Interaction, ModalBuilder, PermissionFlagsBits, TextChannel } from 'discord.js';
+import { AppDataSource } from '../typeorm';
+import { SavedRole } from '../typeorm/entities/SavedRole';
+import { Ticket } from '../typeorm/entities/Ticket';
+import { TicketConfig } from '../typeorm/entities/TicketConfig';
+import { extractIdFromMention } from '../utils/extractIdFromMention';
+import lang from '../utils/lang.json';
+import { ticketOptions } from './ticket';
+import { ticketAdminOnlyEvent } from './ticket/adminOnly';
+import { ageVerifyMessage, ageVerifyModal } from './ticket/ageVerify';
+import { banAppealMessage, banAppealModal } from './ticket/banAppeal';
+import { bugReportMessage, bugReportModal } from './ticket/bugReport';
+import { ticketCloseEvent } from './ticket/close';
+import { otherMessage, otherModal } from './ticket/other';
+import { playerReportMessage, playerReportModal } from './ticket/playerReport';
 
 const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
 const ticketRepo = AppDataSource.getRepository(Ticket);
@@ -85,7 +85,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
                 break;
         }
 
-        await interaction.showModal(modal)
+        await interaction.showModal(modal);
     }
 
     // handle modal submission
@@ -202,7 +202,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             const welc = await newChannel.send({
                 content: welcomeMsg,
                 components: [buttonOptions],
-            })
+            });
             await newChannel.send(descriptionMsg);
 
             ticketRepo.update({ id: savedTicket.id }, {
@@ -214,7 +214,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             console.log(`User ${user} ` + lang.console.creatTicketSuccess);
 
         } catch (error) {
-            console.log(lang.ticket.error + " " + error);
+            console.log(lang.ticket.error + ' ' + error);
             await interaction.reply({
                 content: lang.ticket.error,
                 ephemeral: true
@@ -309,4 +309,4 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
     if (interaction.isButton() && interaction.customId === 'botsetup_s1_no') {
         console.log();
     }
-}
+};

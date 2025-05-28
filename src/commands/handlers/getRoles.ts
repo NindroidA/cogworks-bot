@@ -1,7 +1,7 @@
-import { Client, ChatInputCommandInteraction, CacheType } from "discord.js";
-import { AppDataSource } from "../../typeorm";
-import { SavedRole } from "../../typeorm/entities/SavedRole";
-import lang from "../../utils/lang.json";
+import { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
+import { AppDataSource } from '../../typeorm';
+import { SavedRole } from '../../typeorm/entities/SavedRole';
+import lang from '../../utils/lang.json';
 
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 
@@ -24,10 +24,10 @@ export const getRolesHandler = async(client: Client, interaction: ChatInputComma
 
         // select the saved roles for the guild
         const foundRoles = await savedRoleRepo.createQueryBuilder()
-        .select("type")
-        .addSelect("role")
-        .addSelect("alias")
-        .where("guildId = :guildId", { guildId: guildId })
+        .select('type')
+        .addSelect('role')
+        .addSelect('alias')
+        .where('guildId = :guildId', { guildId: guildId })
         .getRawMany();
 
         // group roles by type
@@ -46,7 +46,7 @@ export const getRolesHandler = async(client: Client, interaction: ChatInputComma
         if (roleGroups['staff']) {
             message += '**Staff Roles:**\n';
             roleGroups['staff'].forEach(r => {
-                message += `* ${r.alias} - ${r.role}\n`
+                message += `* ${r.alias} - ${r.role}\n`;
             });
             message += '\n';
         }
@@ -55,7 +55,7 @@ export const getRolesHandler = async(client: Client, interaction: ChatInputComma
         if (roleGroups['admin']) {
             message += '**Admin Roles:**\n';
             roleGroups['admin'].forEach(r => {
-                message += `* ${r.alias} - ${r.role}\n`
+                message += `* ${r.alias} - ${r.role}\n`;
             });
             message += '\n';
         }
@@ -78,4 +78,4 @@ export const getRolesHandler = async(client: Client, interaction: ChatInputComma
         });
     }
 
-}
+};

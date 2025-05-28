@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ModalBuilder, TextInputStyle, TextInputBuilder, ModalSubmitFields} from "discord.js";
+import { ActionRowBuilder, ModalBuilder, ModalSubmitFields, TextInputBuilder, TextInputStyle } from 'discord.js';
 
 export const otherModal = async(modal: ModalBuilder) => {
     const oModals = new ActionRowBuilder<TextInputBuilder>().addComponents(
@@ -17,10 +17,10 @@ export const otherModal = async(modal: ModalBuilder) => {
     );
     
     modal.addComponents(oModals, oModal);
-}
+};
 
 export const otherMessage = async(fields: ModalSubmitFields) => {
-    const header = `# ${fields.getTextInputValue('other_subject')}\n`
-    const od = `Description: ${fields.getTextInputValue('other_input')}\n`
+    const header = `# ${fields.getTextInputValue('other_subject')}\n`;
+    const od = `Description: ${fields.getTextInputValue('other_input')}\n`;
     return header + od;
-}
+};

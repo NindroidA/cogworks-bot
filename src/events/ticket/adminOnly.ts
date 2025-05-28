@@ -1,9 +1,9 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, TextChannel } from "discord.js";
-import { AppDataSource } from "../../typeorm";
-import { Ticket } from "../../typeorm/entities/Ticket";
-import { SavedRole } from "../../typeorm/entities/SavedRole";
-import { extractIdFromMention } from "../../utils/extractIdFromMention";
-import lang from "../../utils/lang.json";
+import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, TextChannel } from 'discord.js';
+import { AppDataSource } from '../../typeorm';
+import { SavedRole } from '../../typeorm/entities/SavedRole';
+import { Ticket } from '../../typeorm/entities/Ticket';
+import { extractIdFromMention } from '../../utils/extractIdFromMention';
+import lang from '../../utils/lang.json';
 
 const ticketRepo = AppDataSource.getRepository(Ticket);
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
@@ -74,4 +74,4 @@ export const ticketAdminOnlyEvent = async(client: Client, interaction: ButtonInt
     // update the ticket status
     await ticketRepo.update({ id: ticket.id }, { status: 'adminOnly' });
     
-}
+};

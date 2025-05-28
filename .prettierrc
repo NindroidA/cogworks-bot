@@ -2,17 +2,18 @@
     "semi": true,
     "trailingComma": "all",
     "singleQuote": true,
-    "singleAttributePerLine": true,
-    "printWidth": 120,
-    "tabWidth": 4,
+    "printWidth": 100,
+    "tabWidth": 2,
     "useTabs": false,
+    "bracketSpacing": true,
+    "arrowParens": "avoid",
     "endOfLine": "auto",
     "overrides": [
-        {
-            "files": ["*.md", "*.json"],
-            "options": {
-                "tabWidth": 2
-            }
+      {
+        "files": ["*.md", "*.json"],
+        "options": {
+          "tabWidth": 2
         }
+      }
     ]
-}
+  }

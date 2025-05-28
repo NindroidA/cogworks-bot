@@ -1,11 +1,11 @@
-import { ButtonInteraction, Client, ForumChannel, ForumThreadChannel, GuildTextBasedChannel } from "discord.js";
-import { AppDataSource } from "../../typeorm";
-import { Ticket } from "../../typeorm/entities/Ticket";
-import { ArchivedTicket } from "../../typeorm/entities/ArchivedTicket";
-import { ArchivedTicketConfig } from "../../typeorm/entities/ArchivedTicketConfig";
+import { ButtonInteraction, Client, ForumChannel, ForumThreadChannel, GuildTextBasedChannel } from 'discord.js';
 import fs from 'fs';
-import { fetchMessagesAndSaveToFile } from "../../utils/fetchAllMessages";
-import lang from "../../utils/lang.json";
+import { AppDataSource } from '../../typeorm';
+import { ArchivedTicket } from '../../typeorm/entities/ArchivedTicket';
+import { ArchivedTicketConfig } from '../../typeorm/entities/ArchivedTicketConfig';
+import { Ticket } from '../../typeorm/entities/Ticket';
+import { fetchMessagesAndSaveToFile } from '../../utils/fetchAllMessages';
+import lang from '../../utils/lang.json';
 
 const ticketRepo = AppDataSource.getRepository(Ticket);
 const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
@@ -15,7 +15,7 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
     const guildId = interaction.guildId || ''; // guild where the event was initiated
     const channel = interaction.channel as GuildTextBasedChannel; // text channel the event was initiated
     const channelId = interaction.channelId || '';
-    const transcriptPath = `src/archivedTickets/`; // path to temporarily save ticket transcripts
+    const transcriptPath = 'src/archivedTickets/'; // path to temporarily save ticket transcripts
     const archivedConfig = await archivedTicketConfigRepo.findOneBy({ guildId }); // get the archived ticket config by guildId
     const ticket = await ticketRepo.findOneBy({ channelId: channelId }); // // get the ticket this event was initiated from the Ticket database using channelId
 
@@ -23,7 +23,7 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
     if (!archivedConfig) { return console.log(lang.ticket.archiveTicketConfigNotFound); }
 
     // check if the ticket exists
-    if (!ticket) { return console.log(lang.general.fatalError) };
+    if (!ticket) { return console.log(lang.general.fatalError); };
 
     // get archived channel from ArchivedTicket database using createdBy
     const createdBy = ticket.createdBy;
@@ -110,4 +110,4 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
 
     // delete the channel
     await channel.delete(ticket.channelId);
-}
+};

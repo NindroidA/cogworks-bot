@@ -1,5 +1,20 @@
+# project
+.eslintcache
+.prettierignore
+.DS_Store
 dist
 .env
 node_modules
+.vscode
+ 
+# files i wanna ignore
+private
 archivedTickets
 src/utils/baResponses.json
+src/commands/handlers/botsetup
+
+# cogdeck (still in development)
+src/cogdeck
+src/commands/builders/cogdeck.ts
+src/commands/handlers/cogdeck.ts
+src/typeorm/entities/cogdeck

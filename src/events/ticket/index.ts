@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 
 /* options for how the user would like to open a ticket */
 export const ticketOptions = () => {
@@ -25,5 +25,5 @@ export const ticketOptions = () => {
             .setStyle(ButtonStyle.Primary),
     );
 
-    return options
-}
+    return options;
+};

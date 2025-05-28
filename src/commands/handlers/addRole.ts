@@ -1,7 +1,7 @@
-import { Client, ChatInputCommandInteraction, CacheType } from "discord.js";
-import { AppDataSource } from "../../typeorm";
-import { SavedRole } from "../../typeorm/entities/SavedRole";
-import lang from "../../utils/lang.json";
+import { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
+import { AppDataSource } from '../../typeorm';
+import { SavedRole } from '../../typeorm/entities/SavedRole';
+import lang from '../../utils/lang.json';
 
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 
@@ -59,4 +59,4 @@ export const addRoleHandler = async(client: Client, interaction: ChatInputComman
             ephemeral: true
         });
     }
-}
+};

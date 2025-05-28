@@ -1,5 +1,23 @@
+# Dev Update v1.3.1
+- Fixed small format issue with player report ticket and global staff command. 
+- (Cogdeck is NOT aincluded in this update, as it is still in development)
+- Fixed bugs with Cogdeck.
+- Migrated the cards being a json to just be in the database cause json is being a lil meanie.
+
+# Dev Update v1.3.0
+- Card game logic big time omg my head hurts but yay object oriented
+- Fixed and updated cogdeck command stuff
+- Added cool lil github action to notify my dev server of updates from changelog (channel can be followed)
+- (Using lint and prettier now to clean things up)
+
+# Dev Update v1.2.4
+- Added differenciation between using applicationCommands or applicationGuildCommands depending on if we have a guild id saved or not
+- Configured prettier and eslint a lil more for consistency (and updated all files to follow the set format)
+- Started making a lil card game
+- Made a function to set the bot's profile description
+
 # Dev Update v1.2.3
-- Fixed bot-setup rollCollector/buttonCollector not technically stopping (just end up showing the timeout message)
+- Fixed bot-setup roleCollector/buttonCollector not technically stopping (just end up showing the timeout message)
 - Cleaned up a few lang shtuff to make it nicer
 
 # Dev Update v1.2.2

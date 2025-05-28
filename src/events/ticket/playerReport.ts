@@ -1,7 +1,7 @@
-import { ActionRowBuilder, ModalBuilder, TextInputStyle, TextInputBuilder, ModalSubmitFields, Interaction} from "discord.js";
-import { AppDataSource } from "../../typeorm";
-import { BotConfig } from "../../typeorm/entities/BotConfig";
-import lang from "../../utils/lang.json";
+import { ActionRowBuilder, Interaction, ModalBuilder, ModalSubmitFields, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { AppDataSource } from '../../typeorm';
+import { BotConfig } from '../../typeorm/entities/BotConfig';
+import lang from '../../utils/lang.json';
 
 export const playerReportModal = async(modal: ModalBuilder) => {
     const prModalN = new ActionRowBuilder<TextInputBuilder>().addComponents(
@@ -20,11 +20,11 @@ export const playerReportModal = async(modal: ModalBuilder) => {
     );
 
     modal.addComponents(prModalN, prModalR);
-}
+};
 
 export const playerReportMessage = async(fields: ModalSubmitFields, interaction: Interaction) => {
     const guildId = interaction.guildId;
-    const header = `# Player Report\n`;
+    const header = '# Player Report\n';
     const prn = `Name to Report: ${fields.getTextInputValue('player_report_ign')}\n`;
     const prd = `Report Description: ${fields.getTextInputValue('player_report_descrp')}\n`;
 
@@ -35,7 +35,7 @@ export const playerReportMessage = async(fields: ModalSubmitFields, interaction:
     const botConfigRepo = AppDataSource.getRepository(BotConfig);
     const botConfig = await botConfigRepo.findOneBy({ guildId });
     const gsrFlag = botConfig?.enableGlobalStaffRole;
-    const gsr = `<@&` + botConfig?.globalStaffRole + `>\n`;
+    const gsr = botConfig?.globalStaffRole + '\n';
 
     // if the bot config isn't setup
     if (!botConfig || !gsr) {
@@ -49,4 +49,4 @@ export const playerReportMessage = async(fields: ModalSubmitFields, interaction:
     } 
 
     return header + prn + prd;
-}
+};

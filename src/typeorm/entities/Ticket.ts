@@ -1,5 +1,5 @@
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
-import { TicketStatus } from "../../utils/types";
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { TicketStatus } from '../../utils/types';
 
 @Entity({ name: 'tickets'})
 export class Ticket {
