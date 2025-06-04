@@ -158,6 +158,7 @@ async function saveConfig(interaction: any, config: Partial<BotConfig>) {
         components: [],
         embeds: []
     });
+    // TODO: add log that new config was updated and handle command registering
 }
 
 async function updateConfig(interaction: any, config: BotConfig) {

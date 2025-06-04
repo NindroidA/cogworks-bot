@@ -158,6 +158,7 @@
             "channelOptionDescrp": "The text channel you want to analyze.",
             "error": "❌ Error analyzing archive channel:",
             "start": "🔍 Starting analysis of: ",
+            "startMsgEnd": "This may take a few moments ...",
             "processUpdate": "📊 Total processed messages so far: ",
             "success": "✅ Analysis successful and complete!",
             "unknownDR": "Unknown date range",
