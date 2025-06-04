@@ -2,6 +2,7 @@ import { Client, GatewayIntentBits, REST, RESTPostAPIApplicationCommandsJSONBody
 import dotenv from 'dotenv';
 import 'reflect-metadata';
 import { addRole } from './commands/builders/addRole';
+import { archiveMigration } from './commands/builders/archiveMigration';
 import { botSetup } from './commands/builders/botSetup';
 import { cogdeck } from './commands/builders/cogdeck';
 import { getRoles } from './commands/builders/getRoles';
@@ -41,13 +42,14 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 /* Slash Commands */
 const commands: RESTPostAPIApplicationCommandsJSONBody[] = [
-    botSetup,       // bot setup
-    addRole,        // add a role
-    removeRole,     // remove a role
-    getRoles,       // get roles
-    ticketSetup,    // ticket setup
-    ticketReply,    // ticket reply
-    cogdeck,        // cogworks card game
+    botSetup,         // bot setup
+    addRole,          // add a role
+    removeRole,       // remove a role
+    getRoles,         // get roles
+    ticketSetup,      // ticket setup
+    ticketReply,      // ticket reply
+    archiveMigration, // archive migration functions
+    cogdeck,          // cogworks card game
 ];
 
 client.on('interactionCreate', async (interaction) => {

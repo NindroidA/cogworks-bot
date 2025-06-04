@@ -18,5 +18,5 @@ export const AppDataSource = new DataSource({
     database: process.env.MYSQL_DB_DATABASE,
     synchronize: true,
     entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, ServerConfig, SavedRole, BotConfig],
-    // entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, ServerConfig, SavedRole, BotConfig, BattleAbilityUses, BattleCardStates, GameSession, PlayerStats],
+    //entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, ServerConfig, SavedRole, BotConfig, Card, CardAbility, BattleAbilityUses, BattleCardStates, GameSession, PlayerDeck, PlayerStats],
 });

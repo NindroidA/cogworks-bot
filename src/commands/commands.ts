@@ -3,8 +3,9 @@ import { AppDataSource } from '../typeorm';
 import { BotConfig } from '../typeorm/entities/BotConfig';
 import lang from '../utils/lang.json';
 import { addRoleHandler } from './handlers/addRole';
+import { archiveMigrationHandler } from './handlers/archiveMigration/archiveMigration';
 import { botSetupHandler, botSetupNotFound } from './handlers/botSetup';
-import { cogdeckHandler } from './handlers/cogdeck';
+//import { cogdeckHandler } from './handlers/cogdeck';
 import { getRolesHandler } from './handlers/getRoles';
 import { removeRoleHandler } from './handlers/removeRole';
 import { ticketReplyHandler } from './handlers/ticketReply';
@@ -56,8 +57,14 @@ export const handleSlashCommand = async(client: Client, interaction: ChatInputCo
                 getRolesHandler(client, interaction);
                 break;
             }
+            /*
             case 'cogdeck': {
                 cogdeckHandler(client, interaction);
+                break;
+            }
+            */
+            case 'archive-migration': {
+                archiveMigrationHandler(client, interaction);
                 break;
             }
         }

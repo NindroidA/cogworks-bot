@@ -1,3 +1,13 @@
+# Dev Update v1.3.4
+- More work on cogdeck battle manager.
+- (cards are now managed within the database).
+- (Cogdeck still in development and not ready for release)
+- New command for archival migration.
+- Cleaned up some lang shtuff.
+
+# Dev Update v1.3.3
+- Changed github action format just a small bit. 
+
 # Dev Update v1.3.2
 - (Hopefully) fixed github action to actually work.
 

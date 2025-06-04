@@ -147,5 +147,28 @@
     },
     "cogdeck": {
         "cmdDescrp": "Base command for the Cogworks Card Game"
+    },
+    "archiveMigration": {
+        "cmdDescrp": "Functions for analyzing and processing archive migration.",
+        "analyzer": {
+            "cmdDescrp": "Analyze specific information.",
+            "channelOptionDescrp": "The text channel you want to analyze.",
+            "error": "❌ Error analyzing archive channel:",
+            "start": "🔍 Starting analysis of: ",
+            "processUpdate": "📊 Total processed messages so far: ",
+            "success": "✅ Analysis successful and complete!",
+            "unknownDR": "Unknown date range",
+            "formatStats": {
+                "mainHeader": "## 📋 Archive Analysis Results\n",
+                "files": "**Files**:",
+                "storage": "**Storage:**",
+                "messages":"**Total Messages:**",
+                "dr": "**Date Range:**"
+            }
+        },
+        "downloader": {
+            "cmdDescrp": "Download all available text files from a text channel.",
+            "channelOptionDescrp": "The text channel you want to download from."
+        }  
     }
 }

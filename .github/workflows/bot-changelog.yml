@@ -18,18 +18,18 @@ jobs:
       - name: Get changelog changes
         id: changes
         run: |
-          # Get the changes from changelog
+          # get the changes from changelog
           CHANGES=$(git diff HEAD~1 HEAD -- changelog.md CHANGELOG.md | grep "^+" | grep -v "^+++" | sed 's/^+//' | head -5)
           
-          # If no changes in diff, use commit message
+          # if no changes, use commit message
           if [ -z "$CHANGES" ]; then
             CHANGES="${{ github.event.head_commit.message }}"
           fi
           
-          # Clean up and format
+          # clean up and format
           CHANGES=$(echo "$CHANGES" | head -c 400 | sed 's/"/\\"/g')
           
-          # Set output
+          # output
           echo "changes<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -40,11 +40,8 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         with:
           args: |
-            **📋 Cogworks Bot Update**
+            # 📋 Cogworks Bot Update
             
-            New changes have been pushed to the repository!
-            
-            **Changes:**
             ```
             ${{ steps.changes.outputs.changes }}
             ```
