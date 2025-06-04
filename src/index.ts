@@ -4,7 +4,7 @@ import 'reflect-metadata';
 import { addRole } from './commands/builders/addRole';
 import { archiveMigration } from './commands/builders/archiveMigration';
 import { botSetup } from './commands/builders/botSetup';
-import { cogdeck } from './commands/builders/cogdeck';
+//import { cogdeck } from './commands/builders/cogdeck';
 import { getRoles } from './commands/builders/getRoles';
 import { removeRole } from './commands/builders/removeRole';
 import { ticketReply } from './commands/builders/ticketReply';
@@ -49,7 +49,7 @@ const commands: RESTPostAPIApplicationCommandsJSONBody[] = [
     ticketSetup,      // ticket setup
     ticketReply,      // ticket reply
     archiveMigration, // archive migration functions
-    cogdeck,          // cogworks card game
+    //cogdeck,          // cogworks card game
 ];
 
 client.on('interactionCreate', async (interaction) => {

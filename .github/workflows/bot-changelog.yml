@@ -42,6 +42,7 @@ jobs:
           args: |
             # 📋 Cogworks Bot Update
             
+            **Changes:***
             ```
             ${{ steps.changes.outputs.changes }}
             ```
