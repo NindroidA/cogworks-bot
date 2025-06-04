@@ -91,9 +91,7 @@ async function main() {
 
         // get all guild ids that have done the bot setup
         const botConfigRepo = AppDataSource.getRepository(BotConfig);
-        const botConfig = await botConfigRepo.createQueryBuilder()
-            .select('guildId')
-            .getRawMany();
+        const botConfig = await botConfigRepo.find();
 
         // set for guilds that have registered commands
         const registeredGuildIds = new Set();
