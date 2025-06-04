@@ -70,17 +70,19 @@ client.once('ready', () => {
     // log that we logged in
     console.log(lang.main.ready + `${client.user?.tag}`);
 
+    // set description
+    setDescription(client);
+
     // set status
     setStatus(client);
 
-    // set description
-    setDescription(client);
+    // just a lil line for the console
+    console.log(lang.main.line);
 });
 
 // main function to do all the things
 async function main() {
     try {
-
         // remove any global application commands we had in place (refresh it)
         await rest.put(Routes.applicationCommands(CLIENT), {
             body: [],
@@ -91,34 +93,41 @@ async function main() {
 
         // get all guild ids that have done the bot setup
         const botConfigRepo = AppDataSource.getRepository(BotConfig);
-        const botConfig = await botConfigRepo.find();
+        const botConfigs = await botConfigRepo.find();
+        if (botConfigs.length > 0) {
+            console.log(lang.main.foundConfigs + botConfigs.length);
+        } else {
+            console.warn(lang.main.noFoundConfigs);
+        }
 
         // set for guilds that have registered commands
-        const registeredGuildIds = new Set();
+        //const registeredGuildIds = new Set();
 
         // register commands for each guild found in database
-        for (const config of botConfig) {
-            try {
+        for (const config of botConfigs) {
+            try { 
                 await rest.put(Routes.applicationGuildCommands(CLIENT, config.guildId), {
                     body: commands,
                 });
-                registeredGuildIds.add(config.guildId);
-                console.log(lang.main.regCmdsSuccess + `${config.guildId}`);
+                
+                //registeredGuildIds.add(config.guildId);
+                console.log(lang.main.regCmdsSuccess + config.guildId);
             } catch (error) {
                 console.error(lang.main.regCmdsFail + `${config.guildId}:`, error);
             }
         }
 
-        /*
-        // register le commands for guilds we don't have the id for
+        // register le commands fallback for guilds we don't have the id for
         await rest.put(Routes.applicationCommands(CLIENT), {
             body: commands,
-        }); */
-
+        });
+        
         // log in
-        client.login(TOKEN);
+        await client.login(TOKEN);
     } catch(error) {
+        // log error and exit process
         console.error(lang.main.error, error);
+        process.exit(1);
     }
 }
 

@@ -8,11 +8,14 @@
         "cmdGuildNotFound": "This command can only be used in a server!"
     },
     "main": {
-        "usingDev": "Using the Dev Bot!",
-        "ready": "Logged in as ",
-        "error": "Startup Error: ",
-        "regCmdsSuccess": "Registered commands for guild: ",
-        "regCmdsFail": "Failed to register commands for guild "
+        "usingDev": "🔩 Using the Dev Bot!",
+        "ready": "🖥️  Logged in as: ",
+        "error": "💀 Startup Error: ",
+        "foundConfigs": "📂 Found Configs: ",
+        "noFoundConfigs": "‼️ No bot configs found!",
+        "regCmdsSuccess": "✅ Registered commands for guild: ",
+        "regCmdsFail": "❌ Failed to register commands for guild ",
+        "line": "------------------------------\n"
     },
     "console": {
         "createTicketAttempt": "is attempting to create a ticket.",
