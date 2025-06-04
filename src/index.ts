@@ -117,10 +117,12 @@ async function main() {
             }
         }
 
+        /*
         // register le commands fallback for guilds we don't have the id for
         await rest.put(Routes.applicationCommands(CLIENT), {
             body: commands,
         });
+        */
         
         // log in
         await client.login(TOKEN);
