@@ -42,10 +42,10 @@ jobs:
           args: |
             # 📋 Cogworks Bot Update
             
-            **Changes:***
+            **Changes:**
             ```
             ${{ steps.changes.outputs.changes }}
             ```
             
-            **Repository:** ${{ github.repository }}
-            **Commit:** ${{ github.sha }}
+            -# Repository: ${{ github.repository }}
+            -# Commit: ${{ github.sha }}

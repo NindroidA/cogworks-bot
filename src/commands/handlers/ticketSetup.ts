@@ -2,8 +2,9 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, CategoryChanne
 import { AppDataSource } from '../../typeorm';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ArchivedTicketConfig';
 import { TicketConfig } from '../../typeorm/entities/TicketConfig';
-import lang from '../../utils/lang.json';
+import { lang } from '../../utils';
 
+const tl = lang.ticketSetup;
 const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
 const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
 
@@ -27,7 +28,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
         const channel = interaction.options.getChannel('channel') as TextChannel;
         
         const mainMsg = {
-            content: lang.ticketSetup.createTicket,
+            content: tl.createTicket,
             components: [row],
         };
         
@@ -58,7 +59,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
 
                 // after completion, send an ephemeral success message
                 await interaction.reply({
-                    content: lang.ticketSetup.successSet + `${channel}`,
+                    content: tl.successSet + `${channel}`,
                     ephemeral: true,
                 });
 
@@ -74,20 +75,21 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
 
                 // after completion, send an ephemeral success message
                 await interaction.reply({
-                    content: lang.ticketSetup.successUpdate + `${channel}`,
+                    content: tl.successUpdate + `${channel}`,
                     ephemeral: true,
                 });
             }
         } catch (error) {
-            console.error(lang.ticketSetup.fail, error);
+            console.error(tl.fail, error);
             await interaction.reply({
-                content: lang.ticketSetup.fail,
+                content: tl.fail,
                 ephemeral: true,
             });
         }
 
     /* CATEGORY SUBCOMMAND */
     } else if (subCommand == 'category') {
+        const tlC = lang.categorySetup;
         const category = interaction.options.getChannel('category') as CategoryChannel;
         const categoryId = category.id;
 
@@ -95,7 +97,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
             // check to make sure we have a ticket config
             if (!ticketConfig) {
                 await interaction.reply({
-                    content: lang.categorySetup.setChannelFirst,
+                    content: tlC.setChannelFirst,
                     ephemeral: true,
                 });
                 return;
@@ -106,14 +108,14 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
             ticketConfigRepo.save(ticketConfig);
 
             await interaction.reply({
-                content: lang.categorySetup.success,
+                content: tlC.success,
                 ephemeral: true,
             });
 
         } catch (error) {
-            console.error(lang.categorySetup.fail, error);
+            console.error(tlC.fail, error);
             await interaction.reply({
-                content: lang.categorySetup.fail,
+                content: tlC.fail,
                 ephemeral: true,
             });
 
@@ -123,6 +125,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
 
     /* ARCHIVE SUBCOMMAND */    
     } else if (subCommand == 'archive') {
+        const tlA = lang.archiveSetup;
         const channel = interaction.options.getChannel('channel') as ForumChannel;
 
         // make sure the channel exists
@@ -141,7 +144,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
                 const msg = await channel.threads.create({
                     name: 'Ticket Archive',
                     message: {
-                        content: lang.archiveSetup.initialMsg
+                        content: tlA.initialMsg
                     },
                 });
                 msg.pin();
@@ -158,7 +161,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
 
                 // after completion, send an ephemeral success message
                 await interaction.reply({
-                    content: lang.ticketSetup.successSet + `${channel}`,
+                    content: tl.successSet + `${channel}`,
                     ephemeral: true,
                 });
             } else {
@@ -166,7 +169,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
                 const msg = await channel.threads.create({
                     name: 'Ticket Archive',
                     message: {
-                        content: lang.archiveSetup.initialMsg
+                        content: tlA.initialMsg
                     },
                 });
                 msg.pin();
@@ -178,14 +181,14 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
 
                 // after completion, send an ephemeral success message
                 await interaction.reply({
-                    content: lang.ticketSetup.successUpdate + ` ${channel}`,
+                    content: tl.successUpdate + ` ${channel}`,
                     ephemeral: true,
                 });
             }
         } catch (error) {
-            console.error(lang.archiveSetup.fail, error);
+            console.error(tlA.fail, error);
             await interaction.reply({
-                content: lang.archiveSetup.fail,
+                content: tlA.fail,
                 ephemeral: true,
             });
         }

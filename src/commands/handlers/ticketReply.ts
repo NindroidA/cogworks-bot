@@ -1,8 +1,9 @@
 import { CacheType, ChatInputCommandInteraction, Client, TextChannel } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { Ticket } from '../../typeorm/entities/Ticket';
-import lang from '../../utils/lang.json';
+import { lang } from '../../utils';
 
+const tl = lang.ticketReply;
 const ticketRepo = AppDataSource.getRepository(Ticket);
 
 export const ticketReplyHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
@@ -27,16 +28,16 @@ export const ticketReplyHandler = async(client: Client, interaction: ChatInputCo
         // replies for ban appeals
         case 'bapple': {
             if (subcommand == 'approve') { 
-                await channel.send(`<@${ticketUser}>` + ', ' + lang.ticketReply.bapple.approve);
+                await channel.send(`<@${ticketUser}>` + ', ' + tl.bapple.approve);
                 await interaction.reply({
-                    content: lang.ticketReply.bapple.approveSent,
+                    content: tl.bapple.approveSent,
                     ephemeral: true
                 });
             } 
             else if (subcommand == 'deny') { 
-                await channel.send(`<@${ticketUser}>` + ', ' + lang.ticketReply.bapple.deny);
+                await channel.send(`<@${ticketUser}>` + ', ' + tl.bapple.deny);
                 await interaction.reply({
-                    content: lang.ticketReply.bapple.denySent,
+                    content: tl.bapple.denySent,
                     ephemeral: true
                 }); 
             }

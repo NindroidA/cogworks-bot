@@ -1,3 +1,7 @@
+# Dev Update v1.3.6
+- Added logic for archive migration downloader AND migrator.
+- MORE LARGERER lang cleanup and organization.
+
 # Dev Update v1.3.5
 - Fixed major backend issue of things not updating (your honor i'm just a silly lil guy).
 - Fixed archive migration interaction replies.

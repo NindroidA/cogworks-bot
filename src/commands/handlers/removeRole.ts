@@ -1,8 +1,9 @@
 import { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
-import lang from '../../utils/lang.json';
+import { lang } from '../../utils';
 
+const tl = lang.removeRole;
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 
 export const removeRoleHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
@@ -15,7 +16,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
     // check to see if the discord server has any saved roles
     if (!guildFinder) {
         await interaction.reply({
-            content: lang.removeRole.noType,
+            content: tl.noType,
             ephemeral: true,
         });
         return;
@@ -24,7 +25,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
     // check to see if the role exists
     if (!roleFinder) {
         await interaction.reply({
-            content: lang.removeRole.dne,
+            content: tl.dne,
             ephemeral: true,
         });
         return;
@@ -36,7 +37,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
 
             if (!typeFinder) {
                 await interaction.reply({
-                    content: lang.removeRole.noType,
+                    content: tl.noType,
                     ephemeral: true,
                 });
                 return;
@@ -50,7 +51,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
 
             // after completion, send an ephemeral success message
             await interaction.reply({
-                content: lang.removeRole.successStaff,
+                content: tl.successStaff,
                 ephemeral: true,
             });
 
@@ -59,7 +60,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
 
             if (!typeFinder) {
                 await interaction.reply({
-                    content: lang.removeRole.noType,
+                    content: tl.noType,
                     ephemeral: true,
                 });
                 return;
@@ -73,16 +74,16 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
             
             // after completion, send an ephemeral success message
             await interaction.reply({
-                content: lang.removeRole.successAdmin,
+                content: tl.successAdmin,
                 ephemeral: true,
             });
 
         }
 
     } catch (error) {
-        console.log(lang.removeRole.fail, error);
+        console.log(tl.fail, error);
         await interaction.reply({
-            content: lang.removeRole.fail,
+            content: tl.fail,
             ephemeral: true
         });
     }

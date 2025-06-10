@@ -2,9 +2,10 @@ import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client
 import { AppDataSource } from '../../typeorm';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
 import { Ticket } from '../../typeorm/entities/Ticket';
+import { lang } from '../../utils';
 import { extractIdFromMention } from '../../utils/extractIdFromMention';
-import lang from '../../utils/lang.json';
 
+const tl = lang.ticket.adminOnly;
 const ticketRepo = AppDataSource.getRepository(Ticket);
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 
@@ -31,7 +32,7 @@ export const ticketAdminOnlyEvent = async(client: Client, interaction: ButtonInt
     if (userId == ticket.createdBy) {
         // send a request message (for a staff member to do it for them)
         await channel.send({
-            content: `❗Oh, Mods!❗ ${user} ` + lang.ticket.adminOnly.request
+            content: `❗Oh, Mods!❗ ${user} ` + tl.request
         });
         return;
     }

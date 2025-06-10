@@ -3,7 +3,7 @@ import { AppDataSource } from '../typeorm';
 import { BotConfig } from '../typeorm/entities/BotConfig';
 import lang from '../utils/lang.json';
 import { addRoleHandler } from './handlers/addRole';
-import { archiveMigrationHandler } from './handlers/archiveMigration/archiveMigration';
+import { archiveMigrationHandler } from './handlers/archiveMigration';
 import { botSetupHandler, botSetupNotFound } from './handlers/botSetup';
 //import { cogdeckHandler } from './handlers/cogdeck';
 import { getRolesHandler } from './handlers/getRoles';

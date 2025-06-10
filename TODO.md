@@ -1,5 +1,6 @@
 # Priority
 [] fix up the whole command registering (in an event like adding a new bot config)
+[] announcement module
 [] implement the new card and card ability tables into the battle manager logic
 [] create sql dump file for card and card ability tables
 [] have a way to transfer email appeals/tickets into the discord

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Client, Collection, TextChannel } from 'discord.js';
-import lang from '../../../utils/lang.json';
+import { lang } from '../../../utils';
+const tl = lang.archiveMigration.analyzer;
 
 interface ArchiveStats {
     txtFileCount: number;
@@ -24,7 +25,7 @@ export async function analyzeArchiveChannel(client: Client, channelId: string): 
         const channel = await client.channels.fetch(channelId) as TextChannel;
         if (!channel) throw new Error(lang.general.channelNotFound);
 
-        console.log(lang.archiveMigration.analyzer.start + `#${channel.name}`);
+        console.log(tl.start + `#${channel.name}`);
 
         // variable inits
         let txtFileCount = 0;
@@ -72,7 +73,7 @@ export async function analyzeArchiveChannel(client: Client, channelId: string): 
 
             // progress update every 1000 messages
             if (msgCount % 1000 === 0) {
-                console.log(lang.archiveMigration.analyzer.processUpdate + msgCount);
+                console.log(tl.processUpdate + msgCount);
             }
         }
 
@@ -89,11 +90,11 @@ export async function analyzeArchiveChannel(client: Client, channelId: string): 
         };
 
         // log success and return stats
-        console.log(lang.archiveMigration.analyzer.success);
+        console.log(tl.success);
         return stats;
     } catch (error) {
         // log and throw error
-        console.error(lang.archiveMigration.analyzer.error, error);
+        console.error(tl.error, error);
         throw error;
     }
 }
@@ -106,14 +107,14 @@ export async function analyzeArchiveChannel(client: Client, channelId: string): 
  * @returns formatted string of results
  */
 export function formatArchiveStats(stats: ArchiveStats): string {
-    const tl = lang.archiveMigration.analyzer.formatStats;
+    const lStats = tl.formatStats;
     const dateRange = stats.oldestMsg && stats.newestMsg
         ? `${stats.oldestMsg.toDateString()} - ${stats.newestMsg.toDateString()}`
-        : lang.archiveMigration.analyzer.unknownDR;
+        : tl.unknownDR;
 
-    return tl.mainHeader +
-        tl.files + ` ${stats.txtFileCount.toLocaleString()} txt files.\n` +
-        tl.storage + ` ${stats.totalSizeMB} MB (${stats.totalSizeBytes.toLocaleString()} bytes).\n` +
-        tl.messages + ` ${stats.msgCount.toLocaleString()}.\n` +
-        tl.dr + ` ${dateRange}.`;
+    return lStats.mainHeader +
+        lStats.files + ` ${stats.txtFileCount.toLocaleString()} txt files.\n` +
+        lStats.storage + ` ${stats.totalSizeMB} MB (${stats.totalSizeBytes.toLocaleString()} bytes).\n` +
+        lStats.messages + ` ${stats.msgCount.toLocaleString()}.\n` +
+        lStats.dr + ` ${dateRange}.`;
 }

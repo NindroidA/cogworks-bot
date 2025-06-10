@@ -82,6 +82,11 @@
             "cancel": "Change to Admin Only canceled.",
             "request": "has requested to make this ticket Admin Only."
         },
+        "ageVerify": {
+            "dobLabel": "Please provide your dob (mm/dd/yyyy)",
+            "header": "# 18+ Verify\n",
+            "dob": "Date of Birth: "
+        },
         "close": {
             "confirm": "⚠️ Are you sure you want to close this ticket?",
             "closing": "Closing ticket...",
@@ -152,7 +157,7 @@
         "cmdDescrp": "Base command for the Cogworks Card Game"
     },
     "archiveMigration": {
-        "cmdDescrp": "Functions for analyzing and processing archive migration.",
+        "cmdDescrp": "Functions for analyzing and processing archive migration (from using YAGPDB).",
         "analyzer": {
             "cmdDescrp": "Analyze specific information.",
             "channelOptionDescrp": "The text channel you want to analyze.",
@@ -163,7 +168,7 @@
             "success": "✅ Analysis successful and complete!",
             "unknownDR": "Unknown date range",
             "formatStats": {
-                "mainHeader": "## 📋 Archive Analysis Results\n",
+                "mainHeader": "## 📋 Archive Analyzer Results\n",
                 "files": "**Files**:",
                 "storage": "**Storage:**",
                 "messages":"**Total Messages:**",
@@ -172,7 +177,69 @@
         },
         "downloader": {
             "cmdDescrp": "Download all available text files from a text channel.",
-            "channelOptionDescrp": "The text channel you want to download from."
+            "channelOptionDescrp": "The text channel you want to download from.",
+            "error": "❌ Error downloading archive files:",
+            "start": "📥 Starting download from ",
+            "startMsgEnd": "This may take a while for large archives...",
+            "outDir": "Output Dir: ",
+            "createMD": "Creating metadata file: ",
+            "skipExisting": "⏭️ Skipping existing file: ",
+            "downloading": "⬇️ Downloading: ",
+            "attemptFail": "‼️ Attempt failed for: ",
+            "finalFail": "❌ Failed to download: ",
+            "processUpdate": "📊 Total processed messages: ",
+            "downloadUpdate": "📊 Downloaded file count: ",
+            "savedMetadata": "⬇️ Files saved metadata for: ",
+            "success": "✅ Download complete!",
+            "formatStats": {
+                "mainHeader": "## 📋 Archive Downloader Results\n",
+                "totalFiles": "**Total Files Found:**",
+                "downloadSuccess": "**Successfully Downloaded:**",
+                "downloadSkipped": "**Skipped (already existed):**",
+                "downloadFailed": "**Failed Downloads:**",
+                "downloadTotal": "**Total Downloaded Size:**",
+                "duration": "**Duration:**"
+            }
+        },
+        "migrator": {
+            "cmdDescrp": "Migrate all available downloaded text files from archive.",
+            "channelOptionDescrp": "The forum channel you use as your ticket archive channel.",
+            "booleanOptionDescrp": "True if you want to run a dry run, false if you want to run the real deal.",
+            "error": "❌ Error migrating archive files:",
+            "fatalErr": "❌ Fatal error during migration: ",
+            "fail": "❌ Migration failed. Check console for details.",
+            "dryRunNS": "‼️ Dry Run not specified!",
+            "beforeStart": " and create posts in ",
+            "start": "🚀 Starting migration from ",
+            "dryRun": {
+                "enabled": "📋 DRY RUN MODE - No database changes will be made",
+                "posting": "📋 DRY RUN MODE - No actual posts will be created.",
+                "creatingPost": "📋 DRY RUN MODE - Would have created forum post for "
+            },
+            "run": {
+                "posting": "📦 Will create forum posts in ",
+                "filesFound": "📁 Found txt files to process: ",
+                "ticketsFound": "📦 Found existing tickets: ",
+                "postsFound": "📦 Found existing forum posts: ",
+                "skipDupe": "⏭️ Skipping duplicate ticket by ",
+                "alrExists": "💾 Forum post already exists for ",
+                "creatingPost": "💾 Created forum post:",
+                "warnPosts": "⚠️ Could not fetch existing forum threads:",
+                "warnParse": "⚠️ Could not parse header in",
+                "warnDate": "⚠️ Invalid date format in ",
+                "failParse": "❌ Error parsing ",
+                "failPost": "❌ Failed to create forum post for ",
+                "failProcessing": "❌ Failed processing for "
+            },
+            "success": "✅ Migration complete!",
+            "formatStats": {
+                "mainHeader": "## 📋 Archive Migration Results\n",
+                "totalFiles": "**Total Files:**",
+                "parseSuccess": "**Successfully Parsed:**",
+                "migrateSuccess": "**Successfully Migrated:**",
+                "migrateSkipped": "**Skipped:**",
+                "migrateDupes": "**Duplicates:**"
+            }
         }  
     }
 }

@@ -10,6 +10,7 @@ node_modules
 # files i wanna ignore
 private
 archivedTickets
+archiveDownload
 src/utils/baResponses.json
 src/commands/handlers/botsetup
 

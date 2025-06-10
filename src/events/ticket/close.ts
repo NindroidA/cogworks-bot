@@ -4,9 +4,10 @@ import { AppDataSource } from '../../typeorm';
 import { ArchivedTicket } from '../../typeorm/entities/ArchivedTicket';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ArchivedTicketConfig';
 import { Ticket } from '../../typeorm/entities/Ticket';
+import { lang } from '../../utils';
 import { fetchMessagesAndSaveToFile } from '../../utils/fetchAllMessages';
-import lang from '../../utils/lang.json';
 
+const tl = lang.ticket.close;
 const ticketRepo = AppDataSource.getRepository(Ticket);
 const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
 const archivedTicketRepo = AppDataSource.getRepository(ArchivedTicket);
@@ -33,9 +34,9 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
     try {
         await fetchMessagesAndSaveToFile(channel, transcriptPath);
     } catch (error) {
-        console.error(lang.ticket.close.transcriptCreate.error, error);
+        console.error(tl.transcriptCreate.error, error);
         await interaction.reply({
-            content: lang.ticket.close.transcriptCreate.error
+            content: tl.transcriptCreate.error
         });
         return;
     }
@@ -52,10 +53,10 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
         // if we have attachments, add them to the files array
         if (fs.existsSync(zipPath)) {
             files.push(zipPath);
-            console.log(lang.ticket.close.transcriptCreate.attachmentFound);
+            console.log(tl.transcriptCreate.attachmentFound);
             zipCheck = true;
         } else {
-            console.log(lang.ticket.close.transcriptCreate.attachmentNotFound);
+            console.log(tl.transcriptCreate.attachmentNotFound);
         }
 
         // if transcript channel doesn't exist, make one and put the transcript
@@ -88,25 +89,25 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
 
         // delete the saved txt file
         fs.unlink(txtPath, (error) => {
-            if (error) console.error(lang.ticket.close.transcriptDelete.error1, error);
+            if (error) console.error(tl.transcriptDelete.error1, error);
         });
 
         if (zipCheck) {
             // delete the saved zip file
             fs.unlink(zipPath, (error) => {
-                if (error) console.error(lang.ticket.close.transcriptDelete.attachmentError, error);
+                if (error) console.error(tl.transcriptDelete.attachmentError, error);
             });
         }
 
     } catch (error) {
-        return console.error(lang.ticket.close.transcriptDelete.error2, error);
+        return console.error(tl.transcriptDelete.error2, error);
     }
 
     // update the ticket status 
     await ticketRepo.update({ id: ticket.id }, { status: 'closed' });
 
     // log success message
-    console.log(lang.ticket.close.transcriptCreate.success);
+    console.log(tl.transcriptCreate.success);
 
     // delete the channel
     await channel.delete(ticket.channelId);

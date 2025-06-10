@@ -13,9 +13,11 @@ import { handleSlashCommand } from './commands/commands';
 import { handleTicketInteraction } from './events/ticketInteraction';
 import { AppDataSource } from './typeorm';
 import { BotConfig } from './typeorm/entities/BotConfig';
-import lang from './utils/lang.json';
+import { lang } from './utils';
 import { setDescription, setStatus } from './utils/profileFunctions';
 dotenv.config();
+
+const tl = lang.main;
 
 const RELEASE = process.env.RELEASE!;   // determines which bot we're using
 let TOKEN = process.env.BOT_TOKEN!;     // default production bot token
@@ -68,7 +70,7 @@ client.on('buttonInteraction', handleTicketInteraction);
 // once we reday, LEGGO
 client.once('ready', () => {
     // log that we logged in
-    console.log(lang.main.ready + `${client.user?.tag}`);
+    console.log(tl.ready + `${client.user?.tag}`);
 
     // set description
     setDescription(client);
@@ -77,7 +79,7 @@ client.once('ready', () => {
     setStatus(client);
 
     // just a lil line for the console
-    console.log(lang.main.line);
+    console.log(tl.line);
 });
 
 // main function to do all the things
@@ -95,9 +97,9 @@ async function main() {
         const botConfigRepo = AppDataSource.getRepository(BotConfig);
         const botConfigs = await botConfigRepo.find();
         if (botConfigs.length > 0) {
-            console.log(lang.main.foundConfigs + botConfigs.length);
+            console.log(tl.foundConfigs + botConfigs.length);
         } else {
-            console.warn(lang.main.noFoundConfigs);
+            console.warn(tl.noFoundConfigs);
         }
 
         // set for guilds that have registered commands
@@ -111,9 +113,9 @@ async function main() {
                 });
                 
                 //registeredGuildIds.add(config.guildId);
-                console.log(lang.main.regCmdsSuccess + config.guildId);
+                console.log(tl.regCmdsSuccess + config.guildId);
             } catch (error) {
-                console.error(lang.main.regCmdsFail + `${config.guildId}:`, error);
+                console.error(tl.regCmdsFail + `${config.guildId}:`, error);
             }
         }
 
@@ -128,7 +130,7 @@ async function main() {
         await client.login(TOKEN);
     } catch(error) {
         // log error and exit process
-        console.error(lang.main.error, error);
+        console.error(tl.error, error);
         process.exit(1);
     }
 }

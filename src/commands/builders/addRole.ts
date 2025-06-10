@@ -1,39 +1,41 @@
 import { PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
-import lang from '../../utils/lang.json';
+import { lang } from '../../utils';
+
+const tl = lang.addRole;
 
 /* subcommands */
 const staff = new SlashCommandSubcommandBuilder()
     .setName('staff')
-    .setDescription(lang.addRole.subcmdDescrp.staff)
+    .setDescription(tl.subcmdDescrp.staff)
     .addRoleOption((option) => option
         .setName('role_id')
-        .setDescription(lang.addRole.subcmdDescrp.roleid)
+        .setDescription(tl.subcmdDescrp.roleid)
         .setRequired(true)
     )
     .addStringOption((option) => option
         .setName('alias')
-        .setDescription(lang.addRole.subcmdDescrp.alias)
+        .setDescription(tl.subcmdDescrp.alias)
         .setRequired(true)
     );
 
 const admin = new SlashCommandSubcommandBuilder()
     .setName('admin')
-    .setDescription(lang.addRole.subcmdDescrp.admin)
+    .setDescription(tl.subcmdDescrp.admin)
     .addRoleOption((option) => option
         .setName('role_id')
-        .setDescription(lang.addRole.subcmdDescrp.roleid)
+        .setDescription(tl.subcmdDescrp.roleid)
         .setRequired(true)
     )
     .addStringOption((option) => option
         .setName('alias')
-        .setDescription(lang.addRole.subcmdDescrp.alias)
+        .setDescription(tl.subcmdDescrp.alias)
         .setRequired(true)
     );
 
 /* main slash command */
 export const addRole = new SlashCommandBuilder()
     .setName('add-role')
-    .setDescription(lang.addRole.cmdDescrp)
+    .setDescription(tl.cmdDescrp)
     .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
     .addSubcommand(staff)
     .addSubcommand(admin)

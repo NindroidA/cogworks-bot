@@ -1,8 +1,9 @@
 import { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
-import lang from '../../utils/lang.json';
+import { lang } from '../../utils';
 
+const tl = lang.addRole;
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 
 export const addRoleHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
@@ -15,7 +16,7 @@ export const addRoleHandler = async(client: Client, interaction: ChatInputComman
     // check to see if role id is already saved
     if (roleFinder) {
         await interaction.reply({
-            content: lang.addRole.alreadyAdded,
+            content: tl.alreadyAdded,
             ephemeral: true,
         });
         return;
@@ -33,7 +34,7 @@ export const addRoleHandler = async(client: Client, interaction: ChatInputComman
 
             // after completion, send an ephemeral success message
             await interaction.reply({
-                content: lang.addRole.successStaff,
+                content: tl.successStaff,
                 ephemeral: true,
             });
 
@@ -48,14 +49,14 @@ export const addRoleHandler = async(client: Client, interaction: ChatInputComman
 
             // after completion, send an ephemeral success message
             await interaction.reply({
-                content: lang.addRole.successAdmin,
+                content: tl.successAdmin,
                 ephemeral: true,
             });
         }
     } catch (error) {
         console.log(lang.addRole.fail, error);
         await interaction.reply({
-            content: lang.addRole.fail,
+            content: tl.fail,
             ephemeral: true
         });
     }

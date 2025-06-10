@@ -1,8 +1,9 @@
 import { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
-import lang from '../../utils/lang.json';
+import { lang } from '../../utils';
 
+const tl = lang.getRoles;
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 
 export const getRolesHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
@@ -12,7 +13,7 @@ export const getRolesHandler = async(client: Client, interaction: ChatInputComma
     // check to see if the discord server has any saved roles
     if (!guildFinder) {
         await interaction.reply({
-            content: lang.getRoles.noGuild,
+            content: tl.noGuild,
             ephemeral: true,
         });
         return;
@@ -62,7 +63,7 @@ export const getRolesHandler = async(client: Client, interaction: ChatInputComma
 
         // if no roles found
         if (message === '') {
-            message = lang.getRoles.noGuild;
+            message = tl.noGuild;
         }
 
         await interaction.reply({
@@ -73,7 +74,7 @@ export const getRolesHandler = async(client: Client, interaction: ChatInputComma
     } catch (error) {
         console.log(lang.getRoles.fail, error);
         await interaction.reply({
-            content: lang.getRoles.fail,
+            content: tl.fail,
             ephemeral: true
         });
     }

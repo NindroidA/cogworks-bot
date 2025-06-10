@@ -2,12 +2,15 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, ChatInputCommandInteraction, Client, ComponentType, EmbedBuilder, RoleSelectMenuBuilder } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
-import lang from '../../utils/lang.json';
+import { lang } from '../../utils';
+
+const tlC = lang.botConfig;
+const tl = lang.botSetup;
 
 export const botSetupNotFound = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
-    console.log(lang.botConfig.notFound);
+    console.log(tlC.notFound);
     return await interaction.reply({
-        content: lang.botConfig.notFound,
+        content: tlC.notFound,
         ephemeral: true
     });
 };
@@ -17,7 +20,7 @@ const TIMEOUT = 60_000; // 1 minute timeout
 // initial embed
 const embed1 = new EmbedBuilder()
     .setTitle('Cogworks Bot Setup')
-    .setDescription(lang.botSetup.select1)
+    .setDescription(tl.select1)
     .setColor('#5A97FA');
 
 // buttons for initial embed
@@ -92,7 +95,7 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
                     const role = roleInteraction.roles.first();
                     if (!role) {
                         await roleInteraction.update({ 
-                            content: lang.botSetup.noRoleSelected, 
+                            content: tl.noRoleSelected, 
                             components: [] 
                         });
                         buttonCollector.stop();
@@ -111,7 +114,7 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
                 roleCollector.on('end', async () => {
                     if (roleCollector.endReason !== 'time') return;
                     await roleMessage.edit({ 
-                        content: lang.botSetup.roleSelectTimeout, 
+                        content: tl.roleSelectTimeout, 
                         components: [] 
                     });
                 });
@@ -119,7 +122,7 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
             } catch (error) {
                 console.error('Button handler error:', error);
                 await buttonInteraction.followUp({ 
-                    content: lang.botSetup.error, 
+                    content: tl.error, 
                     ephemeral: true 
                 });
             }
@@ -129,7 +132,7 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
             if (reason !== 'time') return;
             // update the message, remove components and embeds
             await setupMessage.edit({ 
-                content: lang.botSetup.timeout, 
+                content: tl.timeout, 
                 components: [],
                 embeds: []
             });
@@ -138,10 +141,10 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
     } catch (error) {
         console.error('Setup error:', error);
         if (interaction.replied || interaction.deferred) {
-            await interaction.editReply(lang.botSetup.fail);
+            await interaction.editReply(tl.fail);
         } else {
             await interaction.reply({ 
-                content: lang.botSetup.fail, 
+                content: tl.fail, 
                 ephemeral: true 
             });
         }
@@ -201,7 +204,7 @@ async function handleExistingConfig(interaction: ChatInputCommandInteraction<Cac
 
             // role selection
             const roleMessage = await buttonInteraction.update({
-                content: lang.botSetup.select2,
+                content: tl.select2,
                 components: [roleDropbox],
                 embeds: []
             });
@@ -236,14 +239,14 @@ async function handleExistingConfig(interaction: ChatInputCommandInteraction<Cac
             roleCollector.on('end', async () => {
                 if (roleCollector.endReason !== 'time') return;
                 await roleMessage.edit({ 
-                    content: lang.botSetup.timeout, 
+                    content: tl.timeout, 
                     components: [] 
                 });
             });
         } catch (error) {
             console.error('Button handler error:', error);
             await buttonInteraction.followUp({ 
-                content: lang.botSetup.error, 
+                content: tl.error, 
                 ephemeral: true 
             });
         }
