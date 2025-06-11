@@ -84,7 +84,6 @@ function parseTicketHeader(fileContent: string, filename: string): ParsedTicket 
  */
 export async function migrateTickets(dataSource: DataSource, ticketsDirectory: string,
     options: {
-        skipDuplicates?: boolean;
         dryRun?: boolean;
         filePattern?: RegExp;
         forumChannel?: any;
@@ -128,28 +127,6 @@ export async function migrateTickets(dataSource: DataSource, ticketsDirectory: s
         stats.totalFiles = txtFiles.length;
         console.log(tl.run.filesFound + stats.totalFiles);
         
-        // track existing tickets to avoid duplicates
-        const existingTickets = new Set<string>();
-        if (options.skipDuplicates && !options.dryRun) {
-            const existing = await ticketRepo.find();
-            existing.forEach(ticket => existingTickets.add(ticket.createdBy));
-            console.log(tl.run.ticketsFound + existing.length);
-        }
-        
-        // check existing forum posts to avoid duplicates 
-        const existingForumPosts = new Set<string>();
-        if (shouldCreateForumPosts && options.skipDuplicates && !options.dryRun) {
-            try {
-                const existingThreads = await options.forumChannel.threads.fetchActive();
-                existingThreads.threads.forEach((thread: any) => {
-                    existingForumPosts.add(thread.name); // using username as identifier
-                });
-                console.log(tl.run.postsFound + existingForumPosts.size);
-            } catch (error) {
-                console.warn(tl.run.warnPosts, error);
-            }
-        }
-        
         // process each file
         for (const filename of txtFiles) {
             try {
@@ -164,27 +141,38 @@ export async function migrateTickets(dataSource: DataSource, ticketsDirectory: s
                 }
                 
                 stats.successfullyParsed++;
-                
-                // check for dupes
-                if (options.skipDuplicates && existingTickets.has(parsedTicket.createdBy)) {
-                    console.log(tl.run.skipDupe + parsedTicket.createdBy);
-                    stats.duplicates++;
-                    stats.skipped++;
-                    continue;
-                }
+                console.log(tl.run.processTicket + ` #${parsedTicket.ticketNumber} by ${parsedTicket.createdBy}`);
                 
                 // continue with changes if dryRun is false
                 if (!options.dryRun) {
-                    let newPostId: string = '';
+                    let postId: string = '';
                     
                     // create forum post if forum channel is provided
                     if (shouldCreateForumPosts) {
                         try {
-                            // check if forum post already exists for this user
-                            if (options.skipDuplicates && existingForumPosts.has(parsedTicket.createdBy)) {
+                            // check if archived ticket already exists for this user
+                            const existingTicket = await ticketRepo.findOneBy({ createdBy: parsedTicket.createdBy });
+                            
+                            if (existingTicket && existingTicket.messageId) {
+                                // existing forum post found - add file to existing thread
                                 console.log(tl.run.alrExists + parsedTicket.createdBy);
+                                const existingPost = await options.forumChannel.threads.fetch(existingTicket.messageId);
+                                
+                                if (existingPost) {
+                                    await existingPost.send({
+                                        files: [{
+                                            attachment: filePath,
+                                            name: `ticket_${parsedTicket.ticketNumber}_${parsedTicket.ticketName}.txt`
+                                        }]
+                                    });
+                                    postId = existingTicket.messageId; // keep the same messageId
+                                    console.log(tl.run.existingPost + ` ${parsedTicket.createdBy} (${existingPost.id})`);
+                                    stats.duplicates++;
+                                } else {
+                                    throw new Error(tl.run.failForumFetch);
+                                }
                             } else {
-                                // fetch the user
+                                // no existing forum post - create new one
                                 const archiveUser = await options.client.users.fetch(parsedTicket.createdBy).catch(() => null);
                                 const displayName = archiveUser ? archiveUser.username : parsedTicket.createdBy;
                                 
@@ -199,34 +187,52 @@ export async function migrateTickets(dataSource: DataSource, ticketsDirectory: s
                                     }
                                 });
                                 
-                                newPostId = newPost.id;
-                                existingForumPosts.add(parsedTicket.createdBy); // track to avoid future dupes
+                                postId = newPost.id;
                                 console.log(tl.run.creatingPost + ` ${displayName} (${newPost.id})`);
                             }
                         } catch (error) {
                             console.error(tl.run.failPost + parsedTicket.createdBy, error);
-                            stats.errors.push(tl.run.failPost + parsedTicket.createdBy + '' + error);
+                            stats.errors.push(tl.run.failPost + parsedTicket.createdBy + ': ' + error);
                         }
                     }
                     
-                    // create and save the archived ticket
-                    const archivedTicket = new ArchivedTicket();
-                    archivedTicket.createdBy = parsedTicket.createdBy;
-                    archivedTicket.messageId = newPostId; // use forum post id if created
+                    // create or update archived ticket in database
+                    const existingTicket = await ticketRepo.findOneBy({ createdBy: parsedTicket.createdBy });
                     
-                    await ticketRepo.save(archivedTicket);
-                    existingTickets.add(parsedTicket.createdBy); // track for future dupes
+                    if (existingTicket) {
+                        // update existing ticket if messageId is empty or if we created a new post
+                        if (!existingTicket.messageId && postId) {
+                            existingTicket.messageId = postId;
+                            await ticketRepo.save(existingTicket);
+                            console.log(tl.run.updateDB + parsedTicket.createdBy);
+                        }
+                    } else {
+                        // create new archived ticket
+                        const archivedTicket = new ArchivedTicket();
+                        archivedTicket.createdBy = parsedTicket.createdBy;
+                        archivedTicket.messageId = postId;
+                        
+                        await ticketRepo.save(archivedTicket);
+                        console.log(tl.run.newDB + parsedTicket.createdBy);
+                    }
                 } else {
                     // if dry run is true, just log what would happen
                     if (shouldCreateForumPosts) {
-                        console.log(tl.dryRun.creatingPost + parsedTicket.createdBy);
+                        const existingTicket = await ticketRepo.findOneBy({ createdBy: parsedTicket.createdBy });
+                        if (existingTicket && existingTicket.messageId) {
+                            console.log(tl.dryRun.existingPost + parsedTicket.createdBy);
+                            stats.duplicates++;
+                        } else {
+                            console.log(tl.dryRun.creatingPost + parsedTicket.createdBy);
+                        }
                     }
+                    console.log(tl.dryRun.updateDB + parsedTicket.createdBy);
                 }
                 
                 stats.successfullyMigrated++;
                 
             } catch (error) {
-                const errorMsg = tl.run.failProcessing + filename + '' + error;
+                const errorMsg = tl.run.failProcessing + filename + ': ' + error;
                 console.error(errorMsg);
                 stats.errors.push(errorMsg);
             }

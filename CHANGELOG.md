@@ -1,3 +1,7 @@
+# Dev Update v1.3.7
+- Fixed logic in migrator to accomidate duplicates how I want 
+- Started announcement module organizing.
+
 # Dev Update v1.3.6
 - Added logic for archive migration downloader AND migrator.
 - MORE LARGERER lang cleanup and organization.

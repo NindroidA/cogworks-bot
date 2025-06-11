@@ -97,7 +97,6 @@ export const archiveMigrationHandler = async(client: Client, interaction: ChatIn
             await interaction.editReply(tl.start + `${directory}${forumText}${dryRun ? ' (DRY RUN)' : ''}...`);
                 
             const stats = await migrateTickets(AppDataSource, directory, {
-                skipDuplicates: true,
                 dryRun,
                 filePattern: /\.txt$/,  // only process txt files
                 forumChannel,

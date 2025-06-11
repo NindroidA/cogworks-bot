@@ -214,20 +214,27 @@
             "dryRun": {
                 "enabled": "📋 DRY RUN MODE - No database changes will be made",
                 "posting": "📋 DRY RUN MODE - No actual posts will be created.",
-                "creatingPost": "📋 DRY RUN MODE - Would have created forum post for "
+                "creatingPost": "📋 DRY RUN MODE - Would have created forum post for ",
+                "existingPost": "📋 DRY RUN MODE - Would have added file to existing post for ",
+                "updateDB": "📋 DRY RUN MODE - Would have saved/updated database entry for "
             },
             "run": {
                 "posting": "📦 Will create forum posts in ",
                 "filesFound": "📁 Found txt files to process: ",
                 "ticketsFound": "📦 Found existing tickets: ",
                 "postsFound": "📦 Found existing forum posts: ",
+                "processTicket": "📦 Processing Ticket",
                 "skipDupe": "⏭️ Skipping duplicate ticket by ",
                 "alrExists": "💾 Forum post already exists for ",
                 "creatingPost": "💾 Created forum post:",
+                "existingPost": "💾 Added file to existing post:",
+                "newDB": "💾 Created new database entry for ",
+                "updateDB": "💾 Updated existing database entry for ",
                 "warnPosts": "⚠️ Could not fetch existing forum threads:",
                 "warnParse": "⚠️ Could not parse header in",
                 "warnDate": "⚠️ Invalid date format in ",
                 "failParse": "❌ Error parsing ",
+                "failForumFetch": "❌ Could not fetch existing forum thread!",
                 "failPost": "❌ Failed to create forum post for ",
                 "failProcessing": "❌ Failed processing for "
             },
@@ -241,5 +248,8 @@
                 "migrateDupes": "**Duplicates:**"
             }
         }  
+    },
+    "announcement": {
+        "cmdDescrp": "Sends a specialized announcement."
     }
 }
