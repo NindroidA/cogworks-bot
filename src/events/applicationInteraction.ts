@@ -67,9 +67,9 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
         });
 
         if (!position) {
-            await interaction.reply({
+            await interaction.update({
                 content: '❌ This position is no longer available.',
-                ephemeral: true
+                components: []
             });
             return;
         }
@@ -134,9 +134,9 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
         const positionId = parseInt(interaction.customId.replace('age_verify_no_', ''));
         console.log(`User ${user} is under 18 for position ${positionId}`);
 
-        await interaction.reply({
+        await interaction.update({
             content: '🚫 **Sorry!** You must be 18 or older to apply for this position. Please try again when you meet the age requirement.',
-            ephemeral: true
+            components: []
         });
     }
 
@@ -199,14 +199,21 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
             const location = fields.getTextInputValue('location');
             const availability = fields.getTextInputValue('availability');
 
-            // create application description
-            const description = `## 📋 Application for ${position.title}\n\n` +
-                `**Applicant:** ${name}\n` +
-                `**Discord:** ${member.user.tag}\n\n` +
-                `**Experience:**\n${experience}\n\n` +
-                `**Why this position:**\n${whyPosition}\n\n` +
-                `**Location/Country:**\n${location}\n\n` +
-                `**Availability:**\n${availability}\n\n`;
+            // Split application into multiple parts to avoid 2000 char limit
+            const description = `## 📋 Application for ${position.title}
+
+**Applicant:** ${name}
+**Discord:** ${member.user.tag}
+**Location:** ${location}`;
+
+            const experienceMsg = `**Experience:**
+${experience}`;
+
+            const whyPositionMsg = `**Why this position:**
+${whyPosition}`;
+
+            const availabilityMsg = `**Availability:**
+${availability}`;
 
             // create new application in the database
             const newApplication = applicationRepo.create({
@@ -275,8 +282,21 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
                 components: [buttonOptions],
             });
             
+            // Send application info in separate messages to avoid 2000 character limit
             await newChannel.send({
                 content: description
+            });
+
+            await newChannel.send({
+                content: experienceMsg
+            });
+
+            await newChannel.send({
+                content: whyPositionMsg
+            });
+
+            await newChannel.send({
+                content: availabilityMsg
             });
 
             await newChannel.send({
@@ -293,11 +313,15 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
             console.log(`User ${user} successfully created application for position ${positionId}`);
 
         } catch (error) {
-            console.log(tl.error + ' ' + error);
-            await interaction.reply({
-                content: tl.error,
-                ephemeral: true
-            });
+            console.log('Application creation error:', error);
+            
+            // Only reply if we haven't already replied
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: '❌ Could not create application! Please try again.',
+                    ephemeral: true
+                });
+            }
             return;
         }
     }

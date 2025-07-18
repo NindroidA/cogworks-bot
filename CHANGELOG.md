@@ -1,3 +1,6 @@
+# Dev Update v1.4.2
+- Hotfix for application going over the discord message character limit.
+
 # Dev Update v1.4.1
 - Small format changes to Application prefills. 
 
