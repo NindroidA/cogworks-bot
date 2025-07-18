@@ -230,21 +230,21 @@ export async function updateApplicationMessage(client: Client, guildId: string) 
 
 // helper function to build the application message
 export async function buildApplicationMessage(positions: Position[]) {
-    let content = '# Welcome to Job Applications\n\n';
+    let content = '# __Welcome to Job Applications__\n\n';
 
     if (positions.length === 0) {
         content += '## 🔒 No positions are currently available.';
         return { content, components: [] };
     }
 
-    content += '## 📋 Available Positions:\n\n';
+    content += '# 📋 Available Positions:\n\n';
 
     const components = [];
     const maxButtonsPerRow = 5;
     let currentRow = [];
 
     for (const position of positions) {
-        content += `### ${position.title}\n${position.description}\n\n`;
+        content += `## __${position.title}__\n` + `${position.description}\n\n`;
 
         const button = new ButtonBuilder()
             .setCustomId(`apply_${position.id}`)
