@@ -258,7 +258,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
             });
 
             // send application welcome message
-            const welcomeMsg = `👋 Welcome, ${member.user.displayName}! Your application for **${position.title}** has been received.\n\n Please remember to include any reels, images, or any examples of your work! Our team will review your application and get back to you soon. Feel free to ask any questions here!\n`;
+            const welcomeMsg = `👋 Welcome, ${member.user.displayName}! Your application for **${position.title}** has been received.\n\n Our team will review your application and get back to you soon. Feel free to ask any questions here!\n`;
             
             const buttonOptions = new ActionRowBuilder<ButtonBuilder>().setComponents(
                 new ButtonBuilder()
@@ -277,6 +277,10 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
             
             await newChannel.send({
                 content: description
+            });
+
+            await newChannel.send({
+                content: `${member.user} Please remember to include any reels, images, or any examples of your work!`
             });
 
             // update application record
