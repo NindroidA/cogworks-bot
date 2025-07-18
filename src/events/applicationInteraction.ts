@@ -61,7 +61,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
         const positionId = parseInt(interaction.customId.replace('age_verify_yes_', ''));
         console.log(`User ${user} verified they are 18+ for position ${positionId}`);
 
-        // Get the position details
+        // get position details
         const position = await positionRepo.findOne({
             where: { id: positionId, guildId, isActive: true }
         });
@@ -111,12 +111,20 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
             .setMaxLength(500)
             .setPlaceholder('When are you available to work?');
 
+        const locationInput = new TextInputBuilder()
+            .setCustomId('location')
+            .setLabel('Location/Country')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+            .setPlaceholder('Where are you located?');
+
         const nameActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput);
         const experienceActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(experienceInput);
         const whyActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(whyInput);
+        const locationActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(locationInput);
         const availabilityActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(availabilityInput);
 
-        modal.addComponents(nameActionRow, experienceActionRow, whyActionRow, availabilityActionRow);
+        modal.addComponents(nameActionRow, experienceActionRow, whyActionRow, locationActionRow, availabilityActionRow);
 
         await interaction.showModal(modal);
     }
@@ -188,6 +196,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
             const name = fields.getTextInputValue('name');
             const experience = fields.getTextInputValue('experience');
             const whyPosition = fields.getTextInputValue('why_position');
+            const location = fields.getTextInputValue('location');
             const availability = fields.getTextInputValue('availability');
 
             // create application description
@@ -196,6 +205,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
                 `**Discord:** ${member.user.tag}\n\n` +
                 `**Experience:**\n${experience}\n\n` +
                 `**Why this position:**\n${whyPosition}\n\n` +
+                `**Location/Country:**\n${location}\n\n` +
                 `**Availability:**\n${availability}\n\n`;
 
             // create new application in the database

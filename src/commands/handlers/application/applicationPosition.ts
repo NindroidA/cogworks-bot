@@ -277,7 +277,6 @@ To work with the senior set builder to create sets to flow into the next stage o
 **You'll Be a Great Fit If You:** 
 • Enjoy set building and bringing worlds to life
 • Have experience in Set Building
-• Have an understanding of Maya
 • Are confident working in Axiom and Worldedit
 • Are collaborative, communicative, and love giving and receiving feedback
 • Are comfortable working remotely and asynchronously with a small, dedicated team
@@ -286,7 +285,8 @@ To work with the senior set builder to create sets to flow into the next stage o
 **Details:** 
 • Type: Freelance
 • Location: Remote (At least 2 hours cross-over with our UK team, 10AM-6PM BST)
-• Software: Axiom, World Build Start Date: ASAP
+• Software: Axiom, World Build 
+• Start Date: ASAP
 • Duration: Project-based
 
 Please include a reel or examples of work once your application is opened.`
