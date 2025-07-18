@@ -7,6 +7,11 @@ import { SavedRole } from './entities/SavedRole';
 import { ServerConfig } from './entities/ServerConfig';
 import { Ticket } from './entities/Ticket';
 import { TicketConfig } from './entities/TicketConfig';
+import { Application } from './entities/application/Application';
+import { ApplicationConfig } from './entities/application/ApplicationConfig';
+import { ArchivedApplication } from './entities/application/ArchivedApplication';
+import { ArchivedApplicationConfig } from './entities/application/ArchivedApplicationConfig';
+import { Position } from './entities/application/Position';
 dotenv.config();
 
 export const AppDataSource = new DataSource({
@@ -17,6 +22,6 @@ export const AppDataSource = new DataSource({
     password: process.env.MYSQL_DB_PASSWORD,
     database: process.env.MYSQL_DB_DATABASE,
     synchronize: true,
-    entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, ServerConfig, SavedRole, BotConfig],
+    entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, ServerConfig, SavedRole, BotConfig, Application, ApplicationConfig, ArchivedApplication, ArchivedApplicationConfig, Position],
     //entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, ServerConfig, SavedRole, BotConfig, Card, CardAbility, BattleAbilityUses, BattleCardStates, GameSession, PlayerDeck, PlayerStats],
 });

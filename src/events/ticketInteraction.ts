@@ -24,7 +24,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
     const guildId = interaction.guildId || '';
     const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
 
-    // handle button presses
+    /* Create Ticket Button */
     if (interaction.isButton() && interaction.customId === 'create_ticket'){
         console.log(`User ${user} ` + lang.console.createTicketAttempt);
 
@@ -88,7 +88,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         await interaction.showModal(modal);
     }
 
-    // handle modal submission
+    // handle ticket modal submission
     if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_')) {
         const ticketType = interaction.customId.replace('ticket_modal_', '');
         const member = interaction.member as GuildMember;
@@ -298,7 +298,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             components: [],
         });
     }
-
+    
     /* BOTSETUP SHTUFF */
     /* Select 1 Yes */
     if (interaction.isButton() && interaction.customId === 'botsetup_s1_yes') {

@@ -17,7 +17,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
     /* CHANNEL SUBCOMMAND */
     if (subCommand == 'channel') {
         // create ticket button
-        const row = new ActionRowBuilder<ButtonBuilder>().setComponents(
+        const createTicketButton = new ActionRowBuilder<ButtonBuilder>().setComponents(
             new ButtonBuilder()
                 .setCustomId('create_ticket')
                 .setEmoji('🎫')
@@ -29,7 +29,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
         
         const mainMsg = {
             content: tl.createTicket,
-            components: [row],
+            components: [createTicketButton],
         };
         
         // make sure the channel exists

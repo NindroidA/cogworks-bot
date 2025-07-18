@@ -6,6 +6,8 @@ import { addRoleHandler } from './handlers/addRole';
 import { archiveMigrationHandler } from './handlers/archiveMigration';
 import { botSetupHandler, botSetupNotFound } from './handlers/botSetup';
 //import { cogdeckHandler } from './handlers/cogdeck';
+import { applicationPositionHandler } from './handlers/application/applicationPosition';
+import { applicationSetupHandler } from './handlers/application/applicationSetup';
 import { getRolesHandler } from './handlers/getRoles';
 import { removeRoleHandler } from './handlers/removeRole';
 import { ticketReplyHandler } from './handlers/ticketReply';
@@ -66,6 +68,13 @@ export const handleSlashCommand = async(client: Client, interaction: ChatInputCo
             case 'archive-migration': {
                 archiveMigrationHandler(client, interaction);
                 break;
+            }
+            case 'application-setup': {
+                applicationSetupHandler(client, interaction);
+                break;
+            }
+            case 'application-position': {
+                applicationPositionHandler(client, interaction);
             }
         }
     }

@@ -5,11 +5,14 @@ import { addRole } from './commands/builders/addRole';
 import { archiveMigration } from './commands/builders/archiveMigration';
 import { botSetup } from './commands/builders/botSetup';
 //import { cogdeck } from './commands/builders/cogdeck';
+import { applicationPosition } from './commands/builders/applicationPosition';
+import { applicationSetup } from './commands/builders/applicationSetup';
 import { getRoles } from './commands/builders/getRoles';
 import { removeRole } from './commands/builders/removeRole';
 import { ticketReply } from './commands/builders/ticketReply';
 import { ticketSetup } from './commands/builders/ticketSetup';
 import { handleSlashCommand } from './commands/commands';
+import { handleApplicationInteraction } from './events/applicationInteraction';
 import { handleTicketInteraction } from './events/ticketInteraction';
 import { AppDataSource } from './typeorm';
 import { BotConfig } from './typeorm/entities/BotConfig';
@@ -50,8 +53,10 @@ const commands: RESTPostAPIApplicationCommandsJSONBody[] = [
     getRoles,         // get roles
     ticketSetup,      // ticket setup
     ticketReply,      // ticket reply
-    archiveMigration, // archive migration functions
-    //cogdeck,          // cogworks card game
+    archiveMigration, // ticket archive migration functions
+    applicationSetup, // application setup
+    applicationPosition // application position
+    //cogdeck,        // cogworks card game
 ];
 
 client.on('interactionCreate', async (interaction) => {
@@ -66,6 +71,7 @@ client.on('interactionCreate', async (interaction) => {
 client.on('chatInputCommand', handleSlashCommand);
 // when button is pressed, handleTicketInteraction will run
 client.on('buttonInteraction', handleTicketInteraction);
+client.on('buttonInteraction', handleApplicationInteraction);
 
 // once we reday, LEGGO
 client.once('ready', () => {

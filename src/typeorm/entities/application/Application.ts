@@ -1,0 +1,24 @@
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { ApplicationStatus } from '../../../utils/types';
+
+@Entity({ name: 'applications'})
+export class Application {
+
+    @PrimaryGeneratedColumn()
+    id: number;
+
+    @Column({ nullable: true })
+    channelId: string;
+
+    @Column({ nullable: true })
+    messageId: string;
+
+    @Column()
+    createdBy: string;
+
+    @Column({ nullable: true })
+    type: string;
+
+    @Column({ default: 'created' })
+    status: ApplicationStatus;
+}

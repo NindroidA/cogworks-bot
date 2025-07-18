@@ -20,14 +20,20 @@
     "console": {
         "createTicketAttempt": "is attempting to create a ticket.",
         "cancelTicketRequest": "cancelled a ticket request.",
+        "createApplicationAttempt": "is attempting to create an application.",
+        "cancelApplicationRequest": "cancelled an application request.",
         "modalSubmit": "submitted modal and a ticket will now be created.",
         "creatTicketSuccess": "successfully created a ticket!",
+        "createApplicationSuccess": "successfully create an application!",
         "adminOnlyAttempt": "is attempting to make a ticket Admin Only.",
         "adminOnlyConfirm": "confirmed making a ticket Admin Only.",
         "adminOnlyCancel": "cancelled making a ticket Admin Only.",
         "closeTicketAttempt": "is attempting to close a ticket.",
         "closeTicketConfirm": "confirmed closing a ticket",
-        "closeTicketCancel": "cancelled closing a ticket"
+        "closeTicketCancel": "cancelled closing a ticket",
+        "closeApplicationAttempt": "is attempting to close a application.",
+        "closeApplicationConfirm": "confirmed closing an application",
+        "closeApplicationCancel": "cancelled closing an application"
     },
     "botConfig": {
         "notFound": "This server has not setup a Bot Config!",
@@ -69,7 +75,7 @@
     },
     "ticket": {
         "error": "Could not create ticket!",
-        "ticketConfigNotFound": "Ticket config does not exist!",
+        "ticketConfigNotFound": "Ticket Config does not exist!",
         "ticketCategoryNotFound": "Ticket Category does not exist!",
         "archiveTicketConfigNotFound": "Archived Ticket Config does not exist!",
         "selectTicketType": "Please select the type of ticket you want to create:",
@@ -120,6 +126,58 @@
             "approveSent": "Approve message sent!",
             "deny": "Your appeal was denied; Staff do not feel comfortable letting you back on the server at this time. You may re-appeal your ban in 6 months from now. In that time, please use it as an opportunity to grow and understand why your actions were unacceptable and necessitated the ban in the first place. This ticket will be closed in 24 hours or upon acknowledgement.",
             "denySent": "Deny message sent!"
+        }
+    },
+    "application": {
+        "error": "Could not create create application!",
+        "setup": {
+            "cmdDescrp": "Initializes bot application systems",
+            "subcmdDescrp": {
+                "channel": "Sets the global application channel",
+                "channelSet": "Channel to set the global application channel to",
+                "category": "Sets the global application category",
+                "catSet": "Category to set the global application category to",
+                "archive": "Sets the archive application channel",
+                "archiveSet": "Channel to set the archive application channel to"
+            },
+            "fail": "Failed to setup Application Channel!",
+            "successSet": "The application setup message was sent in ",
+            "successUpdate": "The application setup channel was updated to "
+        },
+        "archiveSetup": {
+            "initialMsg": "This channel has been made as an archive for applications. Once an application is closed, you it can be found and referenced again in this channel.",
+            "fail": "Failed to setup Application Archive Channel!",
+            "successSet": "The archive application setup message was sent in ",
+            "successUpdate": "The archive application setup channel was updated to "
+        },
+        "categorySetup": {
+            "setChannelFirst": "You need to set the Application Channel first!",
+            "success": "Application Category successfully set!",
+            "fail": "Failed to setup the Application Category Channel!"
+        },
+        "applicationConfigNotFound": "Application Config does not exist!",
+        "applicationCategoryNotFound": "Application Category does not exist!",
+        "archiveApplicationConfigNotFound": "Archived Application Config does not exist!",
+        "selectApplicationType": "Please select the type of application you want to create:",
+        "created": "Your application has been created: ",
+        "welcomeMsg": "Welcome Application",
+        "cancelled": "Application creation cancelled.",
+        "close": {
+            "confirm": "⚠️ Are you sure you want to close this application?",
+            "closing": "Closing application...",
+            "cancel": "Application close cancelled",
+            "byUser": "User has initiated the application to close...",
+            "transcriptCreate": {
+                "success": "Transcript successfully sent to channel and deleted from memory!",
+                "error": "Error making transcript file!",
+                "attachmentFound": "Attachment file found; adding to message.",
+                "attachmentNotFound": "Attachments not found; continuing ..."
+            },
+            "transcriptDelete": {
+                "error1": "Error deleting the transcript txt file!",
+                "error2": "Could not properly send transcript!",
+                "attachmentError": "Error deleting transcript attachments zip file!"
+            }
         }
     },
     "addRole": {

@@ -1,3 +1,11 @@
+# Dev Update v1.4.0
+- New ticket section for Applications. (still kinda WIP and some things WILL be changed).
+
+# Dev Update v1.3.8
+- Migrator logic will be deprecated this point on cause I don't really have a use for it lmao.
+- Started steps to get Cogworks as a verified app.
+- Cleaned up Bot Setup.
+
 # Dev Update v1.3.7
 - Fixed logic in migrator to accomidate duplicates how I want 
 - Started announcement module organizing.

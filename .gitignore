@@ -12,10 +12,12 @@ private
 archivedTickets
 archiveDownload
 src/utils/baResponses.json
+src/utils/jobApplications.json
 src/commands/handlers/botsetup
 
 # cogdeck (still in development)
 src/cogdeck
 src/commands/builders/cogdeck.ts
 src/commands/handlers/cogdeck.ts
+src/commands/handlers/cogdeck
 src/typeorm/entities/cogdeck

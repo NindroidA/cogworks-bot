@@ -1,5 +1,4 @@
 # Priority
-[] fix up the whole command registering (in an event like adding a new bot config)
 [] announcement module
 [] implement the new card and card ability tables into the battle manager logic
 [] create sql dump file for card and card ability tables
@@ -32,3 +31,4 @@
 [x] when a player report ticket is made, @ the global staff role
 [x] actually get the custom status working lol
 [x] do some type shite for slash commands where we yoink the guilds that have done the bot setup command (from bot config) and use guild commands, otherwise stick to application commands
+[x] fix up the whole command registering (in an event like adding a new bot config)
