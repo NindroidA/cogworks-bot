@@ -1,10 +1,10 @@
 import { ButtonInteraction, Client, ForumChannel, ForumThreadChannel, GuildTextBasedChannel } from 'discord.js';
 import fs from 'fs';
 import { AppDataSource } from '../../typeorm';
-import { ArchivedTicket } from '../../typeorm/entities/ArchivedTicket';
-import { ArchivedTicketConfig } from '../../typeorm/entities/ArchivedTicketConfig';
-import { Ticket } from '../../typeorm/entities/Ticket';
-import { lang } from '../../utils';
+import { ArchivedTicket } from '../../typeorm/entities/ticket/ArchivedTicket';
+import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
+import { Ticket } from '../../typeorm/entities/ticket/Ticket';
+import { lang, logger } from '../../utils';
 import { fetchMessagesAndSaveToFile } from '../../utils/fetchAllMessages';
 
 const tl = lang.ticket.close;
@@ -21,10 +21,10 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
     const ticket = await ticketRepo.findOneBy({ channelId: channelId }); // // get the ticket this event was initiated from the Ticket database using channelId
 
     // check if the archived ticket config exists
-    if (!archivedConfig) { return console.log(lang.ticket.archiveTicketConfigNotFound); }
+    if (!archivedConfig) { return logger(lang.ticket.archiveTicketConfigNotFound); }
 
     // check if the ticket exists
-    if (!ticket) { return console.log(lang.general.fatalError); };
+    if (!ticket) { return logger(lang.general.fatalError, 'ERROR'); };
 
     // get archived channel from ArchivedTicket database using createdBy
     const createdBy = ticket.createdBy;
@@ -34,7 +34,7 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
     try {
         await fetchMessagesAndSaveToFile(channel, transcriptPath);
     } catch (error) {
-        console.error(tl.transcriptCreate.error, error);
+        logger(tl.transcriptCreate.error + error, 'ERROR');
         await interaction.reply({
             content: tl.transcriptCreate.error
         });
@@ -53,10 +53,10 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
         // if we have attachments, add them to the files array
         if (fs.existsSync(zipPath)) {
             files.push(zipPath);
-            console.log(tl.transcriptCreate.attachmentFound);
+            logger(tl.transcriptCreate.attachmentFound);
             zipCheck = true;
         } else {
-            console.log(tl.transcriptCreate.attachmentNotFound);
+            logger(tl.transcriptCreate.attachmentNotFound);
         }
 
         // if transcript channel doesn't exist, make one and put the transcript
@@ -89,25 +89,25 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
 
         // delete the saved txt file
         fs.unlink(txtPath, (error) => {
-            if (error) console.error(tl.transcriptDelete.error1, error);
+            if (error) logger(tl.transcriptDelete.error1 + error, 'ERROR');
         });
 
         if (zipCheck) {
             // delete the saved zip file
             fs.unlink(zipPath, (error) => {
-                if (error) console.error(tl.transcriptDelete.attachmentError, error);
+                if (error) logger(tl.transcriptDelete.attachmentError + error, 'ERROR');
             });
         }
 
     } catch (error) {
-        return console.error(tl.transcriptDelete.error2, error);
+        return logger(tl.transcriptDelete.error2 + error, 'ERROR');
     }
 
     // update the ticket status 
     await ticketRepo.update({ id: ticket.id }, { status: 'closed' });
 
     // log success message
-    console.log(tl.transcriptCreate.success);
+    logger(tl.transcriptCreate.success);
 
     // delete the channel
     await channel.delete(ticket.channelId);

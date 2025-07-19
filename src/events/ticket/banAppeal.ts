@@ -4,8 +4,9 @@ export const banAppealModal = async(modal: ModalBuilder) => {
     const modalIGN = new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
             .setCustomId('appeal_ign_input')
-            .setLabel('Your Minecraft In-Game-Name:')
+            .setLabel('Minecraft IGN:')
             .setStyle(TextInputStyle.Short)
+            .setPlaceholder('Your Minecraft In-Game-Name')
             .setRequired(true)
     );
     const modalRFB = new ActionRowBuilder<TextInputBuilder>().addComponents(
@@ -20,6 +21,7 @@ export const banAppealModal = async(modal: ModalBuilder) => {
             .setCustomId('appeal_dob_input')
             .setLabel('Date of ban:')
             .setStyle(TextInputStyle.Short)
+            .setPlaceholder('dd/mm/yyyy')
             .setRequired(true)
     );
     const modalS = new ActionRowBuilder<TextInputBuilder>().addComponents(

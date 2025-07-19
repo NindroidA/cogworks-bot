@@ -2,13 +2,13 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, ChatInputCommandInteraction, Client, ComponentType, EmbedBuilder, RoleSelectMenuBuilder } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
-import { lang } from '../../utils';
+import { lang, logger } from '../../utils';
 
 const tlC = lang.botConfig;
 const tl = lang.botSetup;
 
 export const botSetupNotFound = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
-    console.log(tlC.notFound);
+    logger(tlC.notFound, 'WARN');
     return await interaction.reply({
         content: tlC.notFound,
         ephemeral: true
@@ -120,7 +120,7 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
                 });
 
             } catch (error) {
-                console.error('Button handler error:', error);
+                logger('Button handler error:' + error, 'ERROR');
                 await buttonInteraction.followUp({ 
                     content: tl.error, 
                     ephemeral: true 
@@ -139,7 +139,7 @@ export const botSetupHandler = async(client: Client, interaction: ChatInputComma
         });
 
     } catch (error) {
-        console.error('Setup error:', error);
+        logger('Setup error:' + error, 'ERROR');
         if (interaction.replied || interaction.deferred) {
             await interaction.editReply(tl.fail);
         } else {
@@ -244,7 +244,7 @@ async function handleExistingConfig(interaction: ChatInputCommandInteraction<Cac
                 });
             });
         } catch (error) {
-            console.error('Button handler error:', error);
+            logger('Button handler error:' + error, 'ERROR');
             await buttonInteraction.followUp({ 
                 content: tl.error, 
                 ephemeral: true 

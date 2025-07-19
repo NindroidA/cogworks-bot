@@ -1,53 +1,54 @@
 import { PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
 
-const tl = lang.application.setup;
+const tl = lang.application.position;
+const tSC = lang.application.position.subcmdDescrp;
 
 /* subcommands */
 const add = new SlashCommandSubcommandBuilder()
     .setName('add')
-    .setDescription('Add a new position')
+    .setDescription(tSC.add)
     .addStringOption(option => option
         .setName('template')
-        .setDescription('Use a predefined template')
+        .setDescription(tSC['add-template'])
         .addChoices(
             { name: 'Set Builder', value: 'set_builder' },
         )
     )
     .addStringOption(option => option
         .setName('title')
-        .setDescription('Custom position title (if not using template)')
+        .setDescription(tSC['add-title'])
     )
     .addStringOption(option => option
         .setName('description')
-        .setDescription('Custom position description (if not using template)')
+        .setDescription(tSC['add-description'])
     );
 
 const remove = new SlashCommandSubcommandBuilder()
     .setName('remove')
-    .setDescription('Remove a position')
+    .setDescription(tSC.remove)
     .addIntegerOption(option => option
         .setName('id')
-        .setDescription('Position ID to remove')
+        .setDescription(tSC['remove-id'])
         .setRequired(true)
     );
 
 const toggle = new SlashCommandSubcommandBuilder()
     .setName('toggle')
-    .setDescription('Toggle position visibility')
+    .setDescription(tSC.toggle)
     .addIntegerOption(option => option
         .setName('id')
-        .setDescription('Position ID to toggle')
+        .setDescription(tSC['toggle-id'])
         .setRequired(true)
     );
 
 const list = new SlashCommandSubcommandBuilder()
     .setName('list')
-    .setDescription('List all positions');
+    .setDescription(tSC.list);
 
 const refresh = new SlashCommandSubcommandBuilder()
     .setName('refresh')
-    .setDescription('Refresh the application channel message');
+    .setDescription(tSC.refresh);
 
 /* main slash command */
 export const applicationPosition = new SlashCommandBuilder()

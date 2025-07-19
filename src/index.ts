@@ -2,11 +2,10 @@ import { Client, GatewayIntentBits, REST, RESTPostAPIApplicationCommandsJSONBody
 import dotenv from 'dotenv';
 import 'reflect-metadata';
 import { addRole } from './commands/builders/addRole';
-import { archiveMigration } from './commands/builders/archiveMigration';
-import { botSetup } from './commands/builders/botSetup';
-//import { cogdeck } from './commands/builders/cogdeck';
 import { applicationPosition } from './commands/builders/applicationPosition';
 import { applicationSetup } from './commands/builders/applicationSetup';
+import { archiveMigration } from './commands/builders/archiveMigration';
+import { botSetup } from './commands/builders/botSetup';
 import { getRoles } from './commands/builders/getRoles';
 import { removeRole } from './commands/builders/removeRole';
 import { ticketReply } from './commands/builders/ticketReply';
@@ -47,16 +46,15 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 /* Slash Commands */
 const commands: RESTPostAPIApplicationCommandsJSONBody[] = [
-    botSetup,         // bot setup
-    addRole,          // add a role
-    removeRole,       // remove a role
-    getRoles,         // get roles
-    ticketSetup,      // ticket setup
-    ticketReply,      // ticket reply
-    archiveMigration, // ticket archive migration functions
-    applicationSetup, // application setup
+    botSetup,           // bot setup
+    addRole,            // add a role
+    removeRole,         // remove a role
+    getRoles,           // get roles
+    ticketSetup,        // ticket setup
+    ticketReply,        // ticket reply
+    archiveMigration,   // ticket archive migration functions
+    applicationSetup,   // application setup
     applicationPosition // application position
-    //cogdeck,        // cogworks card game
 ];
 
 client.on('interactionCreate', async (interaction) => {

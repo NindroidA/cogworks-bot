@@ -130,6 +130,7 @@
     },
     "application": {
         "error": "Could not create create application!",
+        "failCreate": "❌ Could not create application! Please try again.",
         "setup": {
             "cmdDescrp": "Initializes bot application systems",
             "subcmdDescrp": {
@@ -165,7 +166,9 @@
         "close": {
             "confirm": "⚠️ Are you sure you want to close this application?",
             "closing": "Closing application...",
+            "closingL": "Confirm Close",
             "cancel": "Application close cancelled",
+            "cancelL": "Cancel",
             "byUser": "User has initiated the application to close...",
             "transcriptCreate": {
                 "success": "Transcript successfully sent to channel and deleted from memory!",
@@ -178,6 +181,49 @@
                 "error2": "Could not properly send transcript!",
                 "attachmentError": "Error deleting transcript attachments zip file!"
             }
+        },
+        "position": {
+            "cmdDescrp": "Commands for configuring application positions",
+            "subcmdDescrp": {
+                "add": "Add a new position",
+                "add-template": "Use a predefined template",
+                "add-title": "Custom position title (if not using template)",
+                "add-description": "Custom position description (if not using template)",
+                "remove": "Remove a position",
+                "remove-id": "Position ID to remove",
+                "toggle": "Toggle position visibility",
+                "toggle-id": "Position ID to toggle",
+                "list": "List all positions",
+                "refresh": "Refresh the application channel message"
+            },
+            "notAvailable": "❌ This position is no longer available.",
+            "ageVerifyYes": "Yes, I'm 18+",
+            "ageVerifyNo": "No, I'm under 18",
+            "ageVerifyNoReply": "🚫 **Sorry!** You must be 18 or older to apply for this position. Please try again when you meet the age requirement.",
+            "modal": {
+                "name": "Name",
+                "experience": "Relevant Experience",
+                "experienceP": "Tell us about your relevant experience...",
+                "why": "Why do you want this position?",
+                "whyP": "What interests you about this role?",
+                "location": "Location/Country",
+                "locationP": "Where are you located?",
+                "availability": "Availability",
+                "availabilityP": "When are you available to work?"
+            },
+            "noneFound": "📋 No positions found.",
+            "noneAvailable": "## 🔒 No positions are currently available.",
+            "available": "# 📋 Available Positions:\n\n",
+            "templateNotFound": "❌ Template not found. Available templates: set_builder",
+            "provideEither": "❌ Please provide either a template or both title and description.",
+            "notFound": "❌ Position not found.",
+            "failAdd": "❌ Failed to add position.",
+            "failRemove": "❌ Failed to remove position.",
+            "failToggle": "❌ Failed to toggle position.",
+            "failList": "❌ Failed to list positions.",
+            "failRefresh": "❌ Failed to refresh application message. Make sure the application channel is set up properly.",
+            "failUpdate": "❌ Failed to update application message.",
+            "successRefresh": "✅ Application channel message has been refreshed!"
         }
     },
     "addRole": {

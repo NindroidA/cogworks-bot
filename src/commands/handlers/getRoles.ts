@@ -1,7 +1,7 @@
 import { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
-import { lang } from '../../utils';
+import { lang, logger } from '../../utils';
 
 const tl = lang.getRoles;
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
@@ -72,7 +72,7 @@ export const getRolesHandler = async(client: Client, interaction: ChatInputComma
         });
 
     } catch (error) {
-        console.log(lang.getRoles.fail, error);
+        logger(lang.getRoles.fail + error, 'ERROR');
         await interaction.reply({
             content: tl.fail,
             ephemeral: true

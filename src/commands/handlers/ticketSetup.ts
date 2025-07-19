@@ -1,8 +1,8 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, CategoryChannel, ChatInputCommandInteraction, Client, ForumChannel, TextChannel } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
-import { ArchivedTicketConfig } from '../../typeorm/entities/ArchivedTicketConfig';
-import { TicketConfig } from '../../typeorm/entities/TicketConfig';
-import { lang } from '../../utils';
+import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
+import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
+import { lang, logger } from '../../utils';
 
 const tl = lang.ticketSetup;
 const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
@@ -80,7 +80,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
                 });
             }
         } catch (error) {
-            console.error(tl.fail, error);
+            logger(tl.fail + error, 'ERROR');
             await interaction.reply({
                 content: tl.fail,
                 ephemeral: true,
@@ -113,15 +113,13 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
             });
 
         } catch (error) {
-            console.error(tlC.fail, error);
+            logger(tlC.fail + error, 'ERROR');
             await interaction.reply({
                 content: tlC.fail,
                 ephemeral: true,
             });
 
         }
-
-        
 
     /* ARCHIVE SUBCOMMAND */    
     } else if (subCommand == 'archive') {
@@ -186,7 +184,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
                 });
             }
         } catch (error) {
-            console.error(tlA.fail, error);
+            logger(tlA.fail + error, 'ERROR');
             await interaction.reply({
                 content: tlA.fail,
                 ephemeral: true,

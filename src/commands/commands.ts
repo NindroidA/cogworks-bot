@@ -1,13 +1,13 @@
 import { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
 import { AppDataSource } from '../typeorm';
 import { BotConfig } from '../typeorm/entities/BotConfig';
+import { logger } from '../utils';
 import lang from '../utils/lang.json';
 import { addRoleHandler } from './handlers/addRole';
-import { archiveMigrationHandler } from './handlers/archiveMigration';
-import { botSetupHandler, botSetupNotFound } from './handlers/botSetup';
-//import { cogdeckHandler } from './handlers/cogdeck';
 import { applicationPositionHandler } from './handlers/application/applicationPosition';
 import { applicationSetupHandler } from './handlers/application/applicationSetup';
+import { archiveMigrationHandler } from './handlers/archiveMigration';
+import { botSetupHandler, botSetupNotFound } from './handlers/botSetup';
 import { getRolesHandler } from './handlers/getRoles';
 import { removeRoleHandler } from './handlers/removeRole';
 import { ticketReplyHandler } from './handlers/ticketReply';
@@ -19,13 +19,13 @@ export const handleSlashCommand = async(client: Client, interaction: ChatInputCo
     const guildId = interaction.guildId;
 
     // send a log to le console
-    console.log(`User ${user} has issued a command: ${commandName}`);
+    logger(`User ${user} has issued a command: ${commandName}`);
 
     if (!guildId) {
         await interaction.reply({
             content: lang.general.cmdGuildNotFound
         });
-        return console.log(lang.general.cmdGuildNotFound);
+        return logger(lang.general.cmdGuildNotFound, 'ERROR');
     }
 
     // get the bot config
@@ -59,12 +59,6 @@ export const handleSlashCommand = async(client: Client, interaction: ChatInputCo
                 getRolesHandler(client, interaction);
                 break;
             }
-            /*
-            case 'cogdeck': {
-                cogdeckHandler(client, interaction);
-                break;
-            }
-            */
             case 'archive-migration': {
                 archiveMigrationHandler(client, interaction);
                 break;

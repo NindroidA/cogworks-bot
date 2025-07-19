@@ -1,6 +1,7 @@
 import { ActionRowBuilder, Interaction, ModalBuilder, ModalSubmitFields, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
+import { logger } from '../../utils';
 import lang from '../../utils/lang.json';
 
 export const playerReportModal = async(modal: ModalBuilder) => {
@@ -39,10 +40,10 @@ export const playerReportMessage = async(fields: ModalSubmitFields, interaction:
 
     // if the bot config isn't setup
     if (!botConfig || !gsr) {
-        console.log(lang.botConfig.notFound);
+        logger(lang.botConfig.notFound);
     // if the global staff role is enabled but isn't set
     } else if (gsrFlag && !gsr) {
-        console.log(lang.botConfig.noStaffRole);
+        logger(lang.botConfig.noStaffRole);
     // if the global staff role is enabled and set, add the mention to the message
     } else if (gsrFlag && gsr) {
         return header + gsr + prn + prd;

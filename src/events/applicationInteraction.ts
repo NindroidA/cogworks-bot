@@ -4,11 +4,11 @@ import { Application } from '../typeorm/entities/application/Application';
 import { ApplicationConfig } from '../typeorm/entities/application/ApplicationConfig';
 import { Position } from '../typeorm/entities/application/Position';
 import { SavedRole } from '../typeorm/entities/SavedRole';
-import { lang } from '../utils';
-import { extractIdFromMention } from '../utils/extractIdFromMention';
+import { extractIdFromMention, lang, logger } from '../utils';
 import { applicationCloseEvent } from './application/close';
 
 const tl = lang.application;
+const pl = lang.application.position;
 const applicationRepo = AppDataSource.getRepository(Application);
 const applicationConfigRepo = AppDataSource.getRepository(ApplicationConfig);
 const positionRepo = AppDataSource.getRepository(Position);
@@ -22,30 +22,30 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
     /* Apply Button for Specific Position */
     if (interaction.isButton() && interaction.customId.startsWith('apply_')) {
         const positionId = parseInt(interaction.customId.replace('apply_', ''));
-        console.log(`User ${user} is applying for position ${positionId}`);
+        logger(`User ${user} is applying for position ${positionId}`);
 
-        // Get the position details
+        // get the position details
         const position = await positionRepo.findOne({
             where: { id: positionId, guildId, isActive: true }
         });
 
         if (!position) {
             await interaction.reply({
-                content: '❌ This position is no longer available.',
+                content: pl.notAvailable,
                 ephemeral: true
             });
             return;
         }
 
-        // Age verification buttons
+        // age verification buttons
         const ageVerificationRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder()
                 .setCustomId(`age_verify_yes_${positionId}`)
-                .setLabel('Yes, I am 18 or older')
+                .setLabel(pl.ageVerifyYes)
                 .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
                 .setCustomId(`age_verify_no_${positionId}`)
-                .setLabel('No, I am under 18')
+                .setLabel(pl.ageVerifyNo)
                 .setStyle(ButtonStyle.Danger)
         );
 
@@ -59,7 +59,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
     /* Age Verification - Yes */
     if (interaction.isButton() && interaction.customId.startsWith('age_verify_yes_')) {
         const positionId = parseInt(interaction.customId.replace('age_verify_yes_', ''));
-        console.log(`User ${user} verified they are 18+ for position ${positionId}`);
+        logger(`User ${user} verified they are 18+ for position ${positionId}`);
 
         // get position details
         const position = await positionRepo.findOne({
@@ -68,7 +68,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
 
         if (!position) {
             await interaction.update({
-                content: '❌ This position is no longer available.',
+                content: pl.notAvailable,
                 components: []
             });
             return;
@@ -79,44 +79,48 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
             .setCustomId(`application_modal_${positionId}`)
             .setTitle(`Apply for ${position.title}`);
 
-        //  application fields
+        // name input
         const nameInput = new TextInputBuilder()
             .setCustomId('name')
-            .setLabel('Name')
+            .setLabel(pl.modal.name)
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
             .setMaxLength(100);
 
+        // experience input
         const experienceInput = new TextInputBuilder()
             .setCustomId('experience')
-            .setLabel('Relevant Experience')
+            .setLabel(pl.modal.experience)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(true)
             .setMaxLength(1000)
-            .setPlaceholder('Tell us about your relevant experience...');
+            .setPlaceholder(pl.modal.experienceP);
 
+        // why you want it input
         const whyInput = new TextInputBuilder()
             .setCustomId('why_position')
-            .setLabel('Why do you want this position?')
+            .setLabel(pl.modal.why)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(true)
             .setMaxLength(1000)
-            .setPlaceholder('What interests you about this role?');
+            .setPlaceholder(pl.modal.whyP);
 
+        // availability input
         const availabilityInput = new TextInputBuilder()
             .setCustomId('availability')
-            .setLabel('Availability')
+            .setLabel(pl.modal.availability)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(true)
             .setMaxLength(500)
-            .setPlaceholder('When are you available to work?');
+            .setPlaceholder(pl.modal.availabilityP);
 
+        // location/country input
         const locationInput = new TextInputBuilder()
             .setCustomId('location')
-            .setLabel('Location/Country')
+            .setLabel(pl.modal.location)
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
-            .setPlaceholder('Where are you located?');
+            .setPlaceholder(pl.modal.locationP);
 
         const nameActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput);
         const experienceActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(experienceInput);
@@ -132,17 +136,17 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
     /* Age Verification - No */
     if (interaction.isButton() && interaction.customId.startsWith('age_verify_no_')) {
         const positionId = parseInt(interaction.customId.replace('age_verify_no_', ''));
-        console.log(`User ${user} is under 18 for position ${positionId}`);
+        logger(`User ${user} is under 18 for position ${positionId}`);
 
         await interaction.update({
-            content: '🚫 **Sorry!** You must be 18 or older to apply for this position. Please try again when you meet the age requirement.',
+            content: pl.ageVerifyNoReply,
             components: []
         });
     }
 
     /* Cancel Application Button */
     if (interaction.isButton() && interaction.customId === 'cancel_application') {
-        console.log(`User ${user} ` + lang.console.cancelApplicationRequest);
+        logger(`User ${user} ` + lang.console.cancelApplicationRequest);
 
         await interaction.reply({
             content: tl.cancelled,
@@ -157,7 +161,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
         const guild = interaction.guild;
         const category = applicationConfig?.categoryId;
 
-        console.log(`User ${user} submitting application for position ${positionId}`);
+        logger(`User ${user} submitting application for position ${positionId}`);
 
         // guild check
         if (!guild) {
@@ -184,7 +188,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
 
         if (!position) {
             await interaction.reply({
-                content: '❌ This position is no longer available.',
+                content: pl.notAvailable,
                 ephemeral: true
             });
             return;
@@ -242,7 +246,7 @@ ${availability}`;
             rolePerms.forEach(role => {
                 const roleId = extractIdFromMention(role.role);
                 if (!roleId) {
-                    console.log(`Invalid role format: ${role.role}`);
+                    logger(`Invalid role format: ${role.role}`);
                     return; // skip this role
                 }
 
@@ -310,15 +314,15 @@ ${availability}`;
                 status: 'opened',
             });
 
-            console.log(`User ${user} successfully created application for position ${positionId}`);
+            logger(`User ${user} successfully created application for position ${positionId}`);
 
         } catch (error) {
-            console.log('Application creation error:', error);
+            logger(tl.error + error, 'ERROR');
             
             // Only reply if we haven't already replied
             if (!interaction.replied && !interaction.deferred) {
                 await interaction.reply({
-                    content: '❌ Could not create application! Please try again.',
+                    content: tl.failCreate,
                     ephemeral: true
                 });
             }
@@ -328,17 +332,17 @@ ${availability}`;
 
     /* Closing Application Button */
     if (interaction.isButton() && interaction.customId === 'close_application') {
-        console.log(`User ${user} ` + lang.console.closeApplicationAttempt);
+        logger(`User ${user} ` + lang.console.closeApplicationAttempt);
 
         // build a confirmation message with buttons
         const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder()
                 .setCustomId('confirm_close_application')
-                .setLabel('Confirm Close')
+                .setLabel(tl.close.closingL)
                 .setStyle(ButtonStyle.Danger),
             new ButtonBuilder()
                 .setCustomId('cancel_close_application')
-                .setLabel('Cancel')
+                .setLabel(tl.close.cancelL)
                 .setStyle(ButtonStyle.Secondary)
         );
 
@@ -351,7 +355,7 @@ ${availability}`;
 
     /* Confirm Close Application */
     if (interaction.isButton() && interaction.customId === 'confirm_close_application') {
-        console.log(`User ${user} ` + lang.console.closeApplicationConfirm);
+        logger(`User ${user} ` + lang.console.closeApplicationConfirm);
         await interaction.update({
             content: tl.close.closing,
             components: [],
@@ -361,7 +365,7 @@ ${availability}`;
 
     /* Cancel Close Application */
     if (interaction.isButton() && interaction.customId === 'cancel_close_application') {
-        console.log(`User ${user} ` + lang.console.closeApplicationCancel);
+        logger(`User ${user} ` + lang.console.closeApplicationCancel);
         await interaction.update({
             content: tl.close.cancel,
             components: [],

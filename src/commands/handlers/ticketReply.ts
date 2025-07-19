@@ -1,7 +1,7 @@
 import { CacheType, ChatInputCommandInteraction, Client, TextChannel } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
-import { Ticket } from '../../typeorm/entities/Ticket';
-import { lang } from '../../utils';
+import { Ticket } from '../../typeorm/entities/ticket/Ticket';
+import { lang, logger } from '../../utils';
 
 const tl = lang.ticketReply;
 const ticketRepo = AppDataSource.getRepository(Ticket);
@@ -20,7 +20,7 @@ export const ticketReplyHandler = async(client: Client, interaction: ChatInputCo
             content: lang.general.cmdTicketNotFound,
             ephemeral: true, 
         });
-        return console.log('Ticket not Found!'); 
+        return logger('Ticket not Found!', 'WARN'); 
     }
 
     const ticketUser = ticket.createdBy;

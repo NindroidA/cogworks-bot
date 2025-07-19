@@ -2,7 +2,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { DataSource, Repository } from 'typeorm';
-import { ArchivedTicket } from '../../../typeorm/entities/ArchivedTicket';
+import { ArchivedTicket } from '../../../typeorm/entities/ticket/ArchivedTicket';
 import { lang } from '../../../utils';
 
 interface ParsedTicket {

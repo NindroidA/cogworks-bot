@@ -1,13 +1,13 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable unused-imports/no-unused-vars */
+ 
+ 
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { lang } from '../../../utils';
+import { lang, logger } from '../../../utils';
 
 const positionRepo = AppDataSource.getRepository(Position);
-const tl = lang.application;
+const pl = lang.application.position;
 
 export const applicationPositionHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
     const subCommand = interaction.options.getSubcommand();
@@ -26,7 +26,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             const templateData = getPositionTemplate(template);
             if (!templateData) {
                 await interaction.reply({
-                    content: '❌ Template not found. Available templates: set_builder',
+                    content: pl.templateNotFound,
                     ephemeral: true
                 });
                 return;
@@ -37,7 +37,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             // use provided title and description
             if (!title || !description) {
                 await interaction.reply({
-                    content: '❌ Please provide either a template or both title and description.',
+                    content: pl.provideEither,
                     ephemeral: true
                 });
                 return;
@@ -72,9 +72,9 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             await updateApplicationMessage(interaction.client, guildId);
 
         } catch (error) {
-            console.error('Error adding position:', error);
+            logger(pl.failAdd + error, 'ERROR');
             await interaction.reply({
-                content: '❌ Failed to add position.',
+                content: pl.failAdd,
                 ephemeral: true
             });
         }
@@ -88,7 +88,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
 
             if (!position) {
                 await interaction.reply({
-                    content: '❌ Position not found.',
+                    content: pl.notFound,
                     ephemeral: true
                 });
                 return;
@@ -105,9 +105,9 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             await updateApplicationMessage(interaction.client, guildId);
 
         } catch (error) {
-            console.error('Error removing position:', error);
+            logger(pl.failRemove + error, 'ERROR');
             await interaction.reply({
-                content: '❌ Failed to remove position.',
+                content: pl.failRemove,
                 ephemeral: true
             });
         }
@@ -121,7 +121,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
 
             if (!position) {
                 await interaction.reply({
-                    content: '❌ Position not found.',
+                    content: pl.notFound,
                     ephemeral: true
                 });
                 return;
@@ -139,9 +139,9 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             await updateApplicationMessage(interaction.client, guildId);
 
         } catch (error) {
-            console.error('Error toggling position:', error);
+            logger(pl.failToggle + error, 'ERROR');
             await interaction.reply({
-                content: '❌ Failed to toggle position.',
+                content: pl.failToggle,
                 ephemeral: true
             });
         }
@@ -154,7 +154,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
 
             if (positions.length === 0) {
                 await interaction.reply({
-                    content: '📋 No positions found.',
+                    content: pl.noneFound,
                     ephemeral: true
                 });
                 return;
@@ -170,9 +170,9 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             });
 
         } catch (error) {
-            console.error('Error listing positions:', error);
+            logger(pl.failList + error, 'ERROR');
             await interaction.reply({
-                content: '❌ Failed to list positions.',
+                content: pl.failList,
                 ephemeral: true
             });
         }
@@ -181,14 +181,14 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             await updateApplicationMessage(interaction.client, guildId);
             
             await interaction.reply({
-                content: '✅ Application channel message has been refreshed!',
+                content: pl.successRefresh,
                 ephemeral: true
             });
 
         } catch (error) {
-            console.error('Error refreshing application message:', error);
+            logger(pl.failRefresh + error, 'ERROR');
             await interaction.reply({
-                content: '❌ Failed to refresh application message. Make sure the application channel is set up properly.',
+                content: pl.failRefresh,
                 ephemeral: true
             });
         }
@@ -224,7 +224,7 @@ export async function updateApplicationMessage(client: Client, guildId: string) 
         });
 
     } catch (error) {
-        console.error('Error updating application message:', error);
+        logger(pl.failUpdate + error, 'ERROR');
     }
 }
 
@@ -233,11 +233,11 @@ export async function buildApplicationMessage(positions: Position[]) {
     let content = '# __Welcome to Job Applications__\n\n';
 
     if (positions.length === 0) {
-        content += '## 🔒 No positions are currently available.';
+        content += pl.noneAvailable;
         return { content, components: [] };
     }
 
-    content += '# 📋 Available Positions:\n\n';
+    content += pl.available;
 
     const components = [];
     const maxButtonsPerRow = 5;

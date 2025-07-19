@@ -1,9 +1,9 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, TextChannel } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
+import { BotConfig } from '../../typeorm/entities/BotConfig';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
-import { Ticket } from '../../typeorm/entities/Ticket';
-import { lang } from '../../utils';
-import { extractIdFromMention } from '../../utils/extractIdFromMention';
+import { Ticket } from '../../typeorm/entities/ticket/Ticket';
+import { extractIdFromMention, lang, logger } from '../../utils';
 
 const tl = lang.ticket.adminOnly;
 const ticketRepo = AppDataSource.getRepository(Ticket);
@@ -12,12 +12,12 @@ const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 export const ticketAdminOnlyEvent = async(client: Client, interaction: ButtonInteraction) => {
     const channel = interaction.channel as TextChannel;
     const channelId = interaction.channelId;
-    const guild = interaction.guild;
+    const guildId = interaction.guildId;
     const user = interaction.user.displayName;
     const userId = interaction.user.id;
     const ticket = await ticketRepo.findOneBy({ channelId: channelId });
 
-    if (!guild) { 
+    if (!guildId) { 
         await interaction.reply({
             content: lang.general.cmdGuildNotFound,
             ephemeral: true,
@@ -25,8 +25,36 @@ export const ticketAdminOnlyEvent = async(client: Client, interaction: ButtonInt
         return;
     }
 
+    // get the bot config repo
+    const botConfigRepo = AppDataSource.getRepository(BotConfig);
+    const botConfig = await botConfigRepo.findOneBy({ guildId });
+    const gsrFlag = botConfig?.enableGlobalStaffRole;
+    const gsr = botConfig?.globalStaffRole + '\n';
+
     // check if the ticket exists in the database
-    if (!ticket) { return console.log(lang.general.fatalError); }
+    if (!ticket) { return logger(lang.general.fatalError, 'ERROR'); }
+
+    // check if the person hitting the button is the ticket creator
+    if (userId === ticket.createdBy) {
+        // if the bot config isn't setup
+        if (!botConfig || !gsr) {
+            logger(lang.botConfig.notFound);
+        // if the global staff role is enabled but isn't set
+        } else if (gsrFlag && !gsr) {
+            logger(lang.botConfig.noStaffRole);
+        // if the global staff role is enabled and set, add the mention to the message
+        } else if (gsrFlag && gsr) {
+            await channel.send({
+                content: gsr + `❗Oh, Mods!❗ ${user} ` + tl.request
+            });
+            return;
+        }
+
+        await channel.send({
+            content: `❗Oh, Mods!❗ ${user} ` + tl.request
+        });
+        return;
+    }
 
     // check if the person hitting the button is the ticket creator
     if (userId == ticket.createdBy) {
@@ -39,7 +67,7 @@ export const ticketAdminOnlyEvent = async(client: Client, interaction: ButtonInt
 
     const savedRoles = await savedRoleRepo.createQueryBuilder()
         .select(['role'])
-        .where('guildId = :guildId', { guildId: guild.id })
+        .where('guildId = :guildId', { guildId })
         .andWhere('type = :type', { type: 'staff' })
         .getRawMany();
 
@@ -48,7 +76,7 @@ export const ticketAdminOnlyEvent = async(client: Client, interaction: ButtonInt
     savedRoles.forEach(role => {
         const roleId = extractIdFromMention(role.role);
         if (!roleId) {
-            console.log(`Invalid role format: ${role.role}`);
+            logger(`Invalid role format: ${role.role}`, 'WARN');
             return; // skip this role
         }
 

@@ -1,9 +1,9 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GuildMember, Interaction, ModalBuilder, PermissionFlagsBits, TextChannel } from 'discord.js';
 import { AppDataSource } from '../typeorm';
 import { SavedRole } from '../typeorm/entities/SavedRole';
-import { Ticket } from '../typeorm/entities/Ticket';
-import { TicketConfig } from '../typeorm/entities/TicketConfig';
-import { extractIdFromMention } from '../utils/extractIdFromMention';
+import { Ticket } from '../typeorm/entities/ticket/Ticket';
+import { TicketConfig } from '../typeorm/entities/ticket/TicketConfig';
+import { extractIdFromMention, logger } from '../utils';
 import lang from '../utils/lang.json';
 import { ticketOptions } from './ticket';
 import { ticketAdminOnlyEvent } from './ticket/adminOnly';
@@ -26,11 +26,11 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
 
     /* Create Ticket Button */
     if (interaction.isButton() && interaction.customId === 'create_ticket'){
-        console.log(`User ${user} ` + lang.console.createTicketAttempt);
+        logger(`User ${user} ` + lang.console.createTicketAttempt);
 
         // check if the ticket config exists
         if (!ticketConfig) {
-            console.log(lang.ticket.ticketConfigNotFound);
+            logger(lang.ticket.ticketConfigNotFound);
             return;
         }
 
@@ -47,7 +47,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
 
     /* Cancel Ticket Button */
     if (interaction.isButton() && interaction.customId === 'cancel_ticket') {
-        console.log(`User ${user} ` + lang.console.cancelTicketRequest);
+        logger(`User ${user} ` + lang.console.cancelTicketRequest);
 
         await interaction.reply({
             content: lang.ticket.cancelled,
@@ -59,7 +59,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
     if (interaction.isButton() && interaction.customId.startsWith('ticket_')) {
         const ticketType = interaction.customId.replace('ticket_', '');
 
-        console.log(`User ${user} is creating a ${ticketType} ticket.`);
+        logger(`User ${user} is creating a ${ticketType} ticket.`);
 
         // build a modal for user input
         const modal = new ModalBuilder()
@@ -95,7 +95,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         const guild = interaction.guild;
         const category = ticketConfig?.categoryId;
 
-        console.log(`User ${user} ` + lang.console.modalSubmit);
+        logger(`User ${user} ` + lang.console.modalSubmit);
 
         if (!guild) {
             await interaction.reply({
@@ -162,7 +162,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             rolePerms.forEach(role => {
                 const roleId = extractIdFromMention(role.role);
                 if (!roleId) {
-                    console.log(`Invalid role format: ${role.role}`);
+                    logger(`Invalid role format: ${role.role}`);
                     return; // skip this role
                 }
 
@@ -211,10 +211,10 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
                 status: 'opened',
             });
 
-            console.log(`User ${user} ` + lang.console.creatTicketSuccess);
+            logger(`User ${user} ` + lang.console.creatTicketSuccess);
 
         } catch (error) {
-            console.log(lang.ticket.error + ' ' + error);
+            logger(lang.ticket.error + ' ' + error);
             await interaction.reply({
                 content: lang.ticket.error,
                 ephemeral: true
@@ -225,7 +225,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
 
     /* MAKING A TICKET ADMIN ONLY */
     if (interaction.isButton() && interaction.customId === 'admin_only_ticket') {
-        console.log(`User ${user} ` + lang.console.adminOnlyAttempt);
+        logger(`User ${user} ` + lang.console.adminOnlyAttempt);
 
         // build a confirmation message with buttons
         const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -246,7 +246,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         });
     }
     if (interaction.isButton() && interaction.customId === 'confirm_admin_only_ticket') {
-        console.log(`User ${user} ` + lang.console.adminOnlyConfirm);
+        logger(`User ${user} ` + lang.console.adminOnlyConfirm);
         await interaction.update({
             content: lang.ticket.adminOnly.changing,
             components: [],
@@ -254,7 +254,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         await ticketAdminOnlyEvent(client, interaction);
     }
     if (interaction.isButton() && interaction.customId === 'cancel_admin_only_ticket') {
-        console.log(`User ${user} ` + lang.console.adminOnlyCancel);
+        logger(`User ${user} ` + lang.console.adminOnlyCancel);
         await interaction.update({
             content: lang.ticket.adminOnly.cancel,
             components: [],
@@ -263,7 +263,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
     
     /* CLOSING A TICKET */
     if (interaction.isButton() && interaction.customId === 'close_ticket') {
-        console.log(`User ${user} ` + lang.console.closeTicketAttempt);
+        logger(`User ${user} ` + lang.console.closeTicketAttempt);
 
         // build a confirmation message with buttons
         const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -284,7 +284,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         });
     }
     if (interaction.isButton() && interaction.customId === 'confirm_close_ticket') {
-        console.log(`User ${user} ` + lang.console.closeTicketConfirm);
+        logger(`User ${user} ` + lang.console.closeTicketConfirm);
         await interaction.update({
             content: lang.ticket.close.closing,
             components: [],
@@ -292,7 +292,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         await ticketCloseEvent(client, interaction);
     }
     if (interaction.isButton() && interaction.customId === 'cancel_close_ticket') {
-        console.log(`User ${user} ` + lang.console.closeTicketCancel);
+        logger(`User ${user} ` + lang.console.closeTicketCancel);
         await interaction.update({
             content: lang.ticket.close.cancel,
             components: [],

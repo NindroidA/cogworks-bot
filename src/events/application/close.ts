@@ -4,7 +4,7 @@ import { AppDataSource } from '../../typeorm';
 import { Application } from '../../typeorm/entities/application/Application';
 import { ArchivedApplication } from '../../typeorm/entities/application/ArchivedApplication';
 import { ArchivedApplicationConfig } from '../../typeorm/entities/application/ArchivedApplicationConfig';
-import { lang } from '../../utils';
+import { lang, logger } from '../../utils';
 import { fetchMessagesAndSaveToFile } from '../../utils/fetchAllMessages';
 
 const tl = lang.application.close;
@@ -21,10 +21,10 @@ export const applicationCloseEvent = async(client: Client, interaction: ButtonIn
         const application = await applicationRepo.findOneBy({ channelId: channelId }); // // get the application this event was initiated from the Application database using channelId
 
         // check if the archived application config exists
-        if (!archivedConfig) { return console.log(lang.application.applicationConfigNotFound); }
+        if (!archivedConfig) { return logger(lang.application.applicationConfigNotFound); }
 
         // check if the application exists
-        if (!application) { return console.log(lang.general.fatalError); }
+        if (!application) { return logger(lang.general.fatalError, 'ERROR'); }
 
         // get archive channel from ArchivedApplication db using createdBy
         const createdBy = application.createdBy;
@@ -34,7 +34,7 @@ export const applicationCloseEvent = async(client: Client, interaction: ButtonIn
             try {
                 await fetchMessagesAndSaveToFile(channel, transcriptPath);
             } catch (error) {
-                console.error(tl.transcriptCreate.error, error);
+                logger(tl.transcriptCreate.error + error, 'ERROR');
                 await interaction.reply({
                     content: tl.transcriptCreate.error
                 });
@@ -53,10 +53,10 @@ export const applicationCloseEvent = async(client: Client, interaction: ButtonIn
                 // if we have attachments, add them to the files array
                 if (fs.existsSync(zipPath)) {
                     files.push(zipPath);
-                    console.log(tl.transcriptCreate.attachmentFound);
+                    logger(tl.transcriptCreate.attachmentFound);
                     zipCheck = true;
                 } else {
-                    console.log(tl.transcriptCreate.attachmentNotFound);
+                    logger(tl.transcriptCreate.attachmentNotFound);
                 }
         
                 // if transcript channel doesn't exist, make one and put the transcript
@@ -90,25 +90,25 @@ export const applicationCloseEvent = async(client: Client, interaction: ButtonIn
         
                 // delete the saved txt file
                 fs.unlink(txtPath, (error) => {
-                    if (error) console.error(tl.transcriptDelete.error1, error);
+                    if (error) logger(tl.transcriptDelete.error1 + error, 'ERROR');
                 });
         
                 if (zipCheck) {
                     // delete the saved zip file
                     fs.unlink(zipPath, (error) => {
-                        if (error) console.error(tl.transcriptDelete.attachmentError, error);
+                        if (error) logger(tl.transcriptDelete.attachmentError + error, 'ERROR');
                     });
                 }
         
             } catch (error) {
-                return console.error(tl.transcriptDelete.error2, error);
+                return logger(tl.transcriptDelete.error2 + error, 'ERROR');
             }
         
             // update the application status 
             await applicationRepo.update({ id: application.id }, { status: 'closed' });
         
             // log success message
-            console.log(tl.transcriptCreate.success);
+            logger(tl.transcriptCreate.success);
         
             // delete the channel
             await channel.delete(application.channelId);

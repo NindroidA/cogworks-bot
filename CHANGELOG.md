@@ -1,3 +1,11 @@
+# Dev Update v1.4.3
+- Lang and file organization cleanup.
+- Added Global Staff Role mention when a ticket creator is attempting to make a ticket Admin Only.
+- Better console logging (now has timestamps).
+- Added console colors pretty ooooo.
+- Small niche fixes overall.
+- Offloading Cogdeck things (I don't think ima work on this for a while, so Cogdeck is to be continued).
+
 # Dev Update v1.4.2
 - Hotfix for application going over the discord message character limit.
 

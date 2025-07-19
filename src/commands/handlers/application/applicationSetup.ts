@@ -3,7 +3,7 @@ import { AppDataSource } from '../../../typeorm';
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { lang } from '../../../utils';
+import { lang, logger } from '../../../utils';
 import { buildApplicationMessage } from './applicationPosition';
 
 const applicationConfigRepo = AppDataSource.getRepository(ApplicationConfig);
@@ -31,13 +31,13 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
         }
 
         try {
-            // Get active positions for this guild
+            // get active positions for guild
             const activePositions = await positionRepo.find({
                 where: { guildId, isActive: true },
                 order: { displayOrder: 'ASC' }
             });
 
-            // Build the message content and components
+            // build message content and components
             const { content, components } = await buildApplicationMessage(activePositions);
 
             // if we don't have an application config
@@ -85,7 +85,7 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
             }
 
         } catch (error) {
-            console.error(tl.fail, error);
+            logger(tl.fail + error, 'ERROR');
             await interaction.reply({
                 content: tl.fail,
                 ephemeral: true
@@ -118,7 +118,7 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
             });
 
         } catch (error) {
-            console.error(tl.fail, error);
+            logger(tl.fail + error, 'ERROR');
             await interaction.reply({
                 content: tl.fail,
                 ephemeral: true,
@@ -190,7 +190,7 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
                 });
             }
         } catch (error) {
-            console.error(tl.fail, error);
+            logger(tl.fail + error, 'ERROR');
             await interaction.reply({
                 content: tl.fail,
                 ephemeral: true
