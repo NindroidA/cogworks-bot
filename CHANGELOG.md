@@ -1,3 +1,6 @@
+# Dev Update v1.4.4
+- Added API endpoint for personal homepage.
+
 # Dev Update v1.4.3
 - Lang and file organization cleanup.
 - Added Global Staff Role mention when a ticket creator is attempting to make a ticket Admin Only.

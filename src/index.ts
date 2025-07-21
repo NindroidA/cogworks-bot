@@ -1,6 +1,7 @@
 import { Client, GatewayIntentBits, REST, RESTPostAPIApplicationCommandsJSONBody, Routes } from 'discord.js';
 import dotenv from 'dotenv';
 import 'reflect-metadata';
+import { BotAPI } from './api';
 import { addRole } from './commands/builders/addRole';
 import { applicationPosition } from './commands/builders/applicationPosition';
 import { applicationSetup } from './commands/builders/applicationSetup';
@@ -71,8 +72,10 @@ client.on('chatInputCommand', handleSlashCommand);
 client.on('buttonInteraction', handleTicketInteraction);
 client.on('buttonInteraction', handleApplicationInteraction);
 
+let apiServer: BotAPI | null = null;
+
 // once we reday, LEGGO
-client.once('ready', () => {
+client.once('ready', async () => {
     // log that we logged in
     console.log(tl.ready + `${client.user?.tag}`);
 
@@ -81,6 +84,14 @@ client.once('ready', () => {
 
     // set status
     setStatus(client);
+
+    // start the API server
+    try {
+        apiServer = new BotAPI(client);
+        await apiServer.start(parseInt(process.env.API_PORT!));
+    } catch (error) {
+        console.error('Failed to start API server:', error);
+    }
 
     // just a lil line for the console
     console.log(tl.line);
