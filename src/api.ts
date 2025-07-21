@@ -6,9 +6,8 @@ import { Server } from 'http';
 import { logger } from './utils';
 
 const REACT = 'http://localhost:5173';
-const LOCAL = 'http://localhost:3000';
 const DOMAIN = 'https://nindroidsystems.com';
-const SUBDOMAINS = /^https?:\/\/.*\.nindroidsystems\.com$/;
+//const SUBDOMAINS = /^https?:\/\/.*\.nindroidsystems\.com$/;
 
 interface BotStatus {
     online: boolean
@@ -59,7 +58,7 @@ export class BotAPI {
     private setupMiddleware(): void {
         // enable cors for my domain
         this.app.use(cors({
-            origin: [REACT, LOCAL, DOMAIN, SUBDOMAINS],
+            origin: [REACT, DOMAIN],
             credentials: true
         }));
 
