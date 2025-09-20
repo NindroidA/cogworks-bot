@@ -1,5 +1,7 @@
 import dotenv from 'dotenv';
 import { DataSource } from 'typeorm';
+import { AnnouncementConfig } from './entities/announcement/AnnouncementConfig';
+import { AnnouncementLog } from './entities/announcement/AnnouncementLog';
 import { Application } from './entities/application/Application';
 import { ApplicationConfig } from './entities/application/ApplicationConfig';
 import { ArchivedApplication } from './entities/application/ArchivedApplication';
@@ -22,5 +24,5 @@ export const AppDataSource = new DataSource({
     password: process.env.MYSQL_DB_PASSWORD,
     database: process.env.MYSQL_DB_DATABASE,
     synchronize: true,
-    entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, ServerConfig, SavedRole, BotConfig, Application, ApplicationConfig, ArchivedApplication, ArchivedApplicationConfig, Position],
+    entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, ServerConfig, SavedRole, BotConfig, Application, ApplicationConfig, ArchivedApplication, ArchivedApplicationConfig, Position, AnnouncementConfig, AnnouncementLog],
 });

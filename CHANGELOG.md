@@ -1,3 +1,12 @@
+# Dev Update v1.4.6
+- Removed API endpoint -- no longer being run by Cogworks bot.
+- Added API connector logic to Nindroid Systems API.
+
+# Dev Update v1.4.5
+- Added announcement module (still a WIP).
+- Added announcement for server-side maintenance (specifically for an MC server).
+- Added helper function to parse time input.
+
 # Dev Update v1.4.4
 - Added API endpoint for personal homepage.
 

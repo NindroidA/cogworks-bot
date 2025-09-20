@@ -4,6 +4,8 @@ import { BotConfig } from '../typeorm/entities/BotConfig';
 import { logger } from '../utils';
 import lang from '../utils/lang.json';
 import { addRoleHandler } from './handlers/addRole';
+import { announcementHandler } from './handlers/announcement';
+import { announcementSetupHandler } from './handlers/announcement/setup';
 import { applicationPositionHandler } from './handlers/application/applicationPosition';
 import { applicationSetupHandler } from './handlers/application/applicationSetup';
 import { archiveMigrationHandler } from './handlers/archiveMigration';
@@ -69,6 +71,14 @@ export const handleSlashCommand = async(client: Client, interaction: ChatInputCo
             }
             case 'application-position': {
                 applicationPositionHandler(client, interaction);
+            }
+            case 'announcement-setup': {
+                announcementSetupHandler(client, interaction);
+                break;
+            }
+            case 'announcement': {
+                announcementHandler(client, interaction);
+                break;
             }
         }
     }

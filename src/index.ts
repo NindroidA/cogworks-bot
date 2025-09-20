@@ -1,8 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable unused-imports/no-unused-vars */
 import { Client, GatewayIntentBits, REST, RESTPostAPIApplicationCommandsJSONBody, Routes } from 'discord.js';
 import dotenv from 'dotenv';
 import 'reflect-metadata';
-import { BotAPI } from './api';
 import { addRole } from './commands/builders/addRole';
+import { announcement } from './commands/builders/announcement';
+import { announcementSetup } from './commands/builders/announcementSetup';
 import { applicationPosition } from './commands/builders/applicationPosition';
 import { applicationSetup } from './commands/builders/applicationSetup';
 import { archiveMigration } from './commands/builders/archiveMigration';
@@ -17,6 +20,7 @@ import { handleTicketInteraction } from './events/ticketInteraction';
 import { AppDataSource } from './typeorm';
 import { BotConfig } from './typeorm/entities/BotConfig';
 import { lang } from './utils';
+import { APIConnector } from './utils/apiConnector';
 import { setDescription, setStatus } from './utils/profileFunctions';
 dotenv.config();
 
@@ -43,19 +47,27 @@ const client = new Client({
         GatewayIntentBits.MessageContent,
     ],
 });
-const rest = new REST({ version: '10' }).setToken(TOKEN); 
+const rest = new REST({ version: '10' }).setToken(TOKEN);
+
+/* init API connector */
+const apiConnector = new APIConnector(
+    process.env.API_URL || 'http://localhost:3001',
+    TOKEN
+);
 
 /* Slash Commands */
 const commands: RESTPostAPIApplicationCommandsJSONBody[] = [
-    botSetup,           // bot setup
-    addRole,            // add a role
-    removeRole,         // remove a role
-    getRoles,           // get roles
-    ticketSetup,        // ticket setup
-    ticketReply,        // ticket reply
-    archiveMigration,   // ticket archive migration functions
-    applicationSetup,   // application setup
-    applicationPosition // application position
+    botSetup,            // bot setup
+    addRole,             // add a role
+    removeRole,          // remove a role
+    getRoles,            // get roles
+    ticketSetup,         // ticket setup
+    ticketReply,         // ticket reply
+    archiveMigration,    // ticket archive migration functions
+    applicationSetup,    // application setup
+    applicationPosition, // application position
+    announcementSetup,   // announcement setup
+    announcement         // announcement module
 ];
 
 client.on('interactionCreate', async (interaction) => {
@@ -72,8 +84,6 @@ client.on('chatInputCommand', handleSlashCommand);
 client.on('buttonInteraction', handleTicketInteraction);
 client.on('buttonInteraction', handleApplicationInteraction);
 
-let apiServer: BotAPI | null = null;
-
 // once we reday, LEGGO
 client.once('ready', async () => {
     // log that we logged in
@@ -85,16 +95,34 @@ client.once('ready', async () => {
     // set status
     setStatus(client);
 
-    // start the API server
+    // connect to API server
     try {
-        apiServer = new BotAPI(client);
-        await apiServer.start(parseInt(process.env.API_PORT!));
+        await apiConnector.registerBot(client);
+        console.log('🔗 Successfully connected to API');
+        
+        apiConnector.startStatsSync(client);
     } catch (error) {
-        console.error('Failed to start API server:', error);
+        console.error('❌ Failed to connect to API!');
+        console.warn('⚠️  Bot will continue running, but API features may be unavailable');
     }
 
     // just a lil line for the console
     console.log(tl.line);
+});
+
+// graceful shutdown -- disconnect from API
+process.on('SIGTERM', async () => {
+    console.log('🛑 Shutting down bot...');
+    await apiConnector.disconnect();
+    client.destroy();
+    process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+    console.log('🛑 Shutting down bot...');
+    await apiConnector.disconnect();
+    client.destroy();
+    process.exit(0);
 });
 
 // main function to do all the things
