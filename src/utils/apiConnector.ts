@@ -88,7 +88,6 @@ export class APIConnector {
                 if (client.isReady() && this.isConnected) {
                     const stats = this.createBotStatsPayload(client);
                     await this.apiClient.put('/api/cogworks/stats', stats);
-                    console.log('📊 Stats synced with API');
                 }
             } catch (error) {
                 // don't throw - just log the error and continue

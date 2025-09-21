@@ -1,3 +1,6 @@
+# Dev Update v1.4.7
+- Super small patch for API status logging -- making sure it doesn't get too spammy.
+
 # Dev Update v1.4.6
 - Removed API endpoint -- no longer being run by Cogworks bot.
 - Added API connector logic to Nindroid Systems API.
