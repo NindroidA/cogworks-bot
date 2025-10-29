@@ -60,25 +60,22 @@ export async function runMultiServerMigration(): Promise<void> {
 					ADD COLUMN guildId VARCHAR(255) NULL
 				`);
 
-				// Populate guildId from application_configs via channelId
-				// This assumes channelId is unique per guild (which it should be)
-				await queryRunner.query(`
-					UPDATE applications a
-					INNER JOIN application_configs ac ON a.channelId LIKE CONCAT(ac.categoryId, '%')
-					SET a.guildId = ac.guildId
-					WHERE a.guildId IS NULL AND ac.categoryId IS NOT NULL
+				// Populate guildId from application_configs
+				// Since there's only one guild in your current setup, get it from application_configs
+				const configGuildId = await queryRunner.query(`
+					SELECT guildId FROM application_configs LIMIT 1
 				`);
 
-				// For applications without a match, we'll need to handle manually
-				// Set a default or delete them - let's log them
-				const orphanedApps = await queryRunner.query(`
-					SELECT id, channelId, createdBy 
-					FROM applications 
-					WHERE guildId IS NULL
-				`);
-
-				if (orphanedApps.length > 0) {
-					logger(`Found ${orphanedApps.length} applications without guildId - these may need manual review`, 'WARN');
+				if (configGuildId.length > 0) {
+					await queryRunner.query(`
+						UPDATE applications 
+						SET guildId = '${configGuildId[0].guildId}'
+						WHERE guildId IS NULL
+					`);
+					logger(`Set guildId to ${configGuildId[0].guildId} for all applications`, 'INFO');
+				} else {
+					logger('No application config found - cannot populate guildId', 'ERROR');
+					throw new Error('Cannot migrate: no application config exists');
 				}
 
 				// Make guildId NOT NULL after population
@@ -100,23 +97,21 @@ export async function runMultiServerMigration(): Promise<void> {
 					ADD COLUMN guildId VARCHAR(255) NULL
 				`);
 
-				// Populate guildId from ticket_configs via channelId
-				await queryRunner.query(`
-					UPDATE tickets t
-					INNER JOIN ticket_configs tc ON t.channelId LIKE CONCAT(tc.categoryId, '%')
-					SET t.guildId = tc.guildId
-					WHERE t.guildId IS NULL AND tc.categoryId IS NOT NULL
+				// Populate guildId from ticket_configs
+				const configGuildId = await queryRunner.query(`
+					SELECT guildId FROM ticket_configs LIMIT 1
 				`);
 
-				// Log orphaned tickets
-				const orphanedTickets = await queryRunner.query(`
-					SELECT id, channelId, createdBy 
-					FROM tickets 
-					WHERE guildId IS NULL
-				`);
-
-				if (orphanedTickets.length > 0) {
-					logger(`Found ${orphanedTickets.length} tickets without guildId - these may need manual review`, 'WARN');
+				if (configGuildId.length > 0) {
+					await queryRunner.query(`
+						UPDATE tickets 
+						SET guildId = '${configGuildId[0].guildId}'
+						WHERE guildId IS NULL
+					`);
+					logger(`Set guildId to ${configGuildId[0].guildId} for all tickets`, 'INFO');
+				} else {
+					logger('No ticket config found - cannot populate guildId', 'ERROR');
+					throw new Error('Cannot migrate: no ticket config exists');
 				}
 
 				// Make guildId NOT NULL after population
@@ -137,13 +132,22 @@ export async function runMultiServerMigration(): Promise<void> {
 					ADD COLUMN guildId VARCHAR(255) NULL
 				`);
 
-				// Populate from archived_application_configs via messageId match
-				await queryRunner.query(`
-					UPDATE archived_applications aa
-					INNER JOIN archived_application_configs aac ON aa.messageId = aac.messageId
-					SET aa.guildId = aac.guildId
-					WHERE aa.guildId IS NULL
+				// Populate from archived_application_configs
+				const configGuildId = await queryRunner.query(`
+					SELECT guildId FROM archived_application_configs LIMIT 1
 				`);
+
+				if (configGuildId.length > 0) {
+					await queryRunner.query(`
+						UPDATE archived_applications 
+						SET guildId = '${configGuildId[0].guildId}'
+						WHERE guildId IS NULL
+					`);
+					logger(`Set guildId to ${configGuildId[0].guildId} for all archived applications`, 'INFO');
+				} else {
+					logger('No archived application config found - cannot populate guildId', 'ERROR');
+					throw new Error('Cannot migrate: no archived application config exists');
+				}
 
 				await queryRunner.query(`
 					ALTER TABLE archived_applications 
@@ -162,13 +166,22 @@ export async function runMultiServerMigration(): Promise<void> {
 					ADD COLUMN guildId VARCHAR(255) NULL
 				`);
 
-				// Populate from archived_ticket_configs via messageId match
-				await queryRunner.query(`
-					UPDATE archived_tickets at
-					INNER JOIN archived_ticket_configs atc ON at.messageId = atc.messageId
-					SET at.guildId = atc.guildId
-					WHERE at.guildId IS NULL
+				// Populate from archived_ticket_configs
+				const configGuildId = await queryRunner.query(`
+					SELECT guildId FROM archived_ticket_configs LIMIT 1
 				`);
+
+				if (configGuildId.length > 0) {
+					await queryRunner.query(`
+						UPDATE archived_tickets 
+						SET guildId = '${configGuildId[0].guildId}'
+						WHERE guildId IS NULL
+					`);
+					logger(`Set guildId to ${configGuildId[0].guildId} for all archived tickets`, 'INFO');
+				} else {
+					logger('No archived ticket config found - cannot populate guildId', 'ERROR');
+					throw new Error('Cannot migrate: no archived ticket config exists');
+				}
 
 				await queryRunner.query(`
 					ALTER TABLE archived_tickets 
@@ -182,36 +195,45 @@ export async function runMultiServerMigration(): Promise<void> {
 			logger('Creating indexes on guildId columns...', 'INFO');
 
 			const indexesToCreate = [
-				{ table: 'bot_configs', columns: ['guildId'], name: 'IDX_bot_configs_guildId' },
-				{ table: 'bait_channel_configs', columns: ['guildId'], name: 'IDX_bait_channel_configs_guildId' },
-				{ table: 'bait_channel_logs', columns: ['guildId', 'createdAt'], name: 'IDX_bait_channel_logs_guildId_createdAt' },
-				{ table: 'staff_roles', columns: ['guildId'], name: 'IDX_staff_roles_guildId' },
-				{ table: 'AnnouncementConfig', columns: ['guildId'], name: 'IDX_announcement_config_guildId' },
+				// Only create indexes on tables that don't already have UNIQUE constraints or existing indexes
+				// Config tables already have UNIQUE(guildId), so skip those
 				{ table: 'applications', columns: ['guildId'], name: 'IDX_applications_guildId' },
-				{ table: 'application_configs', columns: ['guildId'], name: 'IDX_application_configs_guildId' },
 				{ table: 'positions', columns: ['guildId', 'isActive'], name: 'IDX_positions_guildId_isActive' },
-				{ table: 'archived_application_configs', columns: ['guildId'], name: 'IDX_archived_application_configs_guildId' },
 				{ table: 'archived_applications', columns: ['guildId'], name: 'IDX_archived_applications_guildId' },
 				{ table: 'tickets', columns: ['guildId', 'status'], name: 'IDX_tickets_guildId_status' },
-				{ table: 'ticket_configs', columns: ['guildId'], name: 'IDX_ticket_configs_guildId' },
-				{ table: 'archived_ticket_configs', columns: ['guildId'], name: 'IDX_archived_ticket_configs_guildId' },
 				{ table: 'archived_tickets', columns: ['guildId'], name: 'IDX_archived_tickets_guildId' },
-				{ table: 'user_activity', columns: ['guildId', 'userId'], name: 'IDX_user_activity_guildId_userId' },
+				{ table: 'staff_roles', columns: ['guildId'], name: 'IDX_staff_roles_guildId' },
+				{ table: 'announcement_log', columns: ['guildId'], name: 'IDX_announcement_log_guildId' },
 			];
 
 			for (const index of indexesToCreate) {
-				const indexExists = await queryRunner.query(`
-					SHOW INDEX FROM ${index.table} WHERE Key_name = '${index.name}'
-				`);
-
-				if (indexExists.length === 0) {
-					const columnList = index.columns.join(', ');
-					await queryRunner.query(`
-						CREATE INDEX ${index.name} ON ${index.table} (${columnList})
+				try {
+					// Check if table exists first
+					const tableExists = await queryRunner.query(`
+						SHOW TABLES LIKE '${index.table}'
 					`);
-					logger(`✅ Created index ${index.name} on ${index.table}`, 'INFO');
-				} else {
-					logger(`Index ${index.name} already exists on ${index.table}`, 'INFO');
+
+					if (tableExists.length === 0) {
+						logger(`Skipping ${index.table} - table does not exist`, 'INFO');
+						continue;
+					}
+
+					// Check if any index exists on the guildId column(s)
+					const existingIndexes = await queryRunner.query(`
+						SHOW INDEX FROM ${index.table} WHERE Column_name IN (${index.columns.map(c => `'${c}'`).join(',')})
+					`);
+
+					if (existingIndexes.length === 0) {
+						const columnList = index.columns.join(', ');
+						await queryRunner.query(`
+							CREATE INDEX ${index.name} ON ${index.table} (${columnList})
+						`);
+						logger(`✅ Created index ${index.name} on ${index.table}`, 'INFO');
+					} else {
+						logger(`Index already exists on ${index.table}(${index.columns.join(', ')})`, 'INFO');
+					}
+				} catch (error) {
+					logger(`⚠️  Could not create index on ${index.table}: ${(error as Error).message}`, 'WARN');
 				}
 			}
 
