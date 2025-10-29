@@ -70,7 +70,7 @@ jobs:
           
           ${{ steps.changelog.outputs.content }}
 
-          -# [GitHub Repository](https://github.com/${{ github.repository }})"
+          -# Repository: ${{ github.repository }}"
           
           # Create JSON payload
           cat << EOF > payload.json
