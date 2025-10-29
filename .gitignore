@@ -1,23 +1,93 @@
-# project
-.eslintcache
-.prettierignore
-.DS_Store
-dist
-.env
-node_modules
-.vscode
- 
-# files i wanna ignore
-private
-archivedTickets
-archiveDownload
-src/utils/baResponses.json
-src/utils/jobApplications.json
-src/commands/handlers/botsetup
+# Dependencies
+node_modules/
+*.pnp
+.pnp.js
 
-# cogdeck (still in development)
-src/cogdeck
-src/commands/builders/cogdeck.ts
-src/commands/handlers/cogdeck.ts
-src/commands/handlers/cogdeck
-src/typeorm/entities/cogdeck
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime
+*.pid
+*.seed
+*.pid.lock
+.pm2/
+
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# VSCode
+.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+*.code-workspace
+
+# Bun
+bun.lockb
+.bun/
+
+# Cache & Temp Files
+.eslintcache
+.cache/
+.temp/
+temp/
+.tmp/
+*.swp
+*.swo
+*~
+
+# Copilot
+.github/copilot-instructions.md
+
+# Project
+private/
+archivedTickets/
+archiveDownload/
+src/utils/baResponses.json
+
+# Development
+scripts/
+tests/
+docs/admin_guide.md

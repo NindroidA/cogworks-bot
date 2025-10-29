@@ -1,0 +1,98 @@
+{
+    "error": "Could not create create application!",
+    "failCreate": "❌ Could not create application! Please try again.",
+    "applicationConfigNotFound": "Application Config does not exist!",
+    "applicationCategoryNotFound": "Application Category does not exist!",
+    "archiveApplicationConfigNotFound": "Archived Application Config does not exist!",
+    "selectApplicationType": "Please select the type of application you want to create:",
+    "created": "Your application has been created: ",
+    "welcomeMsg": "Welcome Application",
+    "cancelled": "Application creation cancelled.",
+    "setup": {
+        "cmdDescrp": "Initializes bot application systems",
+        "subcmdDescrp": {
+            "channel": "Sets the global application channel",
+            "channelSet": "Channel to set the global application channel to",
+            "category": "Sets the global application category",
+            "catSet": "Category to set the global application category to",
+            "archive": "Sets the archive application channel",
+            "archiveSet": "Channel to set the archive application channel to"
+        },
+        "fail": "Failed to setup Application Channel!",
+        "successSet": "The application setup message was sent in ",
+        "successUpdate": "The application setup channel was updated to "
+    },
+    "archiveSetup": {
+        "initialMsg": "This channel has been made as an archive for applications. Once an application is closed, you it can be found and referenced again in this channel.",
+        "fail": "Failed to setup Application Archive Channel!",
+        "successSet": "The archive application setup message was sent in ",
+        "successUpdate": "The archive application setup channel was updated to "
+    },
+    "categorySetup": {
+        "setChannelFirst": "You need to set the Application Channel first!",
+        "success": "Application Category successfully set!",
+        "fail": "Failed to setup the Application Category Channel!"
+    },
+    "close": {
+        "confirm": "⚠️ Are you sure you want to close this application?",
+        "closing": "Closing application...",
+        "closingL": "Confirm Close",
+        "cancel": "Application close cancelled",
+        "cancelL": "Cancel",
+        "byUser": "User has initiated the application to close...",
+        "transcriptCreate": {
+            "success": "Transcript successfully sent to channel and deleted from memory!",
+            "error": "Error making transcript file!",
+            "attachmentFound": "Attachment file found; adding to message.",
+            "attachmentNotFound": "Attachments not found; continuing ..."
+        },
+        "transcriptDelete": {
+            "error1": "Error deleting the transcript txt file!",
+            "error2": "Could not properly send transcript!",
+            "attachmentError": "Error deleting transcript attachments zip file!"
+        }
+    },
+    "position": {
+        "cmdDescrp": "Commands for configuring application positions",
+        "subcmdDescrp": {
+            "add": "Add a new position",
+            "add-template": "Use a predefined template",
+            "add-title": "Custom position title (if not using template)",
+            "add-description": "Custom position description (if not using template)",
+            "remove": "Remove a position",
+            "remove-id": "Position ID to remove",
+            "toggle": "Toggle position visibility",
+            "toggle-id": "Position ID to toggle",
+            "list": "List all positions",
+            "refresh": "Refresh the application channel message"
+        },
+        "notAvailable": "❌ This position is no longer available.",
+        "ageVerifyYes": "Yes, I'm 18+",
+        "ageVerifyNo": "No, I'm under 18",
+        "ageVerifyNoReply": "🚫 **Sorry!** You must be 18 or older to apply for this position. Please try again when you meet the age requirement.",
+        "modal": {
+            "name": "Name",
+            "experience": "Relevant Experience",
+            "experienceP": "Tell us about your relevant experience...",
+            "why": "Why do you want this position?",
+            "whyP": "What interests you about this role?",
+            "location": "Location/Country",
+            "locationP": "Where are you located?",
+            "availability": "Availability",
+            "availabilityP": "When are you available to work?"
+        },
+        "noneFound": "📋 No positions found.",
+        "noneAvailable": "## 🔒 No positions are currently available.",
+        "available": "# 📋 Available Positions:\n\n",
+        "templateNotFound": "❌ Template not found. Available templates: set_builder",
+        "provideEither": "❌ Please provide either a template or both title and description.",
+        "notFound": "❌ Position not found.",
+        "failAdd": "❌ Failed to add position.",
+        "failRemove": "❌ Failed to remove position.",
+        "failToggle": "❌ Failed to toggle position.",
+        "failList": "❌ Failed to list positions.",
+        "failRefresh": "❌ Failed to refresh application message. Make sure the application channel is set up properly.",
+        "failUpdate": "❌ Failed to update application message.",
+        "successRefresh": "✅ Application channel message has been refreshed!"
+    }
+}

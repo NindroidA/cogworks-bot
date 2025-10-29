@@ -1,8 +1,7 @@
 import { ActionRowBuilder, Interaction, ModalBuilder, ModalSubmitFields, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
-import { logger } from '../../utils';
-import lang from '../../utils/lang.json';
+import { lang, logger } from '../../utils';
 
 export const playerReportModal = async(modal: ModalBuilder) => {
     const prModalN = new ActionRowBuilder<TextInputBuilder>().addComponents(
@@ -20,7 +19,7 @@ export const playerReportModal = async(modal: ModalBuilder) => {
             .setRequired(true),
     );
 
-    modal.addComponents(prModalN, prModalR);
+    return modal.addComponents(prModalN, prModalR);
 };
 
 export const playerReportMessage = async(fields: ModalSubmitFields, interaction: Interaction) => {

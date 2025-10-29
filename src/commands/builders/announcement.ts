@@ -56,7 +56,6 @@ const backOnline = new SlashCommandSubcommandBuilder()
         .setRequired(false)
     );
 
-/*
 const updateScheduled = new SlashCommandSubcommandBuilder()
     .setName('update-scheduled')
     .setDescription(tl['update-scheduled'].cmdDescrp)
@@ -91,7 +90,6 @@ const updateComplete = new SlashCommandSubcommandBuilder()
         .setDescription(tl.channel)
         .setRequired(false)
     );
-*/
 
 /* main slash command */
 export const announcement = new SlashCommandBuilder()
@@ -101,7 +99,6 @@ export const announcement = new SlashCommandBuilder()
     .addSubcommand(maintenance)
     .addSubcommand(maintenanceScheduled)
     .addSubcommand(backOnline)
-    //.addSubcommand(updateScheduled)
-    //.addSubcommand(updateComplete)
+    .addSubcommand(updateScheduled)
+    .addSubcommand(updateComplete)
     .toJSON();
-

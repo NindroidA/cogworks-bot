@@ -1,0 +1,14 @@
+{
+    "cmdDescrp": "Sets up the bot for your server",
+    "error": "❌ An error occured!",
+    "timeout": "⏳ Setup Timed Out!",
+    "fail": "❌ Setup Failed!",
+    "select1": "Would you like to enable a Global Staff Role?",
+    "select2": "Please select which role you would like to be the Global Staff Role.",
+    "select3": "✅ Bot Setup Complete!",
+    "noRoleSelected": "❌ No role was selected.",
+    "roleSelectTimeout": "⏳ Role selection timed out.",
+    "ticketArchiveMsg": "Closed tickets will be archived as threads in this forum.",
+    "applicationButtonMsg": "Click below to submit an application!",
+    "applicationArchiveMsg": "Closed applications will be archived as threads in this forum."
+}

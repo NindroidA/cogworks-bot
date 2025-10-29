@@ -1,11 +1,14 @@
-import { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
+import { CacheType, ChatInputCommandInteraction, Client, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
-import { lang, logger } from '../../../utils';
+import { lang, logger, requireAdmin } from '../../../utils';
 
 const announcementConfigRepo = AppDataSource.getRepository(AnnouncementConfig);
 
 export const announcementSetupHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+    // Require admin permissions
+    if (!await requireAdmin(interaction)) return;
+
     const tl = lang.announcement.setup;
     const guildId = interaction.guildId || '';
     const minecraftRole = interaction.options.getRole('minecraft-role', true);
@@ -29,7 +32,7 @@ export const announcementSetupHandler = async(client: Client, interaction: ChatI
 
         await interaction.reply({
             content: tl.success + `\n• Minecraft Role: ${minecraftRole}\n• Default Channel: ${defaultChannel}`,
-            ephemeral: true
+            flags: [MessageFlags.Ephemeral]
         });
 
         logger(`User ${interaction.user.username}` + tl.configured + `${guildId}`);
@@ -38,7 +41,7 @@ export const announcementSetupHandler = async(client: Client, interaction: ChatI
         logger(tl.error + error, 'ERROR');
         await interaction.reply({
             content: '',
-            ephemeral: true
+            flags: [MessageFlags.Ephemeral]
         });
     }
 };

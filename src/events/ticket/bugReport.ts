@@ -9,7 +9,7 @@ export const bugReportModal = async(modal: ModalBuilder) => {
             .setRequired(true),
     );
 
-    modal.addComponents(brModalI);
+    return modal.addComponents(brModalI);
 };
 
 export const bugReportMessage = async(fields: ModalSubmitFields) => {

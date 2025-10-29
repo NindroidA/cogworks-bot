@@ -18,7 +18,7 @@ export const applicationCloseEvent = async(client: Client, interaction: ButtonIn
         const channelId = interaction.channelId || '';
         const transcriptPath = 'src/archivedTickets/'; // path to temporarily save application transcripts
         const archivedConfig = await archivedApplicationConfigRepo.findOneBy({ guildId }); // get the archived application config by guildId
-        const application = await applicationRepo.findOneBy({ channelId: channelId }); // // get the application this event was initiated from the Application database using channelId
+        const application = await applicationRepo.findOneBy({ channelId: channelId }); // get the application this event was initiated from the Application database using channelId
 
         // check if the archived application config exists
         if (!archivedConfig) { return logger(lang.application.applicationConfigNotFound); }
@@ -73,6 +73,7 @@ export const applicationCloseEvent = async(client: Client, interaction: ButtonIn
         
                     // create archived application in database
                     const newArchivedApplication = archivedApplicationRepo.create({
+                        guildId: guildId,
                         createdBy: application.createdBy,
                         messageId: newPost.id, 
                     });

@@ -1,12 +1,15 @@
-import { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
+import { CacheType, ChatInputCommandInteraction, Client, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
-import { lang, logger } from '../../utils';
+import { lang, logger, requireAdmin } from '../../utils';
 
 const tl = lang.removeRole;
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 
 export const removeRoleHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+    // Require admin permissions
+    if (!await requireAdmin(interaction)) return;
+
     const subCommand = interaction.options.getSubcommand();
     const guildId = interaction.guildId || '';
     const role = interaction.options.getRole('role_id')!.toString() || '';
@@ -17,7 +20,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
     if (!guildFinder) {
         await interaction.reply({
             content: tl.noType,
-            ephemeral: true,
+            flags: [MessageFlags.Ephemeral],
         });
         return;
     }
@@ -26,7 +29,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
     if (!roleFinder) {
         await interaction.reply({
             content: tl.dne,
-            ephemeral: true,
+            flags: [MessageFlags.Ephemeral],
         });
         return;
     }
@@ -38,7 +41,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
             if (!typeFinder) {
                 await interaction.reply({
                     content: tl.noType,
-                    ephemeral: true,
+                    flags: [MessageFlags.Ephemeral],
                 });
                 return;
             }
@@ -52,7 +55,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
             // after completion, send an ephemeral success message
             await interaction.reply({
                 content: tl.successStaff,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
 
         } else if (subCommand == 'admin') {
@@ -61,7 +64,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
             if (!typeFinder) {
                 await interaction.reply({
                     content: tl.noType,
-                    ephemeral: true,
+                    flags: [MessageFlags.Ephemeral],
                 });
                 return;
             }
@@ -75,7 +78,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
             // after completion, send an ephemeral success message
             await interaction.reply({
                 content: tl.successAdmin,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
 
         }
@@ -84,7 +87,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
         logger(tl.fail + error, 'ERROR');
         await interaction.reply({
             content: tl.fail,
-            ephemeral: true
+            flags: [MessageFlags.Ephemeral]
         });
     }
 };

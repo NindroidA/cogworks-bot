@@ -1,3 +1,170 @@
+# Dev Update v2.2.2
+
+## Added
+- **Bun Runtime Support**: Switched to Bun for improved performance with Node.js fallback
+- **GitHub Actions Deployment**: Auto-deploy on push to main or version tag
+- **Dev Mode Rate Limit Bypass**: Rate limits automatically disabled when running dev bot
+
+## Changed
+- **Bait Channel Warnings**: Now uses in-channel replies instead of DMs (works even with DMs disabled)
+- **Bait Channel Setup**: Removed setup messages from log channel (cleaner integration)
+- **Documentation**: Cleaned up CHANGELOG and TODO for better readability
+- Fixed duplicate shutdown messages
+
+# Dev Update v2.2.1
+
+## Added
+- New language modules: `dataExport.json`, `errors.json`
+
+## Changed
+- Migrated all hardcoded strings to centralized lang system
+- Full TypeScript autocomplete support for all language strings
+
+# Dev Update v2.2.0
+
+## Added
+- **Multi-Server Support**: Guild-scoped queries with automatic data isolation
+- **Guild Lifecycle**: Welcome messages, auto data deletion on leave, GDPR `/data-export` command
+- **Rate Limiting**: Applied to all user-facing commands (tickets 3/hr, applications 2/day, global 30/min)
+- **Permission System**: Centralized validation with helpful error messages
+- **Health Monitoring**: HTTP endpoints (`/health`, `/health/ready`, `/health/live`)
+- **Enhanced Logging**: Multi-level, category-based logging with file rotation
+- **Testing Framework**: 121 passing tests across 5 test suites
+
+## Changed
+- Utils directory reorganized into `/validation`, `/monitoring`, `/database`, `/security`
+- Database schema requires migration
+
+# Dev Update v2.1.0
+
+## Added
+- Development mode indicators (yellow dot + "[DEV]" prefix)
+- MIT License
+
+### Changed
+- Environment validation with safety defaults
+- Updated README with multi-server features
+
+# Dev Update v2.0.0 🎉 yippee
+**MAJOR RELEASE - Complete Bot Overhaul**
+
+## Bait Channel Anti-Bot System 
+- **Smart Detection System**: 
+  - 7 detection flags: new account, new member, no messages, no verification, suspicious content, link spam, mention spam
+  - Suspicion scoring (0-100) with automatic classification
+  - Configurable thresholds for account age, membership duration, message count
+  - Verification role requirement option
+- **Automated Actions**:
+  - Configurable responses: ban, kick, or log-only (testing mode)
+  - Grace period with countdown timer (0-60 seconds)
+  - Instant action for high suspicion scores (90+)
+  - Message deletion on trigger
+- **Whitelist Management**:
+  - Role-based and user-based whitelisting
+  - Automatic admin whitelisting
+  - Easy add/remove via commands
+- **Comprehensive Logging**:
+  - Database logging of all detections
+  - Optional log channel with rich embeds
+  - Detection reasons and suspicion breakdown
+  - User history tracking (account age, join date, message count)
+- **Statistics Dashboard**:
+  - Total triggers, bans, kicks, deletions
+  - Average suspicion scores
+  - Recent detection history
+  - Configurable time range (1-90 days)
+- **User Activity Tracking**:
+  - Message count per user per guild
+  - First/last message timestamps
+  - Join date tracking
+  - Used for improved detection accuracy
+- **Error Handling Integration**:
+  - All handlers wrapped with comprehensive error handling
+  - Safe database operations
+  - Graceful degradation on failures
+- **Commands**: `/baitchannel` with 6 subcommands
+  - `setup` - Configure bait channel and actions
+  - `detection` - Smart detection settings
+  - `whitelist` - Manage whitelisted roles/users
+  - `status` - View current configuration
+  - `stats` - Detailed statistics
+  - `toggle` - Enable/disable system
+
+## New Utility Modules
+- **Embed Builders** (`src/utils/embedBuilders.ts`): Reusable embed creators with consistent styling.
+- **Interaction Collectors** (`src/utils/collectors.ts`).
+- **Validators** (`src/utils/validators.ts`): Input validation helpers.
+- **Permissions** (`src/utils/permissions.ts`): Permission management utilities.
+
+## Handler Refactoring
+- **Bot Setup Handler** (`src/commands/handlers/botSetup.ts`).
+- **Ticket Interaction** (`src/events/ticketInteraction.ts`).
+- **Application Interaction** (`src/events/applicationInteraction.ts`).
+
+## Language System Refactoring
+- **Modular Structure**: Split monolithic `lang.json` into 9 separate modules.
+- **TypeScript Type Definitions** (`lang/types.ts`).
+- **Centralized Export** (`lang/index.ts`).
+
+### Comprehensive Error Handling System
+  - Centralized error handler with error classification.
+  - Error severity levels (LOW, MEDIUM, HIGH, CRITICAL).
+  - Error categories (DATABASE, DISCORD_API, PERMISSIONS, VALIDATION, etc.).
+  - User-friendly error messages with helpful embeds.
+  - Automatic error logging with context.
+  - Global unhandled rejection/exception handlers.
+  - Safe database operation wrapper.
+  - Handler wrapper for automatic error catching.
+  - Error context tracking (command, guild, user, channel).
+  - Stack trace logging for debugging.
+
+### Announcement System:
+  - Rich embed templates for all announcement types.
+  - Preview system with Send/Cancel buttons (2-minute review window).
+  - Template system with 6 pre-built templates.
+  - Professional embeds with emojis and formatted fields.
+  - Discord timestamp support (<t:timestamp:F>, <t:timestamp:R>).
+  - Enabled previously commented update commands.
+  - Automatic cross-posting for announcement channels.
+  - Better error handling and validation.
+  - Template parameter validation.
+  - See `src/commands/handlers/announcement/templates.ts` for all templates.
+
+### API Connector
+  - Automatic retry logic with exponential backoff (max 3 retries).
+  - Circuit breaker pattern to prevent cascading failures.
+  - Health monitoring with 30-second interval checks.
+  - Comprehensive metrics tracking (requests, success rate, response times).
+  - Graceful degradation when API is unavailable.
+  - Request/response logging with axios interceptors.
+  - Smart error handling (don't retry 4xx errors).
+  - Automatic recovery testing (half-open state).
+
+### Bot Setup System
+  - Step-by-step configuration (Welcome → Staff Role → Summary).
+  - Progress indicators showing "Step X of 3" for better UX.
+  - Extended timeout (3 minutes) for configuration.
+  - Rich embeds with emojis and clear formatting.
+  - Cancel/Skip options at each step.
+  - Summary confirmation before saving.
+  - Update mode for existing configurations.
+  - Modular architecture for easy expansion.
+
+## Code Cleanup
+- Fixed unused error variables in catch blocks.
+- Auto-fixed unused imports throughout codebase.
+- Removed deprecated archiveMigration feature (no longer needed).
+- Improved code organization and file structure.
+
+## Deployment
+- **PM2 Process Manager**: Complete configuration with auto-restart, graceful shutdown, and log management.
+- **Multi-Server Ready**: Comprehensive verification checklist for deployment across multiple servers.
+- **Email Integration Planning**: Full architecture design for future email-to-ticket system.
+
+## Development
+This version of Cogworks' development has been accelerated through the use of AI-assisted development tools, including GitHub Copilot, Claude, and other AI programming assistants. These tools have enhanced productivity while maintaining code quality and best practices. All AI-generated code and documentation has been reviewed, tested, and refined to ensure reliability and security interests.
+
+
 # Dev Update v1.4.7
 - Super small patch for API status logging -- making sure it doesn't get too spammy.
 

@@ -1,10 +1,9 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GuildMember, Interaction, ModalBuilder, PermissionFlagsBits, TextChannel } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GuildMember, Interaction, ModalBuilder, TextChannel, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../typeorm';
 import { SavedRole } from '../typeorm/entities/SavedRole';
 import { Ticket } from '../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../typeorm/entities/ticket/TicketConfig';
-import { extractIdFromMention, logger } from '../utils';
-import lang from '../utils/lang.json';
+import { createPrivateChannelPermissions, createRateLimitKey, extractIdFromMention, lang, logger, PermissionSets, rateLimiter, RateLimits } from '../utils';
 import { ticketOptions } from './ticket';
 import { ticketAdminOnlyEvent } from './ticket/adminOnly';
 import { ageVerifyMessage, ageVerifyModal } from './ticket/ageVerify';
@@ -40,7 +39,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             await interaction.reply({
                 content: lang.ticket.selectTicketType,
                 components: [options],
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
         }
     }
@@ -51,37 +50,43 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
 
         await interaction.reply({
             content: lang.ticket.cancelled,
-            ephemeral: true
+            flags: [MessageFlags.Ephemeral]
         });
     }
 
     /* Ticket Option Buttons */
     if (interaction.isButton() && interaction.customId.startsWith('ticket_')) {
         const ticketType = interaction.customId.replace('ticket_', '');
+        
+        // Only handle valid ticket types (ignore bot setup buttons like ticket_skip, ticket_enable)
+        const validTicketTypes = ['18_verify', 'ban_appeal', 'player_report', 'bug_report', 'other'];
+        if (!validTicketTypes.includes(ticketType)) {
+            return; // Not a ticket creation button, ignore it
+        }
 
         logger(`User ${user} is creating a ${ticketType} ticket.`);
 
         // build a modal for user input
-        const modal = new ModalBuilder()
+        let modal = new ModalBuilder()
             .setCustomId(`ticket_modal_${ticketType}`)
             .setTitle(`Create ${ticketType.replace('_', ' ')} Ticket`);
 
         // add inputs to modal based on ticketType
         switch (ticketType) {
             case '18_verify':
-                await ageVerifyModal(modal);
+                modal = await ageVerifyModal(modal);
                 break;
             case 'ban_appeal':
-                await banAppealModal(modal);
+                modal = await banAppealModal(modal);
                 break;
             case 'player_report':
-                await playerReportModal(modal);
+                modal = await playerReportModal(modal);
                 break;
             case 'bug_report':
-                await bugReportModal(modal);
+                modal = await bugReportModal(modal);
                 break;
             case 'other':
-                await otherModal(modal);
+                modal = await otherModal(modal);
                 break;
         }
 
@@ -100,7 +105,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         if (!guild) {
             await interaction.reply({
                 content: lang.general.cmdGuildNotFound,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
             return;
         }
@@ -108,8 +113,21 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         if (!category) {
             await interaction.reply({
                 content: lang.ticket.ticketCategoryNotFound,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
+            return;
+        }
+
+        // Check rate limit (3 tickets per hour per user)
+        const rateLimitKey = createRateLimitKey.user(interaction.user.id, 'ticket-create');
+        const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.TICKET_CREATE);
+        
+        if (!rateCheck.allowed) {
+            await interaction.reply({
+                content: rateCheck.message,
+                flags: [MessageFlags.Ephemeral]
+            });
+            logger(`User ${user} hit ticket creation rate limit`, 'WARN');
             return;
         }
 
@@ -138,6 +156,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
 
             // create new ticket in the database
             const newTicket = ticketRepo.create({
+                guildId: guildId,
                 createdBy: interaction.user.id,
                 type: ticketType,
             });
@@ -152,24 +171,24 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
                 .where('guildId = :guildId', { guildId: guildId })
                 .getRawMany();
 
-            // base perms
-            const permOverwrites = [
-                { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, // deny everyone
-                { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.AddReactions, PermissionFlagsBits.UseExternalEmojis] }, // allow ticket creator
-            ];
+            // Extract role IDs from mentions
+            const staffRoleIds = rolePerms
+                .map(role => extractIdFromMention(role.role))
+                .filter((id): id is string => {
+                    if (!id) {
+                        logger(`Invalid role format: ${id}`);
+                        return false;
+                    }
+                    return true;
+                });
 
-            // add permissions for each staff/admin role
-            rolePerms.forEach(role => {
-                const roleId = extractIdFromMention(role.role);
-                if (!roleId) {
-                    logger(`Invalid role format: ${role.role}`);
-                    return; // skip this role
-                }
-
-                permOverwrites.push(
-                    { id: roleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.AddReactions, PermissionFlagsBits.UseExternalEmojis] }
-                );
-            });
+            // Use utility function to create permissions
+            const permOverwrites = createPrivateChannelPermissions(
+                guildId,
+                [member.id],
+                staffRoleIds,
+                PermissionSets.TICKET_CREATOR
+            );
 
             // create the channel with all perms
             const channel = await guild.channels.create({
@@ -181,7 +200,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
 
             await interaction.reply({
                 content: lang.ticket.created + `${channel}`,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
 
             // send ticket welcome message
@@ -217,7 +236,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             logger(lang.ticket.error + ' ' + error);
             await interaction.reply({
                 content: lang.ticket.error,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
             return;
         }
@@ -242,7 +261,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         await interaction.reply({
             content: lang.ticket.adminOnly.confirm,
             components: [confirmRow],
-            ephemeral: true,
+            flags: [MessageFlags.Ephemeral],
         });
     }
     if (interaction.isButton() && interaction.customId === 'confirm_admin_only_ticket') {
@@ -280,7 +299,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         await interaction.reply({
             content: lang.ticket.close.confirm,
             components: [confirmRow],
-            ephemeral: true,
+            flags: [MessageFlags.Ephemeral],
         });
     }
     if (interaction.isButton() && interaction.customId === 'confirm_close_ticket') {

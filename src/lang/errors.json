@@ -1,0 +1,9 @@
+{
+	"unknownSubcommand": "❌ Unknown subcommand.",
+	"unknownTemplate": "❌ Unknown announcement template.",
+	"invalidParameters": "❌ Invalid parameters:\n{0}",
+	"cancelled": "❌ Operation cancelled.",
+	"genericError": "❌ An error occurred while executing this command. Please try again later.",
+	"rateLimit": "⏱️ You're using this command too quickly. Please try again in {0} minutes.",
+	"timeout": "⏱️ Operation timed out. Please try again."
+}

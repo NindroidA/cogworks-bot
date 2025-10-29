@@ -73,6 +73,7 @@ export const ticketCloseEvent = async(client: Client, interaction: ButtonInterac
 
             // create archived ticket in database
             const newArchivedTicket = archivedTicketRepo.create({
+                guildId: guildId,
                 createdBy: ticket.createdBy,
                 messageId: newPost.id, 
             });

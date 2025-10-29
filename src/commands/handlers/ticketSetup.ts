@@ -1,14 +1,17 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, CategoryChannel, ChatInputCommandInteraction, Client, ForumChannel, TextChannel } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, CategoryChannel, ChatInputCommandInteraction, Client, ForumChannel, TextChannel, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
-import { lang, logger } from '../../utils';
+import { lang, logger, requireAdmin } from '../../utils';
 
 const tl = lang.ticketSetup;
 const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
 const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
 
 export const ticketSetupHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+    // Require admin permissions
+    if (!await requireAdmin(interaction)) return;
+
     const subCommand = interaction.options.getSubcommand();
     const guildId = interaction.guildId || '';
     const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
@@ -36,7 +39,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
         if (!channel) {
             await interaction.reply({
                 content: lang.general.channelNotFound,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
             return;
         }
@@ -60,7 +63,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
                 // after completion, send an ephemeral success message
                 await interaction.reply({
                     content: tl.successSet + `${channel}`,
-                    ephemeral: true,
+                    flags: [MessageFlags.Ephemeral],
                 });
 
             // if we DO have a ticket config    
@@ -76,14 +79,14 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
                 // after completion, send an ephemeral success message
                 await interaction.reply({
                     content: tl.successUpdate + `${channel}`,
-                    ephemeral: true,
+                    flags: [MessageFlags.Ephemeral],
                 });
             }
         } catch (error) {
             logger(tl.fail + error, 'ERROR');
             await interaction.reply({
                 content: tl.fail,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
         }
 
@@ -98,7 +101,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
             if (!ticketConfig) {
                 await interaction.reply({
                     content: tlC.setChannelFirst,
-                    ephemeral: true,
+                    flags: [MessageFlags.Ephemeral],
                 });
                 return;
             }
@@ -109,14 +112,14 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
 
             await interaction.reply({
                 content: tlC.success,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
 
         } catch (error) {
             logger(tlC.fail + error, 'ERROR');
             await interaction.reply({
                 content: tlC.fail,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
 
         }
@@ -130,7 +133,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
         if (!channel) {
             await interaction.reply({
                 content: lang.general.channelNotFound,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
             return;
         }
@@ -145,7 +148,13 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
                         content: tlA.initialMsg
                     },
                 });
-                msg.pin();
+                
+                // Try to pin, but don't fail if max pins reached
+                try {
+                    await msg.pin();
+                } catch {
+                    logger('Could not pin thread (max pins may be reached)', 'WARN');
+                }
 
                 // make a new config containing the guildId, main message id, and channel id
                 const newArchivedTicketConfig = archivedTicketConfigRepo.create({
@@ -160,7 +169,7 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
                 // after completion, send an ephemeral success message
                 await interaction.reply({
                     content: tl.successSet + `${channel}`,
-                    ephemeral: true,
+                    flags: [MessageFlags.Ephemeral],
                 });
             } else {
                 // send main message to designated channel
@@ -170,7 +179,13 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
                         content: tlA.initialMsg
                     },
                 });
-                msg.pin();
+                
+                // Try to pin, but don't fail if max pins reached
+                try {
+                    await msg.pin();
+                } catch {
+                    logger('Could not pin thread (max pins may be reached)', 'WARN');
+                }
 
                 // update the config channelId and messageId and save
                 archivedTicketConfig.channelId = channel.id;
@@ -180,14 +195,14 @@ export const ticketSetupHandler = async(client: Client, interaction: ChatInputCo
                 // after completion, send an ephemeral success message
                 await interaction.reply({
                     content: tl.successUpdate + ` ${channel}`,
-                    ephemeral: true,
+                    flags: [MessageFlags.Ephemeral],
                 });
             }
         } catch (error) {
             logger(tlA.fail + error, 'ERROR');
             await interaction.reply({
                 content: tlA.fail,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
         }
     }

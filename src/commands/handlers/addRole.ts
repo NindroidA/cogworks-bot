@@ -1,12 +1,15 @@
-import { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
+import { CacheType, ChatInputCommandInteraction, Client, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
-import { lang, logger } from '../../utils';
+import { lang, logger, requireAdmin } from '../../utils';
 
 const tl = lang.addRole;
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 
 export const addRoleHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+    // Require admin permissions
+    if (!await requireAdmin(interaction)) return;
+
     const subCommand = interaction.options.getSubcommand();
     const guildId = interaction.guildId || '';
     const role = interaction.options.getRole('role_id')!.toString() || '';
@@ -17,7 +20,7 @@ export const addRoleHandler = async(client: Client, interaction: ChatInputComman
     if (roleFinder) {
         await interaction.reply({
             content: tl.alreadyAdded,
-            ephemeral: true,
+            flags: [MessageFlags.Ephemeral],
         });
         return;
     }
@@ -35,7 +38,7 @@ export const addRoleHandler = async(client: Client, interaction: ChatInputComman
             // after completion, send an ephemeral success message
             await interaction.reply({
                 content: tl.successStaff,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
 
         } else if (subCommand == 'admin') {
@@ -50,14 +53,14 @@ export const addRoleHandler = async(client: Client, interaction: ChatInputComman
             // after completion, send an ephemeral success message
             await interaction.reply({
                 content: tl.successAdmin,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
         }
     } catch (error) {
         logger(lang.addRole.fail + error, 'ERROR');
         await interaction.reply({
             content: tl.fail,
-            ephemeral: true
+            flags: [MessageFlags.Ephemeral]
         });
     }
 };

@@ -1,11 +1,15 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 import { ApplicationStatus } from '../../../utils/types';
 
 @Entity({ name: 'applications'})
+@Index(['guildId'])
 export class Application {
 
     @PrimaryGeneratedColumn()
     id: number;
+
+    @Column()
+    guildId: string;
 
     @Column({ nullable: true })
     channelId: string;

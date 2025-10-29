@@ -5,6 +5,19 @@ import tseslint from 'typescript-eslint';
 
 export default defineConfig([
   {
+    ignores: [
+      'dist/',
+      'node_modules/',
+      'private/',
+      'scripts/',
+      '.env',
+      '.vscode/',
+      '.github/',
+      'ecosystem.config.js',
+      'logs/'
+    ]
+  },
+  {
     files: ['**/*.{js,mjs,cjs,ts}'],
     languageOptions: {
       globals: {

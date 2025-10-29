@@ -1,0 +1,33 @@
+{
+    "addRole": {
+        "cmdDescrp": "Adds a role to the Cogworks database",
+        "subcmdDescrp": {
+            "staff": "Adds a Staff role",
+            "admin": "Adds an Admin role",
+            "roleid": "The actual Role ID",
+            "alias": "What you refer to this role as"
+        },
+        "successStaff": "Successfully added Staff role!",
+        "successAdmin": "Successfully added Admin role!",
+        "fail": "Failed to add role!",
+        "alreadyAdded": "This role is already saved!"
+    },
+    "removeRole": {
+        "cmdDescrp": "Removes a role to the Cogworks database",
+        "subcmdDescrp": {
+            "staff": "Removes a Staff role",
+            "admin": "Removes an Admin role",
+            "roleid": "The actual Role ID"
+        },
+        "successStaff": "Successfully removed Staff role!",
+        "successAdmin": "Successfully removed Admin role!",
+        "fail": "Failed to remove role!",
+        "noType": "Your server doesn't have any saved roles of this type!",
+        "dne": "This role doesn't exist in the database!"
+    },
+    "getRoles": {
+        "cmdDescrp": "Gets your saved roles from the Cogworks database",
+        "fail": "Failed to get saved roles!",
+        "noGuild": "Your server doesn't have any roles!"
+    }
+}

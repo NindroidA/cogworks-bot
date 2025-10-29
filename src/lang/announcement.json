@@ -1,0 +1,71 @@
+{
+    "cmdDescrp": "Sends a specialized server announcement.",
+    "channel": "Channel to send announcement (optional).",
+    "invalidTime": "❌ Invalid time format. Please use: YYYY-MM-DD HH:MM (24-hour format, Central Time)\nExample: 2024-01-15 14:30",
+    "setup": {
+        "cmdDescrp": "Initializes and sets up the announcement module.",
+        "mcRole": "The Minecraft role to ping in announcements",
+        "defaultChannel": "Default channel for announcements",
+        "success": "✅ Announcement settings configured!",
+        "configured": "configured announcement settings for guild",
+        "error": "Error configuring announcement settings: ",
+        "fail": "❌ Failed to configure announcement settings.",
+        "notConfigured": "❌ Announcement settings not configured. Please run `/announcement-setup` first.",
+        "invalidChannel": "❌ Invalid channel specified."
+    },
+    "maintenance": {
+        "cmdDescrp": "Announce server maintenance.",
+        "duration": {
+            "cmdDescrp": "Expected maintenance duration.",
+            "short": {
+                "name": "Short (5-10 minutes)",
+                "value": "short",
+                "msg": "This is a notice that the Minecraft server will be going down for server-side maintenance and updates in about 5 minutes! I'm hoping the server won't be down for super long, but will update in this channel if anything goes awry. Thank you for your patience."
+            },
+            "long": {
+                "name": "Long (up to 1 hour or more)",
+                "value": "long",
+                "msg": "This is a notice that the Minecraft server will be going down for server-side maintenance **in about 1-2 hours**! It's honestly unknown how long this will take (could be 15 minutes, could be 1 hour). We will try our best to get everything back up in a reasonable time. Thank you for your patience."
+            }
+        },
+        "scheduled": {
+            "cmdDescrp": "Announce scheduled server maintenance.",
+            "short": "{0} This is a notice that the Minecraft Server will be going down for server-side maintenance and updates at approximately <t:{1}:t>. We're hoping the server won't be down for longer than 5-10 minutes, but will update in this channel if anything goes awry. Thank you for your patience.\n\n-# Times shown are in YOUR local timezone",
+            "long": "{0} This is a notice that the Minecraft server will be going down for server-side maintenance and updates at approximately <t:{1}:t>. It's honestly unknown how long this will take (could be 15 minutes, could be 1 hour). We will try our best to get everything back up in a reasonable time. Thank you for your patience.\n\n-# Times shown are in YOUR local timezone",
+            "version": {
+                "cmdDescrp": "Minecraft version (e.g., 1.21.5)"
+            },
+            "time": {
+                "cmdDescrp": "Time in format: YYYY-MM-DD HH:MM AM/PM (Central Time)."
+            }
+        }
+    },
+    "back-online": {
+        "cmdDescrp": "Announce server is back online.",
+        "success": "Updates were successful; server is back online!"
+    },
+    "update-scheduled": {
+        "cmdDescrp": "Announce scheduled server update.",
+        "version": {
+            "cmdDescrp": "Minecraft version (e.g., 1.21.5)"
+        },
+        "time": {
+            "cmdDescrp": "Time in format: YYYY-MM-DD HH:MM AM/PM (Central Time)."
+        },
+        "msg": "The update itself shouldn't take too long, but no promises in case there are any issues. There will be another announcement once the server is updated and good to go.\n\n*Times shown are in your local timezone*"
+    },
+    "update-complete": {
+        "cmdDescrp": "Announce server update is complete.",
+        "version": {
+            "cmdDescrp": "Minecraft version that was updated to."
+        },
+        "msg": "• Everything seems to have been updated properly -- there really shouldn't be any bugs, but if anything seems seriously off just let us know!\n\nThank you for your patience!"
+    },
+    "publish": {
+        "success": "Published announcement to followers in",
+        "fail": "Could not public announcement: "
+    },
+    "success": "✅ Announcement sent to",
+    "error": "Error sending announcement: ",
+    "fail": "❌ Failed to send announcement."
+}

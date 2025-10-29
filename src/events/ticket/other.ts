@@ -16,7 +16,7 @@ export const otherModal = async(modal: ModalBuilder) => {
             .setRequired(true),
     );
     
-    modal.addComponents(oModals, oModal);
+    return modal.addComponents(oModals, oModal);
 };
 
 export const otherMessage = async(fields: ModalSubmitFields) => {

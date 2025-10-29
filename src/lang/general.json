@@ -1,0 +1,8 @@
+{
+    "presenceMsg": "⚙️ Look at me go!",
+    "descriptionMsg": "A special lil bot made by a special lil Nindroid :3",
+    "fatalError": "There was a fatal error! Please contact your admin!",
+    "channelNotFound": "The selected channel was not found.",
+    "cmdTicketNotFound": "This command can only be used in a ticket!",
+    "cmdGuildNotFound": "This command can only be used in a server!"
+}

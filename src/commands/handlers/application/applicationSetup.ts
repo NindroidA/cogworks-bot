@@ -1,9 +1,9 @@
-import { CacheType, CategoryChannel, ChatInputCommandInteraction, Client, ForumChannel, TextChannel } from 'discord.js';
+import { CacheType, CategoryChannel, ChatInputCommandInteraction, Client, ForumChannel, TextChannel, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { lang, logger } from '../../../utils';
+import { lang, logger, requireAdmin } from '../../../utils';
 import { buildApplicationMessage } from './applicationPosition';
 
 const applicationConfigRepo = AppDataSource.getRepository(ApplicationConfig);
@@ -11,6 +11,9 @@ const archivedApplicationConfigRepo = AppDataSource.getRepository(ArchivedApplic
 const positionRepo = AppDataSource.getRepository(Position);
 
 export const applicationSetupHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+    // Require admin permissions
+    if (!await requireAdmin(interaction)) return;
+
     const tl = lang.application.setup;
     const subCommand = interaction.options.getSubcommand();
     const guildId = interaction.guildId || '';
@@ -25,7 +28,7 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
         if (!channel) {
             await interaction.reply({
                 content: lang.general.channelNotFound,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
             return;
         }
@@ -61,7 +64,7 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
                 // send success message
                 await interaction.reply({
                     content: tl.successSet + `${channel}`,
-                    ephemeral: true
+                    flags: [MessageFlags.Ephemeral]
                 });
 
             // if we DO have an application config
@@ -80,7 +83,7 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
                 // send success message
                 await interaction.reply({
                     content: tl.successUpdate + `${channel}`,
-                    ephemeral: true
+                    flags: [MessageFlags.Ephemeral]
                 });
             }
 
@@ -88,7 +91,7 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
             logger(tl.fail + error, 'ERROR');
             await interaction.reply({
                 content: tl.fail,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
         }
 
@@ -103,7 +106,7 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
             if (!applicationConfig) {
                 await interaction.reply({
                     content: tl.setChannelFirst,
-                    ephemeral: true,
+                    flags: [MessageFlags.Ephemeral],
                 });
                 return;
             }
@@ -114,14 +117,14 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
 
             await interaction.reply({
                 content: tl.success,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
 
         } catch (error) {
             logger(tl.fail + error, 'ERROR');
             await interaction.reply({
                 content: tl.fail,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
         }
 
@@ -134,7 +137,7 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
         if (!channel) {
             await interaction.reply({
                 content: lang.general.channelNotFound,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
             return;
         }
@@ -149,7 +152,13 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
                         content: tl.initialMsg
                     }
                 });
-                msg.pin();
+                
+                // Try to pin, but don't fail if max pins reached
+                try {
+                    await msg.pin();
+                } catch {
+                    logger('Could not pin thread (max pins may be reached)', 'WARN');
+                }
 
                 // make new config with necessary fields
                 const newArchivedApplicationConfig = archivedApplicationConfigRepo.create({
@@ -164,7 +173,7 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
                 // send success message
                 await interaction.reply({
                     content: tl.successSet + channel,
-                    ephemeral: true
+                    flags: [MessageFlags.Ephemeral]
                 });
 
             // if we DO have an archive application config
@@ -176,7 +185,13 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
                         content: tl.initialMsg
                     }
                 });
-                msg.pin();
+                
+                // Try to pin, but don't fail if max pins reached
+                try {
+                    await msg.pin();
+                } catch {
+                    logger('Could not pin thread (max pins may be reached)', 'WARN');
+                }
 
                 // update the config
                 archivedApplicationConfig.channelId = channel.id;
@@ -186,14 +201,14 @@ export const applicationSetupHandler = async(client: Client, interaction: ChatIn
                 // send success message
                 await interaction.reply({
                     content: tl.successUpdate + channel,
-                    ephemeral: true
+                    flags: [MessageFlags.Ephemeral]
                 });
             }
         } catch (error) {
             logger(tl.fail + error, 'ERROR');
             await interaction.reply({
                 content: tl.fail,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
         }
     }

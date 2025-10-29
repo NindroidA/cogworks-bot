@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, TextChannel } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, TextChannel, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
@@ -20,7 +20,7 @@ export const ticketAdminOnlyEvent = async(client: Client, interaction: ButtonInt
     if (!guildId) { 
         await interaction.reply({
             content: lang.general.cmdGuildNotFound,
-            ephemeral: true,
+            flags: [MessageFlags.Ephemeral],
         });
         return;
     }

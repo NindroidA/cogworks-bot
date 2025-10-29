@@ -1,10 +1,10 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GuildMember, Interaction, ModalBuilder, PermissionFlagsBits, TextChannel, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GuildMember, Interaction, ModalBuilder, TextChannel, TextInputBuilder, TextInputStyle, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../typeorm';
 import { Application } from '../typeorm/entities/application/Application';
 import { ApplicationConfig } from '../typeorm/entities/application/ApplicationConfig';
 import { Position } from '../typeorm/entities/application/Position';
 import { SavedRole } from '../typeorm/entities/SavedRole';
-import { extractIdFromMention, lang, logger } from '../utils';
+import { createPrivateChannelPermissions, createRateLimitKey, extractIdFromMention, lang, logger, PermissionSets, rateLimiter, RateLimits } from '../utils';
 import { applicationCloseEvent } from './application/close';
 
 const tl = lang.application;
@@ -32,7 +32,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
         if (!position) {
             await interaction.reply({
                 content: pl.notAvailable,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
             return;
         }
@@ -52,7 +52,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
         await interaction.reply({
             content: `🔞 **Age Verification Required**\n\nTo apply for the **${position.title}** position, you must be 18 years or older.\n\nAre you 18 or older?`,
             components: [ageVerificationRow],
-            ephemeral: true
+            flags: [MessageFlags.Ephemeral]
         });
     }
 
@@ -150,7 +150,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
 
         await interaction.reply({
             content: tl.cancelled,
-            ephemeral: true
+            flags: [MessageFlags.Ephemeral]
         });
     }
 
@@ -167,7 +167,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
         if (!guild) {
             await interaction.reply({
                 content: lang.general.cmdGuildNotFound,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
             return;
         }
@@ -176,7 +176,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
         if (!category) {
             await interaction.reply({
                 content: tl.applicationCategoryNotFound,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
             return;
         }
@@ -189,8 +189,21 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
         if (!position) {
             await interaction.reply({
                 content: pl.notAvailable,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
+            return;
+        }
+
+        // Check rate limit (2 applications per day per user)
+        const rateLimitKey = createRateLimitKey.user(interaction.user.id, 'application-create');
+        const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.APPLICATION_CREATE);
+        
+        if (!rateCheck.allowed) {
+            await interaction.reply({
+                content: rateCheck.message,
+                flags: [MessageFlags.Ephemeral]
+            });
+            logger(`User ${user} hit application creation rate limit`, 'WARN');
             return;
         }
 
@@ -221,6 +234,7 @@ ${availability}`;
 
             // create new application in the database
             const newApplication = applicationRepo.create({
+                guildId: guildId,
                 createdBy: interaction.user.id,
                 type: `position_${positionId}`,
             });
@@ -236,24 +250,24 @@ ${availability}`;
                 .andWhere('type = :type', { type: 'admin' })
                 .getRawMany();
 
-            // base perms
-            const permOverwrites = [
-                { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, // deny everyone
-                { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.AddReactions, PermissionFlagsBits.UseExternalEmojis, PermissionFlagsBits.EmbedLinks] }, // allow applicant
-            ];
+            // Extract role IDs from mentions
+            const adminRoleIds = rolePerms
+                .map(role => extractIdFromMention(role.role))
+                .filter((id): id is string => {
+                    if (!id) {
+                        logger(`Invalid role format: ${id}`);
+                        return false;
+                    }
+                    return true;
+                });
 
-            // add permissions for each admin role
-            rolePerms.forEach(role => {
-                const roleId = extractIdFromMention(role.role);
-                if (!roleId) {
-                    logger(`Invalid role format: ${role.role}`);
-                    return; // skip this role
-                }
-
-                permOverwrites.push(
-                    { id: roleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.AddReactions, PermissionFlagsBits.UseExternalEmojis] }
-                );
-            });
+            // Use utility function to create permissions
+            const permOverwrites = createPrivateChannelPermissions(
+                guildId,
+                [member.id],
+                adminRoleIds,
+                PermissionSets.APPLICATION_CREATOR
+            );
 
             // create the channel with all perms
             const channel = await guild.channels.create({
@@ -265,7 +279,7 @@ ${availability}`;
 
             await interaction.reply({
                 content: `✅ Your application has been submitted! Please check ${channel} for updates.`,
-                ephemeral: true,
+                flags: [MessageFlags.Ephemeral],
             });
 
             // send application welcome message
@@ -323,7 +337,7 @@ ${availability}`;
             if (!interaction.replied && !interaction.deferred) {
                 await interaction.reply({
                     content: tl.failCreate,
-                    ephemeral: true
+                    flags: [MessageFlags.Ephemeral]
                 });
             }
             return;
@@ -349,7 +363,7 @@ ${availability}`;
         await interaction.reply({
             content: tl.close.confirm,
             components: [confirmRow],
-            ephemeral: true,
+            flags: [MessageFlags.Ephemeral],
         });
     }
 

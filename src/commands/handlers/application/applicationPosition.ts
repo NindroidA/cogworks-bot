@@ -1,6 +1,6 @@
  
  
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, ChatInputCommandInteraction, Client, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
 import { Position } from '../../../typeorm/entities/application/Position';
@@ -27,7 +27,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             if (!templateData) {
                 await interaction.reply({
                     content: pl.templateNotFound,
-                    ephemeral: true
+                    flags: [MessageFlags.Ephemeral]
                 });
                 return;
             }
@@ -38,7 +38,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             if (!title || !description) {
                 await interaction.reply({
                     content: pl.provideEither,
-                    ephemeral: true
+                    flags: [MessageFlags.Ephemeral]
                 });
                 return;
             }
@@ -65,7 +65,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
 
             await interaction.reply({
                 content: `✅ Position "${finalTitle}" added successfully! (ID: ${newPosition.id})`,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
 
             // update the application channel message
@@ -75,7 +75,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             logger(pl.failAdd + error, 'ERROR');
             await interaction.reply({
                 content: pl.failAdd,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
         }
     } else if (subCommand === 'remove') {
@@ -89,7 +89,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             if (!position) {
                 await interaction.reply({
                     content: pl.notFound,
-                    ephemeral: true
+                    flags: [MessageFlags.Ephemeral]
                 });
                 return;
             }
@@ -98,7 +98,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
 
             await interaction.reply({
                 content: `✅ Position "${position.title}" removed successfully!`,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
 
             // update the application channel message
@@ -108,7 +108,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             logger(pl.failRemove + error, 'ERROR');
             await interaction.reply({
                 content: pl.failRemove,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
         }
     } else if (subCommand === 'toggle') {
@@ -122,7 +122,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             if (!position) {
                 await interaction.reply({
                     content: pl.notFound,
-                    ephemeral: true
+                    flags: [MessageFlags.Ephemeral]
                 });
                 return;
             }
@@ -132,7 +132,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
 
             await interaction.reply({
                 content: `✅ Position "${position.title}" is now ${position.isActive ? 'active' : 'inactive'}.`,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
 
             // update the application channel message
@@ -142,7 +142,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             logger(pl.failToggle + error, 'ERROR');
             await interaction.reply({
                 content: pl.failToggle,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
         }
     } else if (subCommand === 'list') {
@@ -155,7 +155,7 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             if (positions.length === 0) {
                 await interaction.reply({
                     content: pl.noneFound,
-                    ephemeral: true
+                    flags: [MessageFlags.Ephemeral]
                 });
                 return;
             }
@@ -166,14 +166,14 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
 
             await interaction.reply({
                 content: `📋 **Positions:**\n\n${positionList}`,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
 
         } catch (error) {
             logger(pl.failList + error, 'ERROR');
             await interaction.reply({
                 content: pl.failList,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
         }
     } else if (subCommand === 'refresh') {
@@ -182,14 +182,14 @@ export const applicationPositionHandler = async(client: Client, interaction: Cha
             
             await interaction.reply({
                 content: pl.successRefresh,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
 
         } catch (error) {
             logger(pl.failRefresh + error, 'ERROR');
             await interaction.reply({
                 content: pl.failRefresh,
-                ephemeral: true
+                flags: [MessageFlags.Ephemeral]
             });
         }
     }

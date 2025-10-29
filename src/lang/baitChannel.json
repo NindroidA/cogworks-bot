@@ -1,0 +1,74 @@
+{
+	"notConfigured": "❌ Bait channel not configured. Use `/baitchannel setup`",
+	"setupFirst": "❌ Please run `/baitchannel setup` first!",
+	"specifyRoleOrUser": "❌ Please specify a role or user!",
+	"status": {
+		"title": "🎯 Bait Channel Status",
+		"statusEnabled": "✅ Enabled",
+		"statusDisabled": "❌ Disabled",
+		"channelNotFound": "❌ Not found",
+		"smartOn": "✅ On",
+		"smartOff": "❌ Off",
+		"logNone": "None",
+		"detectionSettings": "🔍 Detection Settings",
+		"minAccountAge": "• Min Account Age: {0} days",
+		"minMembership": "• Min Membership: {0} minutes",
+		"minMessages": "• Min Messages: {0}",
+		"requireVerification": "• Require Verification: {0}",
+		"whitelist": "📋 Whitelist",
+		"whitelistRoles": "**Roles:** {0}",
+		"whitelistUsers": "**Users:** {0}",
+		"yes": "Yes",
+		"no": "No"
+	},
+	"toggle": {
+		"enabled": "✅ Bait channel enabled",
+		"disabled": "✅ Bait channel disabled"
+	},
+	"setup": {
+		"title": "✅ Bait Channel Configured",
+		"footer": "Use /baitchannel detection to configure smart detection"
+	},
+	"stats": {
+		"title": "📊 Bait Channel Statistics",
+		"description": "Statistics for the last {0} day(s)",
+		"totalTriggers": "Total Triggers",
+		"banned": "Banned",
+		"kicked": "Kicked",
+		"deletedInTime": "Deleted in Time",
+		"whitelisted": "Whitelisted",
+		"avgSuspicion": "Avg Suspicion",
+		"recentDetections": "⚠️ Recent Detections",
+		"none": "None"
+	},
+	"whitelist": {
+		"added": "✅ Added {0} to whitelist",
+		"removed": "✅ Removed {0} from whitelist",
+		"alreadyAdded": "ℹ️ {0} is already whitelisted",
+		"notInList": "ℹ️ {0} is not in the whitelist",
+		"title": "📋 Bait Channel Whitelist",
+		"empty": "No roles or users are whitelisted",
+		"role": "Role: {0}",
+		"user": "User: {0}"
+	},
+	"detection": {
+		"title": "✅ Smart Detection Updated",
+		"enabled": "Enabled",
+		"minAccountAge": "Min Account Age",
+		"minMembership": "Min Membership",
+		"minMessages": "Min Messages",
+		"requireVerification": "Require Verification",
+		"days": "{0} days",
+		"minutes": "{0} min",
+		"yes": "✅ Yes",
+		"no": "❌ No"
+	},
+	"error": {
+		"fetchStatus": "Failed to fetch bait channel status",
+		"toggle": "Failed to toggle bait channel",
+		"setup": "Failed to setup bait channel",
+		"fetchStats": "Failed to fetch bait channel statistics",
+		"updateWhitelist": "Failed to update whitelist",
+		"updateDetection": "Failed to update detection settings"
+	}
+}

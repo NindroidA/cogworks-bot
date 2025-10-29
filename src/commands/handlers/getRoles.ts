@@ -1,12 +1,15 @@
-import { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
+import { CacheType, ChatInputCommandInteraction, Client, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
-import { lang, logger } from '../../utils';
+import { lang, logger, requireAdmin } from '../../utils';
 
 const tl = lang.getRoles;
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 
 export const getRolesHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+    // Require admin permissions
+    if (!await requireAdmin(interaction)) return;
+
     const guildId = interaction.guildId || '';
     const guildFinder = await savedRoleRepo.findOneBy({ guildId });
 
@@ -14,7 +17,7 @@ export const getRolesHandler = async(client: Client, interaction: ChatInputComma
     if (!guildFinder) {
         await interaction.reply({
             content: tl.noGuild,
-            ephemeral: true,
+            flags: [MessageFlags.Ephemeral],
         });
         return;
     }
@@ -68,14 +71,14 @@ export const getRolesHandler = async(client: Client, interaction: ChatInputComma
 
         await interaction.reply({
             content: message,
-            ephemeral: true
+            flags: [MessageFlags.Ephemeral]
         });
 
     } catch (error) {
         logger(lang.getRoles.fail + error, 'ERROR');
         await interaction.reply({
             content: tl.fail,
-            ephemeral: true
+            flags: [MessageFlags.Ephemeral]
         });
     }
 
