@@ -88,6 +88,5 @@ archiveDownload/
 src/utils/baResponses.json
 
 # Development
-scripts/
 tests/
 docs/admin_guide.md
