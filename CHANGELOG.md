@@ -1,3 +1,6 @@
+# Dev Update v2.2.3
+- Hotfix for the bot-changelog github script.
+
 # Dev Update v2.2.2
 
 ## Added

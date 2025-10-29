@@ -12,40 +12,74 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
 
-      - name: Get changelog changes
-        id: changes
+      - name: Extract and format changelog
+        id: changelog
         run: |
-          # get the changes from changelog
-          CHANGES=$(git diff HEAD~1 HEAD -- changelog.md CHANGELOG.md | grep "^+" | grep -v "^+++" | sed 's/^+//' | head -5)
+          # Extract the first changelog section (latest version)
+          CHANGELOG=$(awk '
+            /^# Dev Update/ {
+              if (found) exit;
+              found=1;
+              # Capture the version line but make it smaller (##)
+              print "## " substr($0, 3);
+              next;
+            }
+            found {
+              if (/^# Dev Update/) exit;
+              # Convert ## headers to ### (make subsections smaller)
+              if (/^## /) {
+                print "#" $0;
+                next;
+              }
+              # Convert ### headers to #### if they exist
+              if (/^### /) {
+                print "#" $0;
+                next;
+              }
+              print;
+            }
+          ' CHANGELOG.md)
           
-          # if no changes, use commit message
-          if [ -z "$CHANGES" ]; then
-            CHANGES="${{ github.event.head_commit.message }}"
+          # Get version number
+          VERSION=$(head -1 CHANGELOG.md | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "Latest")
+          
+          # Truncate if too long (Discord limit is 2000 chars for message content)
+          REPO_URL="https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md"
+          if [ ${#CHANGELOG} -gt 1800 ]; then
+            CHANGELOG="${CHANGELOG:0:1800}
+
+            ...
+            [View full changelog](${REPO_URL})"
           fi
           
-          # clean up and format
-          CHANGES=$(echo "$CHANGES" | head -c 400 | sed 's/"/\\"/g')
-          
-          # output
-          echo "changes<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Set outputs
+          {
+            echo "version=$VERSION"
+            echo "content<<CHANGELOG_EOF"
+            echo "$CHANGELOG"
+            echo "CHANGELOG_EOF"
+          } >> $GITHUB_OUTPUT
 
-      - name: Send to Discord Webhook
-        uses: Ilshidur/action-discord@master
+      - name: Send to Discord
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        with:
-          args: |
-            # 📋 Cogworks Bot Update
-            
-            **Changes:**
-            ```
-            ${{ steps.changes.outputs.changes }}
-            ```
-            
-            -# Repository: ${{ github.repository }}
-            -# Commit: ${{ github.sha }}
+        run: |
+          # Create the message with main header + changelog
+          MESSAGE="# 📋 Cogworks Bot Update
+          
+          ${{ steps.changelog.outputs.content }}
+
+          -# [GitHub Repository](https://github.com/${{ github.repository }})"
+          
+          # Create JSON payload
+          cat << EOF > payload.json
+          {
+            "content": $(echo "$MESSAGE" | jq -Rs .)
+          }
+          EOF
+          
+          # Send to Discord
+          curl -H "Content-Type: application/json" \
+               -d @payload.json \
+               "$DISCORD_WEBHOOK"
