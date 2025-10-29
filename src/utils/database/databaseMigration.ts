@@ -10,6 +10,7 @@
  * - Database indexes on all guildId columns for performance
  */
 
+import { DataSource } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
 import { logger } from '../index';
 
@@ -28,11 +29,24 @@ export async function runMultiServerMigration(): Promise<void> {
 	try {
 		logger('Starting multi-server database migration...', 'INFO');
 
-		if (!AppDataSource.isInitialized) {
-			await AppDataSource.initialize();
+		// Close existing connection if any
+		if (AppDataSource.isInitialized) {
+			await AppDataSource.destroy();
 		}
 
-		const queryRunner = AppDataSource.createQueryRunner();
+		// Initialize WITHOUT synchronize to prevent auto-schema updates
+		const migrationDataSource = new DataSource({
+			type: 'mysql',
+			host: process.env.MYSQL_DB_HOST,
+			port: parseInt(process.env.MYSQL_DB_PORT!),
+			username: process.env.MYSQL_DB_USERNAME,
+			password: process.env.MYSQL_DB_PASSWORD,
+			database: process.env.MYSQL_DB_DATABASE,
+			synchronize: false, // CRITICAL: Don't let TypeORM auto-sync during migration
+		});
+
+		await migrationDataSource.initialize();
+		const queryRunner = migrationDataSource.createQueryRunner();
 		await queryRunner.connect();
 
 		// Check if migration has already been run
@@ -239,7 +253,7 @@ export async function runMultiServerMigration(): Promise<void> {
 
 			await queryRunner.commitTransaction();
 			logger('✅ Multi-server migration completed successfully!', 'INFO');
-			logger('⚠️  Remember to remove src/utils/databaseMigration.ts after confirming migration', 'WARN');
+			logger('⚠️  Remember to remove src/utils/database/databaseMigration.ts after confirming migration', 'WARN');
 
 		} catch (error) {
 			await queryRunner.rollbackTransaction();
@@ -247,6 +261,7 @@ export async function runMultiServerMigration(): Promise<void> {
 			throw error;
 		} finally {
 			await queryRunner.release();
+			await migrationDataSource.destroy();
 		}
 
 	} catch (error) {
