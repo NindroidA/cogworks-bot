@@ -3,8 +3,10 @@
  * Run this BEFORE production migration to verify everything works
  */
 
+import dotenv from 'dotenv';
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
+dotenv.config();
 
 // Mock environment for testing
 const TEST_MODE = process.env.TEST_MODE === 'true';
@@ -17,7 +19,7 @@ async function testMigrationPrerequisites() {
   try {
     const dataSource = new DataSource({
       type: 'mysql',
-      host: process.env.MYSQL_DB_HOST || 'localhost',
+      host: process.env.MYSQL_DB_HOST!,
       port: parseInt(process.env.MYSQL_DB_PORT!),
       username: process.env.MYSQL_DB_USERNAME!,
       password: process.env.MYSQL_DB_PASSWORD!,
