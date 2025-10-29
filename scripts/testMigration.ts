@@ -18,10 +18,10 @@ async function testMigrationPrerequisites() {
     const dataSource = new DataSource({
       type: 'mysql',
       host: process.env.MYSQL_DB_HOST || 'localhost',
-      port: parseInt(process.env.MYSQL_DB_PORT || '3306'),
-      username: process.env.MYSQL_DB_USERNAME || 'root',
-      password: process.env.MYSQL_DB_PASSWORD,
-      database: process.env.MYSQL_DB_DATABASE || 'cogworks',
+      port: parseInt(process.env.MYSQL_DB_PORT!),
+      username: process.env.MYSQL_DB_USERNAME!,
+      password: process.env.MYSQL_DB_PASSWORD!,
+      database: process.env.MYSQL_DB_DATABASE!,
       entities: [],
       synchronize: false,
     });
