@@ -1,10 +1,10 @@
 import {
-    Client,
-    EmbedBuilder,
-    GuildMember,
-    Message,
-    PermissionFlagsBits,
-    TextChannel
+	Client,
+	EmbedBuilder,
+	GuildMember,
+	Message,
+	PermissionFlagsBits,
+	TextChannel
 } from 'discord.js';
 import { Repository } from 'typeorm';
 import { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
@@ -236,7 +236,7 @@ export class BaitChannelManager {
 		// Build warning message with suspicion details
 		const warningEmbed = new EmbedBuilder()
 			.setColor('#FF0000')
-			.setTitle('⚠️ SECURITY ALERT')
+			.setTitle('❗️ URGENT WARNING')
 			.setDescription(config.warningMessage)
 			.addFields(
 				{ 
