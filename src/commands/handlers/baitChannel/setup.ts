@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, Client, EmbedBuilder, MessageFlags, TextChannel } from 'discord.js';
+import { ChatInputCommandInteraction, Client, EmbedBuilder, TextChannel } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
 import { handleInteractionError, lang, logger, safeDbOperation } from '../../../utils';
@@ -40,7 +40,7 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
 			'Save bait channel config'
 		);
 
-		// Send or update warning message in bait channel (NOT pinned)
+		// Send or update warning message in the BAIT CHANNEL (visible to everyone)
 		if (channel instanceof TextChannel) {
 			try {
 				const warningContent = '# 🚨 **DO NOT POST HERE** 🚨\n\n' +
@@ -92,9 +92,10 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
 
 		embed.setFooter({ text: tl.setup.footer });
 
+		// Reply to the user with confirmation (ephemeral - only they can see it)
 		await interaction.reply({ 
 			embeds: [embed], 
-			flags: [MessageFlags.Ephemeral]
+			ephemeral: true
 		});
 	} catch (error) {
 		await handleInteractionError(interaction, error, tl.error.setup);

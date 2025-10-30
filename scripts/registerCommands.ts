@@ -35,6 +35,7 @@ async function registerCommands() {
 
 		console.log(`✅ Successfully registered commands for guild ${GUILD_ID}`);
 		console.log(`📝 Commands registered: ${commands.map((c: any) => c.name).join(', ')}`);
+        process.exit(0);
 	} catch (error) {
 		console.error('❌ Failed to register commands:', error);
 		process.exit(1);

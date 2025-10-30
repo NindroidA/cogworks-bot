@@ -10,7 +10,14 @@ import { whitelistHandler } from './whitelist';
 export const baitChannelHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
 	try {
 		// Require admin permissions for all baitchannel subcommands
-		if (!await requireAdmin(interaction)) return;
+		const adminCheck = requireAdmin(interaction);
+		if (!adminCheck.allowed) {
+			await interaction.reply({
+				content: adminCheck.message,
+				ephemeral: true
+			});
+			return;
+		}
 
 		const subcommand = interaction.options.getSubcommand();
 
