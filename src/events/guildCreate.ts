@@ -5,14 +5,28 @@
  * Sends a welcome message with setup instructions.
  */
 
-import { Client, EmbedBuilder, Guild, TextChannel } from 'discord.js';
+import { Client, EmbedBuilder, Guild, REST, Routes, TextChannel } from 'discord.js';
+import { commands } from '../commands/commandList';
 import { logger } from '../utils';
+
+const rest = new REST({ version: '10' }).setToken(process.env.RELEASE === 'dev' ? process.env.DEV_BOT_TOKEN! : process.env.BOT_TOKEN!);
+const CLIENT_ID = process.env.RELEASE === 'dev' ? process.env.DEV_CLIENT_ID! : process.env.CLIENT_ID!;
 
 export default {
 	name: 'guildCreate',
 	async execute(guild: Guild, client: Client) {
 		try {
 			logger(`Joined new guild: ${guild.name} (ID: ${guild.id}) - Members: ${guild.memberCount}`, 'INFO');
+
+			// Register commands for this guild immediately
+			try {
+				await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guild.id), {
+					body: commands,
+				});
+				logger(`✅ Registered commands for new guild: ${guild.id}`, 'INFO');
+			} catch (error) {
+				logger(`❌ Failed to register commands for guild ${guild.id}: ${(error as Error).message}`, 'ERROR');
+			}
 
 			// Find a suitable channel to send the welcome message
 			const targetChannel = await findWelcomeChannel(guild);

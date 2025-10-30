@@ -1,18 +1,7 @@
 import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
 import dotenv from 'dotenv';
 import 'reflect-metadata';
-import { addRole } from './commands/builders/addRole';
-import { announcement } from './commands/builders/announcement';
-import { announcementSetup } from './commands/builders/announcementSetup';
-import { applicationPosition } from './commands/builders/applicationPosition';
-import { applicationSetup } from './commands/builders/applicationSetup';
-import { baitChannelCommand } from './commands/builders/baitChannel';
-import { botSetup } from './commands/builders/botSetup';
-import { dataExport } from './commands/builders/dataExport';
-import { getRoles } from './commands/builders/getRoles';
-import { removeRole } from './commands/builders/removeRole';
-import { ticketReply } from './commands/builders/ticketReply';
-import { ticketSetup } from './commands/builders/ticketSetup';
+import { commands } from './commands/commandList';
 import { handleSlashCommand } from './commands/commands';
 import { handleApplicationInteraction } from './events/applicationInteraction';
 import guildCreateEvent from './events/guildCreate';
@@ -91,22 +80,6 @@ const apiConnector = new APIConnector(
     process.env.API_URL || 'http://localhost:3001', // default to localhost and port 3001 if not set
     TOKEN // bot token for authentication
 );
-
-/* Slash Commands */
-const commands = [
-	botSetup,            // bot setup
-	addRole,             // add a role
-	removeRole,          // remove a role
-	getRoles,            // get roles
-	ticketSetup,         // ticket setup
-	ticketReply,         // ticket reply
-	applicationSetup,    // application setup
-	applicationPosition, // application position
-	announcementSetup,   // announcement setup
-	announcement,        // announcement module
-	baitChannelCommand,  // bait channel system
-	dataExport           // data export
-];
 
 // listen for interactions
 client.on('interactionCreate', async (interaction) => {
