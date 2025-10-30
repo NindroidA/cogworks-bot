@@ -395,9 +395,9 @@ export class APIConnector {
             } catch {
                 // Silent fail for health checks
             }
-        }, 30000); // Check every 30 seconds
+        }, 300000); // Check every 5 minutes
 
-        logger('💓 Started API health monitoring (30s interval)', 'INFO');
+        logger('💓 Started API health monitoring (5m interval)', 'INFO');
     }
 
     /**

@@ -115,10 +115,10 @@ class HealthMonitor {
      * Start periodic health checks
      */
     private startPeriodicChecks(): void {
-        // Check database connection every 30 seconds
+        // Check database connection every 5 minutes
         setInterval(() => {
             this.checkDatabaseHealth();
-        }, 30000);
+        }, 300000);
 
         // Clean up old errors every 5 minutes
         setInterval(() => {
