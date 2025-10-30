@@ -44,9 +44,9 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
 		if (channel instanceof TextChannel) {
 			try {
 				const warningContent = '# 🚨 **DO NOT POST HERE** 🚨\n\n' +
-					'Not for fun. Not to "test" it. Not even as a joke.\n' +
-					'This channel is monitored for bot detection.\n' +
-					'If you post anything in here, our system will assume you are a bot and you **WILL BE BANNED**. No ifs, ands, or buts.\n' +
+					'Not for fun. Not to "test" it. Not even as a joke.\n\n' +
+					'This channel is monitored for bot detection.\n\n' +
+					'If you post anything in here, our system will assume you are a bot and you **WILL BE BANNED**. No ifs, ands, or buts.\n\n' +
 					'If you are a legitimate user, please do not post here. This is your only warning.';
 				
 				if (config.channelMessageId) {
