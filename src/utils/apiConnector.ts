@@ -20,22 +20,17 @@ import { logger } from './index';
 // ============================================================================
 
 /**
- * Bot stats data sent to API
+ * Bot stats data sent to API (v1.3.0 format)
  */
 interface BotStatsPayload {
-	guilds: number;
-	users: number;
-	channels: number;
-	uptime: number;
-	memoryUsage: NodeJS.MemoryUsage;
-	ping: number;
-	version: string;
-	username: string;
-	discriminator: string;
-	id: string;
-	avatar: string;
-	online: boolean;
-	timestamp: string;
+	botId: string;           // client.user.id
+	username: string;        // client.user.username
+	guilds: number;          // Number of guilds
+	users: number;           // Number of users
+	uptime: number;          // Process uptime in seconds
+	memoryUsage: number;     // Heap memory usage in bytes
+	version: string;         // Bot version
+	environment: string;     // 'production' or 'development'
 }
 
 /**
@@ -429,26 +424,21 @@ export class APIConnector {
     }
 
     /**
-     * Create bot stats payload for API communication.
+     * Create bot stats payload for API communication (v1.3.0 format)
      * 
      * @param {Client} client Discord.js client instance
      * @returns {BotStatsPayload} Formatted bot statistics
      */
     private createBotStatsPayload(client: Client): BotStatsPayload {
         return {
+            botId: client.user?.id || 'unknown',
+            username: client.user?.username || 'Cogworks Bot',
             guilds: client.guilds.cache.size,
             users: client.users.cache.size,
-            channels: client.channels.cache.size,
-            uptime: Math.floor((Date.now() - this.startTime) / 1000),
-            memoryUsage: process.memoryUsage(),
-            ping: client.ws.ping,
+            uptime: Math.floor(process.uptime()),
+            memoryUsage: process.memoryUsage().heapUsed,
             version,
-            username: client.user?.username || 'Cogworks Bot',
-            discriminator: client.user?.discriminator || '0000',
-            id: client.user?.id || 'unknown',
-            avatar: client.user?.displayAvatarURL() || '',
-            online: client.isReady(),
-            timestamp: new Date().toISOString()
+            environment: process.env.RELEASE === 'dev' ? 'development' : 'production'
         };
     }
 

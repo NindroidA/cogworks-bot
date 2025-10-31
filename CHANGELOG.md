@@ -1,3 +1,7 @@
+# Dev Update v2.2.4
+- Fixed NinSys API errors and made sure things lined up correctly
+- Organized and implemented more things for the lang system
+
 # Dev Update v2.2.3
 - Hotfix for the bot-changelog github script.
 

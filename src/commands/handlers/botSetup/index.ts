@@ -22,7 +22,7 @@ import {
 export async function botSetupHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
     if (!interaction.guild) {
         await interaction.reply({
-            embeds: [createErrorEmbed('This command can only be used in a server!')],
+            embeds: [createErrorEmbed(lang.botSetup.errors.serverOnly)],
             flags: [MessageFlags.Ephemeral]
         });
         return;
@@ -33,13 +33,14 @@ export async function botSetupHandler(client: Client, interaction: ChatInputComm
     const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.BOT_SETUP);
     
     if (!rateCheck.allowed) {
+        const minutes = Math.ceil((rateCheck.resetIn || 0) / 60000);
         await interaction.reply({
             embeds: [createErrorEmbed(
-                `⏱️ Bot setup is being modified too frequently. Please try again in ${Math.ceil((rateCheck.resetIn || 0) / 60000)} minutes.`
+                lang.botSetup.rateLimit.exceeded.replace('{minutes}', minutes.toString())
             )],
             flags: [MessageFlags.Ephemeral]
         });
-        logger(`Rate limit exceeded for bot setup in guild ${interaction.guild.id}`, 'WARN');
+        logger(lang.botSetup.logs.rateLimit.replace('{guildId}', interaction.guild.id), 'WARN');
         return;
     }
 
@@ -147,32 +148,32 @@ async function handleEnhancedUpdateMode(
     const hasAnnouncement = existingConfigs.existingAnnouncementConfig;
     const hasBaitChannel = existingConfigs.existingBaitChannelConfig;
 
-    statusLines.push('**Current Configuration:**\n');
+    statusLines.push(lang.botSetup.update.currentConfig + '\n');
     
     statusLines.push(hasStaffRole 
-        ? `✅ **Global Staff Role**: ${existingConfigs.existingBotConfig!.globalStaffRole}`
-        : '❌ **Global Staff Role**: Not configured');
+        ? lang.botSetup.update.staffRoleConfigured.replace('{role}', existingConfigs.existingBotConfig!.globalStaffRole!)
+        : lang.botSetup.update.staffRoleNotConfigured);
     
     statusLines.push(hasTicket 
-        ? '✅ **Ticket System**: Configured'
-        : '❌ **Ticket System**: Not configured');
+        ? lang.botSetup.update.ticketConfigured
+        : lang.botSetup.update.ticketNotConfigured);
     
     statusLines.push(hasApplication 
-        ? '✅ **Application System**: Configured'
-        : '❌ **Application System**: Not configured');
+        ? lang.botSetup.update.applicationConfigured
+        : lang.botSetup.update.applicationNotConfigured);
     
     statusLines.push(hasAnnouncement 
-        ? '✅ **Announcement System**: Configured'
-        : '❌ **Announcement System**: Not configured');
+        ? lang.botSetup.update.announcementConfigured
+        : lang.botSetup.update.announcementNotConfigured);
     
     statusLines.push(hasBaitChannel 
-        ? '✅ **Bait Channel (Anti-Bot)**: Configured'
-        : '❌ **Bait Channel (Anti-Bot)**: Not configured');
+        ? lang.botSetup.update.baitChannelConfigured
+        : lang.botSetup.update.baitChannelNotConfigured);
 
-    statusLines.push('\n**What would you like to do?**');
+    statusLines.push('\n' + lang.botSetup.update.question);
     
     const updateEmbed = createInfoEmbed(
-        '🔧 Bot Configuration Manager',
+        lang.botSetup.update.title,
         statusLines.join('\n')
     );
 
@@ -180,12 +181,12 @@ async function handleEnhancedUpdateMode(
     const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
             .setCustomId('update_reconfigure_all')
-            .setLabel('Reconfigure All Systems')
+            .setLabel(lang.botSetup.buttons.reconfigureAll)
             .setStyle(ButtonStyle.Primary)
             .setEmoji('🔄'),
         new ButtonBuilder()
             .setCustomId('update_add_missing')
-            .setLabel('Add Missing Systems')
+            .setLabel(lang.botSetup.buttons.addMissing)
             .setStyle(ButtonStyle.Success)
             .setEmoji('➕')
     );
@@ -193,12 +194,12 @@ async function handleEnhancedUpdateMode(
     const moreButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
             .setCustomId('update_staff_role_only')
-            .setLabel('Update Staff Role')
+            .setLabel(lang.botSetup.buttons.updateStaffRole)
             .setStyle(ButtonStyle.Secondary)
             .setEmoji('👥'),
         new ButtonBuilder()
             .setCustomId('setup_cancel')
-            .setLabel('Cancel')
+            .setLabel(lang.botSetup.buttons.cancel)
             .setStyle(ButtonStyle.Danger)
     );
 
@@ -256,7 +257,7 @@ async function handleQuickStaffRoleUpdate(
     const disableButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
             .setCustomId('disable_staff_role')
-            .setLabel('Disable Staff Role')
+            .setLabel(lang.botSetup.buttons.disableStaffRole)
             .setStyle(ButtonStyle.Danger)
             .setEmoji('❌')
     );
@@ -281,7 +282,7 @@ async function handleQuickStaffRoleUpdate(
         
         if (!selectedRole) {
             await roleInteraction.reply({
-                embeds: [createErrorEmbed('No role selected. Please try again.')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.noRoleSelected)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -289,7 +290,7 @@ async function handleQuickStaffRoleUpdate(
 
         if (selectedRole.id === roleInteraction.guild?.id) {
             await roleInteraction.reply({
-                embeds: [createErrorEmbed('You cannot use @everyone as the staff role!')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.everyoneNotAllowed)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -326,16 +327,19 @@ async function updateStaffRole(
 
         await botConfigRepository.save(existingConfig);
 
-        const action = enabled ? 'updated to ' + role : 'disabled';
+        const message = enabled 
+            ? lang.botSetup.update.staffRoleUpdated.replace('{role}', role!)
+            : lang.botSetup.update.staffRoleDisabled;
+            
         await interaction.editReply({
-            embeds: [createInfoEmbed('Configuration Updated', 'Global Staff Role has been ' + action + '.')],
+            embeds: [createInfoEmbed(lang.botSetup.update.configUpdated, message)],
             components: []
         });
 
     } catch (error) {
         console.error(lang.console.errorUpdatingBotConfig, error);
         await interaction.editReply({
-            embeds: [createErrorEmbed('Failed to update configuration. Please try again or contact support.')],
+            embeds: [createErrorEmbed(lang.botSetup.errors.failedToUpdate)],
             components: []
         });
     }
@@ -343,7 +347,7 @@ async function updateStaffRole(
 
 async function handleCancel(interaction: MessageComponentInteraction) {
     await interaction.update({
-        embeds: [createInfoEmbed('Setup Cancelled', 'Bot setup has been cancelled. No changes were made. Run /bot-setup again anytime to configure your bot.')],
+        embeds: [createInfoEmbed(lang.botSetup.cancel.title, lang.botSetup.cancel.message)],
         components: []
     });
 }

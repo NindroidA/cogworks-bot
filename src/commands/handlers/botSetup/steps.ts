@@ -7,7 +7,7 @@
 
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, RoleSelectMenuBuilder } from 'discord.js';
 import type { BotConfig } from '../../../typeorm/entities/BotConfig';
-import { createInfoEmbed, createSuccessEmbed } from '../../../utils';
+import { createInfoEmbed, createSuccessEmbed, lang } from '../../../utils';
 
 // Export new step modules
 export { announcementStep } from './steps/announcementStep';
@@ -33,24 +33,16 @@ export interface SetupStep {
  */
 export const welcomeStep: SetupStep = {
     id: 'welcome',
-    title: '🎉 Welcome to Cogworks Bot Setup',
-    description: 'Let\'s configure your bot step by step',
+    title: lang.botSetup.welcome.title,
+    description: lang.botSetup.welcome.description,
     buildEmbed: () => {
         const embed = createInfoEmbed(
-            '🎉 Welcome to Cogworks Bot Setup',
-            '**Thank you for choosing Cogworks Bot!**\n\n' +
-            'This wizard will guide you through the complete setup process.\n\n' +
-            '📋 **What we\'ll configure:**\n' +
-            '• Global Staff Role (optional)\n' +
-            '• Ticket System (optional)\n' +
-            '• Application System (optional)\n' +
-            '• Staff & Admin Roles (optional)\n\n' +
-            '⏱️ **Estimated time:** 5-10 minutes\n' +
-            '💡 **Tip:** You can skip any optional steps and configure them later!'
+            lang.botSetup.welcome.title,
+            lang.botSetup.welcome.description
         );
         embed.addFields({
-            name: '📍 Getting Started',
-            value: 'Click **Start Setup** to begin configuring your bot!',
+            name: lang.botSetup.welcome.gettingStarted,
+            value: lang.botSetup.welcome.clickToStart,
             inline: false
         });
         return embed;
@@ -59,12 +51,12 @@ export const welcomeStep: SetupStep = {
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder()
                 .setCustomId('setup_start')
-                .setLabel('Start Setup')
+                .setLabel(lang.botSetup.buttons.startSetup)
                 .setStyle(ButtonStyle.Success)
                 .setEmoji('🚀'),
             new ButtonBuilder()
                 .setCustomId('setup_cancel')
-                .setLabel('Cancel')
+                .setLabel(lang.botSetup.buttons.cancel)
                 .setStyle(ButtonStyle.Secondary)
                 .setEmoji('❌')
         );
@@ -77,25 +69,17 @@ export const welcomeStep: SetupStep = {
  */
 export const staffRoleStep: SetupStep = {
     id: 'staff_role',
-    title: '👥 Global Staff Role',
-    description: 'Configure staff permissions',
+    title: lang.botSetup.staffRole.title,
+    description: lang.botSetup.staffRole.description,
     isOptional: true,
     buildEmbed: () => {
         const embed = createInfoEmbed(
-            '👥 Global Staff Role Configuration',
-            '**What is a Global Staff Role?**\n' +
-            'This role grants members access to:\n' +
-            '• View and respond to all tickets\n' +
-            '• Manage bot configurations\n' +
-            '• Access administrative features\n\n' +
-            '**Important Notes:**\n' +
-            '⚠️ This is optional - you can skip this step\n' +
-            '✅ You can change this role later\n' +
-            '📝 Multiple staff/admin roles can be added separately'
+            lang.botSetup.staffRole.title,
+            lang.botSetup.staffRole.description
         );
         embed.addFields({
-            name: '📍 Step 2 of 3',
-            value: 'Would you like to enable a Global Staff Role?',
+            name: lang.botSetup.staffRole.step,
+            value: lang.botSetup.staffRole.question,
             inline: false
         });
         return embed;
@@ -104,12 +88,12 @@ export const staffRoleStep: SetupStep = {
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder()
                 .setCustomId('staff_role_enable')
-                .setLabel('Enable & Select Role')
+                .setLabel(lang.botSetup.buttons.enableStaffRole)
                 .setStyle(ButtonStyle.Success)
                 .setEmoji('✅'),
             new ButtonBuilder()
                 .setCustomId('staff_role_skip')
-                .setLabel('Skip (No Staff Role)')
+                .setLabel(lang.botSetup.buttons.skipStaffRole)
                 .setStyle(ButtonStyle.Secondary)
                 .setEmoji('⏭️')
         );
@@ -122,14 +106,12 @@ export const staffRoleStep: SetupStep = {
  */
 export function buildRoleSelectionEmbed() {
     const embed = createInfoEmbed(
-        '🔍 Select Staff Role',
-        '**Please select the role from the dropdown below:**\n\n' +
-        '💡 **Tip:** Choose a role that your staff members already have.\n' +
-        '⚠️ Make sure the role exists and is not @everyone'
+        lang.botSetup.staffRole.selectTitle,
+        lang.botSetup.staffRole.selectDescription
     );
     embed.addFields({
-        name: '📍 Step 2 of 3',
-        value: 'Select a role from the menu below',
+        name: lang.botSetup.staffRole.step,
+        value: lang.botSetup.staffRole.selectStep,
         inline: false
     });
     return embed;
@@ -139,7 +121,7 @@ export function buildRoleSelector() {
     return new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(
         new RoleSelectMenuBuilder()
             .setCustomId('staff_role_select_' + Date.now())
-            .setPlaceholder('🔍 Choose a staff role...')
+            .setPlaceholder(lang.botSetup.staffRole.selectPlaceholder)
             .setMinValues(1)
             .setMaxValues(1)
     );

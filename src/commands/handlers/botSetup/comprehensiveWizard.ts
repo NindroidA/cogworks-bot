@@ -118,29 +118,33 @@ export async function startComprehensiveWizard(
     // Build custom welcome message if there are existing configs
     let welcomeEmbed;
     if (existingConfigs && (existingConfigs.existingBotConfig || existingConfigs.existingTicketConfig || existingConfigs.existingApplicationConfig || existingConfigs.existingAnnouncementConfig || existingConfigs.existingBaitChannelConfig)) {
+        const alreadyConfigured = [];
+        if (existingConfigs.existingBotConfig?.enableGlobalStaffRole) alreadyConfigured.push('• Global Staff Role');
+        if (existingConfigs.existingTicketConfig && existingConfigs.existingArchivedTicketConfig) alreadyConfigured.push('• Ticket System');
+        if (existingConfigs.existingApplicationConfig && existingConfigs.existingArchivedApplicationConfig) alreadyConfigured.push('• Application System');
+        if (existingConfigs.existingAnnouncementConfig) alreadyConfigured.push('• Announcement System');
+        if (existingConfigs.existingBaitChannelConfig) alreadyConfigured.push('• Bait Channel (Anti-Bot)');
+
+        const toBeConfigured = [];
+        if (!existingConfigs.existingBotConfig?.enableGlobalStaffRole) toBeConfigured.push('• Global Staff Role (optional)');
+        if (!(existingConfigs.existingTicketConfig && existingConfigs.existingArchivedTicketConfig)) toBeConfigured.push('• Ticket System (optional)');
+        if (!(existingConfigs.existingApplicationConfig && existingConfigs.existingArchivedApplicationConfig)) toBeConfigured.push('• Application System (optional)');
+        if (!existingConfigs.existingAnnouncementConfig) toBeConfigured.push('• Announcement System (optional)');
+        if (!existingConfigs.existingBaitChannelConfig) toBeConfigured.push('• Bait Channel System (optional)');
+        toBeConfigured.push('• Staff & Admin Roles (optional)');
+
         welcomeEmbed = createInfoEmbed(
-            '🎉 Continue Bot Setup',
-            '**Some systems are already configured!**\n\n' +
-            'This wizard will help you set up any missing systems.\n\n' +
-            '✅ **Already configured:**\n' +
-            (existingConfigs.existingBotConfig?.enableGlobalStaffRole ? '• Global Staff Role\n' : '') +
-            (existingConfigs.existingTicketConfig && existingConfigs.existingArchivedTicketConfig ? '• Ticket System\n' : '') +
-            (existingConfigs.existingApplicationConfig && existingConfigs.existingArchivedApplicationConfig ? '• Application System\n' : '') +
-            (existingConfigs.existingAnnouncementConfig ? '• Announcement System\n' : '') +
-            (existingConfigs.existingBaitChannelConfig ? '• Bait Channel (Anti-Bot)\n' : '') +
-            '\n' +
-            '📋 **What we\'ll configure:**\n' +
-            (!existingConfigs.existingBotConfig?.enableGlobalStaffRole ? '• Global Staff Role (optional)\n' : '') +
-            (!(existingConfigs.existingTicketConfig && existingConfigs.existingArchivedTicketConfig) ? '• Ticket System (optional)\n' : '') +
-            (!(existingConfigs.existingApplicationConfig && existingConfigs.existingArchivedApplicationConfig) ? '• Application System (optional)\n' : '') +
-            (!existingConfigs.existingAnnouncementConfig ? '• Announcement System (optional)\n' : '') +
-            (!existingConfigs.existingBaitChannelConfig ? '• Bait Channel System (optional)\n' : '') +
-            '• Staff & Admin Roles (optional)\n\n' +
-            '💡 **Tip:** Already configured systems will be automatically skipped!'
+            lang.botSetup.welcome.continueTitle,
+            lang.botSetup.welcome.continueDescription + '\n\n' +
+            lang.botSetup.welcome.alreadyConfigured + '\n' +
+            alreadyConfigured.join('\n') + '\n\n' +
+            lang.botSetup.welcome.toBeConfigured + '\n' +
+            toBeConfigured.join('\n') + '\n\n' +
+            lang.botSetup.welcome.systemConfiguredSkip
         );
         welcomeEmbed.addFields({
-            name: '📍 Getting Started',
-            value: 'Click **Continue Setup** to configure the remaining systems!',
+            name: lang.botSetup.welcome.gettingStarted,
+            value: lang.botSetup.welcome.continueCTA,
             inline: false
         });
     } else {
@@ -189,7 +193,7 @@ export async function startComprehensiveWizard(
         if (reason === 'time') {
             try {
                 await interaction.editReply({
-                    embeds: [createErrorEmbed('Setup wizard timed out. Please run /bot-setup again.')],
+                    embeds: [createErrorEmbed(lang.botSetup.errors.timeout)],
                     components: []
                 });
             } catch {
@@ -251,7 +255,7 @@ async function handleStaffRoleSelection(interaction: MessageComponentInteraction
         
         if (!selectedRole) {
             await roleInteraction.reply({
-                embeds: [createErrorEmbed('No role selected. Please try again.')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.noRoleSelected)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -259,7 +263,7 @@ async function handleStaffRoleSelection(interaction: MessageComponentInteraction
 
         if (selectedRole.id === roleInteraction.guild?.id) {
             await roleInteraction.reply({
-                embeds: [createErrorEmbed('You cannot use @everyone as the staff role!')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.everyoneNotAllowed)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -335,7 +339,7 @@ async function handleTicketChannelSelect(interaction: MessageComponentInteractio
         
         if (!selectedChannel) {
             await channelInteraction.reply({
-                embeds: [createErrorEmbed('No channel selected. Please try again.')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.noChannelSelected)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -368,7 +372,7 @@ async function handleTicketCategorySelect(interaction: MessageComponentInteracti
         
         if (!selectedCategory) {
             await channelInteraction.reply({
-                embeds: [createErrorEmbed('No category selected. Please try again.')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.noCategorySelected)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -401,7 +405,7 @@ async function handleTicketArchiveSelect(interaction: MessageComponentInteractio
         
         if (!selectedForum) {
             await channelInteraction.reply({
-                embeds: [createErrorEmbed('No forum selected. Please try again.')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.noForumSelected)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -483,7 +487,7 @@ async function handleApplicationChannelSelect(interaction: MessageComponentInter
         
         if (!selectedChannel) {
             await channelInteraction.reply({
-                embeds: [createErrorEmbed('No channel selected. Please try again.')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.noChannelSelected)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -516,7 +520,7 @@ async function handleApplicationCategorySelect(interaction: MessageComponentInte
         
         if (!selectedCategory) {
             await channelInteraction.reply({
-                embeds: [createErrorEmbed('No category selected. Please try again.')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.noCategorySelected)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -549,7 +553,7 @@ async function handleApplicationArchiveSelect(interaction: MessageComponentInter
         
         if (!selectedForum) {
             await channelInteraction.reply({
-                embeds: [createErrorEmbed('No forum selected. Please try again.')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.noForumSelected)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -631,7 +635,7 @@ async function handleAnnouncementRoleSelect(interaction: MessageComponentInterac
         
         if (!selectedRole) {
             await roleInteraction.reply({
-                embeds: [createErrorEmbed('No role selected. Please try again.')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.noRoleSelected)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -664,7 +668,7 @@ async function handleAnnouncementChannelSelect(interaction: MessageComponentInte
         
         if (!selectedChannel) {
             await channelInteraction.reply({
-                embeds: [createErrorEmbed('No channel selected. Please try again.')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.noChannelSelected)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -746,7 +750,7 @@ async function handleBaitChannelSelect(interaction: MessageComponentInteraction,
         
         if (!selectedChannel) {
             await channelInteraction.reply({
-                embeds: [createErrorEmbed('No channel selected. Please try again.')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.noChannelSelected)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -779,7 +783,7 @@ async function handleBaitChannelActionSelect(interaction: MessageComponentIntera
         
         if (!selectedAction) {
             await selectInteraction.reply({
-                embeds: [createErrorEmbed('No action selected. Please try again.')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.noActionSelected)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -812,7 +816,7 @@ async function handleBaitChannelGracePeriodSelect(interaction: MessageComponentI
         
         if (!selectedGrace) {
             await selectInteraction.reply({
-                embeds: [createErrorEmbed('No grace period selected. Please try again.')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.noGracePeriodSelected)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -913,11 +917,11 @@ async function handleRoleManagementStep(interaction: MessageComponentInteraction
         if (reason === 'time') {
             try {
                 await interaction.editReply({
-                    embeds: [createErrorEmbed('Setup timed out after 5 minutes of inactivity.')],
+                    embeds: [createErrorEmbed(lang.botSetup.errors.timeoutInactivity)],
                     components: []
                 });
             } catch (error) {
-                logger('Could not edit reply on timeout: ' + error, 'WARN');
+                logger(lang.botSetup.logs.couldNotEditOnTimeout + error, 'WARN');
             }
         }
     });
@@ -967,7 +971,7 @@ async function handleRoleSelection(interaction: MessageComponentInteraction, sta
         
         if (!selectedRole) {
             await roleInteraction.reply({
-                embeds: [createErrorEmbed('No role selected. Please try again.')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.noRoleSelected)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -975,7 +979,7 @@ async function handleRoleSelection(interaction: MessageComponentInteraction, sta
 
         if (selectedRole.id === roleInteraction.guild?.id) {
             await roleInteraction.reply({
-                embeds: [createErrorEmbed('You cannot use @everyone!')],
+                embeds: [createErrorEmbed(lang.botSetup.errors.everyoneNotAllowedGeneric)],
                 flags: [MessageFlags.Ephemeral]
             });
             return;
@@ -1051,9 +1055,9 @@ async function handleAddMoreRoles(interaction: MessageComponentInteraction, stat
                 await handleFinalSummary(buttonInteraction, state, client);
                 collector.stop();
             } catch (error) {
-                logger('Error in role_done handler: ' + error, 'ERROR');
+                logger(lang.botSetup.errors.roleAddError + error, 'ERROR');
                 await buttonInteraction.editReply({
-                    embeds: [createErrorEmbed('An error occurred while saving roles. Please try again.')],
+                    embeds: [createErrorEmbed(lang.botSetup.errors.roleAddError)],
                     components: []
                 });
                 collector.stop();
@@ -1068,11 +1072,11 @@ async function handleAddMoreRoles(interaction: MessageComponentInteraction, stat
         if (reason === 'time') {
             try {
                 await interaction.editReply({
-                    embeds: [createErrorEmbed('Setup timed out after 5 minutes of inactivity.')],
+                    embeds: [createErrorEmbed(lang.botSetup.errors.timeoutInactivity)],
                     components: []
                 });
             } catch (error) {
-                logger('Could not edit reply on timeout: ' + error, 'WARN');
+                logger(lang.botSetup.logs.couldNotEditOnTimeout + error, 'WARN');
             }
         }
     });
@@ -1169,7 +1173,7 @@ async function saveBotConfiguration(state: ComprehensiveWizardState) {
 
         await botConfigRepo.save(config);
     } catch (error) {
-        logger('Error saving bot config: ' + error, 'ERROR');
+        logger(lang.botSetup.errors.savingBotConfig + error, 'ERROR');
         throw error;
     }
 }
@@ -1216,7 +1220,7 @@ async function saveTicketConfiguration(state: ComprehensiveWizardState, client: 
             const msg = await archiveForum.threads.create({
                 name: 'Ticket Archive',
                 message: {
-                    content: lang.botSetup.ticketArchiveMsg
+                    content: lang.botSetup.ticket.archiveMsg
                 }
             });
 
@@ -1224,7 +1228,7 @@ async function saveTicketConfiguration(state: ComprehensiveWizardState, client: 
             try {
                 await msg.pin();
             } catch {
-                logger('Could not pin thread (max pins may be reached)', 'WARN');
+                logger(lang.botSetup.logs.couldNotPin, 'WARN');
             }
 
             let archivedConfig = await archivedTicketConfigRepo.findOne({ where: { guildId: state.guildId } });
@@ -1240,7 +1244,7 @@ async function saveTicketConfiguration(state: ComprehensiveWizardState, client: 
         }
 
     } catch (error) {
-        logger('Error saving ticket config: ' + error, 'ERROR');
+        logger(lang.botSetup.errors.savingTicketConfig + error, 'ERROR');
         throw error;
     }
 }
@@ -1256,7 +1260,7 @@ async function saveApplicationConfiguration(state: ComprehensiveWizardState, cli
         const channel = await client.channels.fetch(state.applicationConfig.channelId!) as TextChannel;
         if (channel) {
             const msg = await channel.send({
-                content: lang.botSetup.applicationButtonMsg,
+                content: lang.botSetup.application.buttonMsg,
                 components: []
             });
 
@@ -1279,7 +1283,7 @@ async function saveApplicationConfiguration(state: ComprehensiveWizardState, cli
             const msg = await archiveForum.threads.create({
                 name: 'Application Archive',
                 message: {
-                    content: lang.botSetup.applicationArchiveMsg
+                    content: lang.botSetup.application.archiveMsg
                 }
             });
 
@@ -1287,7 +1291,7 @@ async function saveApplicationConfiguration(state: ComprehensiveWizardState, cli
             try {
                 await msg.pin();
             } catch {
-                logger('Could not pin thread (max pins may be reached)', 'WARN');
+                logger(lang.botSetup.logs.couldNotPin, 'WARN');
             }
 
             let archivedConfig = await archivedApplicationConfigRepo.findOne({ where: { guildId: state.guildId } });
@@ -1303,7 +1307,7 @@ async function saveApplicationConfiguration(state: ComprehensiveWizardState, cli
         }
 
     } catch (error) {
-        logger('Error saving application config: ' + error, 'ERROR');
+        logger(lang.botSetup.errors.savingApplicationConfig + error, 'ERROR');
         throw error;
     }
 }
@@ -1326,7 +1330,7 @@ async function saveAnnouncementConfiguration(state: ComprehensiveWizardState, _c
         await announcementConfigRepo.save(announcementConfig);
 
     } catch (error) {
-        logger('Error saving announcement config: ' + error, 'ERROR');
+        logger(lang.botSetup.errors.savingAnnouncementConfig + error, 'ERROR');
         throw error;
     }
 }
@@ -1353,25 +1357,31 @@ async function saveBaitChannelConfiguration(state: ComprehensiveWizardState, cli
         }
 
         await baitChannelConfigRepo.save(baitChannelConfig);
-        logger(`Bait channel config saved: channelId=${baitChannelConfig.channelId}, enabled=${baitChannelConfig.enabled}`, 'INFO');
+        logger(lang.botSetup.logs.baitChannelSaved
+            .replace('{channelId}', baitChannelConfig.channelId)
+            .replace('{enabled}', baitChannelConfig.enabled.toString()), 'INFO');
 
         // Send setup message to the bait channel
         const guild = await client.guilds.fetch(state.guildId);
         const baitChannel = await guild.channels.fetch(state.baitChannelConfig.channelId!) as TextChannel;
         
         if (baitChannel) {
+            const configValue = lang.botSetup.baitChannel.setupEmbedConfigValue
+                .replace('{actionType}', baitChannelConfig.actionType)
+                .replace('{gracePeriod}', baitChannelConfig.gracePeriodSeconds.toString());
+            
             const setupEmbed = new EmbedBuilder()
                 .setColor('#FF0000')
-                .setTitle('🪤 Bait Channel Active')
-                .setDescription('This channel is now monitored by the anti-bot system.')
+                .setTitle(lang.botSetup.baitChannel.setupEmbedTitle)
+                .setDescription(lang.botSetup.baitChannel.setupEmbedDescription)
                 .addFields(
                     { 
-                        name: '⚙️ Configuration', 
-                        value: `**Action:** ${baitChannelConfig.actionType}\n**Grace Period:** ${baitChannelConfig.gracePeriodSeconds}s\n**Smart Detection:** Enabled` 
+                        name: lang.botSetup.baitChannel.setupEmbedConfig, 
+                        value: configValue
                     },
                     {
-                        name: '⚠️ Warning',
-                        value: 'Regular users should **NOT** post in this channel. Any messages here may trigger security actions.'
+                        name: lang.botSetup.baitChannel.setupEmbedWarning,
+                        value: lang.botSetup.baitChannel.setupEmbedWarningValue
                     }
                 )
                 .setTimestamp()
@@ -1384,11 +1394,11 @@ async function saveBaitChannelConfiguration(state: ComprehensiveWizardState, cli
         const baitChannelManager = (client as typeof client & { baitChannelManager?: BaitChannelManager }).baitChannelManager;
         if (baitChannelManager) {
             baitChannelManager.clearConfigCache(state.guildId);
-            logger('Bait channel manager cache cleared', 'INFO');
+            logger(lang.botSetup.logs.baitChannelCacheCleared, 'INFO');
         }
 
     } catch (error) {
-        logger('Error saving bait channel config: ' + error, 'ERROR');
+        logger(lang.botSetup.errors.savingBaitChannelConfig + error, 'ERROR');
         throw error;
     }
 }
@@ -1414,14 +1424,14 @@ async function saveRoles(state: ComprehensiveWizardState) {
         }
 
     } catch (error) {
-        logger('Error saving roles: ' + error, 'ERROR');
+        logger(lang.botSetup.errors.savingRoles + error, 'ERROR');
         throw error;
     }
 }
 
 async function handleCancel(interaction: MessageComponentInteraction) {
     await interaction.update({
-        embeds: [createInfoEmbed('Setup Cancelled', 'Bot setup has been cancelled. No changes were made. Run /bot-setup again anytime to configure your bot.')],
+        embeds: [createInfoEmbed(lang.botSetup.cancel.title, lang.botSetup.cancel.message)],
         components: []
     });
 }
