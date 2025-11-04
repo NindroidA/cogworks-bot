@@ -1,10 +1,12 @@
  
 module.exports = {
   apps: [
+    // Note: Run 'npm run build' before starting PM2 to compile TypeScript to dist/
+    // PM2's Bun TypeScript support has module resolution issues, so we use compiled JS
     {
       name: 'cogworks-bot',
-      script: './src/index.ts',
-      interpreter: 'bun',  // Use Bun runtime (fallback to node if bun not available)
+      script: './dist/index.js',  // Use compiled JavaScript instead of TypeScript
+      interpreter: 'bun',  // Use Bun runtime
       
       // Auto-restart configuration
       autorestart: true,
