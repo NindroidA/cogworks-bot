@@ -1,34 +1,20 @@
 # TODO
 
-## Current Sprint (v2.2.2)
-- [x] Bun runtime integration with Node.js fallback
-- [x] GitHub Actions deployment workflow
-- [x] Bait channel warning improvements (DM → reply)
-- [x] Rate limit bypass for dev mode
-- [ ] Deploy to production
-- [ ] Test with 2-3 guilds for validation
-
 ## Multi-Server Deployment
 
 ### Database Migration
-- [ ] Run migration pre-check: `npx ts-node scripts/testMigration.ts`
-- [ ] Execute migration: `npx ts-node src/utils/databaseMigration.ts`
-- [ ] Verify all tickets/applications have guildId
-- [ ] Delete migration script after success
+- [x] Run migration pre-check: `npx ts-node scripts/testMigration.ts`
+- [x] Execute migration: `npx ts-node src/utils/databaseMigration.ts`
+- [x] Verify all tickets/applications have guildId
+- [x] Delete migration script after success
 - [ ] Performance testing with indexes
 
 ### Testing
 - [ ] Test guild join/leave flow
 - [ ] Verify data isolation between guilds
-- [ ] Test concurrent operations (2+ guilds)
-- [ ] Multi-guild testing with 10+ servers
+- [x] Test concurrent operations (2+ guilds)
+- [ ] Multi-guild testing with 10+ servers (prolly not gonna do lol)
 - [ ] Performance benchmarking
-
-### Documentation
-- [ ] Complete deployment guide
-- [ ] Finalize GDPR compliance verification
-- [ ] Update privacy policy with data deletion info
-- [ ] Update terms of service
 
 ## Infrastructure
 
@@ -52,13 +38,11 @@
 ## Discord Verification
 - [ ] Create support server
 - [ ] Update bot description
-- [ ] Add privacy/ToS URLs to bot settings
+- [x] Add privacy/ToS URLs to bot settings
 - [ ] Configure OAuth2 scopes properly
-- [ ] Reach 100+ servers
-- [ ] Submit verification application
 
 ## Future Features
-See `private/docs/later/todo.md` for detailed implementation plans:
+`private/docs/later/todo.md`:
 - Custom ticket types system
 - Command logging & analytics
 - Email-to-ticket integration
@@ -86,11 +70,11 @@ See `private/docs/later/todo.md` for detailed implementation plans:
 [x] fix up the whole command registering (in an event like adding a new bot config)
 [x] start announcement module
 
-## Overhaul List
+### Overhaul List
 
-### Phase 1: Foundation
+#### Phase 1: Foundation
 
-#### 1. Code Cleanup & Organization
+##### 1. Code Cleanup & Organization
 - [x] Remove unused imports throughout codebase
 - [x] Fix all ESLint warnings
 - [x] Remove duplicate eslint-disable comments
@@ -100,7 +84,7 @@ See `private/docs/later/todo.md` for detailed implementation plans:
 - [x] Remove deprecated archiveMigration feature
 - [x] Update to TypeScript strict mode
 
-#### 2. Create Utility Functions
+##### 2. Create Utility Functions
 - [x] Create `src/utils/embedBuilders.ts` for reusable embed creators
 - [x] Create `src/utils/collectors.ts` for interaction collector patterns
 - [x] Create `src/utils/validators.ts` for input validation helpers
@@ -110,7 +94,7 @@ See `private/docs/later/todo.md` for detailed implementation plans:
 - [x] Refactor application handlers to use new utilities
 - [x] Refactor bot setup to use new utilities
 
-#### 3. Refactor lang.json System
+##### 3. Refactor lang.json System
 - [x] Restructure lang.json (split into 9 modules by feature)
 - [x] Create TypeScript type definitions (`lang/types.ts`)
 - [x] Split into multiple files (`general`, `ticket`, `application`, etc.)
@@ -118,9 +102,9 @@ See `private/docs/later/todo.md` for detailed implementation plans:
 - [x] Maintain backward compatibility with existing code
 - [x] Update exports in `utils/index.ts`
 
-### Phase 2: Feature Improvements
+#### Phase 2: Feature Improvements
 
-#### 1. Redesign Bot Setup System
+##### 1. Redesign Bot Setup System
 - [x] Create multi-step wizard interface
 - [x] Add progress indicators
 - [x] Implement step navigation (next/back)
@@ -131,7 +115,7 @@ See `private/docs/later/todo.md` for detailed implementation plans:
 - [x] Create modular step handlers
 - [x] Document new system
 
-#### 2. Enhance API Connector
+##### 2. Enhance API Connector
 - [x] Add retry logic with exponential backoff
 - [x] Implement circuit breaker pattern
 - [x] Add request/response logging
@@ -140,7 +124,7 @@ See `private/docs/later/todo.md` for detailed implementation plans:
 - [x] Add metrics tracking
 - [x] Implement graceful degradation
 
-#### 3. Update Announcement System
+##### 3. Update Announcement System
 - [x] Clean up announcement module
 - [x] Create template system (6 pre-built templates)
 - [x] Use embed builders for visuals
@@ -150,9 +134,9 @@ See `private/docs/later/todo.md` for detailed implementation plans:
 - [x] Discord timestamp support
 - [x] Template parameter validation
 
-### Phase 3: Reliability
+#### Phase 3: Reliability
 
-#### 1. Comprehensive Error Handling
+##### 1. Comprehensive Error Handling
 - [x] Create centralized error handler
 - [x] Add error classification (categories & severity)
 - [x] Implement error logging with context
@@ -163,9 +147,9 @@ See `private/docs/later/todo.md` for detailed implementation plans:
 - [x] Apply to handlers (ticketReply example)
 - [x] Error context tracking
 
-### Phase 4: Priority Features
+#### Phase 4: Priority Features
 
-#### 1. Integrate Bait Channel System
+##### 1. Integrate Bait Channel System
 - [x] Move entities from `imports/` to `src/typeorm/entities/`
 - [x] Move utils from `imports/` to `src/utils/`
 - [x] Move commands from `imports/` to `src/commands/`
@@ -175,7 +159,7 @@ See `private/docs/later/todo.md` for detailed implementation plans:
 - [x] Database migrations
 - [x] Apply error handling throughout
 
-## Documentation & Verification
+### Documentation & Verification
 
 - [x] Professional Privacy Policy (Discord verification ready)
 - [x] Comprehensive Terms of Service (16 sections)
@@ -183,3 +167,11 @@ See `private/docs/later/todo.md` for detailed implementation plans:
 - [x] Utils Directory Cleanup (headers, JSDoc, organization)
 - [x] Minimal System Docs (moved to private/docs/)
 - [x] Documentation Structure Reorganization
+
+### v2.2.2 Stuff
+- [x] Bun runtime integration with Node.js fallback
+- [x] GitHub Actions deployment workflow
+- [x] Bait channel warning improvements (DM → reply)
+- [x] Rate limit bypass for dev mode
+- [x] Deploy to production
+- [x] Test with 2-3 guilds for validation

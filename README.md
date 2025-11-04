@@ -86,19 +86,7 @@ Built with TypeScript, Discord.js, TypeORM, and Bun.
 
 ## Project Structure
 
-```
-cogworks-bot/
-├── src/
-│   ├── commands/          # Command builders and handlers
-│   ├── events/            # Discord event handlers
-│   ├── typeorm/           # Database entities and config
-│   ├── utils/             # Utility functions
-│   └── index.ts           # Main entry point
-├── docs/                  # Documentation
-├── logs/                  # PM2 logs
-├── ecosystem.config.js    # PM2 configuration
-└── package.json
-```
+( debating on whether i wanna keep this or naw )
 
 ## Commands
 

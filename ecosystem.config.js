@@ -50,32 +50,6 @@ module.exports = {
       
       // Graceful shutdown
       shutdown_with_message: true
-    },
-    
-    // Fallback configuration using Node.js (if Bun doesn't work)
-    {
-      name: 'cogworks-bot-node',
-      script: './dist/src/index.js',
-      interpreter: 'node',
-      autorestart: false,  // Don't auto-start this one
-      
-      env: {
-        NODE_ENV: 'production',
-        RELEASE: 'prod'
-      },
-      
-      error_file: './logs/error-node.log',
-      out_file: './logs/out-node.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      merge_logs: true,
-      
-      max_memory_restart: '1000M',
-      max_restarts: 10,
-      restart_delay: 4000,
-      instances: 1,
-      exec_mode: 'fork',
-      cron_restart: '0 3 * * *',
-      node_args: '--max-old-space-size=512'
     }
   ],
 

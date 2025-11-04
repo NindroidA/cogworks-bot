@@ -1,3 +1,6 @@
+# Dev Update v2.2.5
+- Fixed pm2 ecosystem file for server migration.
+
 # Dev Update v2.2.4
 - Fixed NinSys API errors and made sure things lined up correctly
 - Organized and implemented more things for the lang system
