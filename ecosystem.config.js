@@ -5,7 +5,7 @@ module.exports = {
     // PM2's Bun TypeScript support has module resolution issues, so we use compiled JS
     {
       name: 'cogworks-bot',
-      script: './dist/index.js',  // Use compiled JavaScript instead of TypeScript
+      script: './dist/src/index.js',  // Use compiled JavaScript (tsc preserves src/ structure)
       interpreter: 'bun',  // Use Bun runtime
       
       // Auto-restart configuration
