@@ -48,6 +48,9 @@ module.exports = {
       // Node.js specific (Bun ignores this)
       node_args: '--max-old-space-size=512',
       
+      // Disable PM2 module interception (incompatible with Bun)
+      pmx: false,
+      
       // Graceful shutdown
       shutdown_with_message: true
     }
