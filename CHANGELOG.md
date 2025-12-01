@@ -3,6 +3,7 @@
 ## Fixed
 - Fixed bait channel system not detecting messages
 - Added comprehensive DEBUG-level logging for easier troubleshooting
+- Fixed bot-changelog action to handle backticks safely
 
 ## Changed
 - Changed `/dev` and `/migrate` commands from owner-only to admin-only (I don't know why I agreed to this in the fist place lmao)
@@ -13,7 +14,7 @@
 - Added console warning when forum tag limit (20) reached
 - Uses logger() for better visibility in production logs
 - Migrated dev command strings to lang system
-- Removed legacy devBulkClose files (since functionality was moved to /dev bulk-close-tickets)
+- Removed legacy devBulkClose files (since functionality was moved to `/dev bulk-close-tickets`)
 
 # Dev Update v2.3.0
 
