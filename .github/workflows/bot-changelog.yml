@@ -64,21 +64,17 @@ jobs:
       - name: Send to Discord
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          CHANGELOG_CONTENT: ${{ steps.changelog.outputs.content }}
+          REPO_NAME: ${{ github.repository }}
         run: |
-          # Create the message with main header + changelog
-          MESSAGE="# 📋 Cogworks Bot Update
-          
-          ${{ steps.changelog.outputs.content }}
+          # Create JSON payload using jq with proper escaping
+          # This handles backticks and special characters safely
+          jq -n \
+            --arg header "# 📋 Cogworks Bot Update" \
+            --arg changelog "${CHANGELOG_CONTENT}" \
+            --arg footer "-# Repository: ${REPO_NAME}" \
+            '{content: ($header + "\n\n" + $changelog + "\n\n" + $footer)}' > payload.json
 
-          -# Repository: ${{ github.repository }}"
-          
-          # Create JSON payload
-          cat << EOF > payload.json
-          {
-            "content": $(echo "$MESSAGE" | jq -Rs .)
-          }
-          EOF
-          
           # Send to Discord
           curl -H "Content-Type: application/json" \
                -d @payload.json \
