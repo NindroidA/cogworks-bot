@@ -44,10 +44,10 @@ export const banAppealModal = async(modal: ModalBuilder) => {
 
 export const banAppealMessage = async(fields: ModalSubmitFields) => {
     const header = '# Ban Appeal\n';
-    const ign = `In Game Name: ${fields.getTextInputValue('appeal_ign_input')}\n`;
-    const rfb = `Reason for Ban: ${fields.getTextInputValue('appeal_rfb_input')}\n`;
-    const dob = `Date of Ban: ${fields.getTextInputValue('appeal_dob_input')}\n`;
-    const s = `Staff who banned you: ${fields.getTextInputValue('appeal_staff_input')}\n\n`;
-    const r = `Why you think you should be unbanned: ${fields.getTextInputValue('appeal_reason_input')}\n`;
+    const ign = `**In Game Name:** ${fields.getTextInputValue('appeal_ign_input')}\n`;
+    const rfb = `**Reason for Ban:** ${fields.getTextInputValue('appeal_rfb_input')}\n`;
+    const dob = `**Date of Ban:** ${fields.getTextInputValue('appeal_dob_input')}\n`;
+    const s = `**Staff who banned you:** ${fields.getTextInputValue('appeal_staff_input')}\n`;
+    const r = `**Why you think you should be unbanned:** ${fields.getTextInputValue('appeal_reason_input')}\n`;
     return header + ign + rfb + dob + s + r;
 };

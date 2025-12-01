@@ -1,4 +1,4 @@
-import { ButtonInteraction, Client, ForumChannel, ForumThreadChannel, GuildTextBasedChannel } from 'discord.js';
+import { ButtonInteraction, Client, ForumChannel, ForumThreadChannel, GuildTextBasedChannel, MessageFlags } from 'discord.js';
 import fs from 'fs';
 import { AppDataSource } from '../../typeorm';
 import { Application } from '../../typeorm/entities/application/Application';
@@ -16,7 +16,7 @@ export const applicationCloseEvent = async(client: Client, interaction: ButtonIn
     const guildId = interaction.guildId || ''; // guild where the event was initiated
         const channel = interaction.channel as GuildTextBasedChannel; // text channel the event was initiated
         const channelId = interaction.channelId || '';
-        const transcriptPath = 'src/archivedTickets/'; // path to temporarily save application transcripts
+        const transcriptPath = process.env.TEMP_STORAGE_PATH || 'temp/'; // path to temporarily save transcripts
         const archivedConfig = await archivedApplicationConfigRepo.findOneBy({ guildId }); // get the archived application config by guildId
         const application = await applicationRepo.findOneBy({ channelId: channelId }); // get the application this event was initiated from the Application database using channelId
 
@@ -26,18 +26,31 @@ export const applicationCloseEvent = async(client: Client, interaction: ButtonIn
         // check if the application exists
         if (!application) { return logger(lang.general.fatalError, 'ERROR'); }
 
-        // get archive channel from ArchivedApplication db using createdBy
+        // get archive channel from ArchivedApplication db using createdBy AND guildId (CRITICAL: must be guild-scoped!)
         const createdBy = application.createdBy;
-        const transcriptChannel = await archivedApplicationRepo.findOneBy({ createdBy: createdBy });
+        const transcriptChannel = await archivedApplicationRepo.findOneBy({ 
+            createdBy: createdBy,
+            guildId: guildId  // CRITICAL: Filter by guild to prevent cross-server issues
+        });
+
+        // ensure the transcript directory exists
+        if (!fs.existsSync(transcriptPath)) {
+            fs.mkdirSync(transcriptPath, { recursive: true });
+            logger('Created transcript directory: ' + transcriptPath);
+        }
 
         // make the transcript file
             try {
                 await fetchMessagesAndSaveToFile(channel, transcriptPath);
             } catch (error) {
                 logger(tl.transcriptCreate.error + error, 'ERROR');
-                await interaction.reply({
-                    content: tl.transcriptCreate.error
-                });
+                // Only reply if we haven't already replied/deferred
+                if (!interaction.replied && !interaction.deferred) {
+                    await interaction.reply({
+                        content: tl.transcriptCreate.error,
+                        flags: [MessageFlags.Ephemeral]
+                    });
+                }
                 return;
             }
         

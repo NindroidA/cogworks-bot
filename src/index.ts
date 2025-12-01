@@ -4,17 +4,19 @@ import 'reflect-metadata';
 import { commands } from './commands/commandList';
 import { handleSlashCommand } from './commands/commands';
 import { handleApplicationInteraction } from './events/applicationInteraction';
+import { handleAutocomplete } from './events/autocomplete';
 import guildCreateEvent from './events/guildCreate';
 import guildDeleteEvent from './events/guildDelete';
 import messageCreateEvent from './events/messageCreate';
 import messageDeleteEvent from './events/messageDelete';
 import { handleTicketInteraction } from './events/ticketInteraction';
+import { typeFieldsInteraction } from './events/typeFieldsInteraction';
 import { AppDataSource } from './typeorm';
 import { BaitChannelConfig } from './typeorm/entities/BaitChannelConfig';
 import { BaitChannelLog } from './typeorm/entities/BaitChannelLog';
 import { BotConfig } from './typeorm/entities/BotConfig';
 import { UserActivity } from './typeorm/entities/UserActivity';
-import { enhancedLogger, healthMonitor, healthServer, lang, LogCategory } from './utils';
+import { enhancedLogger, ensureDefaultTicketTypes, healthMonitor, healthServer, lang, LogCategory } from './utils';
 import { APIConnector } from './utils/apiConnector';
 import { BaitChannelManager } from './utils/baitChannelManager';
 import { setupGlobalErrorHandlers } from './utils/errorHandler';
@@ -85,15 +87,19 @@ const apiConnector = new APIConnector(
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isChatInputCommand()) {
         client.emit('chatInputCommand', client, interaction);
+    } else if (interaction.isAutocomplete()) {
+        client.emit('autocomplete', client, interaction);
     } else if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
         client.emit('buttonInteraction', client, interaction);
     }
 });
 
 // register event handlers
-client.on('chatInputCommand', handleSlashCommand); // handle when slash commands are sent
-client.on('buttonInteraction', handleTicketInteraction); // handle ticket interaction button presses
+client.on('chatInputCommand', handleSlashCommand);            // handle when slash commands are sent
+client.on('autocomplete', handleAutocomplete);                // handle autocomplete interactions
+client.on('buttonInteraction', handleTicketInteraction);      // handle ticket interaction button presses
 client.on('buttonInteraction', handleApplicationInteraction); // handle application interaction button presses
+client.on('buttonInteraction', typeFieldsInteraction);        // handle type-fields interaction (buttons/selects/modals)
 
 // register message events
 client.on(messageCreateEvent.name, (message) => messageCreateEvent.execute(message, client));
@@ -224,6 +230,15 @@ async function main() {
         // get all guild ids that have done the bot setup
         const botConfigRepo = AppDataSource.getRepository(BotConfig);
         const botConfigs = await botConfigRepo.find();
+        
+        // ensure default ticket types for all guilds (migration)
+        for (const config of botConfigs) {
+            try {
+                await ensureDefaultTicketTypes(config.guildId);
+            } catch (error) {
+                console.error(`Failed to ensure default ticket types for guild ${config.guildId}:`, error);
+            }
+        }
         
         // log all startup info together before enhanced logging
         if (botConfigs.length > 0) {

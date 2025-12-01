@@ -1,8 +1,8 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, CategoryChannel, ChatInputCommandInteraction, Client, ForumChannel, TextChannel, MessageFlags } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, CategoryChannel, ChatInputCommandInteraction, Client, ForumChannel, MessageFlags, TextChannel } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
-import { lang, logger, requireAdmin } from '../../utils';
+import { createRateLimitKey, lang, LANGF, logger, rateLimiter, RateLimits, requireAdmin } from '../../utils';
 
 const tl = lang.ticketSetup;
 const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
@@ -11,6 +11,19 @@ const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfi
 export const ticketSetupHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
     // Require admin permissions
     if (!await requireAdmin(interaction)) return;
+
+    // Rate limit check (10 ticket setups per hour per guild)
+    const rateLimitKey = createRateLimitKey.guild(interaction.guildId!, 'ticket-setup');
+    const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.TICKET_SETUP);
+    
+    if (!rateCheck.allowed) {
+        await interaction.reply({
+            content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
+            flags: [MessageFlags.Ephemeral]
+        });
+        logger(`Rate limit exceeded for ticket setup in guild ${interaction.guildId}`, 'WARN');
+        return;
+    }
 
     const subCommand = interaction.options.getSubcommand();
     const guildId = interaction.guildId || '';

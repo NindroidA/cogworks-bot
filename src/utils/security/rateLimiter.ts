@@ -30,6 +30,7 @@ interface RateLimitConfig {
 class RateLimiter {
 	private limits: Map<string, RateLimitEntry> = new Map();
 	private cleanupInterval: NodeJS.Timeout;
+	private devModeLogged: boolean = false; // Only log dev mode bypass once
 
 	constructor() {
 		// Clean up expired entries every 5 minutes
@@ -49,7 +50,11 @@ class RateLimiter {
 		// Check if we're in dev mode - bypass rate limits
 		const RELEASE = (process.env.RELEASE || 'prod').toLowerCase().trim();
 		if (RELEASE === 'dev') {
-			logger('⚠️ Rate limit bypassed (dev mode) - usually would have said nuh uh but ur running the dev bot so its okay', 'WARN');
+			// Only log once per session to avoid spam
+			if (!this.devModeLogged) {
+				logger('⚠️ Rate limiter running in dev mode - all limits bypassed', 'INFO');
+				this.devModeLogged = true;
+			}
 			return { allowed: true };
 		}
 
@@ -257,6 +262,24 @@ export const RateLimits = {
 		maxAttempts: 10,
 		windowMs: 60 * 60 * 1000, // 1 hour
 		message: '⏱️ Application setup can only be modified 10 times per hour. Please wait before making more changes.'
+	},
+	
+	APPLICATION_POSITION: {
+		maxAttempts: 15,
+		windowMs: 60 * 60 * 1000, // 1 hour
+		message: '⏱️ Position management can only be modified 15 times per hour. Please wait before making more changes.'
+	},
+	
+	ANNOUNCEMENT_SETUP: {
+		maxAttempts: 5,
+		windowMs: 60 * 60 * 1000, // 1 hour
+		message: '⏱️ Announcement setup can only be modified 5 times per hour. Please wait before making more changes.'
+	},
+	
+	BAIT_CHANNEL: {
+		maxAttempts: 10,
+		windowMs: 60 * 60 * 1000, // 1 hour
+		message: '⏱️ Bait channel commands can only be used 10 times per hour. Please wait before making more changes.'
 	},
 	
 	// Global limits (per user across all guilds)

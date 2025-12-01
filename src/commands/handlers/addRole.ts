@@ -1,7 +1,7 @@
 import { CacheType, ChatInputCommandInteraction, Client, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
-import { lang, logger, requireAdmin } from '../../utils';
+import { createRateLimitKey, lang, LANGF, logger, rateLimiter, RateLimits, requireAdmin } from '../../utils';
 
 const tl = lang.addRole;
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
@@ -10,11 +10,24 @@ export const addRoleHandler = async(client: Client, interaction: ChatInputComman
     // Require admin permissions
     if (!await requireAdmin(interaction)) return;
 
+    // Rate limit check (10 role saves per hour per user)
+    const rateLimitKey = createRateLimitKey.user(interaction.user.id, 'role-save');
+    const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.ROLE_SAVE);
+    
+    if (!rateCheck.allowed) {
+        await interaction.reply({
+            content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
+            flags: [MessageFlags.Ephemeral]
+        });
+        logger(`Rate limit exceeded for role save by user ${interaction.user.id}`, 'WARN');
+        return;
+    }
+
     const subCommand = interaction.options.getSubcommand();
     const guildId = interaction.guildId || '';
     const role = interaction.options.getRole('role_id')!.toString() || '';
     const alias = interaction.options.getString('alias') || '';
-    const roleFinder = await savedRoleRepo.findOneBy({ role });
+    const roleFinder = await savedRoleRepo.findOneBy({ guildId, role });
 
     // check to see if role id is already saved
     if (roleFinder) {

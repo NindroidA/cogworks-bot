@@ -13,11 +13,6 @@
         "cancel": "Change to Admin Only canceled.",
         "request": "has requested to make this ticket Admin Only."
     },
-    "ageVerify": {
-        "dobLabel": "Please provide your dob (mm/dd/yyyy)",
-        "header": "# 18+ Verify\n",
-        "dob": "Date of Birth: "
-    },
     "close": {
         "confirm": "⚠️ Are you sure you want to close this ticket?",
         "closing": "Closing ticket...",
@@ -63,6 +58,97 @@
             "approveSent": "Approve message sent!",
             "deny": "Your appeal was denied; Staff do not feel comfortable letting you back on the server at this time. You may re-appeal your ban in 6 months from now. In that time, please use it as an opportunity to grow and understand why your actions were unacceptable and necessitated the ban in the first place. This ticket will be closed in 24 hours or upon acknowledgement.",
             "denySent": "Deny message sent!"
+        }
+    },
+    "customTypes": {
+        "typeAdd": {
+            "cmdDescrp": "Create a custom ticket type",
+            "modalTitle": "Create Custom Ticket Type",
+            "typeIdLabel": "Type ID (lowercase, no spaces)",
+            "typeIdPlaceholder": "e.g., ban_appeal, bug_report",
+            "displayNameLabel": "Display Name",
+            "displayNamePlaceholder": "e.g., Ban Appeal",
+            "emojiLabel": "Emoji (optional)",
+            "emojiPlaceholder": "e.g., ⚖️",
+            "colorLabel": "Embed Color (hex)",
+            "colorPlaceholder": "e.g., #ff6b6b",
+            "descriptionLabel": "Description (optional)",
+            "descriptionPlaceholder": "Brief description of this ticket type",
+            "success": "✅ Custom ticket type **{0}** created successfully!",
+            "error": "❌ Failed to create custom ticket type!",
+            "duplicate": "❌ A ticket type with ID `{0}` already exists!",
+            "invalidTypeId": "❌ Type ID must be lowercase letters, numbers, and underscores only!",
+            "invalidColor": "❌ Invalid hex color! Use format: #RRGGBB"
+        },
+        "typeEdit": {
+            "cmdDescrp": "Edit an existing custom ticket type",
+            "optionDescrp": "Select the ticket type to edit",
+            "modalTitle": "Edit Custom Ticket Type",
+            "success": "✅ Ticket type **{0}** updated successfully!",
+            "error": "❌ Failed to update ticket type!",
+            "notFound": "❌ Ticket type not found!",
+            "noTypes": "❌ No custom ticket types found! Create one with `/ticket type-add` first."
+        },
+        "typeList": {
+            "cmdDescrp": "List all custom ticket types",
+            "title": "Custom Ticket Types",
+            "noTypes": "No custom ticket types configured. Create one with `/ticket type-add`.",
+            "activeLabel": "🟢 Active",
+            "inactiveLabel": "🔴 Inactive",
+            "defaultLabel": " [DEFAULT]",
+            "fieldValue": "**ID:** `{0}`\n**Color:** {1}\n**Status:** {2}{3}\n{4}\n\u200B"
+        },
+        "typeToggle": {
+            "cmdDescrp": "Activate or deactivate a custom ticket type",
+            "optionDescrp": "Select the ticket type to toggle",
+            "activated": "🟢 Ticket type **{0}** has been **activated**!",
+            "deactivated": "🔴 Ticket type **{0}** has been **deactivated**!",
+            "error": "❌ Failed to toggle ticket type!",
+            "notFound": "❌ Ticket type not found!",
+            "noTypes": "❌ No custom ticket types found!"
+        },
+        "typeDefault": {
+            "cmdDescrp": "Set the default ticket type",
+            "optionDescrp": "Select the ticket type to set as default",
+            "success": "✅ **{0}** is now the default ticket type!",
+            "error": "❌ Failed to set default ticket type!",
+            "notFound": "❌ Ticket type not found!",
+            "noTypes": "❌ No custom ticket types found!",
+            "mustBeActive": "❌ Cannot set an inactive ticket type as default!"
+        },
+        "typeRemove": {
+            "cmdDescrp": "Delete a custom ticket type",
+            "optionDescrp": "Select the ticket type to delete",
+            "confirmTitle": "⚠️ Confirm Deletion",
+            "confirmMessage": "Are you sure you want to delete the ticket type **{0}**?\n\nThis action cannot be undone!",
+            "success": "✅ Ticket type **{0}** has been deleted!",
+            "error": "❌ Failed to delete ticket type!",
+            "notFound": "❌ Ticket type not found!",
+            "noTypes": "❌ No custom ticket types found!",
+            "cancelled": "Ticket type deletion cancelled."
+        },
+        "emailImport": {
+            "cmdDescrp": "Import a ticket from email",
+            "modalTitle": "Import Email as Ticket",
+            "senderEmailLabel": "Sender Email Address",
+            "senderEmailPlaceholder": "user@example.com",
+            "senderNameLabel": "Sender Name (optional)",
+            "senderNamePlaceholder": "John Doe",
+            "subjectLabel": "Email Subject",
+            "subjectPlaceholder": "Subject line",
+            "bodyLabel": "Email Body",
+            "bodyPlaceholder": "Paste email content here...",
+            "attachmentsLabel": "Attachments (URLs, one per line)",
+            "attachmentsPlaceholder": "https://example.com/file1.png\nhttps://example.com/file2.pdf",
+            "success": "✅ Email ticket imported successfully: {0}",
+            "error": "❌ Failed to import email ticket!",
+            "invalidEmail": "❌ Invalid email address format!",
+            "bodyTooLong": "❌ Email body too long! Maximum {0} characters.",
+            "tooManyUrls": "❌ Too many attachment URLs! Maximum {0} allowed.",
+            "invalidUrl": "❌ Invalid URL in attachments: {0}",
+            "urlTooLong": "❌ Attachment URL too long! Maximum {0} characters per URL.",
+            "permissionError": "❌ Missing permissions to create ticket channel!",
+            "apiError": "❌ Discord API error: {0}"
         }
     }
 }

@@ -1,13 +1,10 @@
 import { ActionRowBuilder, ModalBuilder, ModalSubmitFields, TextInputBuilder, TextInputStyle } from 'discord.js';
-import { lang } from '../../utils';
-
-const tl = lang.ticket.ageVerify;
 
 export const ageVerifyModal = async(modal: ModalBuilder) => {
     const verifyModal = new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
             .setCustomId('dob_input')
-            .setLabel(tl.dobLabel)
+            .setLabel('Please provide your dob (mm/dd/yyyy)')
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
     );
@@ -16,7 +13,7 @@ export const ageVerifyModal = async(modal: ModalBuilder) => {
 };
 
 export const ageVerifyMessage = async(fields: ModalSubmitFields) => {
-    const header = tl.header;
-    const vdob = tl.dob + fields.getTextInputValue('dob_input');
+    const header = '# 18+ Verify\n';
+    const vdob = `**Date of Birth:** ${fields.getTextInputValue('dob_input')}\n`;
     return header + vdob;
 };

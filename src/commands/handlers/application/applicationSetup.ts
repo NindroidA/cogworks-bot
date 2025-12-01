@@ -1,9 +1,9 @@
-import { CacheType, CategoryChannel, ChatInputCommandInteraction, Client, ForumChannel, TextChannel, MessageFlags } from 'discord.js';
+import { CacheType, CategoryChannel, ChatInputCommandInteraction, Client, ForumChannel, MessageFlags, TextChannel } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { lang, logger, requireAdmin } from '../../../utils';
+import { createRateLimitKey, lang, LANGF, logger, rateLimiter, RateLimits, requireAdmin } from '../../../utils';
 import { buildApplicationMessage } from './applicationPosition';
 
 const applicationConfigRepo = AppDataSource.getRepository(ApplicationConfig);
@@ -13,6 +13,19 @@ const positionRepo = AppDataSource.getRepository(Position);
 export const applicationSetupHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
     // Require admin permissions
     if (!await requireAdmin(interaction)) return;
+
+    // Rate limit check (10 application setups per hour per guild)
+    const rateLimitKey = createRateLimitKey.guild(interaction.guildId!, 'application-setup');
+    const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.APPLICATION_SETUP);
+    
+    if (!rateCheck.allowed) {
+        await interaction.reply({
+            content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
+            flags: [MessageFlags.Ephemeral]
+        });
+        logger(`Rate limit exceeded for application setup in guild ${interaction.guildId}`, 'WARN');
+        return;
+    }
 
     const tl = lang.application.setup;
     const subCommand = interaction.options.getSubcommand();

@@ -305,11 +305,6 @@ export interface LangTicket {
         cancel: string;
         request: string;
     };
-    ageVerify: {
-        dobLabel: string;
-        header: string;
-        dob: string;
-    };
     close: {
         confirm: string;
         closing: string;
@@ -325,6 +320,97 @@ export interface LangTicket {
             error1: string;
             error2: string;
             attachmentError: string;
+        };
+    };
+    customTypes: {
+        typeAdd: {
+            cmdDescrp: string;
+            modalTitle: string;
+            typeIdLabel: string;
+            typeIdPlaceholder: string;
+            displayNameLabel: string;
+            displayNamePlaceholder: string;
+            emojiLabel: string;
+            emojiPlaceholder: string;
+            colorLabel: string;
+            colorPlaceholder: string;
+            descriptionLabel: string;
+            descriptionPlaceholder: string;
+            success: string;
+            error: string;
+            duplicate: string;
+            invalidTypeId: string;
+            invalidColor: string;
+        };
+        typeEdit: {
+            cmdDescrp: string;
+            optionDescrp: string;
+            modalTitle: string;
+            success: string;
+            error: string;
+            notFound: string;
+            noTypes: string;
+        };
+        typeList: {
+            cmdDescrp: string;
+            title: string;
+            noTypes: string;
+            activeLabel: string;
+            inactiveLabel: string;
+            defaultLabel: string;
+            fieldValue: string;
+        };
+        typeToggle: {
+            cmdDescrp: string;
+            optionDescrp: string;
+            activated: string;
+            deactivated: string;
+            error: string;
+            notFound: string;
+            noTypes: string;
+        };
+        typeDefault: {
+            cmdDescrp: string;
+            optionDescrp: string;
+            success: string;
+            error: string;
+            notFound: string;
+            noTypes: string;
+            mustBeActive: string;
+        };
+        typeRemove: {
+            cmdDescrp: string;
+            optionDescrp: string;
+            confirmTitle: string;
+            confirmMessage: string;
+            success: string;
+            error: string;
+            notFound: string;
+            noTypes: string;
+            cancelled: string;
+        };
+        emailImport: {
+            cmdDescrp: string;
+            modalTitle: string;
+            senderEmailLabel: string;
+            senderEmailPlaceholder: string;
+            senderNameLabel: string;
+            senderNamePlaceholder: string;
+            subjectLabel: string;
+            subjectPlaceholder: string;
+            bodyLabel: string;
+            bodyPlaceholder: string;
+            attachmentsLabel: string;
+            attachmentsPlaceholder: string;
+            success: string;
+            error: string;
+            invalidEmail: string;
+            bodyTooLong: string;
+            tooManyUrls: string;
+            invalidUrl: string;
+            urlTooLong: string;
+            permissionError: string;
+            apiError: string;
         };
     };
 }
@@ -652,6 +738,40 @@ export interface LangErrors {
 	timeout: string;
 }
 
+export interface LangDev {
+	bulkCloseTickets: {
+		noTickets: string;
+		complete: string;
+		totalTickets: string;
+		successfullyClosed: string;
+		failed: string;
+	};
+	deleteArchivedTicket: {
+		notFound: string;
+		successWithPost: string;
+		successNoPost: string;
+	};
+	deleteAllArchivedTickets: {
+		complete: string;
+		results: string;
+		dbRecordsDeleted: string;
+		forumPostsDeleted: string;
+		forumPostsFailed: string;
+	};
+	deleteArchivedApplication: {
+		notFound: string;
+		successWithPost: string;
+		successNoPost: string;
+	};
+	deleteAllArchivedApplications: {
+		complete: string;
+		results: string;
+		dbRecordsDeleted: string;
+		forumPostsDeleted: string;
+		forumPostsFailed: string;
+	};
+}
+
 /**
  * Main language interface combining all modules
  */
@@ -684,4 +804,5 @@ export interface Language {
     baitChannel: LangBaitChannel;
     dataExport: LangDataExport;
     errors: LangErrors;
+    dev: LangDev;
 }

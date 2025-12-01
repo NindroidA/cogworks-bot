@@ -1,5 +1,5 @@
 import { ChatInputCommandInteraction, Client, MessageFlags } from 'discord.js';
-import { handleInteractionError, lang, requireAdmin } from '../../../utils';
+import { createRateLimitKey, handleInteractionError, lang, LANGF, logger, rateLimiter, RateLimits, requireAdmin } from '../../../utils';
 import { detectionHandler } from './detection';
 import { setupHandler } from './setup';
 import { statsHandler } from './stats';
@@ -14,12 +14,26 @@ export const baitChannelHandler = async (client: Client, interaction: ChatInputC
 		if (!adminCheck.allowed) {
 			await interaction.reply({
 				content: adminCheck.message,
-				ephemeral: true
+				flags: [MessageFlags.Ephemeral]
 			});
 			return;
 		}
 
+		const guildId = interaction.guildId || '';
 		const subcommand = interaction.options.getSubcommand();
+		
+		// Rate limit check (guild-scoped: 10 bait channel operations per hour)
+		const rateLimitKey = createRateLimitKey.guild(guildId, 'baitchannel');
+		const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.BAIT_CHANNEL);
+		
+		if (!rateCheck.allowed) {
+			await interaction.reply({
+				content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
+				flags: [MessageFlags.Ephemeral]
+			});
+			logger(`Rate limit exceeded for bait channel command in guild ${guildId}`, 'WARN');
+			return;
+		}
 
 		switch (subcommand) {
 			case 'setup':

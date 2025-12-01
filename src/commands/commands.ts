@@ -10,8 +10,28 @@ import { applicationSetupHandler } from './handlers/application/applicationSetup
 import { baitChannelHandler } from './handlers/baitChannel';
 import { botSetupHandler, botSetupNotFound } from './handlers/botSetup';
 import { dataExportHandler } from './handlers/dataExport';
+import {
+    deleteAllArchivedApplicationsHandler,
+    deleteArchivedApplicationHandler
+} from './handlers/dev/applicationDev';
+import {
+    bulkCloseTicketsHandler,
+    deleteAllArchivedTicketsHandler,
+    deleteArchivedTicketHandler
+} from './handlers/dev/ticketDev';
 import { getRolesHandler } from './handlers/getRoles';
+import { migrateApplicationTagsHandler, migrateTicketTagsHandler } from './handlers/migrate';
 import { removeRoleHandler } from './handlers/removeRole';
+import {
+    emailImportHandler,
+    typeAddHandler,
+    typeDefaultHandler,
+    typeEditHandler,
+    typeFieldsHandler,
+    typeListHandler,
+    typeRemoveHandler,
+    typeToggleHandler
+} from './handlers/ticket';
 import { ticketReplyHandler } from './handlers/ticketReply';
 import { ticketSetupHandler } from './handlers/ticketSetup';
 
@@ -71,6 +91,37 @@ export const handleSlashCommand = async(client: Client, interaction: ChatInputCo
                     await ticketReplyHandler(client, interaction);
                     break;
                 }
+                case 'ticket': {
+                    // Route to appropriate subcommand handler
+                    const subcommand = interaction.options.getSubcommand();
+                    switch (subcommand) {
+                        case 'type-add':
+                            await typeAddHandler(interaction);
+                            break;
+                        case 'type-edit':
+                            await typeEditHandler(interaction);
+                            break;
+                        case 'type-list':
+                            await typeListHandler(interaction);
+                            break;
+                        case 'type-toggle':
+                            await typeToggleHandler(interaction);
+                            break;
+                        case 'type-default':
+                            await typeDefaultHandler(interaction);
+                            break;
+                        case 'type-remove':
+                            await typeRemoveHandler(interaction);
+                            break;
+                        case 'type-fields':
+                            await typeFieldsHandler(interaction);
+                            break;
+                        case 'import-email':
+                            await emailImportHandler(interaction);
+                            break;
+                    }
+                    break;
+                }
                 case 'add-role': {
                     await addRoleHandler(client, interaction);
                     break;
@@ -104,6 +155,41 @@ export const handleSlashCommand = async(client: Client, interaction: ChatInputCo
                 }
                 case 'data-export': {
                     await dataExportHandler(client, interaction);
+                    break;
+                }
+                case 'dev': {
+                    // Route to appropriate subcommand handler
+                    const subcommand = interaction.options.getSubcommand();
+                    switch (subcommand) {
+                        case 'bulk-close-tickets':
+                            await bulkCloseTicketsHandler(interaction);
+                            break;
+                        case 'delete-archived-ticket':
+                            await deleteArchivedTicketHandler(interaction);
+                            break;
+                        case 'delete-all-archived-tickets':
+                            await deleteAllArchivedTicketsHandler(interaction);
+                            break;
+                        case 'delete-archived-application':
+                            await deleteArchivedApplicationHandler(interaction);
+                            break;
+                        case 'delete-all-archived-applications':
+                            await deleteAllArchivedApplicationsHandler(interaction);
+                            break;
+                    }
+                    break;
+                }
+                case 'migrate': {
+                    // Route to appropriate subcommand handler
+                    const subcommand = interaction.options.getSubcommand();
+                    switch (subcommand) {
+                        case 'ticket-tags':
+                            await migrateTicketTagsHandler(interaction);
+                            break;
+                        case 'application-tags':
+                            await migrateApplicationTagsHandler(interaction);
+                            break;
+                    }
                     break;
                 }
             }

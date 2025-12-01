@@ -25,6 +25,7 @@ import botConfig from './botConfig.json';
 import botSetup from './botSetup.json';
 import console from './console.json';
 import dataExport from './dataExport.json';
+import dev from './dev.json';
 import errors from './errors.json';
 import general from './general.json';
 import main from './main.json';
@@ -63,7 +64,8 @@ export const lang: Language = {
     announcement,
     baitChannel,
     dataExport,
-    errors
+    errors,
+    dev
 };
 
 // Export type definitions for external use

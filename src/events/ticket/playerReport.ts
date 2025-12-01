@@ -25,8 +25,8 @@ export const playerReportModal = async(modal: ModalBuilder) => {
 export const playerReportMessage = async(fields: ModalSubmitFields, interaction: Interaction) => {
     const guildId = interaction.guildId;
     const header = '# Player Report\n';
-    const prn = `Name to Report: ${fields.getTextInputValue('player_report_ign')}\n`;
-    const prd = `Report Description: ${fields.getTextInputValue('player_report_descrp')}\n`;
+    const prn = `**Name to Report:** ${fields.getTextInputValue('player_report_ign')}\n`;
+    const prd = `**Report Description:** ${fields.getTextInputValue('player_report_descrp')}\n`;
 
     // if guild is not found, throw an error
     if (!guildId) { throw Error; }

@@ -1,7 +1,7 @@
 import { CacheType, ChatInputCommandInteraction, Client, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
-import { lang, logger, requireAdmin } from '../../../utils';
+import { createRateLimitKey, lang, LANGF, logger, rateLimiter, RateLimits, requireAdmin } from '../../../utils';
 
 const announcementConfigRepo = AppDataSource.getRepository(AnnouncementConfig);
 
@@ -11,6 +11,20 @@ export const announcementSetupHandler = async(client: Client, interaction: ChatI
 
     const tl = lang.announcement.setup;
     const guildId = interaction.guildId || '';
+    
+    // Rate limit check (guild-scoped: 5 setup operations per hour)
+    const rateLimitKey = createRateLimitKey.guild(guildId, 'announcement-setup');
+    const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.ANNOUNCEMENT_SETUP);
+    
+    if (!rateCheck.allowed) {
+        await interaction.reply({
+            content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
+            flags: [MessageFlags.Ephemeral]
+        });
+        logger(`Rate limit exceeded for announcement setup in guild ${guildId}`, 'WARN');
+        return;
+    }
+    
     const minecraftRole = interaction.options.getRole('minecraft-role', true);
     const defaultChannel = interaction.options.getChannel('default-channel', true);
 

@@ -51,11 +51,23 @@ export class BaitChannelManager {
 	async handleMessage(message: Message): Promise<void> {
 		try {
 			if (!message.guild || message.author.bot || message.system) return;
-			
+
 			const config = await this.getConfig(message.guild.id);
-			if (!config || !config.enabled) return;
-			
-			if (message.channelId !== config.channelId) return;
+			if (!config || !config.enabled) {
+				enhancedLogger.debug(
+					`Bait channel ${!config ? 'not configured' : 'disabled'} for guild ${message.guild.id}`,
+					LogCategory.SYSTEM
+				);
+				return;
+			}
+
+			if (message.channelId !== config.channelId) {
+				enhancedLogger.debug(
+					`Message in ${message.channelId}, bait channel is ${config.channelId}`,
+					LogCategory.SYSTEM
+				);
+				return;
+			}
 
 			const member = message.member!;
 

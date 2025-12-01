@@ -21,6 +21,6 @@ export const otherModal = async(modal: ModalBuilder) => {
 
 export const otherMessage = async(fields: ModalSubmitFields) => {
     const header = `# ${fields.getTextInputValue('other_subject')}\n`;
-    const od = `Description: ${fields.getTextInputValue('other_input')}\n`;
+    const od = `**Description:** ${fields.getTextInputValue('other_input')}\n`;
     return header + od;
 };

@@ -1410,8 +1410,8 @@ async function saveRoles(state: ComprehensiveWizardState) {
         const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 
         for (const roleData of state.roles) {
-            // Check if role already exists
-            const existing = await savedRoleRepo.findOne({ where: { role: roleData.role } });
+            // Check if role already exists in this guild
+            const existing = await savedRoleRepo.findOne({ where: { guildId: state.guildId, role: roleData.role } });
             if (existing) continue; // Skip if already added
 
             const savedRole = new SavedRole();

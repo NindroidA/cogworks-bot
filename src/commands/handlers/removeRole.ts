@@ -1,7 +1,7 @@
 import { CacheType, ChatInputCommandInteraction, Client, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
-import { lang, logger, requireAdmin } from '../../utils';
+import { createRateLimitKey, lang, LANGF, logger, rateLimiter, RateLimits, requireAdmin } from '../../utils';
 
 const tl = lang.removeRole;
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
@@ -10,10 +10,23 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
     // Require admin permissions
     if (!await requireAdmin(interaction)) return;
 
+    // Rate limit check (10 role operations per hour per user)
+    const rateLimitKey = createRateLimitKey.user(interaction.user.id, 'role-save');
+    const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.ROLE_SAVE);
+    
+    if (!rateCheck.allowed) {
+        await interaction.reply({
+            content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
+            flags: [MessageFlags.Ephemeral]
+        });
+        logger(`Rate limit exceeded for role removal by user ${interaction.user.id}`, 'WARN');
+        return;
+    }
+
     const subCommand = interaction.options.getSubcommand();
     const guildId = interaction.guildId || '';
     const role = interaction.options.getRole('role_id')!.toString() || '';
-    const roleFinder = await savedRoleRepo.findOneBy({ role });
+    const roleFinder = await savedRoleRepo.findOneBy({ guildId, role });
     const guildFinder = await savedRoleRepo.findOneBy({ guildId });
 
     // check to see if the discord server has any saved roles
@@ -36,7 +49,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
 
     try {
         if (subCommand == 'staff') {
-            const typeFinder = await savedRoleRepo.findOneBy({ type:'staff' });
+            const typeFinder = await savedRoleRepo.findOneBy({ guildId, type:'staff' });
 
             if (!typeFinder) {
                 await interaction.reply({
@@ -50,6 +63,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
                 .delete()
                 .where('role = :role', { role: role })
                 .andWhere('type = :type', { type: 'staff' })
+                .andWhere('guildId = :guildId', { guildId })
                 .execute();
 
             // after completion, send an ephemeral success message
@@ -59,7 +73,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
             });
 
         } else if (subCommand == 'admin') {
-            const typeFinder = await savedRoleRepo.findOneBy({ type:'admin' });
+            const typeFinder = await savedRoleRepo.findOneBy({ guildId, type:'admin' });
 
             if (!typeFinder) {
                 await interaction.reply({
@@ -73,6 +87,7 @@ export const removeRoleHandler = async(client: Client, interaction: ChatInputCom
                 .delete()
                 .where('role = :role', { role: role })
                 .andWhere('type = :type', { type: 'admin' })
+                .andWhere('guildId = :guildId', { guildId })
                 .execute();
             
             // after completion, send an ephemeral success message

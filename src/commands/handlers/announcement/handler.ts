@@ -20,7 +20,7 @@ import {
 import { AppDataSource } from '../../../typeorm';
 import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
 import { AnnouncementLog } from '../../../typeorm/entities/announcement/AnnouncementLog';
-import { createRateLimitKey, lang, LANGF, logger, parseTimeInput, rateLimiter, RateLimits } from '../../../utils';
+import { createRateLimitKey, lang, LANGF, logger, parseTimeInput, rateLimiter, RateLimits, requireAdmin } from '../../../utils';
 import { getTemplate, TemplateParams, validateTemplateParams } from './templates';
 
 const announcementConfigRepo = AppDataSource.getRepository(AnnouncementConfig);
@@ -39,6 +39,17 @@ export const announcementHandler = async(
     const guildId = interaction.guildId || '';
 
     try {
+        // Permission check - admin only
+        const permissionCheck = requireAdmin(interaction);
+        if (!permissionCheck.allowed) {
+            await interaction.reply({
+                content: permissionCheck.message,
+                flags: [MessageFlags.Ephemeral]
+            });
+            logger(`Unauthorized announcement attempt by user ${interaction.user.id} in guild ${guildId}`, 'WARN');
+            return;
+        }
+
         // Rate limit check (5 announcements per hour per user)
         const rateLimitKey = createRateLimitKey.user(interaction.user.id, 'announcement-create');
         const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.ANNOUNCEMENT_CREATE);

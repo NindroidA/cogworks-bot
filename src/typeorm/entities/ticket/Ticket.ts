@@ -23,6 +23,21 @@ export class Ticket {
     @Column({ nullable: true })
     type: string;
 
+    @Column({ nullable: true })
+    customTypeId: string;
+
+    @Column({ default: false })
+    isEmailTicket: boolean;
+
+    @Column({ nullable: true })
+    emailSender: string;
+
+    @Column({ nullable: true })
+    emailSenderName: string;
+
+    @Column({ nullable: true })
+    emailSubject: string;
+
     @Column({ default: 'created' })
     status: TicketStatus;
 }

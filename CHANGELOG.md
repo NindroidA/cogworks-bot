@@ -1,3 +1,87 @@
+# Dev Update v2.3.1
+
+## Fixed
+- Fixed bait channel system not detecting messages
+- Added comprehensive DEBUG-level logging for easier troubleshooting
+
+## Changed
+- Changed `/dev` and `/migrate` commands from owner-only to admin-only (I don't know why I agreed to this in the fist place lmao)
+
+## Improved
+- Enhanced logging for bait channel system at DEBUG level
+- Silent failure points now log configuration issues
+- Added console warning when forum tag limit (20) reached
+- Uses logger() for better visibility in production logs
+- Migrated dev command strings to lang system
+- Removed legacy devBulkClose files (since functionality was moved to /dev bulk-close-tickets)
+
+# Dev Update v2.3.0
+
+## Fixed
+- Replaced all `ephemeral: true` with `flags: [MessageFlags.Ephemeral]` across entire codebase
+- Added MessageFlags imports where needed
+- Modernizes code to use current Discord.js v14 API
+
+# Dev Update v2.2.9
+
+## Fixed
+- Fixed cross-server data leak in ticket/application close events
+
+# Dev Update v2.2.8
+
+## Added
+- **Custom Ticket Type Fields**: New `/ticket type-fields` command for configuring custom input fields per ticket type
+  - Interactive UI with add/delete/reorder/preview functionality
+  - Supports short text and paragraph fields with validation
+  - 5-minute draft caching for failed submissions
+  - Up to 5 custom fields per ticket type (Discord modal limit)
+- **Forum Tag System**: Automatic forum tags for archived tickets
+  - Tags created based on ticket type (custom or legacy)
+  - Tags accumulate on multi-type tickets (merging, not replacing)
+  - Works for both new and re-closed tickets
+  - Supports emoji icons for visual identification
+- **Migration Command**: New `/migrate` command for retroactive updates
+  - `/migrate ticket-tags` - Apply forum tags to existing archived tickets
+  - Merges with existing tags without duplicates
+- **Dev Command Consolidation**: New `/dev` command structure
+  - `/dev bulk-close-tickets` - Close all active tickets
+  - `/dev delete-archived-ticket` - Delete specific archived ticket + forum post
+  - `/dev delete-all-archived-tickets` - Bulk delete with statistics
+  - `/dev delete-archived-application` - Delete specific archived application + forum post
+  - `/dev delete-all-archived-applications` - Bulk delete applications
+  - All commands now delete both database records and forum posts
+  - Detailed statistics for bulk operations
+- **Ticket Type Management**: Enhanced ticket type system
+  - `/ticket type-remove` - Delete custom ticket types with confirmation
+  - New types auto-disabled until configured
+  - Auto-prompt for field configuration after type creation
+  - Field reordering with up/down buttons
+  - Preview modal for testing field configurations
+
+## Changed
+- **Forum Tag Behavior**: Tags now add to existing tags instead of replacing them
+- **Dev Commands**: Moved from standalone to subcommand structure (e.g., `dev-bulk-close` → `/dev bulk-close-tickets`)
+- **Status Indicators**: Updated to use 🟢/🔴 circles
+
+## Fixed
+- **Forum Tags**: Tags now properly apply on both first close and re-close scenarios
+- **Forum Tag Accumulation**: Tags now merge with existing tags instead of replacing them
+- **Ephemeral Deprecation**: Replaced `ephemeral: true` with `flags: [MessageFlags.Ephemeral]` in dev/migration commands
+- **Autocomplete**: Fixed "Loading options failed" errors for type-remove and type-fields commands
+- **Button Routing**: Fixed multi-underscore button ID parsing for field reordering
+- **Delete Field**: Fixed timing issues with field deletion UI updates
+
+# Dev Update v2.2.7
+- Hot fix for archiving issues -- if the directory for temp files doesn't exist, then make it.
+- Added env variable for temp directory name (for both ticket and application archiving).
+- Added bulk close tickets command for dev bot.
+
+# Dev Update v2.2.6
+- Added admin permission checks to `/announcement`, `/application-positions`, and `/bot-setup` commands
+- Made script for database verification.
+- Added rate limiting to missing handlers (ticketSetup, applicationSetup, addRole, removeRole, getRoles, applicationPosition, announcement/setup, baitChannel/setup).
+- Went over data validation and injection protection.
+
 # Dev Update v2.2.5
 - Fixed pm2 ecosystem file for server migration.
 

@@ -12,7 +12,7 @@ import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
 import { BotConfig } from '../../../typeorm/entities/BotConfig';
 import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { createButtonCollector, createErrorEmbed, createInfoEmbed, createRateLimitKey, lang, logger, rateLimiter, RateLimits } from '../../../utils';
+import { createButtonCollector, createErrorEmbed, createInfoEmbed, createRateLimitKey, lang, logger, rateLimiter, RateLimits, requireAdmin } from '../../../utils';
 import { startComprehensiveWizard } from './comprehensiveWizard';
 import {
     buildRoleSelectionEmbed,
@@ -25,6 +25,17 @@ export async function botSetupHandler(client: Client, interaction: ChatInputComm
             embeds: [createErrorEmbed(lang.botSetup.errors.serverOnly)],
             flags: [MessageFlags.Ephemeral]
         });
+        return;
+    }
+
+    // Permission check - admin only
+    const permissionCheck = requireAdmin(interaction);
+    if (!permissionCheck.allowed) {
+        await interaction.reply({
+            embeds: [createErrorEmbed(permissionCheck.message || 'Insufficient permissions')],
+            flags: [MessageFlags.Ephemeral]
+        });
+        logger(`Unauthorized bot setup attempt by user ${interaction.user.id} in guild ${interaction.guild.id}`, 'WARN');
         return;
     }
 

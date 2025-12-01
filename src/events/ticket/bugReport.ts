@@ -14,6 +14,6 @@ export const bugReportModal = async(modal: ModalBuilder) => {
 
 export const bugReportMessage = async(fields: ModalSubmitFields) => {
     const header = '# Bug Report\n';
-    const brd = `Report Description: ${fields.getTextInputValue('bug_report_input')}\n`;
+    const brd = `**Report Description:** ${fields.getTextInputValue('bug_report_input')}\n`;
     return header + brd;
 };

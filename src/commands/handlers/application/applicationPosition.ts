@@ -4,7 +4,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, ChatInputComma
 import { AppDataSource } from '../../../typeorm';
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { lang, logger } from '../../../utils';
+import { createRateLimitKey, lang, LANGF, logger, rateLimiter, RateLimits, requireAdmin } from '../../../utils';
 
 const positionRepo = AppDataSource.getRepository(Position);
 const pl = lang.application.position;
@@ -12,6 +12,30 @@ const pl = lang.application.position;
 export const applicationPositionHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
     const subCommand = interaction.options.getSubcommand();
     const guildId = interaction.guildId || '';
+
+    // Permission check - admin only
+    const permissionCheck = requireAdmin(interaction);
+    if (!permissionCheck.allowed) {
+        await interaction.reply({
+            content: permissionCheck.message,
+            flags: [MessageFlags.Ephemeral]
+        });
+        logger(`Unauthorized application position operation attempt by user ${interaction.user.id} in guild ${guildId}`, 'WARN');
+        return;
+    }
+
+    // Rate limit check (15 position operations per hour per guild)
+    const rateLimitKey = createRateLimitKey.guild(guildId, 'application-position');
+    const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.APPLICATION_POSITION);
+    
+    if (!rateCheck.allowed) {
+        await interaction.reply({
+            content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
+            flags: [MessageFlags.Ephemeral]
+        });
+        logger(`Rate limit exceeded for application position in guild ${guildId}`, 'WARN');
+        return;
+    }
 
     if (subCommand === 'add') {
         const title = interaction.options.getString('title');

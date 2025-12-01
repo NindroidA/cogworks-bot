@@ -1,0 +1,33 @@
+{
+	"bulkCloseTickets": {
+		"noTickets": "✅ No open tickets found!",
+		"complete": "✅ **Bulk Close Complete**",
+		"totalTickets": "📊 Total tickets: {count}",
+		"successfullyClosed": "✅ Successfully closed: {count}",
+		"failed": "❌ Failed: {count}"
+	},
+	"deleteArchivedTicket": {
+		"notFound": "❌ No archived ticket found for {user}",
+		"successWithPost": "✅ Deleted archived ticket and forum post for {user}",
+		"successNoPost": "✅ Deleted archived ticket for {user} (forum post not found)"
+	},
+	"deleteAllArchivedTickets": {
+		"complete": "✅ **Bulk Delete Complete**",
+		"results": "📊 **Results:**",
+		"dbRecordsDeleted": "• Database records deleted: {count}",
+		"forumPostsDeleted": "• Forum posts deleted: {count}",
+		"forumPostsFailed": "• Forum posts failed: {count}"
+	},
+	"deleteArchivedApplication": {
+		"notFound": "❌ No archived application found for {user}",
+		"successWithPost": "✅ Deleted archived application and forum post for {user}",
+		"successNoPost": "✅ Deleted archived application for {user} (forum post not found)"
+	},
+	"deleteAllArchivedApplications": {
+		"complete": "✅ **Bulk Delete Complete**",
+		"results": "📊 **Results:**",
+		"dbRecordsDeleted": "• Database records deleted: {count}",
+		"forumPostsDeleted": "• Forum posts deleted: {count}",
+		"forumPostsFailed": "• Forum posts failed: {count}"
+	}
+}

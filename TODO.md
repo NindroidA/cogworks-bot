@@ -20,7 +20,7 @@
 
 ### GitHub Actions
 - [x] Deployment workflow created
-- [ ] Configure secrets (SERVER_HOST, SERVER_USER, SERVER_SSH_KEY)
+- [x] Configure secrets (SERVER_HOST, SERVER_USER, SERVER_SSH_KEY)
 - [ ] Test deployment to staging
 
 ### Monitoring

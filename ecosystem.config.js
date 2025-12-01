@@ -58,6 +58,7 @@ module.exports = {
     }
   ],
 
+  /*
   deploy: {
     production: {
       user: 'node',
@@ -70,4 +71,5 @@ module.exports = {
       'pre-setup': ''
     }
   }
+  */
 };

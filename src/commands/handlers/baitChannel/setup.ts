@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, Client, EmbedBuilder, TextChannel } from 'discord.js';
+import { ChatInputCommandInteraction, Client, EmbedBuilder, TextChannel, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
 import { handleInteractionError, lang, logger, safeDbOperation } from '../../../utils';
@@ -95,7 +95,7 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
 		// Reply to the user with confirmation (ephemeral - only they can see it)
 		await interaction.reply({ 
 			embeds: [embed], 
-			ephemeral: true
+			flags: [MessageFlags.Ephemeral]
 		});
 	} catch (error) {
 		await handleInteractionError(interaction, error, tl.error.setup);

@@ -31,7 +31,11 @@ export * from './monitoring/healthMonitor';
 export * from './monitoring/healthServer';
 
 // Database utilities
+export * from './database/ensureDefaultTicketTypes';
 export * from './database/guildQueries';
+
+// Forum utilities
+export * from './forumTagManager';
 
 // Security utilities
 export * from './security/rateLimiter';
