@@ -30,7 +30,8 @@ import {
     typeFieldsHandler,
     typeListHandler,
     typeRemoveHandler,
-    typeToggleHandler
+    typeToggleHandler,
+    userRestrictHandler
 } from './handlers/ticket';
 import { ticketReplyHandler } from './handlers/ticketReply';
 import { ticketSetupHandler } from './handlers/ticketSetup';
@@ -118,6 +119,9 @@ export const handleSlashCommand = async(client: Client, interaction: ChatInputCo
                             break;
                         case 'import-email':
                             await emailImportHandler(interaction);
+                            break;
+                        case 'user-restrict':
+                            await userRestrictHandler(interaction);
                             break;
                     }
                     break;

@@ -7,6 +7,7 @@ import { SavedRole } from '../typeorm/entities/SavedRole';
 import { CustomTicketType } from '../typeorm/entities/ticket/CustomTicketType';
 import { Ticket } from '../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../typeorm/entities/ticket/TicketConfig';
+import { UserTicketRestriction } from '../typeorm/entities/ticket/UserTicketRestriction';
 import { createPrivateChannelPermissions, createRateLimitKey, extractIdFromMention, lang, logger, PermissionSets, rateLimiter, RateLimits } from '../utils';
 import { customTicketOptions, ticketOptions } from './ticket';
 import { ticketAdminOnlyEvent } from './ticket/adminOnly';
@@ -59,8 +60,8 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         // check if we have the right messageid
         if (ticketConfig.messageId === interaction.message.id) {
             try {
-                // Try to get custom ticket types
-                const customOptions = await customTicketOptions(guildId);
+                // Try to get custom ticket types (filtered by user restrictions)
+                const customOptions = await customTicketOptions(guildId, interaction.user.id);
                 await interaction.reply({
                     content: lang.ticket.selectTicketType,
                     components: [customOptions],
@@ -94,6 +95,29 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_type_select') {
         const selectedTypeId = interaction.values[0];
         logger(`User ${user} selected ticket type: ${selectedTypeId}`);
+
+        // Handle "none" option (user has no available ticket types)
+        if (selectedTypeId === 'none') {
+            await interaction.reply({
+                content: '🚫 You do not have access to create any ticket types.',
+                flags: [MessageFlags.Ephemeral]
+            });
+            return;
+        }
+
+        // Check if user is restricted from creating this ticket type
+        const restrictionRepo = AppDataSource.getRepository(UserTicketRestriction);
+        const restriction = await restrictionRepo.findOne({
+            where: { guildId, userId: interaction.user.id, typeId: selectedTypeId }
+        });
+
+        if (restriction) {
+            await interaction.reply({
+                content: '🚫 You are not allowed to create this type of ticket.',
+                flags: [MessageFlags.Ephemeral]
+            });
+            return;
+        }
 
         // Check if this is a LEGACY ticket type that should use hardcoded modals
         const legacyTypes = ['18_verify', 'ban_appeal', 'player_report', 'bug_report', 'other'];

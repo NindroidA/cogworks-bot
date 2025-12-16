@@ -17,6 +17,7 @@ import { ArchivedTicketConfig } from './entities/ticket/ArchivedTicketConfig';
 import { CustomTicketType } from './entities/ticket/CustomTicketType';
 import { Ticket } from './entities/ticket/Ticket';
 import { TicketConfig } from './entities/ticket/TicketConfig';
+import { UserTicketRestriction } from './entities/ticket/UserTicketRestriction';
 import { UserActivity } from './entities/UserActivity';
 dotenv.config();
 
@@ -28,5 +29,5 @@ export const AppDataSource = new DataSource({
     password: process.env.MYSQL_DB_PASSWORD,
     database: process.env.MYSQL_DB_DATABASE,
     synchronize: true,
-    entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, CustomTicketType, ServerConfig, SavedRole, BotConfig, Application, ApplicationConfig, ArchivedApplication, ArchivedApplicationConfig, Position, AnnouncementConfig, AnnouncementLog, BaitChannelConfig, BaitChannelLog, UserActivity],
+    entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, CustomTicketType, UserTicketRestriction, ServerConfig, SavedRole, BotConfig, Application, ApplicationConfig, ArchivedApplication, ArchivedApplicationConfig, Position, AnnouncementConfig, AnnouncementLog, BaitChannelConfig, BaitChannelLog, UserActivity],
 });

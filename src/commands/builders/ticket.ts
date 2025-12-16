@@ -66,6 +66,21 @@ const emailImport = new SlashCommandSubcommandBuilder()
     .setName('import-email')
     .setDescription(tl.emailImport.cmdDescrp);
 
+const userRestrict = new SlashCommandSubcommandBuilder()
+    .setName('user-restrict')
+    .setDescription(tl.userRestrict.cmdDescrp)
+    .addUserOption((option) => option
+        .setName('user')
+        .setDescription(tl.userRestrict.optionUser)
+        .setRequired(true)
+    )
+    .addStringOption((option) => option
+        .setName('type')
+        .setDescription(tl.userRestrict.optionType)
+        .setRequired(false)
+        .setAutocomplete(true)
+    );
+
 /* main slash command */
 export const ticket = new SlashCommandBuilder()
     .setName('ticket')
@@ -79,4 +94,5 @@ export const ticket = new SlashCommandBuilder()
     .addSubcommand(typeRemove)
     .addSubcommand(typeFields)
     .addSubcommand(emailImport)
+    .addSubcommand(userRestrict)
     .toJSON();

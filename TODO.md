@@ -1,5 +1,8 @@
 # TODO
 
+## Development
+[ ] Verify release scripts function correctly
+
 ## Multi-Server Deployment
 
 ### Database Migration

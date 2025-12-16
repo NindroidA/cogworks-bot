@@ -149,6 +149,29 @@
             "urlTooLong": "❌ Attachment URL too long! Maximum {0} characters per URL.",
             "permissionError": "❌ Missing permissions to create ticket channel!",
             "apiError": "❌ Discord API error: {0}"
+        },
+        "userRestrict": {
+            "cmdDescrp": "Manage user restrictions for ticket types",
+            "optionUser": "User to manage restrictions for",
+            "optionType": "Ticket type (optional - opens configurator if not specified)",
+            "title": "User Ticket Restrictions",
+            "description": "Manage which ticket types {user} can create",
+            "noTypes": "❌ No custom ticket types found! Create one with `/ticket type-add` first.",
+            "canCreate": "✅ Allowed",
+            "restricted": "🚫 Restricted",
+            "confirmRestrict": "⚠️ Are you sure you want to **restrict** {user} from creating **{type}** tickets?",
+            "confirmAllow": "⚠️ Are you sure you want to **allow** {user} to create **{type}** tickets again?",
+            "successRestrict": "🚫 {user} is now **restricted** from creating **{type}** tickets.",
+            "successAllow": "✅ {user} can now create **{type}** tickets again.",
+            "alreadyRestricted": "❌ {user} is already restricted from creating **{type}** tickets.",
+            "notRestricted": "❌ {user} is not restricted from creating **{type}** tickets.",
+            "error": "❌ Failed to update user restriction!",
+            "cancelled": "Action cancelled.",
+            "noRestrictions": "No restrictions configured for {user}.",
+            "currentRestrictions": "**Current Restrictions:**",
+            "notYourInteraction": "❌ You cannot interact with this message.",
+            "saved": "✅ Restrictions saved successfully!",
+            "footer": "Click a ticket type to toggle restriction"
         }
     }
 }

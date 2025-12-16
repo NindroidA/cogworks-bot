@@ -412,6 +412,29 @@ export interface LangTicket {
             permissionError: string;
             apiError: string;
         };
+        userRestrict: {
+            cmdDescrp: string;
+            optionUser: string;
+            optionType: string;
+            title: string;
+            description: string;
+            noTypes: string;
+            canCreate: string;
+            restricted: string;
+            confirmRestrict: string;
+            confirmAllow: string;
+            successRestrict: string;
+            successAllow: string;
+            alreadyRestricted: string;
+            notRestricted: string;
+            error: string;
+            cancelled: string;
+            noRestrictions: string;
+            currentRestrictions: string;
+            notYourInteraction: string;
+            saved: string;
+            footer: string;
+        };
     };
 }
 

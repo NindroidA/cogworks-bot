@@ -80,6 +80,7 @@ temp/
 
 # Copilot
 .github/copilot-instructions.md
+.claude/
 
 # Project
 private/

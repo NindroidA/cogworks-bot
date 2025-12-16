@@ -1,12 +1,20 @@
 # Dev Update v2.3.1
 
+## Added
+- **User Ticket Restrictions**: New `/ticket user-restrict` command to manage user access to ticket types
+  - Restrict specific users from creating specific ticket types
+  - Interactive configurator embed when no type specified
+  - Quick toggle with confirmation when type is specified
+  - Restricted types are hidden from the user's ticket type selection menu
+  - Guild-scoped for proper multi-server isolation
+
 ## Fixed
 - Fixed bait channel system not detecting messages
 - Added comprehensive DEBUG-level logging for easier troubleshooting
 - Fixed bot-changelog action to handle backticks safely
 
 ## Changed
-- Changed `/dev` and `/migrate` commands from owner-only to admin-only (I don't know why I agreed to this in the fist place lmao)
+- Changed `/dev` and `/migrate` commands from owner-only to admin-only
 
 ## Improved
 - Enhanced logging for bait channel system at DEBUG level
@@ -14,7 +22,7 @@
 - Added console warning when forum tag limit (20) reached
 - Uses logger() for better visibility in production logs
 - Migrated dev command strings to lang system
-- Removed legacy devBulkClose files (since functionality was moved to `/dev bulk-close-tickets`)
+- Removed legacy devBulkClose files (functionality moved to `/dev bulk-close-tickets`)
 
 # Dev Update v2.3.0
 
