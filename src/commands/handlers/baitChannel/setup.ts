@@ -20,6 +20,10 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
 			'Find bait channel config'
 		);
 
+		// Track whether this is a new config or an update
+		const isNewConfig = !config;
+		let isChannelChange = false;
+
 		if (!config) {
 			config = configRepo.create({
 				guildId: interaction.guildId!,
@@ -29,6 +33,23 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
 				logChannelId: logChannel?.id || undefined
 			});
 		} else {
+			// Check if channel is changing - if so, delete old message
+			isChannelChange = config.channelId !== channel.id;
+
+			if (isChannelChange && config.channelId && config.channelMessageId) {
+				try {
+					const oldChannel = await interaction.guild!.channels.fetch(config.channelId);
+					if (oldChannel?.isTextBased()) {
+						const oldMessage = await (oldChannel as TextChannel).messages.fetch(config.channelMessageId);
+						await oldMessage.delete();
+					}
+				} catch {
+					// Old channel/message may not exist anymore - that's fine
+				}
+				// Clear the old message ID since it's deleted or gone
+				config.channelMessageId = undefined as unknown as string;
+			}
+
 			config.channelId = channel.id;
 			config.gracePeriodSeconds = gracePeriod;
 			config.actionType = action;
@@ -77,9 +98,12 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
 			baitChannelManager.clearConfigCache(interaction.guildId!);
 		}
 
+		// Use "Updated" title if this is an existing config, "Configured" for new
+		const embedTitle = isNewConfig ? tl.setup.title : tl.setup.titleUpdated;
+
 		const embed = new EmbedBuilder()
 			.setColor('#00FF00')
-			.setTitle(tl.setup.title)
+			.setTitle(embedTitle)
 			.addFields(
 				{ name: 'Channel', value: `<#${channel.id}>`, inline: true },
 				{ name: 'Grace Period', value: `${gracePeriod}s`, inline: true },

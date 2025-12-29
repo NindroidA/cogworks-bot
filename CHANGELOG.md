@@ -1,3 +1,20 @@
+# Dev Update v2.4.2
+
+## Fixed
+- **Bait Channel Message Cleanup**: Old warning message is now deleted when changing bait channel
+  - Prevents duplicate messages when switching channels
+  - Setup reply now shows "Updated" instead of "Configured" when modifying existing config
+- **Server Owner Whitelist**: Server owner is now automatically whitelisted
+  - Prevents "Missing Permissions" errors when owner tests the bait channel
+  - Shows "User is the Server Owner" as whitelist reason
+- **Log Embed Formatting**: Reformatted bait channel log embeds for better readability
+
+## Removed
+- **package-lock.json**: Removed redundant npm lockfile (project uses Bun with bun.lock)
+- **`API_TOKEN` env variable**: Removed redundant 'token' (I forgor what I was using this for, but it isn't necessary now)
+
+---
+
 # Dev Update v2.4.1
 
 ## Fixed

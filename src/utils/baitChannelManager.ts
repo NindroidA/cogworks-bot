@@ -238,6 +238,11 @@ export class BaitChannelManager {
 	}
 
 	private async isWhitelisted(member: GuildMember, config: BaitChannelConfig): Promise<boolean> {
+		// Server owner cannot be kicked/banned - always whitelist
+		if (member.id === member.guild.ownerId) {
+			return true;
+		}
+
 		// Check whitelisted users
 		if (config.whitelistedUsers?.includes(member.id)) {
 			return true;
@@ -258,6 +263,11 @@ export class BaitChannelManager {
 	}
 
 	private getWhitelistReason(member: GuildMember, config: BaitChannelConfig): string {
+		// Server owner - cannot be kicked/banned
+		if (member.id === member.guild.ownerId) {
+			return 'User is the Server Owner';
+		}
+
 		// Check user whitelist first
 		if (config.whitelistedUsers?.includes(member.id)) {
 			return 'User is in manual whitelist';
@@ -644,11 +654,11 @@ export class BaitChannelManager {
 				.setDescription(description)
 				.addFields(
 					{ name: '👤 User', value: `${member.user.tag}\n\`${member.id}\``, inline: true },
-					{ name: '📊 Suspicion Score', value: `**${analysis.score}/100**`, inline: true },
-					{ name: '⚡ Reason', value: reason, inline: true },
+					{ name: '🎭 Roles', value: member.roles.cache.size > 1 ? `${member.roles.cache.size - 1} roles` : 'No roles', inline: true },
+					{ name: '⚡ Reason', value: reason, inline: false },
 					{ name: '📅 Account Created', value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`, inline: true },
 					{ name: '📥 Joined Server', value: `<t:${Math.floor(member.joinedTimestamp! / 1000)}:R>`, inline: true },
-					{ name: '🎭 Roles', value: member.roles.cache.size > 1 ? `${member.roles.cache.size - 1} roles` : 'No roles', inline: true }
+					{ name: '📊 Suspicion Score', value: `**${analysis.score}/100**`, inline: true }
 				)
 				.setThumbnail(member.user.displayAvatarURL());
 
@@ -716,10 +726,10 @@ export class BaitChannelManager {
 				.setDescription(`**${member.user.tag}** posted in the bait channel but is whitelisted.\nMessage was removed but **no action was taken**.`)
 				.addFields(
 					{ name: '👤 User', value: `${member.user.tag}\n\`${member.id}\``, inline: true },
-					{ name: '🛡️ Whitelist Reason', value: whitelistReason, inline: true },
+					{ name: '🎭 Roles', value: member.roles.cache.size > 1 ? `${member.roles.cache.size - 1} roles` : 'No roles', inline: true },
+					{ name: '🛡️ Whitelist Reason', value: whitelistReason, inline: false },
 					{ name: '📅 Account Created', value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`, inline: true },
-					{ name: '📥 Joined Server', value: `<t:${Math.floor(member.joinedTimestamp! / 1000)}:R>`, inline: true },
-					{ name: '🎭 Roles', value: member.roles.cache.size > 1 ? `${member.roles.cache.size - 1} roles` : 'No roles', inline: true }
+					{ name: '📥 Joined Server', value: `<t:${Math.floor(member.joinedTimestamp! / 1000)}:R>`, inline: true }
 				)
 				.setThumbnail(member.user.displayAvatarURL());
 

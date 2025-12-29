@@ -27,6 +27,7 @@
 	},
 	"setup": {
 		"title": "✅ Bait Channel Configured",
+		"titleUpdated": "✅ Bait Channel Updated",
 		"footer": "Use /baitchannel detection to configure smart detection"
 	},
 	"stats": {

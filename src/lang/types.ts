@@ -689,6 +689,7 @@ export interface LangBaitChannel {
 	};
 	setup: {
 		title: string;
+		titleUpdated: string;
 		footer: string;
 	};
 	stats: {
