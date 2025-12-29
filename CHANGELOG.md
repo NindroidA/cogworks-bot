@@ -1,3 +1,18 @@
+# Dev Update v2.4.1
+
+## Fixed
+- **Bait Channel Ban/Kick Actions**: Actions now properly execute and report results
+  - Restructured `executeAction()` to log AFTER action completes
+  - Log channel now shows actual success/failure status with failure reason
+- **Warning Message Deletion Race Condition**: Fixed duplicate deletion attempts
+  - Added existence check in setTimeout callback before processing
+  - Prevents "Failed to delete warning message" warnings in logs
+- **Whitelisted User Handling**: Improved feedback for whitelisted users
+  - Messages from whitelisted users are now deleted (previously ignored)
+  - New embed logged to channel explaining whitelist status
+
+---
+
 # Dev Update v2.4.0
 
 ## Added

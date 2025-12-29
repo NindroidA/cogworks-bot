@@ -73,6 +73,25 @@ export class BaitChannelManager {
 
 			// Check whitelist
 			if (await this.isWhitelisted(member, config)) {
+				const whitelistReason = this.getWhitelistReason(member, config);
+
+				// Still delete the message even for whitelisted users
+				try {
+					await message.delete();
+				} catch (error) {
+					logError({
+						category: ErrorCategory.DISCORD_API,
+						severity: ErrorSeverity.LOW,
+						message: 'Failed to delete bait channel message from whitelisted user',
+						error,
+						context: { messageId: message.id, guildId: message.guild!.id }
+					});
+				}
+
+				// Log to channel explaining they're whitelisted
+				await this.logToChannelWhitelisted(member, message, config, whitelistReason);
+
+				// Log to database
 				await this.logAction(message, 'whitelisted', config);
 				return;
 			}
@@ -237,6 +256,28 @@ export class BaitChannelManager {
 		return false;
 	}
 
+	private getWhitelistReason(member: GuildMember, config: BaitChannelConfig): string {
+		// Check user whitelist first
+		if (config.whitelistedUsers?.includes(member.id)) {
+			return 'User is in manual whitelist';
+		}
+
+		// Check role whitelist
+		const whitelistedRole = member.roles.cache.find(role =>
+			config.whitelistedRoles?.includes(role.id)
+		);
+		if (whitelistedRole) {
+			return `User has whitelisted role: @${whitelistedRole.name}`;
+		}
+
+		// Must be admin
+		if (member.permissions.has(PermissionFlagsBits.Administrator)) {
+			return 'User is an Administrator';
+		}
+
+		return 'User is whitelisted';
+	}
+
 	private async initiateGracePeriod(
 		message: Message,
 		config: BaitChannelConfig,
@@ -292,13 +333,21 @@ export class BaitChannelManager {
 
 		// Set up action timer
 		const timeoutId = setTimeout(async () => {
+			// Check if this pending ban was already handled by handleMessageDelete
+			const pendingBan = this.pendingBans.get(key);
+			if (!pendingBan) {
+				// Already handled - user deleted their message and handleMessageDelete cleaned up
+				return;
+			}
+
 			try {
 				// Try to fetch the original message to see if it still exists
 				await message.fetch();
-				
-				// Message still exists - execute action and delete both messages
+
+				// Message still exists - remove from pending and execute action
+				this.pendingBans.delete(key);
 				await this.executeAction(member, message, config, analysis, 'Grace period expired');
-				
+
 				// Delete the bot's warning message
 				if (warningMessage) {
 					try {
@@ -315,21 +364,24 @@ export class BaitChannelManager {
 				}
 			} catch {
 				// Message was deleted - user complied in time
-				this.pendingBans.delete(key);
-				await this.logAction(message, 'deleted-in-time', config, analysis);
-				
-				// Delete the bot's warning message since the user complied
-				if (warningMessage) {
-					try {
-						await warningMessage.delete();
-					} catch (error) {
-						logError({
-							category: ErrorCategory.DISCORD_API,
-							severity: ErrorSeverity.LOW,
-							message: 'Failed to delete warning message after compliance',
-							error,
-							context: { messageId: warningMessage.id }
-						});
+				// Check again in case handleMessageDelete ran between our check and here
+				if (this.pendingBans.has(key)) {
+					this.pendingBans.delete(key);
+					await this.logAction(message, 'deleted-in-time', config, analysis);
+
+					// Delete the bot's warning message since the user complied
+					if (warningMessage) {
+						try {
+							await warningMessage.delete();
+						} catch (error) {
+							logError({
+								category: ErrorCategory.DISCORD_API,
+								severity: ErrorSeverity.LOW,
+								message: 'Failed to delete warning message after compliance',
+								error,
+								context: { messageId: warningMessage.id }
+							});
+						}
 					}
 				}
 			}
@@ -398,27 +450,25 @@ export class BaitChannelManager {
 		analysis: SuspicionAnalysis,
 		reason: string
 	): Promise<void> {
-		let actionTaken = config.actionType;
-		let failureReason: string | null = null;
+		let actionTaken: string = config.actionType;
+		let actionResult: 'success' | 'failed' = 'success';
+		let failureReason: string | undefined;
 
+		// Step 1: Delete the user's message first
 		try {
-			// Log before action
-			await this.logToChannel(member, message, config, analysis, reason);
+			await message.delete();
+		} catch (error) {
+			logError({
+				category: ErrorCategory.DISCORD_API,
+				severity: ErrorSeverity.MEDIUM,
+				message: 'Failed to delete bait channel message',
+				error,
+				context: { messageId: message.id, guildId: message.guild!.id }
+			});
+		}
 
-			// Delete the message
-			try {
-				await message.delete();
-			} catch (error) {
-				logError({
-					category: ErrorCategory.DISCORD_API,
-					severity: ErrorSeverity.MEDIUM,
-					message: 'Failed to delete bait channel message',
-					error,
-					context: { messageId: message.id, guildId: message.guild!.id }
-				});
-			}
-
-			// Execute the configured action
+		// Step 2: Execute the configured action
+		try {
 			switch (config.actionType) {
 				case 'ban':
 					await member.ban({
@@ -457,19 +507,19 @@ export class BaitChannelManager {
 						{ actionType: config.actionType, guildId: message.guild!.id }
 					);
 			}
-
-			await this.logAction(message, actionTaken, config, analysis);
 		} catch (error) {
 			const err = error as Error;
+			actionResult = 'failed';
+			failureReason = err.message;
+			actionTaken = 'failed';
+
 			enhancedLogger.error(
 				`Failed to execute action ${config.actionType} for ${member.user.tag}`,
 				err,
 				LogCategory.ERROR,
 				{ userId: member.id, action: config.actionType, guildId: message.guild!.id }
 			);
-			failureReason = err.message;
-			await this.logAction(message, 'failed', config, analysis, failureReason);
-			
+
 			logError({
 				category: ErrorCategory.DISCORD_API,
 				severity: ErrorSeverity.HIGH,
@@ -482,6 +532,12 @@ export class BaitChannelManager {
 				}
 			});
 		}
+
+		// Step 3: Log to channel AFTER action (with result)
+		await this.logToChannel(member, message, config, analysis, reason, actionResult, failureReason);
+
+		// Step 4: Log to database
+		await this.logAction(message, actionTaken, config, analysis, failureReason);
 	}
 
 	private async logAction(
@@ -540,7 +596,9 @@ export class BaitChannelManager {
 		message: Message,
 		config: BaitChannelConfig,
 		analysis: SuspicionAnalysis,
-		reason: string
+		reason: string,
+		actionResult: 'success' | 'failed' = 'success',
+		failureReason?: string
 	): Promise<void> {
 		if (!config.logChannelId) return;
 
@@ -548,26 +606,41 @@ export class BaitChannelManager {
 			const logChannel = await message.guild!.channels.fetch(config.logChannelId).catch(() => null) as TextChannel | null;
 			if (!logChannel) return;
 
-			const actionEmoji = {
-				'ban': '🔨',
-				'kick': '👢',
-				'log-only': '📝'
-			}[config.actionType] || '⚠️';
+			// Different display for success vs failure
+			let actionEmoji: string;
+			let actionText: string;
+			let color: string;
 
-			const actionText = {
-				'ban': 'Banned',
-				'kick': 'Kicked',
-				'log-only': 'Logged (No action)'
-			}[config.actionType] || 'Action taken';
+			if (actionResult === 'failed') {
+				actionEmoji = '❌';
+				actionText = `${config.actionType === 'ban' ? 'Ban' : 'Kick'} FAILED`;
+				color = '#4A4A4A'; // Dark gray for failure
+			} else {
+				actionEmoji = {
+					'ban': '🔨',
+					'kick': '👢',
+					'log-only': '📝'
+				}[config.actionType] || '⚠️';
 
-			const color = analysis.score >= 90 ? '#8B0000' : 
-						  analysis.score >= 70 ? '#FF0000' : 
-						  analysis.score >= 50 ? '#FFA500' : '#FFFF00';
+				actionText = {
+					'ban': 'Banned',
+					'kick': 'Kicked',
+					'log-only': 'Logged (No action)'
+				}[config.actionType] || 'Action taken';
+
+				color = analysis.score >= 90 ? '#8B0000' :
+						analysis.score >= 70 ? '#FF0000' :
+						analysis.score >= 50 ? '#FFA500' : '#FFFF00';
+			}
+
+			const description = actionResult === 'failed'
+				? `**${member.user.tag}** triggered the bait channel but the action failed`
+				: `**${member.user.tag}** triggered the bait channel`;
 
 			const embed = new EmbedBuilder()
 				.setColor(color)
 				.setTitle(`${actionEmoji} Bait Channel ${actionText}`)
-				.setDescription(`**${member.user.tag}** triggered the bait channel`)
+				.setDescription(description)
 				.addFields(
 					{ name: '👤 User', value: `${member.user.tag}\n\`${member.id}\``, inline: true },
 					{ name: '📊 Suspicion Score', value: `**${analysis.score}/100**`, inline: true },
@@ -582,6 +655,14 @@ export class BaitChannelManager {
 				embed.addFields({
 					name: '🔍 Detection Flags',
 					value: analysis.reasons.map(r => `• ${r}`).join('\n')
+				});
+			}
+
+			// Add failure reason if action failed
+			if (actionResult === 'failed' && failureReason) {
+				embed.addFields({
+					name: '⚠️ Failure Reason',
+					value: failureReason.length > 1024 ? failureReason.substring(0, 1021) + '...' : failureReason
 				});
 			}
 
@@ -607,6 +688,62 @@ export class BaitChannelManager {
 				category: ErrorCategory.DISCORD_API,
 				severity: ErrorSeverity.MEDIUM,
 				message: 'Failed to send bait channel log to channel',
+				error,
+				context: {
+					guildId: message.guild!.id,
+					logChannelId: config.logChannelId
+				}
+			});
+		}
+	}
+
+	private async logToChannelWhitelisted(
+		member: GuildMember,
+		message: Message,
+		config: BaitChannelConfig,
+		whitelistReason: string
+	): Promise<void> {
+		if (!config.logChannelId) return;
+
+		try {
+			const logChannel = await message.guild!.channels.fetch(config.logChannelId).catch(() => null) as TextChannel | null;
+			if (!logChannel) return;
+
+			const embed = new EmbedBuilder()
+				.setColor('#FFA500') // Amber/yellow for whitelisted
+				.setTitle('⚠️ Whitelisted User - Message Removed')
+				.setDescription(`**${member.user.tag}** posted in the bait channel but is whitelisted.\nMessage was removed but **no action was taken**.`)
+				.addFields(
+					{ name: '👤 User', value: `${member.user.tag}\n\`${member.id}\``, inline: true },
+					{ name: '🛡️ Whitelist Reason', value: whitelistReason, inline: true },
+					{ name: '📅 Account Created', value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`, inline: true },
+					{ name: '📥 Joined Server', value: `<t:${Math.floor(member.joinedTimestamp! / 1000)}:R>`, inline: true },
+					{ name: '🎭 Roles', value: member.roles.cache.size > 1 ? `${member.roles.cache.size - 1} roles` : 'No roles', inline: true }
+				)
+				.setThumbnail(member.user.displayAvatarURL());
+
+			if (message.content) {
+				embed.addFields({
+					name: '💬 Message Content',
+					value: message.content.length > 1024 ? message.content.substring(0, 1021) + '...' : message.content
+				});
+			}
+
+			if (message.attachments.size > 0) {
+				embed.addFields({
+					name: '📎 Attachments',
+					value: `${message.attachments.size} attachment(s)`
+				});
+			}
+
+			embed.setTimestamp();
+
+			await logChannel.send({ embeds: [embed] });
+		} catch (error) {
+			logError({
+				category: ErrorCategory.DISCORD_API,
+				severity: ErrorSeverity.MEDIUM,
+				message: 'Failed to send whitelisted user log to channel',
 				error,
 				context: {
 					guildId: message.guild!.id,

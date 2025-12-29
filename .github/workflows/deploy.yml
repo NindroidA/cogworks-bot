@@ -77,7 +77,7 @@ jobs:
           script: |
             # Wait for container to be healthy
             echo "Waiting for health check..."
-            sleep 30
+            sleep 15
 
             # Check if container is running
             if docker-compose -f /opt/docker/docker-compose.yml ps cogworks | grep -q "Up"; then
