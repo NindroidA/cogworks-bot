@@ -1,5 +1,6 @@
 import {
 	Client,
+	ColorResolvable,
 	EmbedBuilder,
 	GuildMember,
 	Message,
@@ -609,7 +610,7 @@ export class BaitChannelManager {
 			// Different display for success vs failure
 			let actionEmoji: string;
 			let actionText: string;
-			let color: string;
+			let color: ColorResolvable;
 
 			if (actionResult === 'failed') {
 				actionEmoji = '❌';
