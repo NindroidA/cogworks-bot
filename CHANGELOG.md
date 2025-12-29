@@ -1,3 +1,29 @@
+# Dev Update v2.4.0
+
+## Added
+- **Docker Containerization**: Complete migration from PM2 to Docker
+  - Multi-stage Dockerfile using Bun runtime on Alpine
+  - docker-compose.yml for easy deployment
+  - Health checks using existing `/health/live` endpoint
+  - Non-root user for security
+  - 1GB memory limit (matching previous PM2 config)
+- **GitHub Actions Deployment**: New CI/CD pipeline
+  - Automatic build and deploy on push to `main`
+  - SSH-based deployment to production server
+  - Deployment verification with health checks
+- **Git Workflow**: Implemented `main` + `dev` branch structure
+  - `main`: Production-ready, triggers deployments
+  - `dev`: Work-in-progress development
+- **CLAUDE.md**: AI assistant context documentation
+  - Comprehensive project guidelines for Claude Code
+  - Replaces `.github/copilot-instructions.md`
+
+## Removed
+- `ecosystem.config.js` - PM2 configuration (replaced by Docker)
+- `nodemon.json` - Nodemon configuration (Docker handles development differently)
+
+---
+
 # Dev Update v2.3.1
 
 ## Added

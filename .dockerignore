@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+.bun/
+
+# Build output (rebuilt in container)
+dist/
+
+# Environment files (mounted at runtime)
+.env
+.env.*
+*.env
+
+# Logs
+logs/
+*.log
+
+# Git
+.git/
+.gitignore
+
+# GitHub
+.github/
+
+# Development files
+nodemon.json
+ecosystem.config.js
+jest.config.js
+tsconfig.json
+
+# Tests
+tests/
+coverage/
+*.test.ts
+*.spec.ts
+
+# Documentation
+*.md
+!README.md
+docs/
+private/
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# AI Instructions
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+temp/
+.temp/
+.cache/
+*.swp
+*.swo
+
+# Project specific
+archivedTickets/
+archiveDownload/
+src/utils/baResponses.json

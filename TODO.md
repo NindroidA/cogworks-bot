@@ -3,6 +3,18 @@
 ## Development
 [ ] Verify release scripts function correctly
 
+## Docker Deployment (v2.4.0)
+- [x] Create Dockerfile (multi-stage Bun build)
+- [x] Create .dockerignore
+- [x] Create docker-compose.yml
+- [x] Create GitHub Actions deploy workflow
+- [x] Create CLAUDE.md documentation
+- [x] Set up `main` + `dev` branch workflow
+- [ ] Configure SSH secrets in GitHub (SSH_HOST, SSH_USER, SSH_PRIVATE_KEY)
+- [ ] Test Docker build locally
+- [ ] Deploy and verify on production server
+- [ ] Remove legacy files after Docker is confirmed working
+
 ## Multi-Server Deployment
 
 ### Database Migration
@@ -23,7 +35,8 @@
 
 ### GitHub Actions
 - [x] Deployment workflow created
-- [x] Configure secrets (SERVER_HOST, SERVER_USER, SERVER_SSH_KEY)
+- [x] Docker build/deploy workflow created
+- [ ] Configure SSH secrets for Docker deployment
 - [ ] Test deployment to staging
 
 ### Monitoring

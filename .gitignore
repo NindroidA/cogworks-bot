@@ -78,9 +78,12 @@ temp/
 *.swo
 *~
 
-# Copilot
+# AI Instructions
 .github/copilot-instructions.md
 .claude/
+
+# Docker
+*.tar.gz
 
 # Project
 private/

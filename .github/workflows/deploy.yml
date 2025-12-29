@@ -1,0 +1,87 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'CHANGELOG.md'
+      - 'README.md'
+      - 'docs/**'
+      - '*.md'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Build and Deploy
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build -t cogworks-bot:latest .
+          docker save cogworks-bot:latest | gzip > cogworks-bot.tar.gz
+
+      - name: Copy image to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "cogworks-bot.tar.gz"
+          target: "/tmp/"
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            # Load the new image
+            gunzip -c /tmp/cogworks-bot.tar.gz | docker load
+
+            # Clean up the transferred file
+            rm /tmp/cogworks-bot.tar.gz
+
+            # Navigate to docker directory and restart the service
+            cd /opt/docker
+
+            # Stop and remove old container if exists
+            docker-compose stop cogworks 2>/dev/null || true
+            docker-compose rm -f cogworks 2>/dev/null || true
+
+            # Start with new image
+            docker-compose up -d cogworks
+
+            # Prune old images
+            docker image prune -f
+
+            # Show status
+            docker-compose ps cogworks
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            # Wait for container to be healthy
+            echo "Waiting for health check..."
+            sleep 30
+
+            # Check if container is running
+            if docker-compose -f /opt/docker/docker-compose.yml ps cogworks | grep -q "Up"; then
+              echo "Deployment successful!"
+              docker-compose -f /opt/docker/docker-compose.yml logs --tail=20 cogworks
+            else
+              echo "Deployment may have failed. Checking logs..."
+              docker-compose -f /opt/docker/docker-compose.yml logs --tail=50 cogworks
+              exit 1
+            fi
