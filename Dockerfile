@@ -4,7 +4,7 @@ FROM oven/bun:1-alpine AS builder
 WORKDIR /app
 
 # Copy package files
-COPY package.json bun.lockb ./
+COPY package.json bun.lock ./
 
 # Install all dependencies (including dev for building)
 RUN bun install --frozen-lockfile
@@ -26,7 +26,7 @@ RUN addgroup -g 1001 -S nodejs && \
     adduser -S cogworks -u 1001 -G nodejs
 
 # Copy package files
-COPY package.json bun.lockb ./
+COPY package.json bun.lock ./
 
 # Install production dependencies only
 RUN bun install --frozen-lockfile --production && \

@@ -65,7 +65,6 @@ Temporary Items
 *.code-workspace
 
 # Bun
-bun.lockb
 .bun/
 
 # Cache & Temp Files
