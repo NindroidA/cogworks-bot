@@ -1,43 +1,46 @@
 import { SlashCommandBuilder } from 'discord.js';
+import { lang } from '../../utils';
+
+const tl = lang.dev.builder;
 
 export const dev = new SlashCommandBuilder()
     .setName('dev')
-    .setDescription('[OWNER ONLY] Development and maintenance commands')
+    .setDescription(tl.cmdDescrp)
     .setDMPermission(false)
     .addSubcommand(subcommand =>
         subcommand
             .setName('bulk-close-tickets')
-            .setDescription('⚠️ Close all active tickets in this server')
+            .setDescription(tl.bulkCloseTickets)
     )
     .addSubcommand(subcommand =>
         subcommand
             .setName('delete-archived-ticket')
-            .setDescription('Delete a specific archived ticket by user')
+            .setDescription(tl.deleteArchivedTicket.descrp)
             .addUserOption(option =>
                 option
                     .setName('user')
-                    .setDescription('The user whose archived ticket to delete')
+                    .setDescription(tl.deleteArchivedTicket.user)
                     .setRequired(true)
             )
     )
     .addSubcommand(subcommand =>
         subcommand
             .setName('delete-all-archived-tickets')
-            .setDescription('⚠️ DELETE ALL archived tickets in this server')
+            .setDescription(tl.deleteAllArchivedTickets)
     )
     .addSubcommand(subcommand =>
         subcommand
             .setName('delete-archived-application')
-            .setDescription('Delete a specific archived application by user')
+            .setDescription(tl.deleteArchivedApplication.descrp)
             .addUserOption(option =>
                 option
                     .setName('user')
-                    .setDescription('The user whose archived application to delete')
+                    .setDescription(tl.deleteArchivedApplication.user)
                     .setRequired(true)
             )
     )
-        .addSubcommand(subcommand =>
+    .addSubcommand(subcommand =>
         subcommand
             .setName('delete-all-archived-applications')
-            .setDescription('⚠️ Delete ALL archived applications in this server')
+            .setDescription(tl.deleteAllArchivedApplications)
     );

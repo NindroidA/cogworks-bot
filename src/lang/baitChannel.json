@@ -1,37 +1,79 @@
 {
-	"notConfigured": "❌ Bait channel not configured. Use `/baitchannel setup`",
-	"setupFirst": "❌ Please run `/baitchannel setup` first!",
-	"specifyRoleOrUser": "❌ Please specify a role or user!",
+	"notConfigured": "Bait channel not configured. Use `/baitchannel setup`",
+	"setupFirst": "Please run `/baitchannel setup` first!",
+	"specifyRoleOrUser": "Please specify a role or user!",
+	"builder": {
+		"cmdDescrp": "Configure the bait channel anti-bot system",
+		"setup": {
+			"descrp": "Set up or update the bait channel configuration",
+			"channel": "The bait channel",
+			"gracePeriod": "Grace period in seconds (0 for instant action)",
+			"action": "Action to take",
+			"actionBan": "Ban",
+			"actionKick": "Kick",
+			"actionLogOnly": "Log Only (Testing)",
+			"logChannel": "Channel for logging detections"
+		},
+		"detection": {
+			"descrp": "Configure smart detection settings",
+			"enabled": "Enable smart detection",
+			"minAccountAge": "Minimum account age in days (default: 7)",
+			"minMembership": "Minimum server membership in minutes (default: 5)",
+			"minMessages": "Minimum message count (default: 0)",
+			"requireVerification": "Require verification role",
+			"disableAdminWhitelist": "Disable automatic admin whitelist (for testing)"
+		},
+		"whitelist": {
+			"descrp": "Manage whitelist",
+			"action": "Add, remove, or list whitelist",
+			"actionAdd": "Add",
+			"actionRemove": "Remove",
+			"actionList": "List",
+			"role": "Role to whitelist",
+			"user": "User to whitelist"
+		},
+		"status": {
+			"descrp": "View current configuration and statistics"
+		},
+		"stats": {
+			"descrp": "View detailed statistics",
+			"days": "Number of days to analyze (default: 7)"
+		},
+		"toggle": {
+			"descrp": "Enable or disable the bait channel",
+			"enabled": "Enable or disable"
+		}
+	},
 	"status": {
-		"title": "🎯 Bait Channel Status",
-		"statusEnabled": "✅ Enabled",
-		"statusDisabled": "❌ Disabled",
-		"channelNotFound": "❌ Not found",
-		"smartOn": "✅ On",
-		"smartOff": "❌ Off",
+		"title": "Bait Channel Status",
+		"statusEnabled": "Enabled",
+		"statusDisabled": "Disabled",
+		"channelNotFound": "Not found",
+		"smartOn": "On",
+		"smartOff": "Off",
 		"logNone": "None",
-		"detectionSettings": "🔍 Detection Settings",
-		"minAccountAge": "• Min Account Age: {0} days",
-		"minMembership": "• Min Membership: {0} minutes",
-		"minMessages": "• Min Messages: {0}",
-		"requireVerification": "• Require Verification: {0}",
-		"whitelist": "📋 Whitelist",
+		"detectionSettings": "Detection Settings",
+		"minAccountAge": "- Min Account Age: {0} days",
+		"minMembership": "- Min Membership: {0} minutes",
+		"minMessages": "- Min Messages: {0}",
+		"requireVerification": "- Require Verification: {0}",
+		"whitelist": "Whitelist",
 		"whitelistRoles": "**Roles:** {0}",
 		"whitelistUsers": "**Users:** {0}",
 		"yes": "Yes",
 		"no": "No"
 	},
 	"toggle": {
-		"enabled": "✅ Bait channel enabled",
-		"disabled": "✅ Bait channel disabled"
+		"enabled": "Bait channel enabled",
+		"disabled": "Bait channel disabled"
 	},
 	"setup": {
-		"title": "✅ Bait Channel Configured",
-		"titleUpdated": "✅ Bait Channel Updated",
+		"title": "Bait Channel Configured",
+		"titleUpdated": "Bait Channel Updated",
 		"footer": "Use /baitchannel detection to configure smart detection"
 	},
 	"stats": {
-		"title": "📊 Bait Channel Statistics",
+		"title": "Bait Channel Statistics",
 		"description": "Statistics for the last {0} day(s)",
 		"totalTriggers": "Total Triggers",
 		"banned": "Banned",
@@ -39,21 +81,21 @@
 		"deletedInTime": "Deleted in Time",
 		"whitelisted": "Whitelisted",
 		"avgSuspicion": "Avg Suspicion",
-		"recentDetections": "⚠️ Recent Detections",
+		"recentDetections": "Recent Detections",
 		"none": "None"
 	},
 	"whitelist": {
-		"added": "✅ Added {0} to whitelist",
-		"removed": "✅ Removed {0} from whitelist",
-		"alreadyAdded": "ℹ️ {0} is already whitelisted",
-		"notInList": "ℹ️ {0} is not in the whitelist",
-		"title": "📋 Bait Channel Whitelist",
+		"added": "Added {0} to whitelist",
+		"removed": "Removed {0} from whitelist",
+		"alreadyAdded": "{0} is already whitelisted",
+		"notInList": "{0} is not in the whitelist",
+		"title": "Bait Channel Whitelist",
 		"empty": "No roles or users are whitelisted",
 		"role": "Role: {0}",
 		"user": "User: {0}"
 	},
 	"detection": {
-		"title": "✅ Smart Detection Updated",
+		"title": "Smart Detection Updated",
 		"enabled": "Enabled",
 		"minAccountAge": "Min Account Age",
 		"minMembership": "Min Membership",
@@ -61,8 +103,8 @@
 		"requireVerification": "Require Verification",
 		"days": "{0} days",
 		"minutes": "{0} min",
-		"yes": "✅ Yes",
-		"no": "❌ No"
+		"yes": "Yes",
+		"no": "No"
 	},
 	"error": {
 		"fetchStatus": "Failed to fetch bait channel status",

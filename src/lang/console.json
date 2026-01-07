@@ -19,12 +19,12 @@
     "attachmentsSaved": "Attachments saved!",
     "baitChannelPost": "[BAIT CHANNEL]",
     "postedInBait": "posted in bait channel. Suspicion:",
-    "bannedUser": "✅ Banned",
-    "kickedUser": "✅ Kicked",
-    "loggedUser": "📝 Logged",
+    "bannedUser": "Banned",
+    "kickedUser": "Kicked",
+    "loggedUser": "Logged",
     "noActionTaken": "- No action taken",
     "unknownActionType": "Unknown action type:",
-    "failedAction": "❌ Failed to",
+    "failedAction": "Failed to",
     "errorSavingBotConfig": "Error saving bot configuration:",
     "errorUpdatingBotConfig": "Error updating bot configuration:"
 }

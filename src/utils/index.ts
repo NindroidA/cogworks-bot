@@ -16,6 +16,8 @@ export type { Language } from '../lang';
 export * from './apiConnector';
 export * from './baitChannelManager';
 export * from './collectors';
+export * from './colors';
+export * from './emojis';
 export * from './embedBuilders';
 export * from './errorHandler';
 export * from './types';

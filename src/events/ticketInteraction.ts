@@ -370,29 +370,26 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             }
 
             // Get ticket type details for channel naming
-            let emoji = '🎫';
             let displayName = ticketType;
-            
+
             if (isLegacyType) {
-                // Use legacy emoji/names
-                const legacyInfo: Record<string, { emoji: string; name: string }> = {
-                    '18_verify': { emoji: '🔞', name: '18+ Verify' },
-                    'ban_appeal': { emoji: '⚖️', name: 'Ban Appeal' },
-                    'player_report': { emoji: '📢', name: 'Player Report' },
-                    'bug_report': { emoji: '🐛', name: 'Bug Report' },
-                    'other': { emoji: '❓', name: 'Other' }
+                // Use legacy names
+                const legacyNames: Record<string, string> = {
+                    '18_verify': '18+ Verify',
+                    'ban_appeal': 'Ban Appeal',
+                    'player_report': 'Player Report',
+                    'bug_report': 'Bug Report',
+                    'other': 'Other'
                 };
-                emoji = legacyInfo[ticketType]?.emoji || '🎫';
-                displayName = legacyInfo[ticketType]?.name || ticketType;
+                displayName = legacyNames[ticketType] || ticketType;
             } else {
                 // Get from database for custom types
                 const typeRepo = AppDataSource.getRepository(CustomTicketType);
                 const ticketTypeConfig = await typeRepo.findOne({
                     where: { guildId, typeId: ticketType }
                 });
-                
+
                 if (ticketTypeConfig) {
-                    emoji = ticketTypeConfig.emoji || '🎫';
                     displayName = ticketTypeConfig.displayName || ticketType;
                 }
             }
@@ -412,7 +409,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             const savedTicket = await ticketRepo.save(newTicket) as Ticket;
 
             // create the ticket channel with numbering
-            const channelName = `${savedTicket.id}-${emoji}-${displayName}-${member.user.username}`.substring(0, 100);
+            const channelName = `${savedTicket.id}-${displayName}-${member.user.username}`.substring(0, 100);
 
             // get the staff/admin roles from the database
             const rolePerms = await savedRoleRepo.createQueryBuilder()

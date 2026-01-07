@@ -16,7 +16,7 @@ import { BaitChannelConfig } from './typeorm/entities/BaitChannelConfig';
 import { BaitChannelLog } from './typeorm/entities/BaitChannelLog';
 import { BotConfig } from './typeorm/entities/BotConfig';
 import { UserActivity } from './typeorm/entities/UserActivity';
-import { enhancedLogger, ensureDefaultTicketTypes, healthMonitor, healthServer, lang, LogCategory } from './utils';
+import { E, enhancedLogger, ensureDefaultTicketTypes, healthMonitor, healthServer, lang, LogCategory } from './utils';
 import { APIConnector } from './utils/apiConnector';
 import { BaitChannelManager } from './utils/baitChannelManager';
 import { setupGlobalErrorHandlers } from './utils/errorHandler';
@@ -52,15 +52,15 @@ if (IS_DEV) {
     TOKEN = process.env.DEV_BOT_TOKEN!;
     CLIENT = process.env.DEV_CLIENT_ID!;
     // log that we're using the development bot
-    console.log(lang.main.usingDev);
+    console.log(`${E.dev} ${lang.main.usingDev}`);
 } else {
     // validate production credentials exist
     if (!process.env.BOT_TOKEN || !process.env.CLIENT_ID) {
-        console.error(tl.missingProdCreds);
-        console.error(tl.addToEnv);
+        console.error(`${E.error} ${tl.missingProdCreds}`);
+        console.error(`${E.warn} ${tl.addToEnv}`);
         process.exit(1);
     }
-    console.log(tl.usingProd);
+    console.log(`${E.prod} ${tl.usingProd}`);
 }
 
 // create new discord client
@@ -120,7 +120,7 @@ client.once('ready', async () => {
 	healthServer.start(HEALTH_PORT);
 	
 	// log that we logged in
-	console.log(tl.ready + `${client.user?.tag}`);
+	console.log(`${E.ready} ${tl.ready}${client.user?.tag}`);
 	enhancedLogger.info(
 		`Bot started successfully: ${client.user?.tag}`,
 		LogCategory.SYSTEM,
@@ -134,9 +134,9 @@ client.once('ready', async () => {
 	
 	// log environment info
 	console.log(tl.envSeparator);
-	console.log(`${tl.envLabel}${IS_DEV ? tl.envDev : tl.envProd}`);
-	console.log(`${tl.botLabel}${client.user?.tag}`);
-	console.log(`${tl.clientIdLabel}${CLIENT}`);
+	console.log(`${E.list} ${tl.envLabel}${IS_DEV ? `${E.wrench} ${tl.envDev}` : `${E.prod} ${tl.envProd}`}`);
+	console.log(`${E.bot} ${tl.botLabel}${client.user?.tag}`);
+	console.log(`${E.id} ${tl.clientIdLabel}${CLIENT}`);
 	console.log(tl.envSeparator);
 
 	// initialize bait channel manager
@@ -149,7 +149,7 @@ client.once('ready', async () => {
 
 	// attach to client for access in events and commands
 	(client as typeof client & { baitChannelManager: BaitChannelManager }).baitChannelManager = baitChannelManager;
-	console.log(tl.baitChannelInit);
+	console.log(`${E.target} ${tl.baitChannelInit}`);
 	enhancedLogger.info('Bait channel manager initialized', LogCategory.SYSTEM);
 
     // set bot profile customizations (with dev mode indicator)
@@ -160,13 +160,13 @@ client.once('ready', async () => {
     if (!IS_DEV) {
         try {
             await apiConnector.registerBot(client);
-            console.log(tl.apiConnected);
+            console.log(`${E.ok} ${tl.apiConnected}`);
             enhancedLogger.info('Connected to API server successfully', LogCategory.API);
-            
+
             apiConnector.startStatsSync(client);
         } catch (error) {
-            console.error(tl.apiConnectFailed);
-            console.warn(tl.apiContinueWarning);
+            console.error(`${E.error} ${tl.apiConnectFailed}`);
+            console.warn(`${E.warn} ${tl.apiContinueWarning}`);
             enhancedLogger.error(
                 'Failed to connect to API server, continuing without it',
                 error as Error,
@@ -174,7 +174,7 @@ client.once('ready', async () => {
             );
         }
     } else {
-        console.log(tl.apiSkipDev);
+        console.log(`${E.wrench} ${tl.apiSkipDev}`);
         enhancedLogger.info(tl.apiSkipDev, LogCategory.SYSTEM);
     }
 
@@ -194,7 +194,7 @@ client.once('ready', async () => {
 
 // Graceful shutdown handler
 async function gracefulShutdown(signal: string) {
-    console.log(tl.shuttingDown);
+    console.log(`${E.shutdown} ${tl.shuttingDown}`);
     enhancedLogger.info(`Received ${signal}, shutting down gracefully`, LogCategory.SYSTEM);
     
     // stop health server

@@ -1,30 +1,32 @@
 /**
  * Embed Builders Module
- * 
+ *
  * Provides consistent, reusable embed creation utilities for Discord messages.
- * Includes predefined color schemes and builder functions for common embed types.
+ * Uses centralized color system for consistent UI across the bot.
  */
 
-import { EmbedBuilder, MessageFlags } from 'discord.js';
+import { EmbedBuilder, ColorResolvable } from 'discord.js';
+import { Colors } from './colors';
 
 // ============================================================================
-// Color Constants
+// Legacy Color Constants (for backwards compatibility)
 // ============================================================================
 
 /**
  * Standardized embed colors for consistent UI across the bot
+ * @deprecated Use Colors from './colors' instead
  */
 export const EmbedColors = {
 	/** Primary brand color (blue) */
-	PRIMARY: '#5A97FA',
+	PRIMARY: Colors.brand.primary,
 	/** Success messages (green) */
-	SUCCESS: '#43B581',
+	SUCCESS: Colors.status.success,
 	/** Error messages (red) */
-	ERROR: '#F04747',
+	ERROR: Colors.status.error,
 	/** Warning messages (orange) */
-	WARNING: '#FAA61A',
+	WARNING: Colors.status.warning,
 	/** Informational messages (discord blurple) */
-	INFO: '#5865F2',
+	INFO: Colors.status.info,
 } as const;
 
 // ============================================================================
@@ -42,8 +44,8 @@ export const EmbedColors = {
  */
 export function createSuccessEmbed(title: string, description?: string): EmbedBuilder {
 	const embed = new EmbedBuilder()
-		.setTitle(`✅ ${title}`)
-		.setColor(EmbedColors.SUCCESS)
+		.setTitle(`${title}`)
+		.setColor(Colors.status.success)
 		.setTimestamp();
 
 	if (description) {
@@ -64,8 +66,8 @@ export function createSuccessEmbed(title: string, description?: string): EmbedBu
  */
 export function createErrorEmbed(title: string, description?: string): EmbedBuilder {
 	const embed = new EmbedBuilder()
-		.setTitle(`❌ ${title}`)
-		.setColor(EmbedColors.ERROR)
+		.setTitle(`${title}`)
+		.setColor(Colors.status.error)
 		.setTimestamp();
 
 	if (description) {
@@ -86,8 +88,8 @@ export function createErrorEmbed(title: string, description?: string): EmbedBuil
  */
 export function createWarningEmbed(title: string, description?: string): EmbedBuilder {
 	const embed = new EmbedBuilder()
-		.setTitle(`⚠️ ${title}`)
-		.setColor(EmbedColors.WARNING)
+		.setTitle(`${title}`)
+		.setColor(Colors.status.warning)
 		.setTimestamp();
 
 	if (description) {
@@ -109,7 +111,7 @@ export function createWarningEmbed(title: string, description?: string): EmbedBu
 export function createInfoEmbed(title: string, description?: string): EmbedBuilder {
 	const embed = new EmbedBuilder()
 		.setTitle(title)
-		.setColor(EmbedColors.INFO)
+		.setColor(Colors.status.info)
 		.setTimestamp();
 
 	if (description) {
@@ -123,16 +125,16 @@ export function createInfoEmbed(title: string, description?: string): EmbedBuild
  * Creates a custom embed with specified color
  * @param title - Embed title
  * @param description - Optional description content
- * @param color - Hex color string (defaults to PRIMARY)
+ * @param color - ColorResolvable (defaults to brand primary)
  * @returns Configured EmbedBuilder instance
  * @example
- * const embed = createCustomEmbed('Event Alert', 'Starting soon!', '#9B59B6');
+ * const embed = createCustomEmbed('Event Alert', 'Starting soon!', Colors.brand.accent);
  * await channel.send({ embeds: [embed] });
  */
-export function createCustomEmbed(title: string, description?: string, color: string = EmbedColors.PRIMARY): EmbedBuilder {
+export function createCustomEmbed(title: string, description?: string, color: ColorResolvable = Colors.brand.primary): EmbedBuilder {
 	const embed = new EmbedBuilder()
 		.setTitle(title)
-		.setColor(color as `#${string}`)
+		.setColor(color)
 		.setTimestamp();
 
 	if (description) {
@@ -141,4 +143,3 @@ export function createCustomEmbed(title: string, description?: string, color: st
 
 	return embed;
 }
-

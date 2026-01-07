@@ -1,12 +1,10 @@
 # Cogworks Bot Commands
 
-🚧 IMPORTANT: This document is still under construction and review, and may contain false or not up-to-date information.
-
-**Last Updated:** October 29, 2025
+**Last Updated:** January 5, 2026
 
 Complete command reference for all bot systems.
 
-## 🔧 Bot Setup & Configuration
+## Bot Setup & Configuration
 
 ### Comprehensive Setup Wizard
 **`/bot-setup`**
@@ -47,7 +45,7 @@ Complete command reference for all bot systems.
 - **Complete setup**: Allows updating of existing configurations
 - **Custom welcome message**: Shows which systems are already configured
 
-## 🎫 Ticket System
+## Ticket System
 
 ### Ticket Setup
 **`/ticket-setup channel [channel]`**
@@ -69,7 +67,50 @@ Complete command reference for all bot systems.
 **`/ticket-reply bapple deny`**
 - Deny a ban appeal ticket
 
-## 📢 Announcement System
+### Custom Ticket Types
+**`/ticket type-add`**
+- Create a custom ticket type with modal form
+- Configure: Type ID, Display Name, Emoji, Color, Description
+
+**`/ticket type-edit [type]`**
+- Edit an existing custom ticket type
+- `type` - The ticket type to edit
+
+**`/ticket type-list`**
+- List all custom ticket types for the server
+
+**`/ticket type-toggle [type]`**
+- Activate or deactivate a ticket type
+- `type` - The ticket type to toggle
+
+**`/ticket type-default [type]`**
+- Set the default ticket type for new tickets
+- `type` - The ticket type to set as default
+
+**`/ticket type-remove [type]`**
+- Delete a custom ticket type
+- `type` - The ticket type to delete
+
+**`/ticket type-fields [type]`**
+- Configure custom input fields for a ticket type
+- Add up to 5 custom fields per type
+- Configure: Field ID, Label, Style (short/paragraph), Placeholder, Required, Min/Max Length
+
+**`/ticket user-restrict [user] [type]`**
+- Manage user restrictions for ticket types
+- Restrict specific users from creating certain ticket types
+- `user` - The user to manage restrictions for
+- `type` - Optional: specific type to toggle (opens configurator if not specified)
+
+**`/ticket email-import`**
+- Import a ticket from an email
+- Opens modal to enter: Sender Email, Sender Name, Subject, Body, Attachment URLs
+
+### Ticket Channel Naming
+Ticket channels are named using the format: `{id}-{type}-{username}`
+Example: `123-ban-appeal-johndoe`
+
+## Announcement System
 
 ### Announcement Setup
 **`/announcement-setup minecraft-role:[role] default-channel:[channel]`**
@@ -96,7 +137,7 @@ Complete command reference for all bot systems.
 
 All announcements display a preview before sending with Send/Cancel buttons.
 
-## 📝 Application System
+## Application System
 
 ### Application Setup
 **`/application-setup position-name:[name] questions:[q1|q2|q3...]`**
@@ -107,7 +148,7 @@ All announcements display a preview before sending with Send/Cancel buttons.
 ### Application Management
 Applications are submitted via modal forms and stored in the database.
 
-## 👥 Role Management
+## Role Management
 
 ### Adding Roles
 **`/add-role admin [role_id] [alias]`**
@@ -133,7 +174,7 @@ Applications are submitted via modal forms and stored in the database.
 **`/get-roles`**
 - Display all configured admin and staff roles with their aliases
 
-## 🎣 Bait Channel System
+## Bait Channel System
 
 ### Basic Setup (via `/bot-setup`)
 The bait channel system can be configured through the main setup wizard with basic settings:
@@ -157,10 +198,11 @@ The bait channel system can be configured through the main setup wizard with bas
   - `min_membership` - Minimum server membership in minutes (0-1440)
   - `min_messages` - Minimum message count (0-100)
   - `require_verification` - Require verification role
+  - `disable_admin_whitelist` - Disable automatic admin whitelist (for testing)
 
-**`/baitchannel whitelist action:[add|remove] role:[role] user:[user]`**
+**`/baitchannel whitelist action:[add|remove|list] role:[role] user:[user]`**
 - Manage whitelist for trusted users/roles
-- `action` - Add or remove from whitelist
+- `action` - Add, remove, or list whitelist entries
 - `role` - Role to whitelist (optional)
 - `user` - User to whitelist (optional)
 
@@ -179,25 +221,30 @@ The bait channel system can be configured through the main setup wizard with bas
 1. Create a hidden text channel with no permissions for @everyone
 2. Configure it as the bait channel
 3. Automated bots often try to access all visible channels
-4. When someone joins the bait channel, they're flagged
+4. When someone posts in the bait channel, they're flagged
 5. System takes configured action (ban/kick/log)
 6. All detections are logged with timestamps and user info
 
 ### Security Features
 - **Smart Detection**: Filter by account age, server membership, message count
 - **Whitelist System**: Protect trusted users and roles
-- **Grace Period**: Give users time to leave before action
+- **Auto-Protected Users**: Server owner and administrators are automatically protected
+- **Grace Period**: Give users time to delete their message before action
+- **Suspicion Scoring**: 7 detection flags contribute to a suspicion score (0-100)
 - **Detailed Logging**: Track all detections with full context
 - **Statistics**: Monitor bot activity over time
 
-### Bait Channel Management
-**Previously listed as:**
-- `/bait-channel-setup` - Use `/baitchannel setup` instead
-- `/bait-channel-disable` - Use `/baitchannel toggle` instead
-- `/bait-channel-add-score` - Deprecated (not part of anti-bot system)
-- `/bait-channel-leaderboard` - Deprecated (not part of anti-bot system)
+### Detection Flags
+The system analyzes multiple factors to calculate a suspicion score:
+1. **New Account** - Account created recently
+2. **New Member** - Just joined the server
+3. **No Messages** - Low message count in server
+4. **No Verification** - Missing verification role
+5. **Suspicious Content** - Common spam keywords detected
+6. **Link Spam** - Contains multiple links
+7. **Mention Spam** - Excessive mentions
 
-## 📊 System Information
+## System Information
 
 ### Data Export (GDPR Compliance)
 **`/data-export`**
@@ -208,9 +255,11 @@ The bait channel system can be configured through the main setup wizard with bas
 - **Includes**:
   - Bot configuration
   - Ticket configuration and active tickets
+  - Custom ticket types and fields
+  - User ticket restrictions
   - Application configuration and active applications
   - Announcement settings
-  - Bait channel configuration
+  - Bait channel configuration and logs
   - Saved roles (admin/staff)
   - Archived tickets and applications
 
@@ -226,14 +275,7 @@ All commands use centralized error handling with:
 - Automatic error logging
 - Structured error codes (`VALIDATION_FAILED`, `DATABASE_ERROR`, `API_ERROR`, `PERMISSION_DENIED`, `NOT_FOUND`)
 
-### API Integration
-Commands that interact with NindroidSystems API include:
-- Automatic retry logic
-- Configurable timeouts
-- Request/response logging
-- User tracking for all API calls
-
-## 🔒 Security Features
+## Security Features
 
 ### Rate Limiting
 All commands are protected with rate limiting:
@@ -250,7 +292,7 @@ All commands are protected with rate limiting:
 - Admin/staff role validation
 - Server owner bypass for critical commands
 
-## 🔑 Permission Levels
+## Permission Levels
 
 | Level | Access |
 |-------|--------|

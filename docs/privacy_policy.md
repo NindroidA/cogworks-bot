@@ -1,6 +1,6 @@
 # Privacy Policy for Cogworks Bot
 
-**Last Updated:** October 27, 2025
+**Last Updated:** January 5, 2026
 
 ## 1. Introduction
 
@@ -26,9 +26,12 @@ When you interact with the Bot, we automatically collect:
 Information you explicitly provide through:
 
 - **Ticket Submissions**: Messages and content within ticket channels
+- **Custom Ticket Types**: Type configurations, custom fields, and display settings
+- **Email Imports**: Email content imported as tickets (sender, subject, body, attachments)
 - **Application Forms**: Responses to custom application questions
 - **Command Interactions**: Parameters and options provided to commands
 - **Configuration Settings**: Server-specific setup preferences
+- **User Restrictions**: Per-user ticket type access restrictions
 
 ## 3. How We Use Your Information
 
@@ -39,7 +42,10 @@ We use collected information for the following purposes:
 - **Announcement Distribution**: Sending server announcements with proper mentions
 - **Application Processing**: Managing and reviewing user-submitted applications
 - **Role Management**: Configuring and maintaining permission-based access
-- **Bait Channel Tracking**: Monitoring user activity for designated channels
+- **Bait Channel Anti-Bot System**: Detection and removal of automated bots
+  - Detection flags and suspicion scores (account age, membership duration, message count)
+  - Action logging (ban, kick, log-only)
+  - Whitelist management for roles and users
 
 ### 3.2 System Operations
 - **Error Logging**: Diagnosing and fixing technical issues
@@ -69,8 +75,10 @@ We use collected information for the following purposes:
 ### 4.3 Data Retention
 - **Active Tickets**: Retained until closed and archived
 - **Archived Tickets**: Retained indefinitely for record-keeping
+- **Custom Ticket Types**: Retained while Bot is active in server
+- **User Restrictions**: Retained while Bot is active in server
 - **Applications**: Retained until reviewed and processed
-- **Activity Logs**: Retained for leaderboard purposes
+- **Bait Channel Logs**: Detection events retained for statistics and auditing
 - **Configuration Data**: Retained while Bot is active in server
 - **Error Logs**: Retained for debugging purposes (personally identifiable information removed)
 

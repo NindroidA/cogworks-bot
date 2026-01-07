@@ -1,6 +1,6 @@
 # Terms of Service for Cogworks Bot
 
-**Last Updated:** October 27, 2025
+**Last Updated:** January 5, 2026
 
 ## 1. Acceptance of Terms
 
@@ -13,10 +13,16 @@ These Terms apply to all users, administrators, and server owners who interact w
 Cogworks Bot provides the following features and services:
 
 - **Ticket System**: Support ticket creation, management, and archival
+  - Custom ticket types with configurable fields
+  - Email import for creating tickets from external sources
+  - User restrictions for per-type access control
 - **Announcement System**: Server announcements with rich embeds and previews
 - **Application System**: Custom application forms and processing
 - **Role Management**: Permission-based access control and role configuration
-- **Bait Channel Tracking**: User activity monitoring and leaderboards
+- **Bait Channel Anti-Bot System**: Automated bot detection and removal
+  - Smart detection with suspicion scoring
+  - Configurable actions (ban, kick, log-only)
+  - Whitelist management for trusted users and roles
 - **Archive Migration**: Transcript storage and database management
 - **API Integration**: NindroidSystems service connectivity
 

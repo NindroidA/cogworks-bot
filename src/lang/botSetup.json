@@ -1,6 +1,6 @@
 {
     "cmdDescrp": "Sets up the bot for your server",
-    
+
     "errors": {
         "general": "Error during bot setup. Please try again or contact support.",
         "timeout": "Setup wizard timed out. Please run /bot-setup again.",
@@ -24,153 +24,153 @@
         "savingRoles": "Error saving roles: ",
         "roleAddError": "An error occurred while saving roles. Please try again."
     },
-    
+
     "rateLimit": {
-        "exceeded": "⏱️ Bot setup is being modified too frequently. Please try again in {minutes} minutes."
+        "exceeded": "Bot setup is being modified too frequently. Please try again in {minutes} minutes."
     },
-    
+
     "welcome": {
-        "title": "🎉 Welcome to Cogworks Bot Setup",
-        "description": "**Thank you for choosing Cogworks Bot!**\n\nThis wizard will guide you through the complete setup process.\n\n📋 **What we'll configure:**\n• Global Staff Role (optional)\n• Ticket System (optional)\n• Application System (optional)\n• Announcement System (optional)\n• Bait Channel (Anti-Bot) (optional)\n• Staff & Admin Roles (optional)\n\n⏱️ **Estimated time:** 5-10 minutes\n💡 **Tip:** You can skip any optional steps and configure them later!",
-        "gettingStarted": "📍 Getting Started",
+        "title": "Welcome to Cogworks Bot Setup",
+        "description": "**Thank you for choosing Cogworks Bot!**\n\nThis wizard will guide you through the complete setup process.\n\n**What we'll configure:**\n• Global Staff Role (optional)\n• Ticket System (optional)\n• Application System (optional)\n• Announcement System (optional)\n• Bait Channel (Anti-Bot) (optional)\n• Staff & Admin Roles (optional)\n\n**Estimated time:** 5-10 minutes\n**Tip:** You can skip any optional steps and configure them later!",
+        "gettingStarted": "Getting Started",
         "clickToStart": "Click **Start Setup** to begin configuring your bot!",
-        "continueTitle": "🎉 Continue Bot Setup",
+        "continueTitle": "Continue Bot Setup",
         "continueDescription": "**Some systems are already configured!**\n\nThis wizard will help you set up any missing systems.",
-        "alreadyConfigured": "✅ **Already configured:**",
-        "toBeConfigured": "📋 **What we'll configure:**",
+        "alreadyConfigured": "**Already configured:**",
+        "toBeConfigured": "**What we'll configure:**",
         "continueCTA": "Click **Continue Setup** to configure the remaining systems!",
-        "systemConfiguredSkip": "💡 **Tip:** Already configured systems will be automatically skipped!"
+        "systemConfiguredSkip": "**Tip:** Already configured systems will be automatically skipped!"
     },
-    
+
     "staffRole": {
-        "title": "👥 Global Staff Role Configuration",
-        "description": "**What is a Global Staff Role?**\nThis role grants members access to:\n• View and respond to all tickets\n• Manage bot configurations\n• Access administrative features\n\n**Important Notes:**\n⚠️ This is optional - you can skip this step\n✅ You can change this role later\n📝 Multiple staff/admin roles can be added separately",
-        "step": "📍 Step 2 of 3",
+        "title": "Global Staff Role Configuration",
+        "description": "**What is a Global Staff Role?**\nThis role grants members access to:\n• View and respond to all tickets\n• Manage bot configurations\n• Access administrative features\n\n**Important Notes:**\nThis is optional - you can skip this step\nYou can change this role later\nMultiple staff/admin roles can be added separately",
+        "step": "Step 2 of 3",
         "question": "Would you like to enable a Global Staff Role?",
-        "selectTitle": "🔍 Select Staff Role",
-        "selectDescription": "**Please select the role from the dropdown below:**\n\n💡 **Tip:** Choose a role that your staff members already have.\n⚠️ Make sure the role exists and is not @everyone",
-        "selectPlaceholder": "🔍 Choose a staff role...",
+        "selectTitle": "Select Staff Role",
+        "selectDescription": "**Please select the role from the dropdown below:**\n\n**Tip:** Choose a role that your staff members already have.\nMake sure the role exists and is not @everyone",
+        "selectPlaceholder": "Choose a staff role...",
         "selectStep": "Select a role from the menu below"
     },
-    
+
     "ticket": {
-        "title": "🎫 Ticket System Setup",
+        "title": "Ticket System Setup",
         "description": "**Would you like to configure the ticket system?**\n\nThe ticket system allows users to create private support tickets.\n\n**This includes:**\n• Main ticket channel (where users click to create tickets)\n• Ticket category (where active tickets are created)\n• Archive forum (where closed tickets are stored)\n\n**You can skip this and set it up later with `/ticket-setup`**",
-        "channelSelectTitle": "🎫 Select Ticket Channel",
+        "channelSelectTitle": "Select Ticket Channel",
         "channelSelectDescription": "Select the text channel where users will create tickets.\n\nThis channel will have a \"Create Ticket\" button message.",
         "channelSelectPlaceholder": "Select ticket channel",
-        "categorySelectTitle": "📂 Select Ticket Category",
+        "categorySelectTitle": "Select Ticket Category",
         "categorySelectDescription": "Select the category where active tickets will be created.\n\nEach ticket will be a private channel in this category.",
         "categorySelectPlaceholder": "Select ticket category",
-        "archiveSelectTitle": "🗃️ Select Archive Forum",
+        "archiveSelectTitle": "Select Archive Forum",
         "archiveSelectDescription": "Select the forum channel where closed tickets will be archived.\n\nEach closed ticket will create a thread in this forum.",
         "archiveSelectPlaceholder": "Select archive forum",
         "archiveMsg": "Ticket archives will be posted here. Do not delete this thread."
     },
-    
+
     "application": {
-        "title": "📝 Application System Setup",
+        "title": "Application System Setup",
         "description": "**Would you like to configure the application system?**\n\nThe application system allows users to submit applications.\n\n**This includes:**\n• Main application channel (where users click to apply)\n• Application category (where active applications are created)\n• Archive forum (where closed applications are stored)\n\n**You can skip this and set it up later with `/application-setup`**",
-        "channelSelectTitle": "📝 Select Application Channel",
+        "channelSelectTitle": "Select Application Channel",
         "channelSelectDescription": "Select the text channel where users will submit applications.\n\nThis channel will have an \"Apply\" button message.",
         "channelSelectPlaceholder": "Select application channel",
-        "categorySelectTitle": "📂 Select Application Category",
+        "categorySelectTitle": "Select Application Category",
         "categorySelectDescription": "Select the category where active applications will be created.\n\nEach application will be a private channel in this category.",
         "categorySelectPlaceholder": "Select application category",
-        "archiveSelectTitle": "🗃️ Select Archive Forum",
+        "archiveSelectTitle": "Select Archive Forum",
         "archiveSelectDescription": "Select the forum channel where closed applications will be archived.\n\nEach closed application will create a thread in this forum.",
         "archiveSelectPlaceholder": "Select archive forum",
         "buttonMsg": "Click the button below to submit an application!",
         "archiveMsg": "Application archives will be posted here. Do not delete this thread."
     },
-    
+
     "announcement": {
-        "title": "📢 Announcement System Setup",
+        "title": "Announcement System Setup",
         "description": "**Would you like to configure the announcement system?**\n\nThe announcement system allows you to send announcements with role pings.\n\n**This includes:**\n• Minecraft role (for Minecraft announcements)\n• Default announcement channel\n\n**You can skip this and set it up later with `/announcement-setup`**",
-        "roleSelectTitle": "🎮 Select Minecraft Role",
+        "roleSelectTitle": "Select Minecraft Role",
         "roleSelectDescription": "Select the role that will be pinged for Minecraft announcements.\n\nThis is typically your Minecraft player role.",
         "roleSelectPlaceholder": "Select Minecraft role",
-        "channelSelectTitle": "📢 Select Default Announcement Channel",
+        "channelSelectTitle": "Select Default Announcement Channel",
         "channelSelectDescription": "Select the text channel where announcements will be sent by default.\n\nYou can override this per announcement.",
         "channelSelectPlaceholder": "Select announcement channel"
     },
-    
+
     "baitChannel": {
-        "title": "🪤 Bait Channel (Anti-Bot) Setup",
+        "title": "Bait Channel (Anti-Bot) Setup",
         "description": "**Would you like to configure the bait channel system?**\n\nThe bait channel system helps detect and remove bots automatically.\n\n**This includes:**\n• Bait channel (monitored for bot activity)\n• Action type (kick, ban, or timeout)\n• Grace period (time before action is taken)\n• Log channel (optional, for logging detections)\n\n**You can skip this and set it up later with `/bait-channel-setup`**",
-        "channelSelectTitle": "🪤 Select Bait Channel",
-        "channelSelectDescription": "Select the text channel to use as a bait channel.\n\n⚠️ **Warning:** Any messages in this channel may trigger security actions!",
+        "channelSelectTitle": "Select Bait Channel",
+        "channelSelectDescription": "Select the text channel to use as a bait channel.\n\n**Warning:** Any messages in this channel may trigger security actions!",
         "channelSelectPlaceholder": "Select bait channel",
-        "actionSelectTitle": "⚙️ Select Action Type",
+        "actionSelectTitle": "Select Action Type",
         "actionSelectDescription": "Choose what action to take when a bot is detected:\n\n• **Kick:** Remove the user from the server\n• **Ban:** Permanently ban the user\n• **Timeout:** Temporarily mute the user",
         "actionSelectPlaceholder": "Select action type",
-        "gracePeriodTitle": "⏱️ Select Grace Period",
+        "gracePeriodTitle": "Select Grace Period",
         "gracePeriodDescription": "Choose how long to wait before taking action:\n\n• Longer grace periods reduce false positives\n• Shorter grace periods act faster on bots",
         "gracePeriodPlaceholder": "Select grace period",
-        "logChannelTitle": "📋 Select Log Channel (Optional)",
-        "logChannelDescription": "Select a channel where bot detections will be logged.\n\n💡 **This is optional** - click Skip if you don't want logging.",
+        "logChannelTitle": "Select Log Channel (Optional)",
+        "logChannelDescription": "Select a channel where bot detections will be logged.\n\n**This is optional** - click Skip if you don't want logging.",
         "logChannelPlaceholder": "Select log channel",
-        "setupEmbedTitle": "🪤 Bait Channel Active",
+        "setupEmbedTitle": "Bait Channel Active",
         "setupEmbedDescription": "This channel is now monitored by the anti-bot system.",
-        "setupEmbedConfig": "⚙️ Configuration",
+        "setupEmbedConfig": "Configuration",
         "setupEmbedConfigValue": "**Action:** {actionType}\n**Grace Period:** {gracePeriod}s\n**Smart Detection:** Enabled",
-        "setupEmbedWarning": "⚠️ Warning",
+        "setupEmbedWarning": "Warning",
         "setupEmbedWarningValue": "Regular users should **NOT** post in this channel. Any messages here may trigger security actions."
     },
-    
+
     "role": {
-        "title": "🎭 Role Management Setup",
+        "title": "Role Management Setup",
         "description": "**Would you like to add staff or admin roles?**\n\nThese roles can be used throughout the bot for permissions.\n\n**Role types:**\n• **Staff Roles:** For support team members\n• **Admin Roles:** For administrators\n\n**You can skip this and add roles later with `/add-role`**",
-        "typeSelectTitle": "🎯 Select Role Type",
+        "typeSelectTitle": "Select Role Type",
         "typeSelectDescription": "Choose whether this is a staff role or admin role:\n\n• **Staff:** For support/moderator roles\n• **Admin:** For administrator roles",
         "typeSelectPlaceholder": "Select role type",
-        "selectTitle": "🎭 Select {roleType} Role",
+        "selectTitle": "Select {roleType} Role",
         "selectDescription": "Select the role from the dropdown below.\n\nYou can add an optional alias in the next step.",
         "selectPlaceholder": "Select {roleType} role",
         "aliasModalTitle": "Role Alias (Optional)",
         "aliasLabel": "Alias for this role (optional)",
         "aliasPlaceholder": "e.g., Moderator, Helper, etc.",
-        "addMoreTitle": "➕ Add More Roles?",
+        "addMoreTitle": "Add More Roles?",
         "addMoreDescription": "**Current roles:**\n{roleList}\n\nWould you like to add more roles?",
         "addMoreRoleItem": "• {type}: {role}{alias}"
     },
-    
+
     "update": {
-        "title": "🔧 Bot Configuration Manager",
+        "title": "Bot Configuration Manager",
         "currentConfig": "**Current Configuration:**",
-        "staffRoleConfigured": "✅ **Global Staff Role**: {role}",
-        "staffRoleNotConfigured": "❌ **Global Staff Role**: Not configured",
-        "ticketConfigured": "✅ **Ticket System**: Configured",
-        "ticketNotConfigured": "❌ **Ticket System**: Not configured",
-        "applicationConfigured": "✅ **Application System**: Configured",
-        "applicationNotConfigured": "❌ **Application System**: Not configured",
-        "announcementConfigured": "✅ **Announcement System**: Configured",
-        "announcementNotConfigured": "❌ **Announcement System**: Not configured",
-        "baitChannelConfigured": "✅ **Bait Channel (Anti-Bot)**: Configured",
-        "baitChannelNotConfigured": "❌ **Bait Channel (Anti-Bot)**: Not configured",
+        "staffRoleConfigured": "**Global Staff Role**: {role}",
+        "staffRoleNotConfigured": "**Global Staff Role**: Not configured",
+        "ticketConfigured": "**Ticket System**: Configured",
+        "ticketNotConfigured": "**Ticket System**: Not configured",
+        "applicationConfigured": "**Application System**: Configured",
+        "applicationNotConfigured": "**Application System**: Not configured",
+        "announcementConfigured": "**Announcement System**: Configured",
+        "announcementNotConfigured": "**Announcement System**: Not configured",
+        "baitChannelConfigured": "**Bait Channel (Anti-Bot)**: Configured",
+        "baitChannelNotConfigured": "**Bait Channel (Anti-Bot)**: Not configured",
         "question": "**What would you like to do?**",
         "staffRoleUpdated": "Global Staff Role has been updated to {role}.",
         "staffRoleDisabled": "Global Staff Role has been disabled.",
         "configUpdated": "Configuration Updated"
     },
-    
+
     "summary": {
-        "title": "✅ Setup Complete!",
+        "title": "Setup Complete!",
         "description": "**Your bot has been configured successfully!**\n\nThe following settings have been saved:",
-        "alreadyConfigured": "✅ Already Configured",
-        "newlyConfigured": "🆕 Newly Configured",
-        "systemsConfigured": "🎯 Systems Configured",
-        "whatsNext": "🚀 What's Next?",
+        "alreadyConfigured": "Already Configured",
+        "newlyConfigured": "Newly Configured",
+        "systemsConfigured": "Systems Configured",
+        "whatsNext": "What's Next?",
         "whatsNextValue": "• Start using your configured systems\n• Customize further with individual commands\n• Run `/bot-setup` again anytime to update settings",
-        "footer": "💡 Need help? Check our documentation or contact support",
-        "globalStaffRole": "👥 Global Staff Role",
+        "footer": "Need help? Check our documentation or contact support",
+        "globalStaffRole": "Global Staff Role",
         "ticketSystem": "Ticket System",
         "applicationSystem": "Application System",
         "announcementSystem": "Announcement System",
         "baitChannelSystem": "Bait Channel (Anti-Bot)",
         "rolesAdded": "{count} Role(s)"
     },
-    
+
     "buttons": {
         "startSetup": "Start Setup",
         "continueSetup": "Continue Setup",
@@ -195,12 +195,12 @@
         "confirm": "Confirm & Save",
         "restart": "Start Over"
     },
-    
+
     "cancel": {
         "title": "Setup Cancelled",
         "message": "Bot setup has been cancelled. No changes were made. Run /bot-setup again anytime to configure your bot."
     },
-    
+
     "logs": {
         "couldNotPin": "Could not pin thread (max pins may be reached)",
         "baitChannelSaved": "Bait channel config saved: channelId={channelId}, enabled={enabled}",

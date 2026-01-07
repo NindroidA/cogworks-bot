@@ -16,48 +16,58 @@ jobs:
       - name: Extract and format changelog
         id: changelog
         run: |
-          # Extract the first changelog section (latest version)
+          # Extract version from first line
+          VERSION=$(head -1 CHANGELOG.md | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "Latest")
+
+          # Extract the first changelog section (between first and second "# Dev Update")
+          # Then format sections
           CHANGELOG=$(awk '
+            BEGIN { found=0; in_section=0; current_section="" }
+
+            # Start capturing at first "# Dev Update"
             /^# Dev Update/ {
               if (found) exit;
               found=1;
-              # Capture the version line but make it smaller (##)
-              print "## " substr($0, 3);
               next;
             }
-            found {
-              if (/^# Dev Update/) exit;
-              # Convert ## headers to ### (make subsections smaller)
-              if (/^## /) {
-                print "#" $0;
-                next;
-              }
-              # Convert ### headers to #### if they exist
-              if (/^### /) {
-                print "#" $0;
-                next;
-              }
-              print;
-            }
-          ' CHANGELOG.md)
-          
-          # Get version number
-          VERSION=$(head -1 CHANGELOG.md | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "Latest")
-          
-          # Truncate if too long (Discord limit is 2000 chars for message content)
-          REPO_URL="https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md"
-          if [ ${#CHANGELOG} -gt 1800 ]; then
-            CHANGELOG="${CHANGELOG:0:1800}
 
-            ...
-            [View full changelog](${REPO_URL})"
+            # Skip horizontal rules
+            /^---$/ { next }
+
+            # Capture section headers (Added, Fixed, etc.)
+            found && /^## / {
+              current_section = substr($0, 4);
+              in_section=1;
+              print "### " current_section;
+              next;
+            }
+
+            # Print content within sections
+            found && in_section { print }
+
+          ' CHANGELOG.md)
+
+          # Build the formatted message
+          REPO_URL="https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md"
+
+          # Create the full message using printf to handle special characters
+          HEADER="# Cogworks Bot ${VERSION}"
+          QUOTE="> Yippee! New working cogs!"
+          FOOTER="-# [View full changelog](${REPO_URL})"
+
+          MESSAGE=$(printf '%s\n\n%s\n\n%s\n---\n%s' "$HEADER" "$QUOTE" "$CHANGELOG" "$FOOTER")
+
+          # Truncate if too long (Discord limit is 2000 chars)
+          if [ ${#MESSAGE} -gt 1950 ]; then
+            TRUNCATED="${MESSAGE:0:1850}"
+            MESSAGE=$(printf '%s\n\n...\n\n---\n%s' "$TRUNCATED" "$FOOTER")
           fi
-          
-          # Set outputs
+
+          # Set outputs using heredoc for multiline content
           {
             echo "version=$VERSION"
             echo "content<<CHANGELOG_EOF"
-            echo "$CHANGELOG"
+            echo "$MESSAGE"
             echo "CHANGELOG_EOF"
           } >> $GITHUB_OUTPUT
 
@@ -65,15 +75,9 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           CHANGELOG_CONTENT: ${{ steps.changelog.outputs.content }}
-          REPO_NAME: ${{ github.repository }}
         run: |
           # Create JSON payload using jq with proper escaping
-          # This handles backticks and special characters safely
-          jq -n \
-            --arg header "# 📋 Cogworks Bot Update" \
-            --arg changelog "${CHANGELOG_CONTENT}" \
-            --arg footer "-# Repository: ${REPO_NAME}" \
-            '{content: ($header + "\n\n" + $changelog + "\n\n" + $footer)}' > payload.json
+          jq -n --arg content "${CHANGELOG_CONTENT}" '{content: $content}' > payload.json
 
           # Send to Discord
           curl -H "Content-Type: application/json" \

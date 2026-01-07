@@ -3,26 +3,29 @@ import {
     PermissionFlagsBits,
     SlashCommandBuilder
 } from 'discord.js';
+import { lang } from '../../utils';
+
+const tl = lang.baitChannel.builder;
 
 export const baitChannelCommand = new SlashCommandBuilder()
 	.setName('baitchannel')
-	.setDescription('Configure the bait channel anti-bot system')
+	.setDescription(tl.cmdDescrp)
 	.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 	.addSubcommand(subcommand =>
 		subcommand
 			.setName('setup')
-			.setDescription('Set up or update the bait channel configuration')
+			.setDescription(tl.setup.descrp)
 			.addChannelOption(option =>
 				option
 					.setName('channel')
-					.setDescription('The bait channel')
+					.setDescription(tl.setup.channel)
 					.addChannelTypes(ChannelType.GuildText)
 					.setRequired(true)
 			)
 			.addIntegerOption(option =>
 				option
 					.setName('grace_period')
-					.setDescription('Grace period in seconds (0 for instant action)')
+					.setDescription(tl.setup.gracePeriod)
 					.setMinValue(0)
 					.setMaxValue(60)
 					.setRequired(true)
@@ -30,98 +33,98 @@ export const baitChannelCommand = new SlashCommandBuilder()
 			.addStringOption(option =>
 				option
 					.setName('action')
-					.setDescription('Action to take')
+					.setDescription(tl.setup.action)
 					.addChoices(
-						{ name: 'Ban', value: 'ban' },
-						{ name: 'Kick', value: 'kick' },
-						{ name: 'Log Only (Testing)', value: 'log-only' }
+						{ name: tl.setup.actionBan, value: 'ban' },
+						{ name: tl.setup.actionKick, value: 'kick' },
+						{ name: tl.setup.actionLogOnly, value: 'log-only' }
 					)
 					.setRequired(true)
 			)
 			.addChannelOption(option =>
 				option
 					.setName('log_channel')
-					.setDescription('Channel for logging detections')
+					.setDescription(tl.setup.logChannel)
 					.addChannelTypes(ChannelType.GuildText)
 			)
 	)
 	.addSubcommand(subcommand =>
 		subcommand
 			.setName('detection')
-			.setDescription('Configure smart detection settings')
+			.setDescription(tl.detection.descrp)
 			.addBooleanOption(option =>
 				option
 					.setName('enabled')
-					.setDescription('Enable smart detection')
+					.setDescription(tl.detection.enabled)
 					.setRequired(true)
 			)
 			.addIntegerOption(option =>
 				option
 					.setName('min_account_age')
-					.setDescription('Minimum account age in days (default: 7)')
+					.setDescription(tl.detection.minAccountAge)
 					.setMinValue(0)
 					.setMaxValue(365)
 			)
 			.addIntegerOption(option =>
 				option
 					.setName('min_membership')
-					.setDescription('Minimum server membership in minutes (default: 5)')
+					.setDescription(tl.detection.minMembership)
 					.setMinValue(0)
 					.setMaxValue(1440)
 			)
 			.addIntegerOption(option =>
 				option
 					.setName('min_messages')
-					.setDescription('Minimum message count (default: 0)')
+					.setDescription(tl.detection.minMessages)
 					.setMinValue(0)
 					.setMaxValue(100)
 			)
 			.addBooleanOption(option =>
 				option
 					.setName('require_verification')
-					.setDescription('Require verification role')
+					.setDescription(tl.detection.requireVerification)
 			)
 			.addBooleanOption(option =>
 				option
 					.setName('disable_admin_whitelist')
-					.setDescription('Disable automatic admin whitelist (for testing)')
+					.setDescription(tl.detection.disableAdminWhitelist)
 			)
 	)
 	.addSubcommand(subcommand =>
 		subcommand
 			.setName('whitelist')
-			.setDescription('Manage whitelist')
+			.setDescription(tl.whitelist.descrp)
 			.addStringOption(option =>
 				option
 					.setName('action')
-					.setDescription('Add, remove, or list whitelist')
+					.setDescription(tl.whitelist.action)
 					.addChoices(
-						{ name: 'Add', value: 'add' },
-						{ name: 'Remove', value: 'remove' },
-						{ name: 'List', value: 'list' }
+						{ name: tl.whitelist.actionAdd, value: 'add' },
+						{ name: tl.whitelist.actionRemove, value: 'remove' },
+						{ name: tl.whitelist.actionList, value: 'list' }
 					)
 					.setRequired(true)
 			)
 			.addRoleOption(option =>
-				option.setName('role').setDescription('Role to whitelist')
+				option.setName('role').setDescription(tl.whitelist.role)
 			)
 			.addUserOption(option =>
-				option.setName('user').setDescription('User to whitelist')
+				option.setName('user').setDescription(tl.whitelist.user)
 			)
 	)
 	.addSubcommand(subcommand =>
 		subcommand
 			.setName('status')
-			.setDescription('View current configuration and statistics')
+			.setDescription(tl.status.descrp)
 	)
 	.addSubcommand(subcommand =>
 		subcommand
 			.setName('stats')
-			.setDescription('View detailed statistics')
+			.setDescription(tl.stats.descrp)
 			.addIntegerOption(option =>
 				option
 					.setName('days')
-					.setDescription('Number of days to analyze (default: 7)')
+					.setDescription(tl.stats.days)
 					.setMinValue(1)
 					.setMaxValue(90)
 			)
@@ -129,11 +132,11 @@ export const baitChannelCommand = new SlashCommandBuilder()
 	.addSubcommand(subcommand =>
 		subcommand
 			.setName('toggle')
-			.setDescription('Enable or disable the bait channel')
+			.setDescription(tl.toggle.descrp)
 			.addBooleanOption(option =>
 				option
 					.setName('enabled')
-					.setDescription('Enable or disable')
+					.setDescription(tl.toggle.enabled)
 					.setRequired(true)
 			)
 	);

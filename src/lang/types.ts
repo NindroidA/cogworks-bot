@@ -10,6 +10,45 @@ export interface LangGeneral {
     channelNotFound: string;
     cmdTicketNotFound: string;
     cmdGuildNotFound: string;
+    welcome: {
+        title: string;
+        description: string;
+        features: {
+            title: string;
+            value: string;
+        };
+        quickStart: {
+            title: string;
+            value: string;
+        };
+        commands: {
+            title: string;
+            value: string;
+        };
+        privacy: {
+            title: string;
+            value: string;
+        };
+        needHelp: {
+            title: string;
+            value: string;
+        };
+        footer: string;
+    };
+    buttons: {
+        cancel: string;
+        done: string;
+        confirm: string;
+        delete: string;
+        cancelSetup: string;
+        addAnother: string;
+        addAnotherRole: string;
+        save: string;
+        edit: string;
+        preview: string;
+        yes: string;
+        no: string;
+    };
 }
 
 export interface LangMain {
@@ -664,6 +703,48 @@ export interface LangBaitChannel {
 	notConfigured: string;
 	setupFirst: string;
 	specifyRoleOrUser: string;
+	builder: {
+		cmdDescrp: string;
+		setup: {
+			descrp: string;
+			channel: string;
+			gracePeriod: string;
+			action: string;
+			actionBan: string;
+			actionKick: string;
+			actionLogOnly: string;
+			logChannel: string;
+		};
+		detection: {
+			descrp: string;
+			enabled: string;
+			minAccountAge: string;
+			minMembership: string;
+			minMessages: string;
+			requireVerification: string;
+			disableAdminWhitelist: string;
+		};
+		whitelist: {
+			descrp: string;
+			action: string;
+			actionAdd: string;
+			actionRemove: string;
+			actionList: string;
+			role: string;
+			user: string;
+		};
+		status: {
+			descrp: string;
+		};
+		stats: {
+			descrp: string;
+			days: string;
+		};
+		toggle: {
+			descrp: string;
+			enabled: string;
+		};
+	};
 	status: {
 		title: string;
 		statusEnabled: string;
@@ -737,6 +818,7 @@ export interface LangBaitChannel {
 }
 
 export interface LangDataExport {
+	cmdDescrp: string;
 	guildOnly: string;
 	exportTitle: string;
 	exportDescription: string;
@@ -763,6 +845,25 @@ export interface LangErrors {
 }
 
 export interface LangDev {
+	builder: {
+		cmdDescrp: string;
+		bulkCloseTickets: string;
+		deleteArchivedTicket: {
+			descrp: string;
+			user: string;
+		};
+		deleteAllArchivedTickets: string;
+		deleteArchivedApplication: {
+			descrp: string;
+			user: string;
+		};
+		deleteAllArchivedApplications: string;
+	};
+	migrate: {
+		cmdDescrp: string;
+		ticketTags: string;
+		applicationTags: string;
+	};
 	bulkCloseTickets: {
 		noTickets: string;
 		complete: string;

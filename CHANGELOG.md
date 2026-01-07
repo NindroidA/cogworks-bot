@@ -1,3 +1,75 @@
+# Dev Update v2.4.8
+
+## Added
+- **Centralized Emoji System**: New emoji configuration for consistent message styling
+  - All emojis now use centralized `Emoji` constants (`src/utils/emojis.ts`)
+  - Shorthand access via `E.*` (e.g., `E.ok`, `E.error`, `E.warn`)
+  - Wrapper functions via `em.*` (e.g., `em.success(text)`, `em.error(text)`)
+  - `emLANGF()` helper for combining emojis with formatted template strings
+
+## Changed
+- Migrated lang strings to emoji-free text
+- Improved emoji consistency across all messages and embeds
+
+---
+
+# Dev Update v2.4.7
+
+## Changed
+- **Documentation Updates**: Comprehensive update to all documentation files
+  - Updated `commands.md` with custom ticket types and new features
+  - Updated `admin_guide.md` with configuration guides and auto-protected users
+  - Updated `privacy_policy.md` with data handling information
+  - Updated `terms_of_service.md` with current feature list
+  - All dates updated to January 5, 2026
+
+---
+
+# Dev Update v2.4.6
+
+## Added
+- **Centralized Color System**: New color configuration for consistent embed styling
+  - All embed colors now use centralized `Colors` constants
+  - Semantic color naming by category (status, severity, moderation, bait, ticket, etc.)
+  - Helper function `getColor()` for dynamic color access
+
+## Changed
+- Improved color consistency across all embeds
+
+---
+
+# Dev Update v2.4.5
+
+## Changed
+- **Complete Lang System Migration**: Migrated all hardcoded strings to centralized lang system
+  - Command builders now use lang entries for descriptions
+  - Welcome embed fully localized (`lang.general.welcome`)
+  - Centralized button labels (`lang.general.buttons`)
+  - Bait channel builder strings migrated
+  - Dev and migrate command strings migrated
+  - ~150+ strings migrated for future i18n support
+
+---
+
+# Dev Update v2.4.4
+
+## Changed
+- **Discord Changelog Webhook**: Improved markdown formatting in GitHub Actions workflow
+  - Clean header with version number
+  - Quote line for announcement style
+  - Section headers (Added, Fixed, Changed, Removed)
+  - Better spacing and readability
+  - Small-text footer with GitHub link
+
+---
+
+# Dev Update v2.4.3
+
+## Fixed
+- **Lang System Cleanup**: Went through and removed unwanted emojis
+
+---
+
 # Dev Update v2.4.2
 
 ## Fixed

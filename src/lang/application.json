@@ -1,6 +1,6 @@
 {
     "error": "Could not create create application!",
-    "failCreate": "❌ Could not create application! Please try again.",
+    "failCreate": "Could not create application! Please try again.",
     "applicationConfigNotFound": "Application Config does not exist!",
     "applicationCategoryNotFound": "Application Category does not exist!",
     "archiveApplicationConfigNotFound": "Archived Application Config does not exist!",
@@ -34,7 +34,7 @@
         "fail": "Failed to setup the Application Category Channel!"
     },
     "close": {
-        "confirm": "⚠️ Are you sure you want to close this application?",
+        "confirm": "Are you sure you want to close this application?",
         "closing": "Closing application...",
         "closingL": "Confirm Close",
         "cancel": "Application close cancelled",
@@ -66,10 +66,10 @@
             "list": "List all positions",
             "refresh": "Refresh the application channel message"
         },
-        "notAvailable": "❌ This position is no longer available.",
+        "notAvailable": "This position is no longer available.",
         "ageVerifyYes": "Yes, I'm 18+",
         "ageVerifyNo": "No, I'm under 18",
-        "ageVerifyNoReply": "🚫 **Sorry!** You must be 18 or older to apply for this position. Please try again when you meet the age requirement.",
+        "ageVerifyNoReply": "**Sorry!** You must be 18 or older to apply for this position. Please try again when you meet the age requirement.",
         "modal": {
             "name": "Name",
             "experience": "Relevant Experience",
@@ -81,18 +81,18 @@
             "availability": "Availability",
             "availabilityP": "When are you available to work?"
         },
-        "noneFound": "📋 No positions found.",
-        "noneAvailable": "## 🔒 No positions are currently available.",
-        "available": "# 📋 Available Positions:\n\n",
-        "templateNotFound": "❌ Template not found. Available templates: set_builder",
-        "provideEither": "❌ Please provide either a template or both title and description.",
-        "notFound": "❌ Position not found.",
-        "failAdd": "❌ Failed to add position.",
-        "failRemove": "❌ Failed to remove position.",
-        "failToggle": "❌ Failed to toggle position.",
-        "failList": "❌ Failed to list positions.",
-        "failRefresh": "❌ Failed to refresh application message. Make sure the application channel is set up properly.",
-        "failUpdate": "❌ Failed to update application message.",
-        "successRefresh": "✅ Application channel message has been refreshed!"
+        "noneFound": "No positions found.",
+        "noneAvailable": "## No positions are currently available.",
+        "available": "# Available Positions:\n\n",
+        "templateNotFound": "Template not found. Available templates: set_builder",
+        "provideEither": "Please provide either a template or both title and description.",
+        "notFound": "Position not found.",
+        "failAdd": "Failed to add position.",
+        "failRemove": "Failed to remove position.",
+        "failToggle": "Failed to toggle position.",
+        "failList": "Failed to list positions.",
+        "failRefresh": "Failed to refresh application message. Make sure the application channel is set up properly.",
+        "failUpdate": "Failed to update application message.",
+        "successRefresh": "Application channel message has been refreshed!"
     }
 }

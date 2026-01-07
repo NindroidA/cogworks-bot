@@ -11,6 +11,7 @@ import { Repository } from 'typeorm';
 import { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
 import { BaitChannelLog } from '../typeorm/entities/BaitChannelLog';
 import { UserActivity } from '../typeorm/entities/UserActivity';
+import { Colors } from './colors';
 import { ErrorCategory, ErrorSeverity, logError } from './errorHandler';
 import { enhancedLogger, LogCategory } from './index';
 
@@ -299,8 +300,8 @@ export class BaitChannelManager {
 
 		// Build warning message with suspicion details
 		const warningEmbed = new EmbedBuilder()
-			.setColor('#FF0000')
-			.setTitle('❗️ URGENT WARNING')
+			.setColor(Colors.status.error)
+			.setTitle('URGENT WARNING')
 			.setDescription(config.warningMessage)
 			.addFields(
 				{ 
@@ -623,15 +624,15 @@ export class BaitChannelManager {
 			let color: ColorResolvable;
 
 			if (actionResult === 'failed') {
-				actionEmoji = '❌';
+				actionEmoji = '';
 				actionText = `${config.actionType === 'ban' ? 'Ban' : 'Kick'} FAILED`;
-				color = '#4A4A4A'; // Dark gray for failure
+				color = Colors.status.neutral; // Gray for failure
 			} else {
 				actionEmoji = {
-					'ban': '🔨',
-					'kick': '👢',
-					'log-only': '📝'
-				}[config.actionType] || '⚠️';
+					'ban': '',
+					'kick': '',
+					'log-only': ''
+				}[config.actionType] || '';
 
 				actionText = {
 					'ban': 'Banned',
@@ -639,9 +640,9 @@ export class BaitChannelManager {
 					'log-only': 'Logged (No action)'
 				}[config.actionType] || 'Action taken';
 
-				color = analysis.score >= 90 ? '#8B0000' :
-						analysis.score >= 70 ? '#FF0000' :
-						analysis.score >= 50 ? '#FFA500' : '#FFFF00';
+				color = analysis.score >= 90 ? Colors.severity.critical :
+						analysis.score >= 70 ? Colors.severity.high :
+						analysis.score >= 50 ? Colors.severity.medium : Colors.status.warning;
 			}
 
 			const description = actionResult === 'failed'
@@ -721,8 +722,8 @@ export class BaitChannelManager {
 			if (!logChannel) return;
 
 			const embed = new EmbedBuilder()
-				.setColor('#FFA500') // Amber/yellow for whitelisted
-				.setTitle('⚠️ Whitelisted User - Message Removed')
+				.setColor(Colors.bait.whitelisted)
+				.setTitle('Whitelisted User - Message Removed')
 				.setDescription(`**${member.user.tag}** posted in the bait channel but is whitelisted.\nMessage was removed but **no action was taken**.`)
 				.addFields(
 					{ name: '👤 User', value: `${member.user.tag}\n\`${member.id}\``, inline: true },

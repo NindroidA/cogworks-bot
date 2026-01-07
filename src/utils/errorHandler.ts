@@ -12,10 +12,14 @@
  * - Safe database operation wrapper
  */
 
-import { ButtonInteraction,
+import {
+    ButtonInteraction,
     ChatInputCommandInteraction,
     EmbedBuilder,
-    ModalSubmitInteraction, MessageFlags } from 'discord.js';
+    MessageFlags,
+    ModalSubmitInteraction
+} from 'discord.js';
+import { E } from './emojis';
 import { logger } from './index';
 
 // ============================================================================
@@ -26,7 +30,7 @@ import { logger } from './index';
  * Error severity levels
  */
 export enum ErrorSeverity {
-    /** Low severity - expected errors (e.g., validation failures) */
+    /** Low severity - expected errors */
     LOW = 'LOW',
     /** Medium severity - unexpected but recoverable errors */
     MEDIUM = 'MEDIUM',
@@ -82,13 +86,13 @@ export interface ErrorInfo {
  * User-friendly error messages based on category
  */
 const USER_ERROR_MESSAGES: Record<ErrorCategory, string> = {
-    [ErrorCategory.DATABASE]: '❌ Database error occurred. Please try again in a moment.',
-    [ErrorCategory.DISCORD_API]: '❌ Discord API error. The issue might be temporary, please try again.',
-    [ErrorCategory.PERMISSIONS]: '❌ Permission error. The bot may not have the required permissions.',
-    [ErrorCategory.VALIDATION]: '❌ Invalid input. Please check your command and try again.',
-    [ErrorCategory.CONFIGURATION]: '❌ Configuration error. Please contact an administrator.',
-    [ErrorCategory.EXTERNAL_API]: '❌ External service error. Please try again later.',
-    [ErrorCategory.UNKNOWN]: '❌ An unexpected error occurred. Please try again.'
+    [ErrorCategory.DATABASE]: `${E.error} Database error occurred. Please try again in a moment.`,
+    [ErrorCategory.DISCORD_API]: `${E.error} Discord API error. The issue might be temporary, please try again.`,
+    [ErrorCategory.PERMISSIONS]: `${E.error} Permission error. The bot may not have the required permissions.`,
+    [ErrorCategory.VALIDATION]: `${E.error} Invalid input. Please check your command and try again.`,
+    [ErrorCategory.CONFIGURATION]: `${E.error} Configuration error. Please contact an administrator.`,
+    [ErrorCategory.EXTERNAL_API]: `${E.error} External service error. Please try again later.`,
+    [ErrorCategory.UNKNOWN]: `${E.error} An unexpected error occurred. Please try again.`
 };
 
 /**
@@ -174,7 +178,7 @@ export function logError(errorInfo: ErrorInfo): void {
     // For critical errors, could send to monitoring service (Sentry, etc.)
     if (severity === ErrorSeverity.CRITICAL) {
         // TODO: Send to error monitoring service
-        logger('🚨 CRITICAL ERROR - Immediate attention required!', 'ERROR');
+        logger(`${E.alert} CRITICAL ERROR - Immediate attention required!`, 'ERROR');
     }
 }
 
@@ -186,7 +190,7 @@ export function createDetailedErrorEmbed(errorInfo: ErrorInfo): EmbedBuilder {
     const userMessage = USER_ERROR_MESSAGES[category];
 
     return new EmbedBuilder()
-        .setTitle('❌ Error')
+        .setTitle(`${E.error} Error`)
         .setDescription(userMessage)
         .setColor(0xFF0000) // Red
         .addFields({
@@ -287,7 +291,7 @@ export function withErrorHandling<T extends Array<unknown>>(
  */
 export function setupGlobalErrorHandlers(): void {
     process.on('unhandledRejection', (reason, promise) => {
-        logger('🚨 Unhandled Promise Rejection!', 'ERROR');
+        logger(`${E.alert} Unhandled Promise Rejection!`, 'ERROR');
         logError({
             category: ErrorCategory.UNKNOWN,
             severity: ErrorSeverity.HIGH,
@@ -300,7 +304,7 @@ export function setupGlobalErrorHandlers(): void {
     });
 
     process.on('uncaughtException', (error) => {
-        logger('🚨 Uncaught Exception!', 'ERROR');
+        logger(`${E.alert} Uncaught Exception!`, 'ERROR');
         logError({
             category: ErrorCategory.UNKNOWN,
             severity: ErrorSeverity.CRITICAL,

@@ -1,16 +1,19 @@
 import { SlashCommandBuilder } from 'discord.js';
+import { lang } from '../../utils';
+
+const tl = lang.dev.migrate;
 
 export const migrate = new SlashCommandBuilder()
     .setName('migrate')
-    .setDescription('[OWNER ONLY] Migrate and update existing data')
+    .setDescription(tl.cmdDescrp)
     .setDMPermission(false)
     .addSubcommand(subcommand =>
         subcommand
             .setName('ticket-tags')
-            .setDescription('Retroactively apply forum tags to existing archived tickets')
+            .setDescription(tl.ticketTags)
     )
     .addSubcommand(subcommand =>
         subcommand
             .setName('application-tags')
-            .setDescription('Retroactively apply forum tags to existing archived applications')
+            .setDescription(tl.applicationTags)
     );

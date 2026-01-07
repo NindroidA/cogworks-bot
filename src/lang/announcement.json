@@ -1,17 +1,17 @@
 {
     "cmdDescrp": "Sends a specialized server announcement.",
     "channel": "Channel to send announcement (optional).",
-    "invalidTime": "❌ Invalid time format. Please use: YYYY-MM-DD HH:MM (24-hour format, Central Time)\nExample: 2024-01-15 14:30",
+    "invalidTime": "Invalid time format. Please use: YYYY-MM-DD HH:MM (24-hour format, Central Time)\nExample: 2024-01-15 14:30",
     "setup": {
         "cmdDescrp": "Initializes and sets up the announcement module.",
         "mcRole": "The Minecraft role to ping in announcements",
         "defaultChannel": "Default channel for announcements",
-        "success": "✅ Announcement settings configured!",
+        "success": "Announcement settings configured!",
         "configured": "configured announcement settings for guild",
         "error": "Error configuring announcement settings: ",
-        "fail": "❌ Failed to configure announcement settings.",
-        "notConfigured": "❌ Announcement settings not configured. Please run `/announcement-setup` first.",
-        "invalidChannel": "❌ Invalid channel specified."
+        "fail": "Failed to configure announcement settings.",
+        "notConfigured": "Announcement settings not configured. Please run `/announcement-setup` first.",
+        "invalidChannel": "Invalid channel specified."
     },
     "maintenance": {
         "cmdDescrp": "Announce server maintenance.",
@@ -50,7 +50,7 @@
             "cmdDescrp": "Minecraft version (e.g., 1.21.5)"
         },
         "time": {
-            "cmdDescrp": "Time in format: YYYY-MM-DD HH:MM AM/PM (Central Time)."
+            "cmdDescrp": "Time in format: YYYY-MM-DD HH:MM AM/PM (Eastern Time)."
         },
         "msg": "The update itself shouldn't take too long, but no promises in case there are any issues. There will be another announcement once the server is updated and good to go.\n\n*Times shown are in your local timezone*"
     },
@@ -65,7 +65,7 @@
         "success": "Published announcement to followers in",
         "fail": "Could not public announcement: "
     },
-    "success": "✅ Announcement sent to",
+    "success": "Announcement sent to",
     "error": "Error sending announcement: ",
-    "fail": "❌ Failed to send announcement."
+    "fail": "Failed to send announcement."
 }
