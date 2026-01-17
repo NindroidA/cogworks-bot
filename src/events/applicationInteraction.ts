@@ -4,7 +4,7 @@ import { Application } from '../typeorm/entities/application/Application';
 import { ApplicationConfig } from '../typeorm/entities/application/ApplicationConfig';
 import { Position } from '../typeorm/entities/application/Position';
 import { SavedRole } from '../typeorm/entities/SavedRole';
-import { createPrivateChannelPermissions, createRateLimitKey, extractIdFromMention, lang, logger, PermissionSets, rateLimiter, RateLimits } from '../utils';
+import { createPrivateChannelPermissions, createRateLimitKey, enhancedLogger, extractIdFromMention, lang, LogCategory, PermissionSets, rateLimiter, RateLimits } from '../utils';
 import { applicationCloseEvent } from './application/close';
 
 const tl = lang.application;
@@ -15,14 +15,13 @@ const positionRepo = AppDataSource.getRepository(Position);
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 
 export const handleApplicationInteraction = async(client: Client, interaction: Interaction) => {
-    const user = interaction.user.username;
     const guildId = interaction.guildId || '';
     const applicationConfig = await applicationConfigRepo.findOneBy({ guildId });
 
     /* Apply Button for Specific Position */
     if (interaction.isButton() && interaction.customId.startsWith('apply_')) {
         const positionId = parseInt(interaction.customId.replace('apply_', ''));
-        logger(`User ${user} is applying for position ${positionId}`);
+        enhancedLogger.debug(`Button: apply_${positionId}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, positionId });
 
         // get the position details
         const position = await positionRepo.findOne({
@@ -59,7 +58,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
     /* Age Verification - Yes */
     if (interaction.isButton() && interaction.customId.startsWith('age_verify_yes_')) {
         const positionId = parseInt(interaction.customId.replace('age_verify_yes_', ''));
-        logger(`User ${user} verified they are 18+ for position ${positionId}`);
+        enhancedLogger.debug(`Button: age_verify_yes_${positionId}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, positionId });
 
         // get position details
         const position = await positionRepo.findOne({
@@ -136,7 +135,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
     /* Age Verification - No */
     if (interaction.isButton() && interaction.customId.startsWith('age_verify_no_')) {
         const positionId = parseInt(interaction.customId.replace('age_verify_no_', ''));
-        logger(`User ${user} is under 18 for position ${positionId}`);
+        enhancedLogger.debug(`Button: age_verify_no_${positionId} (under 18)`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, positionId });
 
         await interaction.update({
             content: pl.ageVerifyNoReply,
@@ -146,7 +145,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
 
     /* Cancel Application Button */
     if (interaction.isButton() && interaction.customId === 'cancel_application') {
-        logger(`User ${user} ` + lang.console.cancelApplicationRequest);
+        enhancedLogger.debug(`Button: cancel_application`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
 
         await interaction.reply({
             content: tl.cancelled,
@@ -161,7 +160,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
         const guild = interaction.guild;
         const category = applicationConfig?.categoryId;
 
-        logger(`User ${user} submitting application for position ${positionId}`);
+        enhancedLogger.debug(`Modal submit: application_modal_${positionId}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, positionId });
 
         // guild check
         if (!guild) {
@@ -203,7 +202,7 @@ export const handleApplicationInteraction = async(client: Client, interaction: I
                 content: rateCheck.message,
                 flags: [MessageFlags.Ephemeral]
             });
-            logger(`User ${user} hit application creation rate limit`, 'WARN');
+            enhancedLogger.warn(`User hit application creation rate limit`, LogCategory.SECURITY, { userId: interaction.user.id, guildId, positionId });
             return;
         }
 
@@ -255,7 +254,7 @@ ${availability}`;
                 .map(role => extractIdFromMention(role.role))
                 .filter((id): id is string => {
                     if (!id) {
-                        logger(`Invalid role format: ${id}`);
+                        enhancedLogger.warn(`Invalid role format encountered`, LogCategory.COMMAND_EXECUTION, { guildId });
                         return false;
                     }
                     return true;
@@ -328,10 +327,10 @@ ${availability}`;
                 status: 'opened',
             });
 
-            logger(`User ${user} successfully created application for position ${positionId}`);
+            enhancedLogger.info(`Application created: #${savedApplication.id} for position ${positionId}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, applicationId: savedApplication.id, positionId, channelId: newChannel.id });
 
         } catch (error) {
-            logger(tl.error + error, 'ERROR');
+            enhancedLogger.error('Failed to create application', error instanceof Error ? error : new Error(String(error)), LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, positionId });
             
             // Only reply if we haven't already replied
             if (!interaction.replied && !interaction.deferred) {
@@ -346,7 +345,7 @@ ${availability}`;
 
     /* Closing Application Button */
     if (interaction.isButton() && interaction.customId === 'close_application') {
-        logger(`User ${user} ` + lang.console.closeApplicationAttempt);
+        enhancedLogger.debug(`Button: close_application`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
 
         // build a confirmation message with buttons
         const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -369,7 +368,7 @@ ${availability}`;
 
     /* Confirm Close Application */
     if (interaction.isButton() && interaction.customId === 'confirm_close_application') {
-        logger(`User ${user} ` + lang.console.closeApplicationConfirm);
+        enhancedLogger.debug(`Button: confirm_close_application`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
         await interaction.update({
             content: tl.close.closing,
             components: [],
@@ -379,7 +378,7 @@ ${availability}`;
 
     /* Cancel Close Application */
     if (interaction.isButton() && interaction.customId === 'cancel_close_application') {
-        logger(`User ${user} ` + lang.console.closeApplicationCancel);
+        enhancedLogger.debug(`Button: cancel_close_application`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
         await interaction.update({
             content: tl.close.cancel,
             components: [],

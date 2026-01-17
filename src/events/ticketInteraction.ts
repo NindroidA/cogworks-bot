@@ -3,12 +3,13 @@ import { emailImportModalHandler } from '../commands/handlers/ticket/emailImport
 import { typeAddModalHandler } from '../commands/handlers/ticket/typeAdd';
 import { typeEditModalHandler } from '../commands/handlers/ticket/typeEdit';
 import { AppDataSource } from '../typeorm';
+import { BotConfig } from '../typeorm/entities/BotConfig';
 import { SavedRole } from '../typeorm/entities/SavedRole';
 import { CustomTicketType } from '../typeorm/entities/ticket/CustomTicketType';
 import { Ticket } from '../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../typeorm/entities/ticket/TicketConfig';
 import { UserTicketRestriction } from '../typeorm/entities/ticket/UserTicketRestriction';
-import { createPrivateChannelPermissions, createRateLimitKey, extractIdFromMention, lang, logger, PermissionSets, rateLimiter, RateLimits } from '../utils';
+import { createPrivateChannelPermissions, createRateLimitKey, enhancedLogger, extractIdFromMention, lang, LogCategory, PermissionSets, rateLimiter, RateLimits } from '../utils';
 import { customTicketOptions, ticketOptions } from './ticket';
 import { ticketAdminOnlyEvent } from './ticket/adminOnly';
 import { ageVerifyMessage, ageVerifyModal } from './ticket/ageVerify';
@@ -21,10 +22,21 @@ import { playerReportMessage, playerReportModal } from './ticket/playerReport';
 const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
 const ticketRepo = AppDataSource.getRepository(Ticket);
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
+const botConfigRepo = AppDataSource.getRepository(BotConfig);
+const customTypeRepo = AppDataSource.getRepository(CustomTicketType);
+
+// Legacy type column mapping for ping-on-create setting
+type LegacyType = '18_verify' | 'ban_appeal' | 'player_report' | 'bug_report' | 'other';
+const LEGACY_PING_COLUMNS: Record<LegacyType, keyof TicketConfig> = {
+    '18_verify': 'pingStaffOn18Verify',
+    'ban_appeal': 'pingStaffOnBanAppeal',
+    'player_report': 'pingStaffOnPlayerReport',
+    'bug_report': 'pingStaffOnBugReport',
+    'other': 'pingStaffOnOther'
+};
 
 export const handleTicketInteraction = async(client: Client, interaction: Interaction) => {
 
-    const user = interaction.user.username;
     const guildId = interaction.guildId || '';
     const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
 
@@ -47,13 +59,69 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         }
     }
 
+    /* Handle Ticket Type Ping Toggle Button */
+    if (interaction.isButton() && interaction.customId.startsWith('ticket_type_ping_toggle:')) {
+        const typeId = interaction.customId.replace('ticket_type_ping_toggle:', '');
+        enhancedLogger.debug(`Button: staff ping toggle for type '${typeId}'`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, typeId });
+
+        if (!guildId) {
+            enhancedLogger.warn('Staff ping toggle failed: guild not found', LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id });
+            await interaction.reply({
+                content: lang.general.cmdGuildNotFound,
+                flags: [MessageFlags.Ephemeral]
+            });
+            return;
+        }
+
+        const type = await customTypeRepo.findOne({
+            where: { guildId, typeId }
+        });
+
+        if (!type) {
+            enhancedLogger.warn(`Staff ping toggle failed: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, typeId });
+            await interaction.reply({
+                content: lang.ticket.customTypes.typeEdit.notFound,
+                flags: [MessageFlags.Ephemeral]
+            });
+            return;
+        }
+
+        // Toggle the ping setting
+        const previousState = type.pingStaffOnCreate;
+        type.pingStaffOnCreate = !type.pingStaffOnCreate;
+        await customTypeRepo.save(type);
+        enhancedLogger.info(`Staff ping toggled for type '${typeId}': ${previousState} → ${type.pingStaffOnCreate}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, typeId, previousState, newState: type.pingStaffOnCreate });
+
+        // Import the embed builder and rebuild the embed with updated state
+        const { buildTypeConfirmationEmbed } = await import('../commands/handlers/ticket/typeAdd');
+        const embed = buildTypeConfirmationEmbed(type, false);
+
+        // Update the button to reflect the new state
+        const tl = lang.ticket.customTypes.typeAdd;
+        const toggleButton = new ButtonBuilder()
+            .setCustomId(`ticket_type_ping_toggle:${typeId}`)
+            .setLabel(type.pingStaffOnCreate ? tl.pingToggleDisable : tl.pingToggleEnable)
+            .setStyle(type.pingStaffOnCreate ? ButtonStyle.Danger : ButtonStyle.Success)
+            .setEmoji(type.pingStaffOnCreate ? '🔕' : '🔔');
+
+        const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(toggleButton);
+
+        // Update the message with the new embed and button state
+        await interaction.update({
+            embeds: [embed],
+            components: [buttonRow]
+        });
+
+        return;
+    }
+
     /* Create Ticket Button */
     if (interaction.isButton() && interaction.customId === 'create_ticket'){
-        logger(`User ${user} ` + lang.console.createTicketAttempt);
+        enhancedLogger.debug(`Button: create_ticket`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
 
         // check if the ticket config exists
         if (!ticketConfig) {
-            logger(lang.ticket.ticketConfigNotFound);
+            enhancedLogger.warn('Create ticket failed: ticketConfig not found', LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
             return;
         }
 
@@ -82,7 +150,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
 
     /* Cancel Ticket Button */
     if (interaction.isButton() && interaction.customId === 'cancel_ticket') {
-        logger(`User ${user} ` + lang.console.cancelTicketRequest);
+        enhancedLogger.debug(`Button: cancel_ticket`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
 
         // Update the message to remove components and show cancellation
         await interaction.update({
@@ -94,7 +162,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
     /* Custom Ticket Type Select Menu */
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_type_select') {
         const selectedTypeId = interaction.values[0];
-        logger(`User ${user} selected ticket type: ${selectedTypeId}`);
+        enhancedLogger.debug(`Select: ticket type '${selectedTypeId}'`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, selectedTypeId });
 
         // Handle "none" option (user has no available ticket types)
         if (selectedTypeId === 'none') {
@@ -122,7 +190,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         // Check if this is a LEGACY ticket type that should use hardcoded modals
         const legacyTypes = ['18_verify', 'ban_appeal', 'player_report', 'bug_report', 'other'];
         if (legacyTypes.includes(selectedTypeId)) {
-            logger(`User ${user} is creating a ${selectedTypeId} ticket (using legacy modal).`);
+            enhancedLogger.debug(`Opening legacy modal for type: ${selectedTypeId}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, ticketType: selectedTypeId });
 
             // Use legacy modal builders for legacy types
             let modal = new ModalBuilder()
@@ -233,7 +301,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             return; // Not a ticket creation button, ignore it
         }
 
-        logger(`User ${user} is creating a ${ticketType} ticket.`);
+        enhancedLogger.debug(`Button: ticket_${ticketType}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, ticketType });
 
         // build a modal for user input
         let modal = new ModalBuilder()
@@ -269,7 +337,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         const guild = interaction.guild;
         const category = ticketConfig?.categoryId;
 
-        logger(`User ${user} ` + lang.console.modalSubmit);
+        enhancedLogger.debug(`Modal submit: ticket_modal_${ticketType}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, ticketType });
 
         if (!guild) {
             await interaction.reply({
@@ -296,7 +364,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
                 content: rateCheck.message,
                 flags: [MessageFlags.Ephemeral]
             });
-            logger(`User ${user} hit ticket creation rate limit`, 'WARN');
+            enhancedLogger.warn(`User hit ticket creation rate limit`, LogCategory.SECURITY, { userId: interaction.user.id, guildId });
             return;
         }
 
@@ -319,7 +387,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
                         description = await banAppealMessage(fields);
                         break;
                     case 'player_report':
-                        description = await playerReportMessage(fields, interaction);
+                        description = await playerReportMessage(fields);
                         break;
                     case 'bug_report':
                         description = await bugReportMessage(fields);
@@ -408,8 +476,10 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
             const newTicket = ticketRepo.create(ticketData);
             const savedTicket = await ticketRepo.save(newTicket) as Ticket;
 
-            // create the ticket channel with numbering
-            const channelName = `${savedTicket.id}-${displayName}-${member.user.username}`.substring(0, 100);
+            // create the ticket channel with numbering (sanitized for Discord channel names)
+            const sanitizedDisplayName = displayName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+            const sanitizedUsername = member.user.username.toLowerCase().replace(/[^a-z0-9]/g, '-');
+            const channelName = `${savedTicket.id}_${sanitizedDisplayName}_${sanitizedUsername}`.substring(0, 100);
 
             // get the staff/admin roles from the database
             const rolePerms = await savedRoleRepo.createQueryBuilder()
@@ -422,7 +492,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
                 .map(role => extractIdFromMention(role.role))
                 .filter((id): id is string => {
                     if (!id) {
-                        logger(`Invalid role format: ${id}`);
+                        enhancedLogger.warn(`Invalid role format encountered`, LogCategory.COMMAND_EXECUTION, { guildId });
                         return false;
                     }
                     return true;
@@ -468,7 +538,31 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
                 content: welcomeMsg,
                 components: [buttonOptions],
             });
-            await newChannel.send(descriptionMsg);
+            await newChannel.send(`\u200B\n${descriptionMsg}`);
+
+            // Check if staff should be pinged on ticket creation
+            const botConfig = await botConfigRepo.findOneBy({ guildId });
+            if (botConfig?.enableGlobalStaffRole && botConfig?.globalStaffRole) {
+                let shouldPingStaff = false;
+
+                if (isLegacyType) {
+                    // Check legacy type ping setting from TicketConfig
+                    const pingColumn = LEGACY_PING_COLUMNS[ticketType as LegacyType];
+                    if (pingColumn && ticketConfig) {
+                        shouldPingStaff = ticketConfig[pingColumn] as boolean;
+                    }
+                } else {
+                    // Check custom type ping setting
+                    const customType = await customTypeRepo.findOneBy({ guildId, typeId: ticketType });
+                    shouldPingStaff = customType?.pingStaffOnCreate ?? true;
+                }
+
+                if (shouldPingStaff) {
+                    await newChannel.send({
+                        content: `${botConfig.globalStaffRole}\n📨 A new **${displayName}** ticket has been created!`
+                    });
+                }
+            }
 
             ticketRepo.update({ id: savedTicket.id }, {
                 messageId: welc.id,
@@ -476,10 +570,10 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
                 status: 'opened',
             });
 
-            logger(`User ${user} ` + lang.console.creatTicketSuccess);
+            enhancedLogger.info(`Ticket created: #${savedTicket.id} (${ticketType})`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, ticketId: savedTicket.id, ticketType, channelId: newChannel.id });
 
         } catch (error) {
-            logger(lang.ticket.error + ' ' + error);
+            enhancedLogger.error('Failed to create ticket', error instanceof Error ? error : new Error(String(error)), LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, ticketType });
             await interaction.reply({
                 content: lang.ticket.error,
                 flags: [MessageFlags.Ephemeral]
@@ -490,7 +584,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
 
     /* MAKING A TICKET ADMIN ONLY */
     if (interaction.isButton() && interaction.customId === 'admin_only_ticket') {
-        logger(`User ${user} ` + lang.console.adminOnlyAttempt);
+        enhancedLogger.debug(`Button: admin_only_ticket`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
 
         // build a confirmation message with buttons
         const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -511,7 +605,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         });
     }
     if (interaction.isButton() && interaction.customId === 'confirm_admin_only_ticket') {
-        logger(`User ${user} ` + lang.console.adminOnlyConfirm);
+        enhancedLogger.debug(`Button: confirm_admin_only_ticket`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
         await interaction.update({
             content: lang.ticket.adminOnly.changing,
             components: [],
@@ -519,7 +613,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         await ticketAdminOnlyEvent(client, interaction);
     }
     if (interaction.isButton() && interaction.customId === 'cancel_admin_only_ticket') {
-        logger(`User ${user} ` + lang.console.adminOnlyCancel);
+        enhancedLogger.debug(`Button: cancel_admin_only_ticket`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
         await interaction.update({
             content: lang.ticket.adminOnly.cancel,
             components: [],
@@ -528,7 +622,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
     
     /* CLOSING A TICKET */
     if (interaction.isButton() && interaction.customId === 'close_ticket') {
-        logger(`User ${user} ` + lang.console.closeTicketAttempt);
+        enhancedLogger.debug(`Button: close_ticket`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
 
         // build a confirmation message with buttons
         const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -549,7 +643,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         });
     }
     if (interaction.isButton() && interaction.customId === 'confirm_close_ticket') {
-        logger(`User ${user} ` + lang.console.closeTicketConfirm);
+        enhancedLogger.debug(`Button: confirm_close_ticket`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
         await interaction.update({
             content: lang.ticket.close.closing,
             components: [],
@@ -557,7 +651,7 @@ export const handleTicketInteraction = async(client: Client, interaction: Intera
         await ticketCloseEvent(client, interaction);
     }
     if (interaction.isButton() && interaction.customId === 'cancel_close_ticket') {
-        logger(`User ${user} ` + lang.console.closeTicketCancel);
+        enhancedLogger.debug(`Button: cancel_close_ticket`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
         await interaction.update({
             content: lang.ticket.close.cancel,
             components: [],

@@ -12,6 +12,7 @@ const tl = lang.ticket.customTypes.typeRemove;
 export async function typeRemoveHandler(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
         if (!interaction.guild) {
+            enhancedLogger.warn('Type-remove handler: guild not found', LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id });
             await interaction.reply({
                 content: lang.general.cmdGuildNotFound,
                 flags: [MessageFlags.Ephemeral]
@@ -21,6 +22,9 @@ export async function typeRemoveHandler(interaction: ChatInputCommandInteraction
 
         const guildId = interaction.guild.id;
         const typeId = interaction.options.getString('type', true);
+
+        enhancedLogger.debug(`Command: /ticket type-remove type=${typeId}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, typeId });
+
         const typeRepo = AppDataSource.getRepository(CustomTicketType);
 
         const ticketType = await typeRepo.findOne({
@@ -28,6 +32,7 @@ export async function typeRemoveHandler(interaction: ChatInputCommandInteraction
         });
 
         if (!ticketType) {
+            enhancedLogger.warn(`Type-remove: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, typeId });
             await interaction.reply({
                 content: tl.notFound,
                 flags: [MessageFlags.Ephemeral]

@@ -84,10 +84,6 @@ Built with TypeScript, Discord.js, TypeORM, and Bun.
 - Archive analysis and migration
 - Data export for GDPR compliance
 
-## Project Structure
-
-( debating on whether i wanna keep this or naw )
-
 ## Commands
 
 Run `/bot-setup` in your Discord server to get started. See [docs/commands.md](docs/commands.md) for full command list.

@@ -1,6 +1,6 @@
 # Cogworks Bot Commands
 
-**Last Updated:** January 5, 2026
+**Last Updated:** `January 17, 2026`
 
 Complete command reference for all bot systems.
 
@@ -106,9 +106,18 @@ Complete command reference for all bot systems.
 - Import a ticket from an email
 - Opens modal to enter: Sender Email, Sender Name, Subject, Body, Attachment URLs
 
+### Ticket Settings
+**`/ticket settings setting:[setting] enabled:[true|false] type:[type]`**
+- Configure ticket system settings
+- **Admin-only command**
+- Available settings:
+  - `admin-only-mention` - Toggle whether staff is pinged when a ticket creator requests admin-only
+  - `ping-on-create` - Toggle whether staff is pinged when a ticket of a specific type is created (requires `type` parameter)
+- `type` - Required for `ping-on-create` setting. Supports both legacy types (18_verify, ban_appeal, player_report, bug_report, other) and custom ticket types
+
 ### Ticket Channel Naming
-Ticket channels are named using the format: `{id}-{type}-{username}`
-Example: `123-ban-appeal-johndoe`
+Ticket channels are named using the format: `{id}_{type}_{username}`
+Example: `123_ban-appeal_johndoe`
 
 ## Announcement System
 
@@ -245,6 +254,12 @@ The system analyzes multiple factors to calculate a suspicion score:
 7. **Mention Spam** - Excessive mentions
 
 ## System Information
+
+### Bot Status
+**`/ping`**
+- Check bot latency and status
+- Shows WebSocket latency, API round-trip time, and uptime
+- Available to all users
 
 ### Data Export (GDPR Compliance)
 **`/data-export`**

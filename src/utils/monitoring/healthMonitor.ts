@@ -94,6 +94,7 @@ class HealthMonitor {
     private errorLog: Array<{ timestamp: Date; message: string; category: string }> = [];
     private maxErrorLogSize = 100;
     private statsWindow = 60000; // 1 minute for rate calculations
+    private previousStatus: 'healthy' | 'degraded' | 'unhealthy' | null = null;
 
     /**
      * Initialize health monitor with Discord client
@@ -392,24 +393,45 @@ class HealthMonitor {
 
     /**
      * Log current health status
+     * Uses DEBUG for routine checks (hidden in prod), INFO only on status changes
      */
     public async logHealthStatus(): Promise<void> {
         const status = await this.getHealthStatus();
-        
-        enhancedLogger.info(
-            `Health Check: ${status.status.toUpperCase()} | ` +
-            `Guilds: ${status.activeGuilds} | ` +
-            `Commands: ${status.totalCommands} | ` +
-            `Uptime: ${status.uptimeFormatted} | ` +
-            `Memory: ${status.memory.heapUsedMB}/${status.memory.heapTotalMB}`,
-            LogCategory.SYSTEM,
-            {
-                status: status.status,
-                guilds: status.activeGuilds,
-                memory: status.memory,
-                database: status.database
-            }
+
+        // Always log at DEBUG level (hidden in prod, visible in dev)
+        enhancedLogger.debug(
+            `Health check: ${status.status} | Guilds: ${status.activeGuilds} | Memory: ${status.memory.heapUsedMB}`,
+            LogCategory.SYSTEM
         );
+
+        // Log at INFO level only when status CHANGES
+        if (this.previousStatus !== null && this.previousStatus !== status.status) {
+            enhancedLogger.info(
+                `Health status changed: ${this.previousStatus} → ${status.status}`,
+                LogCategory.SYSTEM,
+                {
+                    guilds: status.activeGuilds,
+                    memory: status.memory,
+                    database: status.database,
+                    uptime: status.uptimeFormatted
+                }
+            );
+        }
+
+        // Always warn if not healthy (degraded or unhealthy)
+        if (status.status !== 'healthy') {
+            enhancedLogger.warn(
+                `Health ${status.status}: DB=${status.database.connected}, ErrorRate=${status.errors.errorRate}/min`,
+                LogCategory.SYSTEM,
+                {
+                    status: status.status,
+                    errors: status.errors,
+                    memory: status.memory
+                }
+            );
+        }
+
+        this.previousStatus = status.status;
     }
 }
 

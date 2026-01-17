@@ -1,15 +1,18 @@
 import { ButtonInteraction, Client, Interaction, StringSelectMenuInteraction } from 'discord.js';
 import { handleAddFieldModal, handleFieldButton, handleFieldSelectMenu, handlePreviewModal } from '../commands/handlers/ticket/typeFields';
-import { logger } from '../utils';
+import { enhancedLogger, LogCategory } from '../utils';
 
 /**
  * Event handler for type-fields interactions (buttons, select menus, modals)
  */
 export const typeFieldsInteraction = async (client: Client, interaction: Interaction) => {
+    const guildId = interaction.guildId || '';
+
     try {
         // Handle button interactions for field management
         if (interaction.isButton()) {
             const customId = interaction.customId;
+            enhancedLogger.debug(`Button: ${customId}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, customId });
             
             // Check if this is a field management button
             // Pattern: field_action_typeId (e.g., field_add_my-type-id)
@@ -46,7 +49,8 @@ export const typeFieldsInteraction = async (client: Client, interaction: Interac
         // Handle select menu interactions for field editing/deleting
         if (interaction.isStringSelectMenu()) {
             const customId = interaction.customId;
-            
+            enhancedLogger.debug(`Select: ${customId}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, customId });
+
             // Check if this is a field select menu
             // Pattern: field_action_select_typeId (e.g., field_edit_select_my-type-id)
             const fieldSelectMatch = customId.match(/^field_([^_]+)_select_(.+)$/);
@@ -60,7 +64,8 @@ export const typeFieldsInteraction = async (client: Client, interaction: Interac
         // Handle modal submissions for field management
         if (interaction.isModalSubmit()) {
             const customId = interaction.customId;
-            
+            enhancedLogger.debug(`Modal submit: ${customId}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, customId });
+
             // Check if this is an add field modal
             const addFieldMatch = customId.match(/^field_add_modal_(.+)$/);
             if (addFieldMatch) {
@@ -79,7 +84,6 @@ export const typeFieldsInteraction = async (client: Client, interaction: Interac
         }
 
     } catch (error) {
-        logger(`Error in typeFieldsInteraction event: ${(error as Error).message}`, 'ERROR');
-        logger((error as Error).stack || 'No stack trace', 'ERROR');
+        enhancedLogger.error('Error in typeFieldsInteraction event', error instanceof Error ? error : new Error(String(error)), LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
     }
 };

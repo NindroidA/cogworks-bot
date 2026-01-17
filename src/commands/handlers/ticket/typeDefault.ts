@@ -1,7 +1,7 @@
 import { ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { handleInteractionError, lang, LANGF } from '../../../utils';
+import { enhancedLogger, handleInteractionError, lang, LANGF, LogCategory } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeDefault;
 
@@ -12,6 +12,7 @@ const tl = lang.ticket.customTypes.typeDefault;
 export async function typeDefaultHandler(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
         if (!interaction.guild) {
+            enhancedLogger.warn('Type-default handler: guild not found', LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id });
             await interaction.reply({
                 content: lang.general.cmdGuildNotFound,
                 flags: [MessageFlags.Ephemeral]
@@ -22,6 +23,8 @@ export async function typeDefaultHandler(interaction: ChatInputCommandInteractio
         const guildId = interaction.guild.id;
         const typeId = interaction.options.getString('type', true);
 
+        enhancedLogger.debug(`Command: /ticket type-default type=${typeId}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, typeId });
+
         const typeRepo = AppDataSource.getRepository(CustomTicketType);
 
         const type = await typeRepo.findOne({
@@ -29,6 +32,7 @@ export async function typeDefaultHandler(interaction: ChatInputCommandInteractio
         });
 
         if (!type) {
+            enhancedLogger.warn(`Type-default: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, typeId });
             await interaction.reply({
                 content: tl.notFound,
                 flags: [MessageFlags.Ephemeral]
@@ -37,6 +41,7 @@ export async function typeDefaultHandler(interaction: ChatInputCommandInteractio
         }
 
         if (!type.isActive) {
+            enhancedLogger.warn(`Type-default: type '${typeId}' is inactive`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, typeId });
             await interaction.reply({
                 content: tl.mustBeActive,
                 flags: [MessageFlags.Ephemeral]
@@ -53,6 +58,8 @@ export async function typeDefaultHandler(interaction: ChatInputCommandInteractio
         // Set this type as default
         type.isDefault = true;
         await typeRepo.save(type);
+
+        enhancedLogger.info(`Default type set: '${typeId}'`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, typeId, displayName: type.displayName });
 
         await interaction.reply({
             content: LANGF(tl.success, type.displayName),

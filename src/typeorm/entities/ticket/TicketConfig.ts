@@ -18,4 +18,23 @@ export class TicketConfig {
 
     @Column({ nullable: true })
     categoryId: string;
+
+    @Column({ default: true })
+    adminOnlyMentionStaff: boolean;
+
+    // Legacy ticket type staff ping toggles
+    @Column({ default: false })
+    pingStaffOn18Verify: boolean;
+
+    @Column({ default: false })
+    pingStaffOnBanAppeal: boolean;
+
+    @Column({ default: true })
+    pingStaffOnPlayerReport: boolean;
+
+    @Column({ default: false })
+    pingStaffOnBugReport: boolean;
+
+    @Column({ default: false })
+    pingStaffOnOther: boolean;
 }

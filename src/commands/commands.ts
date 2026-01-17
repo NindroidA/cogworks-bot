@@ -22,8 +22,10 @@ import {
 import { getRolesHandler } from './handlers/getRoles';
 import { migrateApplicationTagsHandler, migrateTicketTagsHandler } from './handlers/migrate';
 import { removeRoleHandler } from './handlers/removeRole';
+import { pingHandler } from './handlers/ping';
 import {
     emailImportHandler,
+    settingsHandler,
     typeAddHandler,
     typeDefaultHandler,
     typeEditHandler,
@@ -123,7 +125,14 @@ export const handleSlashCommand = async(client: Client, interaction: ChatInputCo
                         case 'user-restrict':
                             await userRestrictHandler(interaction);
                             break;
+                        case 'settings':
+                            await settingsHandler(interaction);
+                            break;
                     }
+                    break;
+                }
+                case 'ping': {
+                    await pingHandler(interaction);
                     break;
                 }
                 case 'add-role': {

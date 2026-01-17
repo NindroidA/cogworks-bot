@@ -1,12 +1,15 @@
 import { ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
     ChatInputCommandInteraction,
+    EmbedBuilder,
     ModalBuilder,
     ModalSubmitInteraction,
     TextInputBuilder,
     TextInputStyle, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { handleInteractionError, lang, LANGF } from '../../../utils';
+import { E, handleInteractionError, lang, LANGF, logger } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeAdd;
 
@@ -16,7 +19,11 @@ const tl = lang.ticket.customTypes.typeAdd;
  */
 export async function typeAddHandler(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
+        const user = interaction.user.username;
+        logger(`User ${user} opened ticket type-add modal`);
+
         if (!interaction.guild) {
+            logger('Type-add failed: guild not found', 'WARN');
             await interaction.reply({
                 content: lang.general.cmdGuildNotFound,
                 flags: [MessageFlags.Ephemeral]
@@ -94,7 +101,11 @@ export async function typeAddHandler(interaction: ChatInputCommandInteraction): 
  */
 export async function typeAddModalHandler(interaction: ModalSubmitInteraction): Promise<void> {
     try {
+        const user = interaction.user.username;
+        logger(`User ${user} submitted ticket type-add modal`);
+
         if (!interaction.guild) {
+            logger('Type-add modal failed: guild not found', 'WARN');
             await interaction.reply({
                 content: lang.general.cmdGuildNotFound,
                 flags: [MessageFlags.Ephemeral]
@@ -113,6 +124,7 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
 
         // Validate type ID format (lowercase, numbers, underscores only)
         if (!/^[a-z0-9_]+$/.test(typeId)) {
+            logger(`User ${user} type-add validation failed: invalid typeId format '${typeId}'`, 'WARN');
             await interaction.reply({
                 content: tl.invalidTypeId,
                 flags: [MessageFlags.Ephemeral]
@@ -122,6 +134,7 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
 
         // Validate hex color
         if (!/^#[0-9A-Fa-f]{6}$/.test(colorInput)) {
+            logger(`User ${user} type-add validation failed: invalid color '${colorInput}'`, 'WARN');
             await interaction.reply({
                 content: tl.invalidColor,
                 flags: [MessageFlags.Ephemeral]
@@ -137,6 +150,7 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
         });
 
         if (existing) {
+            logger(`User ${user} type-add failed: duplicate typeId '${typeId}'`, 'WARN');
             await interaction.reply({
                 content: LANGF(tl.duplicate, typeId),
                 flags: [MessageFlags.Ephemeral]
@@ -165,15 +179,63 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
         });
 
         await typeRepo.save(newType);
+        logger(`User ${user} created new ticket type '${typeId}' (${displayName}) in guild ${guildId}`);
+
+        // Build confirmation embed with type details
+        const embed = buildTypeConfirmationEmbed(newType, true);
+
+        // Add toggle button for staff ping setting
+        const toggleButton = new ButtonBuilder()
+            .setCustomId(`ticket_type_ping_toggle:${typeId}`)
+            .setLabel(newType.pingStaffOnCreate ? tl.pingToggleDisable : tl.pingToggleEnable)
+            .setStyle(newType.pingStaffOnCreate ? ButtonStyle.Danger : ButtonStyle.Success)
+            .setEmoji(newType.pingStaffOnCreate ? '🔕' : '🔔');
+
+        const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(toggleButton);
 
         await interaction.reply({
-            content: LANGF(tl.success, displayName) + 
-                     '\n\n💡 The ticket type is currently **disabled**. ' +
-                     `Use \`/ticket type-fields type:${typeId}\` to configure custom input fields, ` +
-                     `then \`/ticket type-toggle type:${typeId}\` to activate it.`,
+            embeds: [embed],
+            components: [buttonRow],
             flags: [MessageFlags.Ephemeral]
         });
     } catch (error) {
         await handleInteractionError(interaction, error, 'typeAddModalHandler');
     }
+}
+
+/**
+ * Builds a confirmation embed showing ticket type details
+ */
+export function buildTypeConfirmationEmbed(type: CustomTicketType, isNew: boolean): EmbedBuilder {
+    const tl = lang.ticket.customTypes;
+    const title = isNew ? tl.typeAdd.success : tl.typeEdit.success;
+
+    const embed = new EmbedBuilder()
+        .setTitle(`${E.ok} ${LANGF(title, type.displayName).replace('!', '')}`)
+        .setColor(parseInt(type.embedColor.replace('#', ''), 16))
+        .setTimestamp();
+
+    // Type details
+    const details = [
+        `**${tl.confirmEmbed.typeId}:** \`${type.typeId}\``,
+        `**${tl.confirmEmbed.displayName}:** ${type.emoji || ''} ${type.displayName}`,
+        `**${tl.confirmEmbed.color}:** ${type.embedColor}`,
+        `**${tl.confirmEmbed.status}:** ${type.isActive ? '🟢 Active' : '🔴 Inactive'}`,
+        `**${tl.confirmEmbed.pingStaff}:** ${type.pingStaffOnCreate ? '🔔 Enabled' : '🔕 Disabled'}`
+    ];
+
+    if (type.description) {
+        details.push(`**${tl.confirmEmbed.description}:** ${type.description}`);
+    }
+
+    embed.setDescription(details.join('\n'));
+
+    // Add footer with next steps for new types
+    if (isNew) {
+        embed.setFooter({
+            text: `💡 Use /ticket type-fields type:${type.typeId} to configure fields, then /ticket type-toggle to activate.`
+        });
+    }
+
+    return embed;
 }

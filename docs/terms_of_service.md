@@ -1,6 +1,6 @@
 # Terms of Service for Cogworks Bot
 
-**Last Updated:** January 5, 2026
+**Last Updated:** `January 5, 2026`
 
 ## 1. Acceptance of Terms
 

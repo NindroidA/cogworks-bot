@@ -16,6 +16,7 @@ import { dataExport } from './builders/dataExport';
 import { dev } from './builders/dev';
 import { getRoles } from './builders/getRoles';
 import { migrate } from './builders/migrate';
+import { ping } from './builders/ping';
 import { removeRole } from './builders/removeRole';
 import { ticket } from './builders/ticket';
 import { ticketReply } from './builders/ticketReply';
@@ -37,7 +38,8 @@ const baseCommands = [
 	baitChannelCommand,  // bait channel system
 	dataExport,          // data export
 	dev,                 // development/maintenance commands (admin-only)
-	migrate              // migration commands (admin-only)
+	migrate,             // migration commands (admin-only)
+	ping                 // ping/status command
 ];
 
 // All commands available in both dev and production

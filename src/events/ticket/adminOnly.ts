@@ -3,11 +3,13 @@ import { AppDataSource } from '../../typeorm';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
+import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
 import { extractIdFromMention, lang, logger } from '../../utils';
 
 const tl = lang.ticket.adminOnly;
 const ticketRepo = AppDataSource.getRepository(Ticket);
 const savedRoleRepo = AppDataSource.getRepository(SavedRole);
+const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
 
 export const ticketAdminOnlyEvent = async(client: Client, interaction: ButtonInteraction) => {
     const channel = interaction.channel as TextChannel;
@@ -36,32 +38,20 @@ export const ticketAdminOnlyEvent = async(client: Client, interaction: ButtonInt
 
     // check if the person hitting the button is the ticket creator
     if (userId === ticket.createdBy) {
-        // if the bot config isn't setup
-        if (!botConfig || !gsr) {
-            logger(lang.botConfig.notFound);
-        // if the global staff role is enabled but isn't set
-        } else if (gsrFlag && !gsr) {
-            logger(lang.botConfig.noStaffRole);
-        // if the global staff role is enabled and set, add the mention to the message
-        } else if (gsrFlag && gsr) {
+        // Get ticket config to check admin-only mention setting
+        const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
+        const shouldMentionStaff = ticketConfig?.adminOnlyMentionStaff ?? true;
+
+        // Only mention staff if the setting is enabled and staff role is configured
+        if (gsrFlag && gsr && shouldMentionStaff) {
             await channel.send({
                 content: gsr + `❗Oh, Mods!❗ ${user} ` + tl.request
             });
-            return;
+        } else {
+            await channel.send({
+                content: `❗Oh, Mods!❗ ${user} ` + tl.request
+            });
         }
-
-        await channel.send({
-            content: `❗Oh, Mods!❗ ${user} ` + tl.request
-        });
-        return;
-    }
-
-    // check if the person hitting the button is the ticket creator
-    if (userId == ticket.createdBy) {
-        // send a request message (for a staff member to do it for them)
-        await channel.send({
-            content: `❗Oh, Mods!❗ ${user} ` + tl.request
-        });
         return;
     }
 

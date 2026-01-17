@@ -78,7 +78,19 @@
             "error": "Failed to create custom ticket type!",
             "duplicate": "A ticket type with ID `{0}` already exists!",
             "invalidTypeId": "Type ID must be lowercase letters, numbers, and underscores only!",
-            "invalidColor": "Invalid hex color! Use format: #RRGGBB"
+            "invalidColor": "Invalid hex color! Use format: #RRGGBB",
+            "pingToggleEnable": "Enable Staff Ping",
+            "pingToggleDisable": "Disable Staff Ping"
+        },
+        "confirmEmbed": {
+            "typeId": "Type ID",
+            "displayName": "Display Name",
+            "color": "Color",
+            "status": "Status",
+            "pingStaff": "Ping Staff on Create",
+            "description": "Description",
+            "pingEnabled": "Staff ping has been **enabled** for **{0}**.",
+            "pingDisabled": "Staff ping has been **disabled** for **{0}**."
         },
         "typeEdit": {
             "cmdDescrp": "Edit an existing custom ticket type",
@@ -173,5 +185,18 @@
             "saved": "Restrictions saved successfully!",
             "footer": "Click a ticket type to toggle restriction"
         }
+    },
+    "settings": {
+        "cmdDescrp": "Configure ticket system settings",
+        "settingOption": "The setting to configure",
+        "enabledOption": "Enable or disable this setting",
+        "typeOption": "Ticket type (required for ping-on-create)",
+        "updated": "Setting Updated",
+        "adminOnlyMentionEnabled": "Staff will be **pinged** when a ticket creator requests admin-only.",
+        "adminOnlyMentionDisabled": "Staff will **not be pinged** when a ticket creator requests admin-only.",
+        "pingOnCreateEnabled": "Staff will be **pinged** when a **{0}** ticket is created.",
+        "pingOnCreateDisabled": "Staff will **not be pinged** when a **{0}** ticket is created.",
+        "typeRequired": "You must specify a ticket type for this setting!",
+        "typeNotFound": "Ticket type `{0}` not found!"
     }
 }

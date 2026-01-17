@@ -23,6 +23,7 @@ const tl = lang.ticket.customTypes.userRestrict;
 export async function userRestrictHandler(interaction: ChatInputCommandInteraction): Promise<void> {
 	try {
 		if (!interaction.guild) {
+			enhancedLogger.warn('User-restrict handler: guild not found', LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id });
 			await interaction.reply({
 				content: lang.general.cmdGuildNotFound,
 				flags: [MessageFlags.Ephemeral]
@@ -34,6 +35,8 @@ export async function userRestrictHandler(interaction: ChatInputCommandInteracti
 		const targetUser = interaction.options.getUser('user', true);
 		const typeId = interaction.options.getString('type');
 
+		enhancedLogger.debug(`Command: /ticket user-restrict user=${targetUser.id} type=${typeId || 'all'}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, targetUserId: targetUser.id, typeId });
+
 		const typeRepo = AppDataSource.getRepository(CustomTicketType);
 		const restrictionRepo = AppDataSource.getRepository(UserTicketRestriction);
 
@@ -44,6 +47,7 @@ export async function userRestrictHandler(interaction: ChatInputCommandInteracti
 		});
 
 		if (ticketTypes.length === 0) {
+			enhancedLogger.warn('User-restrict: no ticket types found', LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
 			await interaction.reply({
 				content: tl.noTypes,
 				flags: [MessageFlags.Ephemeral]

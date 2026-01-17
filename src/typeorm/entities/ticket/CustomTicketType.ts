@@ -57,5 +57,12 @@ export class CustomTicketType {
      */
     @Column({ type: 'json', nullable: true })
     customFields: CustomInputField[] | null;
+
+    /**
+     * Whether to ping the global staff role when a ticket of this type is created
+     * Defaults to false - admins must explicitly enable this per ticket type
+     */
+    @Column({ default: false })
+    pingStaffOnCreate: boolean;
 }
 

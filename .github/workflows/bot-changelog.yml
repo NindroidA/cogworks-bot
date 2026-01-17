@@ -77,7 +77,8 @@ jobs:
           CHANGELOG_CONTENT: ${{ steps.changelog.outputs.content }}
         run: |
           # Create JSON payload using jq with proper escaping
-          jq -n --arg content "${CHANGELOG_CONTENT}" '{content: $content}' > payload.json
+          # Suppress embeds by using flags: 4 = SUPPRESS_EMBEDS
+          jq -n --arg content "${CHANGELOG_CONTENT}" '{content: $content, flags: 4}' > payload.json
 
           # Send to Discord
           curl -H "Content-Type: application/json" \

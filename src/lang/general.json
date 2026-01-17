@@ -43,5 +43,13 @@
         "preview": "Preview",
         "yes": "Yes",
         "no": "No"
+    },
+    "ping": {
+        "cmdDescrp": "Check bot latency and status",
+        "calculating": "Calculating...",
+        "title": "Pong!",
+        "wsLatency": "WebSocket",
+        "apiLatency": "API Latency",
+        "uptime": "Uptime"
     }
 }

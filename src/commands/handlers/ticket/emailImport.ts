@@ -13,7 +13,7 @@ import { BotConfig } from '../../../typeorm/entities/BotConfig';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { handleInteractionError, lang, LANGF } from '../../../utils';
+import { enhancedLogger, handleInteractionError, lang, LANGF, LogCategory } from '../../../utils';
 
 const tl = lang.ticket.customTypes.emailImport;
 
@@ -24,12 +24,15 @@ const tl = lang.ticket.customTypes.emailImport;
 export async function emailImportHandler(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
         if (!interaction.guild) {
+            enhancedLogger.warn('Email-import handler: guild not found', LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id });
             await interaction.reply({
                 content: lang.general.cmdGuildNotFound,
                 flags: [MessageFlags.Ephemeral]
             });
             return;
         }
+
+        enhancedLogger.debug(`Command: /ticket import-email`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId: interaction.guild.id });
 
         // Create modal
         const modal = new ModalBuilder()
@@ -96,6 +99,7 @@ export async function emailImportHandler(interaction: ChatInputCommandInteractio
 export async function emailImportModalHandler(interaction: ModalSubmitInteraction): Promise<void> {
     try {
         if (!interaction.guild) {
+            enhancedLogger.warn('Email-import modal: guild not found', LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id });
             await interaction.reply({
                 content: lang.general.cmdGuildNotFound,
                 flags: [MessageFlags.Ephemeral]
@@ -104,6 +108,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
         }
 
         const guildId = interaction.guild.id;
+        enhancedLogger.debug(`Modal submit: email-import`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
 
         // Get modal inputs
         const senderEmail = interaction.fields.getTextInputValue('senderEmail').trim();
@@ -115,6 +120,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
         // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(senderEmail)) {
+            enhancedLogger.warn(`Email-import validation failed: invalid email '${senderEmail}'`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
             await interaction.reply({
                 content: tl.invalidEmail,
                 flags: [MessageFlags.Ephemeral]
@@ -225,26 +231,42 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
         const channelName = `📧-${subject.substring(0, 100).toLowerCase().replace(/[^a-z0-9-]/g, '-')}`;
 
         try {
+            // Build permission overwrites
+            const permissionOverwrites = [
+                {
+                    id: interaction.guild.id,
+                    deny: [PermissionsBitField.Flags.ViewChannel]
+                },
+                {
+                    id: interaction.client.user.id,
+                    allow: [
+                        PermissionsBitField.Flags.ViewChannel,
+                        PermissionsBitField.Flags.SendMessages,
+                        PermissionsBitField.Flags.ManageChannels,
+                        PermissionsBitField.Flags.ReadMessageHistory
+                    ]
+                }
+            ];
+
+            // Add staff role permissions if configured
+            if (botConfig.globalStaffRole) {
+                permissionOverwrites.push({
+                    id: botConfig.globalStaffRole,
+                    allow: [
+                        PermissionsBitField.Flags.ViewChannel,
+                        PermissionsBitField.Flags.SendMessages,
+                        PermissionsBitField.Flags.ReadMessageHistory
+                    ]
+                });
+            }
+
             // Create ticket channel
             const ticketChannel = await interaction.guild.channels.create({
                 name: channelName,
                 type: ChannelType.GuildText,
                 parent: category.id,
                 topic: subject.substring(0, 256),
-                permissionOverwrites: [
-                    {
-                        id: interaction.guild.id,
-                        deny: [PermissionsBitField.Flags.ViewChannel]
-                    },
-                    {
-                        id: botConfig.globalStaffRole!,
-                        allow: [
-                            PermissionsBitField.Flags.ViewChannel,
-                            PermissionsBitField.Flags.SendMessages,
-                            PermissionsBitField.Flags.ReadMessageHistory
-                        ]
-                    }
-                ]
+                permissionOverwrites
             });
 
             // Create embed for email content
@@ -284,6 +306,8 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
 
             await ticketRepo.save(ticket);
 
+            enhancedLogger.info(`Email ticket imported: #${ticket.id} from ${senderEmail}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, ticketId: ticket.id, senderEmail, channelId: ticketChannel.id });
+
             await interaction.reply({
                 content: LANGF(tl.success, ticketChannel.toString()),
                 flags: [MessageFlags.Ephemeral]
@@ -291,6 +315,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
         } catch (error) {
             if (error instanceof DiscordAPIError) {
                 if (error.code === 50013) {
+                    enhancedLogger.warn('Email-import failed: missing permissions', LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, errorCode: error.code });
                     await interaction.reply({
                         content: tl.permissionError,
                         flags: [MessageFlags.Ephemeral]
@@ -298,6 +323,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
                     return;
                 }
 
+                enhancedLogger.error('Email-import Discord API error', error, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, errorCode: error.code });
                 await interaction.reply({
                     content: LANGF(tl.apiError, error.message),
                     flags: [MessageFlags.Ephemeral]

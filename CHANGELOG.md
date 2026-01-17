@@ -1,3 +1,41 @@
+# Dev Update v2.4.10
+
+## Added
+- **Ping Command**: New `/ping` command to check bot latency and status
+- **Ticket Settings Command**: New `/ticket settings` subcommand
+  - `/ticket settings admin-only-mention <enabled>` - Toggle staff ping when ticket creator requests admin-only
+  - `/ticket settings ping-on-create <enabled> type:<type>` - Toggle staff ping when a specific ticket type is created
+- **Ping Staff on Ticket Creation**: Configurable per-type staff ping when tickets are created
+  - Works for both legacy types (18_verify, ban_appeal, player_report, bug_report, other) and custom types
+  - Legacy types stored in TicketConfig, custom types stored in CustomTicketType
+  - Player Report now respects the toggle (previously always pinged)
+- **Type Add/Edit Confirmation Embed**: When creating or editing custom ticket types
+  - Shows detailed type information (ID, display name, color, status, ping setting)
+  - Includes toggle button to enable/disable staff ping directly from confirmation
+  - Consistent experience across `/ticket type-add` and `/ticket type-edit`
+- **Dev Branch Auto-Sync**: New GitHub workflow to keep dev branch in sync with main
+
+## Changed
+- **Ticket Channel Naming**: Changed separator from hyphen to underscore
+- **Ticket Welcome Message**: Added visual separation between buttons and description
+- **Player Report**: Removed hardcoded staff ping, now uses centralized ping-on-create system
+- **Custom Ticket Type Defaults**: Staff ping is now **disabled by default** when creating new ticket types
+  - Admins must explicitly enable ping via the toggle button or `/ticket settings ping-on-create`
+- **Logging Improvements**: Added debug logging for ticket type management
+- **Debug Logging Overhaul**: Environment-aware logging throughout the codebase
+  - **Development**: Shows DEBUG-level logs for detailed interaction tracking
+  - **Production**: Shows only INFO+ logs for clean console output
+- **Health Monitor Improvements**: Reduced console log flooding in production
+
+---
+
+# Dev Update v2.4.9
+
+## Fixed
+- **Discord Changelog Webhook**: Suppressed embed previews from webhook messages
+
+---
+
 # Dev Update v2.4.8
 
 ## Added

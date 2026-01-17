@@ -1,0 +1,37 @@
+name: Sync Dev Branch
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync-dev:
+    runs-on: ubuntu-latest
+    name: Sync main → dev
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "${{ secrets.GIT_USER_NAME }}"
+          git config user.email "${{ secrets.GIT_USER_EMAIL }}"
+
+      - name: Sync dev branch
+        run: |
+          # Fetch all branches
+          git fetch origin
+
+          # Checkout dev branch
+          git checkout dev
+
+          # Merge main into dev (fast-forward if possible)
+          git merge origin/main --ff-only || git merge origin/main -m "chore: sync dev with main"
+
+          # Push the updated dev branch
+          git push origin dev

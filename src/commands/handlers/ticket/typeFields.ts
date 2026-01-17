@@ -55,6 +55,7 @@ setInterval(() => {
 export async function typeFieldsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
         if (!interaction.guild) {
+            enhancedLogger.warn('Type-fields handler: guild not found', LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id });
             await interaction.reply({
                 content: lang.general.cmdGuildNotFound,
                 flags: [MessageFlags.Ephemeral]
@@ -64,6 +65,9 @@ export async function typeFieldsHandler(interaction: ChatInputCommandInteraction
 
         const guildId = interaction.guild.id;
         const typeId = interaction.options.getString('type', true);
+
+        enhancedLogger.debug(`Command: /ticket type-fields type=${typeId}`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, typeId });
+
         const typeRepo = AppDataSource.getRepository(CustomTicketType);
 
         const ticketType = await typeRepo.findOne({
@@ -71,6 +75,7 @@ export async function typeFieldsHandler(interaction: ChatInputCommandInteraction
         });
 
         if (!ticketType) {
+            enhancedLogger.warn(`Type-fields: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId, typeId });
             await interaction.reply({
                 content: '❌ Ticket type not found!',
                 flags: [MessageFlags.Ephemeral]

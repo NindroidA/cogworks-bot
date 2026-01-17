@@ -81,6 +81,31 @@ const userRestrict = new SlashCommandSubcommandBuilder()
         .setAutocomplete(true)
     );
 
+const tls = lang.ticket.settings;
+const settings = new SlashCommandSubcommandBuilder()
+    .setName('settings')
+    .setDescription(tls.cmdDescrp)
+    .addStringOption((option) => option
+        .setName('setting')
+        .setDescription(tls.settingOption)
+        .setRequired(true)
+        .addChoices(
+            { name: 'Admin-Only Staff Mention', value: 'admin-only-mention' },
+            { name: 'Ping Staff on Create', value: 'ping-on-create' }
+        )
+    )
+    .addBooleanOption((option) => option
+        .setName('enabled')
+        .setDescription(tls.enabledOption)
+        .setRequired(true)
+    )
+    .addStringOption((option) => option
+        .setName('type')
+        .setDescription(tls.typeOption)
+        .setRequired(false)
+        .setAutocomplete(true)
+    );
+
 /* main slash command */
 export const ticket = new SlashCommandBuilder()
     .setName('ticket')
@@ -95,4 +120,5 @@ export const ticket = new SlashCommandBuilder()
     .addSubcommand(typeFields)
     .addSubcommand(emailImport)
     .addSubcommand(userRestrict)
+    .addSubcommand(settings)
     .toJSON();

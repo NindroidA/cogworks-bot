@@ -49,6 +49,14 @@ export interface LangGeneral {
         yes: string;
         no: string;
     };
+    ping: {
+        cmdDescrp: string;
+        calculating: string;
+        title: string;
+        wsLatency: string;
+        apiLatency: string;
+        uptime: string;
+    };
 }
 
 export interface LangMain {
@@ -380,6 +388,18 @@ export interface LangTicket {
             duplicate: string;
             invalidTypeId: string;
             invalidColor: string;
+            pingToggleEnable: string;
+            pingToggleDisable: string;
+        };
+        confirmEmbed: {
+            typeId: string;
+            displayName: string;
+            color: string;
+            status: string;
+            pingStaff: string;
+            description: string;
+            pingEnabled: string;
+            pingDisabled: string;
         };
         typeEdit: {
             cmdDescrp: string;
@@ -474,6 +494,19 @@ export interface LangTicket {
             saved: string;
             footer: string;
         };
+    };
+    settings: {
+        cmdDescrp: string;
+        settingOption: string;
+        enabledOption: string;
+        typeOption: string;
+        updated: string;
+        adminOnlyMentionEnabled: string;
+        adminOnlyMentionDisabled: string;
+        pingOnCreateEnabled: string;
+        pingOnCreateDisabled: string;
+        typeRequired: string;
+        typeNotFound: string;
     };
 }
 

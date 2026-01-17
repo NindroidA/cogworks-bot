@@ -1,7 +1,4 @@
-import { ActionRowBuilder, Interaction, ModalBuilder, ModalSubmitFields, TextInputBuilder, TextInputStyle } from 'discord.js';
-import { AppDataSource } from '../../typeorm';
-import { BotConfig } from '../../typeorm/entities/BotConfig';
-import { lang, logger } from '../../utils';
+import { ActionRowBuilder, ModalBuilder, ModalSubmitFields, TextInputBuilder, TextInputStyle } from 'discord.js';
 
 export const playerReportModal = async(modal: ModalBuilder) => {
     const prModalN = new ActionRowBuilder<TextInputBuilder>().addComponents(
@@ -22,31 +19,11 @@ export const playerReportModal = async(modal: ModalBuilder) => {
     return modal.addComponents(prModalN, prModalR);
 };
 
-export const playerReportMessage = async(fields: ModalSubmitFields, interaction: Interaction) => {
-    const guildId = interaction.guildId;
+// Staff ping is now handled centrally in ticketInteraction.ts via /ticket settings ping-on-create
+export const playerReportMessage = async(fields: ModalSubmitFields) => {
     const header = '# Player Report\n';
     const prn = `**Name to Report:** ${fields.getTextInputValue('player_report_ign')}\n`;
     const prd = `**Report Description:** ${fields.getTextInputValue('player_report_descrp')}\n`;
-
-    // if guild is not found, throw an error
-    if (!guildId) { throw Error; }
-
-    // get the bot config repo
-    const botConfigRepo = AppDataSource.getRepository(BotConfig);
-    const botConfig = await botConfigRepo.findOneBy({ guildId });
-    const gsrFlag = botConfig?.enableGlobalStaffRole;
-    const gsr = botConfig?.globalStaffRole + '\n';
-
-    // if the bot config isn't setup
-    if (!botConfig || !gsr) {
-        logger(lang.botConfig.notFound);
-    // if the global staff role is enabled but isn't set
-    } else if (gsrFlag && !gsr) {
-        logger(lang.botConfig.noStaffRole);
-    // if the global staff role is enabled and set, add the mention to the message
-    } else if (gsrFlag && gsr) {
-        return header + gsr + prn + prd;
-    } 
 
     return header + prn + prd;
 };

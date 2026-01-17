@@ -1,4 +1,6 @@
 import { ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
     ChatInputCommandInteraction,
     ModalBuilder,
     ModalSubmitInteraction,
@@ -6,7 +8,8 @@ import { ActionRowBuilder,
     TextInputStyle, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { handleInteractionError, lang, LANGF } from '../../../utils';
+import { handleInteractionError, lang, logger } from '../../../utils';
+import { buildTypeConfirmationEmbed } from './typeAdd';
 
 const tl = lang.ticket.customTypes.typeEdit;
 
@@ -16,7 +19,10 @@ const tl = lang.ticket.customTypes.typeEdit;
  */
 export async function typeEditHandler(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
+        const user = interaction.user.username;
+
         if (!interaction.guild) {
+            logger('Type-edit failed: guild not found', 'WARN');
             await interaction.reply({
                 content: lang.general.cmdGuildNotFound,
                 flags: [MessageFlags.Ephemeral]
@@ -26,6 +32,7 @@ export async function typeEditHandler(interaction: ChatInputCommandInteraction):
 
         const guildId = interaction.guild.id;
         const typeId = interaction.options.getString('type', true);
+        logger(`User ${user} opening type-edit modal for '${typeId}'`);
 
         const typeRepo = AppDataSource.getRepository(CustomTicketType);
 
@@ -34,6 +41,7 @@ export async function typeEditHandler(interaction: ChatInputCommandInteraction):
         });
 
         if (!type) {
+            logger(`User ${user} type-edit failed: type '${typeId}' not found`, 'WARN');
             await interaction.reply({
                 content: tl.notFound,
                 flags: [MessageFlags.Ephemeral]
@@ -99,7 +107,11 @@ export async function typeEditModalHandler(
     typeId: string
 ): Promise<void> {
     try {
+        const user = interaction.user.username;
+        logger(`User ${user} submitted type-edit modal for '${typeId}'`);
+
         if (!interaction.guild) {
+            logger('Type-edit modal failed: guild not found', 'WARN');
             await interaction.reply({
                 content: lang.general.cmdGuildNotFound,
                 flags: [MessageFlags.Ephemeral]
@@ -117,6 +129,7 @@ export async function typeEditModalHandler(
 
         // Validate hex color
         if (!/^#[0-9A-Fa-f]{6}$/.test(colorInput)) {
+            logger(`User ${user} type-edit validation failed: invalid color '${colorInput}'`, 'WARN');
             await interaction.reply({
                 content: lang.ticket.customTypes.typeAdd.invalidColor,
                 flags: [MessageFlags.Ephemeral]
@@ -131,6 +144,7 @@ export async function typeEditModalHandler(
         });
 
         if (!type) {
+            logger(`User ${user} type-edit modal failed: type '${typeId}' not found`, 'WARN');
             await interaction.reply({
                 content: tl.notFound,
                 flags: [MessageFlags.Ephemeral]
@@ -145,9 +159,23 @@ export async function typeEditModalHandler(
         type.description = description || null;
 
         await typeRepo.save(type);
+        logger(`User ${user} updated ticket type '${typeId}' (${displayName}) in guild ${guildId}`);
+
+        // Build confirmation embed with type details
+        const embed = buildTypeConfirmationEmbed(type, false);
+
+        // Add toggle button for staff ping setting
+        const toggleButton = new ButtonBuilder()
+            .setCustomId(`ticket_type_ping_toggle:${typeId}`)
+            .setLabel(type.pingStaffOnCreate ? lang.ticket.customTypes.typeAdd.pingToggleDisable : lang.ticket.customTypes.typeAdd.pingToggleEnable)
+            .setStyle(type.pingStaffOnCreate ? ButtonStyle.Danger : ButtonStyle.Success)
+            .setEmoji(type.pingStaffOnCreate ? '🔕' : '🔔');
+
+        const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(toggleButton);
 
         await interaction.reply({
-            content: LANGF(tl.success, displayName),
+            embeds: [embed],
+            components: [buttonRow],
             flags: [MessageFlags.Ephemeral]
         });
     } catch (error) {

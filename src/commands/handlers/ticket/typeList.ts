@@ -1,7 +1,7 @@
 import { ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { handleInteractionError, lang, LANGF } from '../../../utils';
+import { enhancedLogger, handleInteractionError, lang, LANGF, LogCategory } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeList;
 
@@ -12,6 +12,7 @@ const tl = lang.ticket.customTypes.typeList;
 export async function typeListHandler(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
         if (!interaction.guild) {
+            enhancedLogger.warn('Type-list handler: guild not found', LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id });
             await interaction.reply({
                 content: lang.general.cmdGuildNotFound,
                 flags: [MessageFlags.Ephemeral]
@@ -20,6 +21,8 @@ export async function typeListHandler(interaction: ChatInputCommandInteraction):
         }
 
         const guildId = interaction.guild.id;
+        enhancedLogger.debug(`Command: /ticket type-list`, LogCategory.COMMAND_EXECUTION, { userId: interaction.user.id, guildId });
+
         const typeRepo = AppDataSource.getRepository(CustomTicketType);
 
         const types = await typeRepo.find({
