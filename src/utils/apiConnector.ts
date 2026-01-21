@@ -168,7 +168,7 @@ export class APIConnector {
             // Send initial bot registration data
             const botData = this.createBotStatsPayload(client);
             await this.makeRequestWithRetry(() => 
-                this.apiClient.post('/api/cogworks/register', botData)
+                this.apiClient.post('/v2/cogworks/register', botData)
             );
             
             this.isConnected = true;
@@ -411,7 +411,7 @@ export class APIConnector {
                 if (client.isReady() && this.isConnected) {
                     const stats = this.createBotStatsPayload(client);
                     await this.makeRequestWithRetry(() => 
-                        this.apiClient.put('/api/cogworks/stats', stats)
+                        this.apiClient.put('/v2/cogworks/stats', stats)
                     );
                 }
             } catch {
@@ -454,7 +454,7 @@ export class APIConnector {
         try {
             if (this.isConnected) {
                 await this.makeRequestWithRetry(() =>
-                    this.apiClient.post('/api/cogworks/command-log', {
+                    this.apiClient.post('/v2/cogworks/command-log', {
                         command: commandName,
                         guildId,
                         userId,
@@ -486,7 +486,7 @@ export class APIConnector {
         if (client.isReady() && this.isConnected) {
             const stats = this.createBotStatsPayload(client);
             await this.makeRequestWithRetry(() =>
-                this.apiClient.put('/api/cogworks/stats', stats)
+                this.apiClient.put('/v2/cogworks/stats', stats)
             );
         }
     }
@@ -565,7 +565,7 @@ export class APIConnector {
         if (this.isConnected) {
             try {
                 await this.makeRequestWithRetry(() =>
-                    this.apiClient.post('/api/cogworks/disconnect', {
+                    this.apiClient.post('/v2/cogworks/disconnect', {
                         timestamp: new Date().toISOString(),
                         metrics: this.metrics
                     })

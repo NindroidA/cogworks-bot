@@ -1,3 +1,16 @@
+# Dev Update v2.4.11
+
+## Changed
+- **API Migration**: Updated all API endpoints from `/api/cogworks/*` to `/v2/cogworks/*`
+  - Endpoints updated: register, stats, command-log, disconnect
+  - Production API URL now: `https://api.nindroidsystems.com`
+- **Environment Config**: Updated `.env.example` with new API URL format
+
+## Fixed
+- **Discord Changelog Truncation**: Fixed partial list items appearing when changelog is truncated for Discord's character limit
+
+---
+
 # Dev Update v2.4.10
 
 ## Added

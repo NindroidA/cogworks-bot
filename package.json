@@ -1,6 +1,6 @@
 {
   "name": "cogworks-bot",
-  "version": "2.4.10",
+  "version": "2.4.11",
   "description": "Discord ticketing bot developed for ease-of-use",
   "main": "index.js",
   "scripts": {
@@ -13,7 +13,9 @@
     "dev": "tsc && bun --watch ./dist/src/index.js",
     "start": "bun run ./src/index.ts",
     "start:node": "tsc && node ./dist/src/index.js",
-    "start:compiled": "tsc && bun ./dist/src/index.js"
+    "start:compiled": "tsc && bun ./dist/src/index.js",
+    "extract-commands": "bun run scripts/extractCommands.ts",
+    "docs:sync": "bun run scripts/extractCommands.ts"
   },
   "keywords": [],
   "author": "",

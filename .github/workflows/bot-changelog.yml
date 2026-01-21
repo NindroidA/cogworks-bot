@@ -60,6 +60,8 @@ jobs:
           # Truncate if too long (Discord limit is 2000 chars)
           if [ ${#MESSAGE} -gt 1950 ]; then
             TRUNCATED="${MESSAGE:0:1850}"
+            # Remove the last line to avoid partial items
+            TRUNCATED=$(echo "$TRUNCATED" | head -n -1)
             MESSAGE=$(printf '%s\n\n...\n\n---\n%s' "$TRUNCATED" "$FOOTER")
           fi
 
