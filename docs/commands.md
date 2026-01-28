@@ -1,6 +1,6 @@
 # Cogworks Bot Commands
 
-**Last Updated:** `January 17, 2026`
+**Last Updated:** `January 27, 2026`
 
 Complete command reference for all bot systems.
 
@@ -160,27 +160,27 @@ Applications are submitted via modal forms and stored in the database.
 ## Role Management
 
 ### Adding Roles
-**`/add-role admin [role_id] [alias]`**
+**`/role add admin [role] [alias]`**
 - Add an admin role with custom alias
-- `role_id` - The actual Discord Role ID
+- `role` - The Discord role to add
 - `alias` - Custom name to refer to this role
 
-**`/add-role staff [role_id] [alias]`**
+**`/role add staff [role] [alias]`**
 - Add a staff role with custom alias
-- `role_id` - The actual Discord Role ID
+- `role` - The Discord role to add
 - `alias` - Custom name to refer to this role
 
 ### Removing Roles
-**`/remove-role admin [role_id]`**
+**`/role remove admin [role]`**
 - Remove an admin role
-- `role_id` - The actual Discord Role ID
+- `role` - The Discord role to remove
 
-**`/remove-role staff [role_id]`**
+**`/role remove staff [role]`**
 - Remove a staff role
-- `role_id` - The actual Discord Role ID
+- `role` - The Discord role to remove
 
 ### Viewing Roles
-**`/get-roles`**
+**`/role list`**
 - Display all configured admin and staff roles with their aliases
 
 ## Bait Channel System
@@ -252,6 +252,74 @@ The system analyzes multiple factors to calculate a suspicion score:
 5. **Suspicious Content** - Common spam keywords detected
 6. **Link Spam** - Contains multiple links
 7. **Mention Spam** - Excessive mentions
+
+## Memory System
+
+A forum-based tracking system for bugs, features, suggestions, reminders, and notes.
+
+### Memory Setup
+**`/memory-setup [channel]`**
+- Configure the memory system for your server
+- `channel` - (Optional) Existing forum channel to use
+- If no channel provided, shows options to select existing forum or create new one
+- Creates default category tags (Bug, Feature, Suggestion, Reminder, Note)
+- Creates default status tags (Open, In Progress, On Hold, Completed)
+- Posts a pinned welcome thread in the forum
+
+### Memory Management
+**`/memory add`**
+- Create a new memory item manually
+- Select category and status from dropdowns
+- Enter title and description in modal
+- Creates a forum thread with the item
+
+**`/memory capture [message_link]`**
+- Capture an existing message as a memory item
+- `message_link` - Link to the message to capture
+- Pre-fills description with message content
+- Shows source channel link in the created post
+
+**`/memory update`**
+- Update the status of a memory item
+- **Must be run inside a memory thread**
+- Select new status from dropdown
+- Automatically closes thread when status is "Completed"
+
+**`/memory delete`**
+- Delete a memory item
+- **Must be run inside a memory thread**
+- Cannot delete the welcome post
+- Confirmation required before deletion
+
+**`/memory tags action:[add|edit|remove|list]`**
+- Manage memory tags
+- `add` - Create a new tag (opens modal for name, emoji, type)
+- `edit` - Edit an existing tag
+- `remove` - Delete a non-default tag
+- `list` - View all configured tags
+
+### Default Tags
+
+**Category Tags:**
+- 🐛 Bug
+- ✨ Feature
+- 💡 Suggestion
+- ⏰ Reminder
+- 📝 Note
+
+**Status Tags:**
+- 📋 Open
+- 🔧 In Progress
+- ⏸️ On Hold
+- ✅ Completed
+
+## Support
+
+### Coffee (Support Development)
+**`/coffee`**
+- Show support links for Cogworks development
+- Links to Buy Me a Coffee page
+- Available to all users
 
 ## System Information
 

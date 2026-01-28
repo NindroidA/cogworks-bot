@@ -84,6 +84,7 @@ export const Emoji = {
 		users: '👥',
 		settings: '⚙️',
 		config: '🔧',
+		memory: '📝',
 	},
 
 	// Content/data emojis
@@ -202,6 +203,7 @@ export const E = {
 	role: Emoji.feature.role,
 	config: Emoji.feature.config,
 	settings: Emoji.feature.settings,
+	memory: Emoji.feature.memory,
 
 	// Content
 	msg: Emoji.content.message,

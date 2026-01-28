@@ -1,3 +1,46 @@
+# Dev Update v2.6.0
+
+## Added
+- **Memory System**: Forum-based todo/issue tracker for managing bugs, features, suggestions, reminders, and notes
+  - `/memory-setup` - Configure memory system with existing or new forum channel
+  - `/memory add` - Manually create memory items with title, description, category, and status
+  - `/memory capture` - Capture existing messages as memory items via message link
+  - `/memory update` - Update status of a memory item (run inside memory thread)
+  - `/memory delete` - Delete a memory item (run inside memory thread)
+  - `/memory tags` - Manage tags (add/edit/remove/list)
+  - Default category tags: Bug, Feature, Suggestion, Reminder, Note
+  - Default status tags: Open, In Progress, On Hold, Completed
+  - Tags sync with Discord forum tags for visual organization
+  - Auto-close threads when status set to "Completed"
+  - Pinned welcome post in memory forum
+- **Coffee Command**: New `/coffee` command to support Cogworks development
+  - Links to Buy Me a Coffee page
+
+---
+
+# Dev Update v2.5.0
+
+## Changed
+- **Command Consolidation**: Consolidated role commands into single `/role` command
+  - `/add-role` → `/role add staff` or `/role add admin`
+  - `/remove-role` → `/role remove staff` or `/role remove admin`
+  - `/get-roles` → `/role list`
+- **Application Position**: Moved `/application-position` subcommands under `/application position`
+  - `/application-position add` → `/application position add`
+  - `/application-position remove` → `/application position remove`
+  - `/application-position toggle` → `/application position toggle`
+  - `/application-position list` → `/application position list`
+  - `/application-position refresh` → `/application position refresh`
+
+## Removed
+- **Legacy Commands**: Removed deprecated commands
+  - `/ticket-reply` command (legacy ban appeal feature)
+  - `baResponses.json` (unused legacy file)
+  - `/add-role`, `/remove-role`, `/get-roles` (consolidated into `/role`)
+  - `/application-position` (moved under `/application`)
+
+---
+
 # Dev Update v2.4.11
 
 ## Changed

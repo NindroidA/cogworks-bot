@@ -1,11 +1,11 @@
-import { PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
+import { PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder, SlashCommandSubcommandGroupBuilder } from 'discord.js';
 import { lang } from '../../utils';
 
 const tl = lang.application.position;
 const tSC = lang.application.position.subcmdDescrp;
 
-/* subcommands */
-const add = new SlashCommandSubcommandBuilder()
+/* position subcommands */
+const positionAdd = new SlashCommandSubcommandBuilder()
     .setName('add')
     .setDescription(tSC.add)
     .addStringOption(option => option
@@ -24,7 +24,7 @@ const add = new SlashCommandSubcommandBuilder()
         .setDescription(tSC['add-description'])
     );
 
-const remove = new SlashCommandSubcommandBuilder()
+const positionRemove = new SlashCommandSubcommandBuilder()
     .setName('remove')
     .setDescription(tSC.remove)
     .addIntegerOption(option => option
@@ -33,7 +33,7 @@ const remove = new SlashCommandSubcommandBuilder()
         .setRequired(true)
     );
 
-const toggle = new SlashCommandSubcommandBuilder()
+const positionToggle = new SlashCommandSubcommandBuilder()
     .setName('toggle')
     .setDescription(tSC.toggle)
     .addIntegerOption(option => option
@@ -42,22 +42,28 @@ const toggle = new SlashCommandSubcommandBuilder()
         .setRequired(true)
     );
 
-const list = new SlashCommandSubcommandBuilder()
+const positionList = new SlashCommandSubcommandBuilder()
     .setName('list')
     .setDescription(tSC.list);
 
-const refresh = new SlashCommandSubcommandBuilder()
+const positionRefresh = new SlashCommandSubcommandBuilder()
     .setName('refresh')
     .setDescription(tSC.refresh);
 
-/* main slash command */
-export const applicationPosition = new SlashCommandBuilder()
-    .setName('application-position')
+/* position subcommand group */
+const positionGroup = new SlashCommandSubcommandGroupBuilder()
+    .setName('position')
     .setDescription(tl.cmdDescrp)
+    .addSubcommand(positionAdd)
+    .addSubcommand(positionRemove)
+    .addSubcommand(positionToggle)
+    .addSubcommand(positionList)
+    .addSubcommand(positionRefresh);
+
+/* main slash command */
+export const application = new SlashCommandBuilder()
+    .setName('application')
+    .setDescription('Manage application system')
     .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
-    .addSubcommand(add)
-    .addSubcommand(remove)
-    .addSubcommand(toggle)
-    .addSubcommand(list)
-    .addSubcommand(refresh)
+    .addSubcommandGroup(positionGroup)
     .toJSON();

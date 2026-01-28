@@ -5,5 +5,6 @@
 	"cancelled": "Operation cancelled.",
 	"genericError": "An error occurred while executing this command. Please try again later.",
 	"rateLimit": "You're using this command too quickly. Please try again in {0} minutes.",
-	"timeout": "Operation timed out. Please try again."
+	"timeout": "Operation timed out. Please try again.",
+	"notYourInteraction": "This is not your interaction."
 }

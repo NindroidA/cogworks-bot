@@ -10,11 +10,9 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT_DIR = join(__dirname, '..');
+const ROOT_DIR = process.cwd();
 const LANG_DIR = join(ROOT_DIR, 'src', 'lang');
 const OUTPUT_DIR = join(ROOT_DIR, 'dist');
 
@@ -54,14 +52,13 @@ const categoryMap: Record<string, string> = {
     'application-setup': 'Setup',
     'announcement-setup': 'Setup',
     'ticket': 'Tickets',
-    'ticket-reply': 'Tickets',
-    'application-position': 'Applications',
+    'application': 'Applications',
     'announcement': 'Announcements',
     'baitchannel': 'Bait Channel',
-    'add-role': 'Roles',
-    'remove-role': 'Roles',
-    'get-roles': 'Roles',
+    'role': 'Roles',
+    'memory': 'Memory',
     'ping': 'General',
+    'coffee': 'General',
     'data-export': 'General',
     'dev': 'Admin',
     'migrate': 'Admin',
@@ -74,14 +71,13 @@ const permissionMap: Record<string, string[]> = {
     'application-setup': ['Administrator'],
     'announcement-setup': ['Administrator'],
     'ticket': ['Manage Channels'],
-    'ticket-reply': [],
-    'application-position': ['Manage Roles'],
+    'application': ['Administrator'],
     'announcement': ['Manage Messages'],
     'baitchannel': ['Administrator'],
-    'add-role': ['Manage Roles'],
-    'remove-role': ['Manage Roles'],
-    'get-roles': ['Manage Roles'],
+    'role': ['Administrator'],
+    'memory': ['Administrator'],
     'ping': [],
+    'coffee': [],
     'data-export': [],
     'dev': ['Administrator'],
     'migrate': ['Administrator'],
@@ -101,6 +97,7 @@ function extractCommands(): Command[] {
     const botSetup = loadLangFile('botSetup.json');
     const dev = loadLangFile('dev.json');
     const dataExport = loadLangFile('dataExport.json');
+    const memory = loadLangFile('memory.json');
 
     // Ping command
     if (general.ping) {
@@ -111,6 +108,38 @@ function extractCommands(): Command[] {
             category: 'General',
             permissions: [],
             examples: ['/ping'],
+        });
+    }
+
+    // Coffee command
+    if (general.coffee) {
+        commands.push({
+            name: 'coffee',
+            description: general.coffee.cmdDescrp || 'Support Cogworks development',
+            usage: '/coffee',
+            category: 'General',
+            permissions: [],
+            examples: ['/coffee'],
+        });
+    }
+
+    // Memory command
+    if (memory.builder) {
+        const subcommands: Subcommand[] = [
+            { name: 'setup', description: 'Set up the memory system', usage: '/memory setup [channel]' },
+            { name: 'add', description: 'Add a new memory item', usage: '/memory add' },
+            { name: 'capture', description: 'Capture a message as memory item', usage: '/memory capture <message_link>' },
+            { name: 'tags', description: 'Manage memory tags', usage: '/memory tags <action>' },
+        ];
+
+        commands.push({
+            name: 'memory',
+            description: memory.builder?.cmdDescrp || 'Manage memory system for tracking bugs, features, and notes',
+            usage: '/memory <subcommand>',
+            category: 'Memory',
+            permissions: ['Administrator'],
+            examples: ['/memory setup', '/memory add', '/memory tags list'],
+            subcommands,
         });
     }
 
@@ -161,16 +190,6 @@ function extractCommands(): Command[] {
         });
     }
 
-    // Ticket Reply command
-    commands.push({
-        name: 'ticket-reply',
-        description: 'Reply to a ticket with a formatted message.',
-        usage: '/ticket-reply <message>',
-        category: 'Tickets',
-        permissions: [],
-        examples: ['/ticket-reply Thank you for contacting support!'],
-    });
-
     // Application Setup command
     if (application.setup) {
         commands.push({
@@ -183,15 +202,24 @@ function extractCommands(): Command[] {
         });
     }
 
-    // Application Position command
+    // Application command with position subcommand group
     if (application.position) {
+        const subcommands: Subcommand[] = [
+            { name: 'position add', description: 'Add a new application position', usage: '/application position add' },
+            { name: 'position remove', description: 'Remove an application position', usage: '/application position remove <id>' },
+            { name: 'position toggle', description: 'Toggle position availability', usage: '/application position toggle <id>' },
+            { name: 'position list', description: 'List all positions', usage: '/application position list' },
+            { name: 'position refresh', description: 'Refresh position message', usage: '/application position refresh' },
+        ];
+
         commands.push({
-            name: 'application-position',
-            description: application.position?.builder?.cmdDescrp || 'Manage application positions.',
-            usage: '/application-position <add|edit|remove|list>',
+            name: 'application',
+            description: 'Manage application system and positions.',
+            usage: '/application position <subcommand>',
             category: 'Applications',
-            permissions: ['Manage Roles'],
-            examples: ['/application-position add', '/application-position list'],
+            permissions: ['Administrator'],
+            examples: ['/application position add', '/application position list'],
+            subcommands,
         });
     }
 
@@ -250,37 +278,24 @@ function extractCommands(): Command[] {
         });
     }
 
-    // Role commands
-    if (roles.add) {
-        commands.push({
-            name: 'add-role',
-            description: roles.add?.builder?.cmdDescrp || 'Add a staff or admin role.',
-            usage: '/add-role <staff|admin> <role>',
-            category: 'Roles',
-            permissions: ['Manage Roles'],
-            examples: ['/add-role staff @Moderator', '/add-role admin @Admin'],
-        });
-    }
+    // Role command (consolidated)
+    if (roles.add || roles.remove || roles.get) {
+        const subcommands: Subcommand[] = [
+            { name: 'add staff', description: 'Add a staff role', usage: '/role add staff <role> <alias>' },
+            { name: 'add admin', description: 'Add an admin role', usage: '/role add admin <role> <alias>' },
+            { name: 'remove staff', description: 'Remove a staff role', usage: '/role remove staff <alias>' },
+            { name: 'remove admin', description: 'Remove an admin role', usage: '/role remove admin <alias>' },
+            { name: 'list', description: 'View configured staff and admin roles', usage: '/role list' },
+        ];
 
-    if (roles.remove) {
         commands.push({
-            name: 'remove-role',
-            description: roles.remove?.builder?.cmdDescrp || 'Remove a staff or admin role.',
-            usage: '/remove-role <staff|admin> <role>',
+            name: 'role',
+            description: 'Manage saved staff and admin roles.',
+            usage: '/role <add|remove|list>',
             category: 'Roles',
-            permissions: ['Manage Roles'],
-            examples: ['/remove-role staff @Moderator'],
-        });
-    }
-
-    if (roles.get) {
-        commands.push({
-            name: 'get-roles',
-            description: roles.get?.builder?.cmdDescrp || 'View configured staff and admin roles.',
-            usage: '/get-roles',
-            category: 'Roles',
-            permissions: ['Manage Roles'],
-            examples: ['/get-roles'],
+            permissions: ['Administrator'],
+            examples: ['/role add staff @Moderator mod', '/role list'],
+            subcommands,
         });
     }
 

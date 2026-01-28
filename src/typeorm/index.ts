@@ -10,6 +10,7 @@ import { Position } from './entities/application/Position';
 import { BaitChannelConfig } from './entities/BaitChannelConfig';
 import { BaitChannelLog } from './entities/BaitChannelLog';
 import { BotConfig } from './entities/BotConfig';
+import { MemoryConfig, MemoryItem, MemoryTag } from './entities/memory';
 import { SavedRole } from './entities/SavedRole';
 import { ServerConfig } from './entities/ServerConfig';
 import { ArchivedTicket } from './entities/ticket/ArchivedTicket';
@@ -29,5 +30,5 @@ export const AppDataSource = new DataSource({
     password: process.env.MYSQL_DB_PASSWORD,
     database: process.env.MYSQL_DB_DATABASE,
     synchronize: true,
-    entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, CustomTicketType, UserTicketRestriction, ServerConfig, SavedRole, BotConfig, Application, ApplicationConfig, ArchivedApplication, ArchivedApplicationConfig, Position, AnnouncementConfig, AnnouncementLog, BaitChannelConfig, BaitChannelLog, UserActivity],
+    entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, CustomTicketType, UserTicketRestriction, ServerConfig, SavedRole, BotConfig, Application, ApplicationConfig, ArchivedApplication, ArchivedApplicationConfig, Position, AnnouncementConfig, AnnouncementLog, BaitChannelConfig, BaitChannelLog, UserActivity, MemoryConfig, MemoryTag, MemoryItem],
 });

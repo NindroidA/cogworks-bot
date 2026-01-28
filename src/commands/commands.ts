@@ -2,7 +2,6 @@ import { CacheType, ChatInputCommandInteraction, Client, MessageFlags } from 'di
 import { AppDataSource } from '../typeorm';
 import { BotConfig } from '../typeorm/entities/BotConfig';
 import { createRateLimitKey, enhancedLogger, healthMonitor, lang, LogCategory, logger, rateLimiter, RateLimits } from '../utils';
-import { addRoleHandler } from './handlers/addRole';
 import { announcementHandler } from './handlers/announcement';
 import { announcementSetupHandler } from './handlers/announcement/setup';
 import { applicationPositionHandler } from './handlers/application/applicationPosition';
@@ -19,10 +18,12 @@ import {
     deleteAllArchivedTicketsHandler,
     deleteArchivedTicketHandler
 } from './handlers/dev/ticketDev';
-import { getRolesHandler } from './handlers/getRoles';
 import { migrateApplicationTagsHandler, migrateTicketTagsHandler } from './handlers/migrate';
-import { removeRoleHandler } from './handlers/removeRole';
+import { coffeeHandler } from './handlers/coffee';
+import { memoryAddHandler, memoryCaptureHandler, memoryDeleteHandler, memoryTagsHandler, memoryUpdateHandler } from './handlers/memory';
+import { memorySetupHandler } from './handlers/memorySetup';
 import { pingHandler } from './handlers/ping';
+import { roleAddHandler, roleListHandler, roleRemoveHandler } from './handlers/role';
 import {
     emailImportHandler,
     settingsHandler,
@@ -35,7 +36,6 @@ import {
     typeToggleHandler,
     userRestrictHandler
 } from './handlers/ticket';
-import { ticketReplyHandler } from './handlers/ticketReply';
 import { ticketSetupHandler } from './handlers/ticketSetup';
 
 export const handleSlashCommand = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
@@ -90,10 +90,6 @@ export const handleSlashCommand = async(client: Client, interaction: ChatInputCo
                     await ticketSetupHandler(client, interaction);
                     break;
                 }
-                case 'ticket-reply': {
-                    await ticketReplyHandler(client, interaction);
-                    break;
-                }
                 case 'ticket': {
                     // Route to appropriate subcommand handler
                     const subcommand = interaction.options.getSubcommand();
@@ -135,24 +131,60 @@ export const handleSlashCommand = async(client: Client, interaction: ChatInputCo
                     await pingHandler(interaction);
                     break;
                 }
-                case 'add-role': {
-                    await addRoleHandler(client, interaction);
+                case 'coffee': {
+                    await coffeeHandler(interaction);
                     break;
                 }
-                case 'remove-role': {
-                    await removeRoleHandler(client, interaction);
+                case 'memory-setup': {
+                    await memorySetupHandler(client, interaction);
                     break;
                 }
-                case 'get-roles': {
-                    await getRolesHandler(client, interaction);
+                case 'memory': {
+                    const subcommand = interaction.options.getSubcommand();
+                    switch (subcommand) {
+                        case 'add':
+                            await memoryAddHandler(interaction);
+                            break;
+                        case 'capture':
+                            await memoryCaptureHandler(interaction);
+                            break;
+                        case 'update':
+                            await memoryUpdateHandler(interaction);
+                            break;
+                        case 'delete':
+                            await memoryDeleteHandler(interaction);
+                            break;
+                        case 'tags':
+                            await memoryTagsHandler(interaction);
+                            break;
+                    }
+                    break;
+                }
+                case 'role': {
+                    // Route to appropriate role subcommand handler
+                    const subcommandGroup = interaction.options.getSubcommandGroup(false);
+                    const subcommand = interaction.options.getSubcommand();
+
+                    if (subcommandGroup === 'add') {
+                        await roleAddHandler(interaction);
+                    } else if (subcommandGroup === 'remove') {
+                        await roleRemoveHandler(interaction);
+                    } else if (subcommand === 'list') {
+                        await roleListHandler(interaction);
+                    }
                     break;
                 }
                 case 'application-setup': {
                     await applicationSetupHandler(client, interaction);
                     break;
                 }
-                case 'application-position': {
-                    await applicationPositionHandler(client, interaction);
+                case 'application': {
+                    // Route to appropriate application subcommand handler
+                    const appSubcommandGroup = interaction.options.getSubcommandGroup(false);
+                    if (appSubcommandGroup === 'position') {
+                        await applicationPositionHandler(client, interaction);
+                    }
+                    break;
                 }
                 case 'announcement-setup': {
                     await announcementSetupHandler(client, interaction);

@@ -81,6 +81,7 @@ temp/
 # AI Instructions
 .github/copilot-instructions.md
 .claude/
+.plans/
 
 # Docker
 *.tar.gz

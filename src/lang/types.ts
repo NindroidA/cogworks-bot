@@ -57,6 +57,13 @@ export interface LangGeneral {
         apiLatency: string;
         uptime: string;
     };
+    coffee: {
+        cmdDescrp: string;
+        title: string;
+        description: string;
+        linkTitle: string;
+        footer: string;
+    };
 }
 
 export interface LangMain {
@@ -510,23 +517,6 @@ export interface LangTicket {
     };
 }
 
-export interface LangTicketReply {
-    cmdDescrp: string;
-    subcmdGroupDescrp: {
-        bapple: string;
-    };
-    subcmdDescrp: {
-        approve: string;
-        deny: string;
-    };
-    bapple: {
-        approve: string;
-        approveSent: string;
-        deny: string;
-        denySent: string;
-    };
-}
-
 export interface LangApplication {
     error: string;
     failCreate: string;
@@ -875,6 +865,162 @@ export interface LangErrors {
 	genericError: string;
 	rateLimit: string;
 	timeout: string;
+	notYourInteraction: string;
+}
+
+export interface LangMemory {
+    builder: {
+        cmdDescrp: string;
+        add: {
+            descrp: string;
+            title: string;
+            category: string;
+            status: string;
+        };
+        capture: {
+            descrp: string;
+            messageLink: string;
+        };
+        update: {
+            descrp: string;
+        };
+        delete: {
+            descrp: string;
+        };
+        tags: {
+            descrp: string;
+            action: string;
+            actionAdd: string;
+            actionEdit: string;
+            actionRemove: string;
+            actionList: string;
+        };
+    };
+    setup: {
+        cmdDescrp: string;
+        channelOption: string;
+        title: string;
+        description: string;
+        selectChannel: string;
+        channelPlaceholder: string;
+        createNew: string;
+        creatingForum: string;
+        forumCreated: string;
+        configSaved: string;
+        configUpdated: string;
+        forumName: string;
+        forumTopic: string;
+        tagsCreated: string;
+        error: string;
+        alreadyConfigured: string;
+        currentConfig: string;
+        forumChannel: string;
+        welcomeTitle: string;
+        welcomeDescription: string;
+    };
+    add: {
+        modalTitle: string;
+        titleLabel: string;
+        titlePlaceholder: string;
+        descriptionLabel: string;
+        descriptionPlaceholder: string;
+        success: string;
+        error: string;
+        viewThread: string;
+        selectCategory: string;
+        selectStatus: string;
+        noTagsConfigured: string;
+    };
+    capture: {
+        modalTitle: string;
+        titleLabel: string;
+        titlePlaceholder: string;
+        success: string;
+        error: string;
+        invalidLink: string;
+        messageNotFound: string;
+        noReplyOrLink: string;
+        sourceLabel: string;
+    };
+    update: {
+        title: string;
+        selectStatus: string;
+        success: string;
+        error: string;
+        notInForum: string;
+        notAThread: string;
+        itemNotFound: string;
+        confirmTitle: string;
+        confirmMessage: string;
+    };
+    delete: {
+        success: string;
+        error: string;
+        notInForum: string;
+        notAThread: string;
+        cannotDeleteWelcome: string;
+        confirmMessage: string;
+    };
+    tags: {
+        title: string;
+        description: string;
+        selectAction: string;
+        categoryTags: string;
+        statusTags: string;
+        noTags: string;
+        add: {
+            modalTitle: string;
+            nameLabel: string;
+            namePlaceholder: string;
+            emojiLabel: string;
+            emojiPlaceholder: string;
+            typeLabel: string;
+            success: string;
+            error: string;
+            duplicate: string;
+        };
+        edit: {
+            selectTag: string;
+            modalTitle: string;
+            success: string;
+            error: string;
+            tagNotFound: string;
+        };
+        remove: {
+            selectTag: string;
+            confirmTitle: string;
+            confirmMessage: string;
+            success: string;
+            error: string;
+            cancelled: string;
+            cannotRemoveDefault: string;
+        };
+        list: {
+            title: string;
+            empty: string;
+            default: string;
+        };
+    };
+    defaultTags: {
+        category: {
+            bug: string;
+            feature: string;
+            suggestion: string;
+            reminder: string;
+            note: string;
+        };
+        status: {
+            open: string;
+            inProgress: string;
+            onHold: string;
+            completed: string;
+        };
+    };
+    errors: {
+        notConfigured: string;
+        forumNotFound: string;
+        tagSyncFailed: string;
+    };
 }
 
 export interface LangDev {
@@ -950,7 +1096,6 @@ export interface Language {
         fail: string;
     };
     ticket: LangTicket;
-    ticketReply: LangTicketReply;
     application: LangApplication;
     addRole: LangRoles['addRole'];
     removeRole: LangRoles['removeRole'];
@@ -963,4 +1108,5 @@ export interface Language {
     dataExport: LangDataExport;
     errors: LangErrors;
     dev: LangDev;
+    memory: LangMemory;
 }

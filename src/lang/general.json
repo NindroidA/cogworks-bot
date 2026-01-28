@@ -51,5 +51,12 @@
         "wsLatency": "WebSocket",
         "apiLatency": "API Latency",
         "uptime": "Uptime"
+    },
+    "coffee": {
+        "cmdDescrp": "Support Cogworks development",
+        "title": "Support Cogworks",
+        "description": "If you enjoy using Cogworks, consider buying me a coffee! Your support helps keep the bot running and development active.",
+        "linkTitle": "Buy Me a Coffee",
+        "footer": "Thank you for your support!"
     }
 }

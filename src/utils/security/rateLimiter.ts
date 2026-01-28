@@ -281,7 +281,13 @@ export const RateLimits = {
 		windowMs: 60 * 60 * 1000, // 1 hour
 		message: '⏱️ Bait channel commands can only be used 10 times per hour. Please wait before making more changes.'
 	},
-	
+
+	MEMORY_OPERATION: {
+		maxAttempts: 20,
+		windowMs: 60 * 60 * 1000, // 1 hour
+		message: '⏱️ Memory operations can only be performed 20 times per hour. Please wait before making more changes.'
+	},
+
 	// Global limits (per user across all guilds)
 	GLOBAL_COMMAND: {
 		maxAttempts: 30,

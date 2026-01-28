@@ -44,22 +44,6 @@
         "successSet": "The setup message was sent in ",
         "successUpdate": "The setup channel was updated to "
     },
-    "reply": {
-        "cmdDescrp": "Various replies for tickets",
-        "subcmdGroupDescrp": {
-            "bapple": "Dealing with ban appeals"
-        },
-        "subcmdDescrp": {
-            "approve": "Approve a Ban Appeal",
-            "deny": "Deny a Ban Appeal"
-        },
-        "bapple": {
-            "approve": "Your appeal has been approved and you may rejoin the server at your convenience. Please make sure to review our /rules once you do. This ticket will be closed in 24 hours or upon acknowledgement.",
-            "approveSent": "Approve message sent!",
-            "deny": "Your appeal was denied; Staff do not feel comfortable letting you back on the server at this time. You may re-appeal your ban in 6 months from now. In that time, please use it as an opportunity to grow and understand why your actions were unacceptable and necessitated the ban in the first place. This ticket will be closed in 24 hours or upon acknowledgement.",
-            "denySent": "Deny message sent!"
-        }
-    },
     "customTypes": {
         "typeAdd": {
             "cmdDescrp": "Create a custom ticket type",

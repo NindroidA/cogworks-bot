@@ -1,0 +1,154 @@
+{
+    "builder": {
+        "cmdDescrp": "Manage memory system (todos, bugs, notes)",
+        "add": {
+            "descrp": "Add a new memory item manually",
+            "title": "Title for the memory item",
+            "category": "Category tag for the item",
+            "status": "Status tag for the item"
+        },
+        "capture": {
+            "descrp": "Capture a message as a memory item",
+            "messageLink": "Link to the message to capture"
+        },
+        "update": {
+            "descrp": "Update status of a memory item (run in memory forum)"
+        },
+        "delete": {
+            "descrp": "Delete a memory item (run in memory forum)"
+        },
+        "tags": {
+            "descrp": "Manage memory tags",
+            "action": "Action to perform",
+            "actionAdd": "Add a new tag",
+            "actionEdit": "Edit an existing tag",
+            "actionRemove": "Remove a tag",
+            "actionList": "List all tags"
+        }
+    },
+    "setup": {
+        "cmdDescrp": "Set up or edit the memory system",
+        "channelOption": "Existing forum channel to use (leave empty to create new)",
+        "title": "Memory System Setup",
+        "description": "Configure the memory system for tracking bugs, features, suggestions, and notes.",
+        "selectChannel": "Select an existing forum channel or let the bot create one",
+        "channelPlaceholder": "Select a forum channel",
+        "createNew": "Create New Forum",
+        "creatingForum": "Creating memory forum channel...",
+        "forumCreated": "Memory forum created!",
+        "configSaved": "Memory system configured!",
+        "configUpdated": "Memory system updated!",
+        "forumName": "memory",
+        "forumTopic": "Track bugs, features, suggestions, reminders, and notes",
+        "tagsCreated": "Default tags have been created",
+        "error": "Failed to set up memory system",
+        "alreadyConfigured": "Memory system is already configured",
+        "currentConfig": "Current Configuration",
+        "forumChannel": "Forum Channel",
+        "welcomeTitle": "Memory System",
+        "welcomeDescription": "This forum is used to track bugs, features, suggestions, reminders, and notes.\n\nUse `/memory add` to create new items or `/memory capture` to capture a message from another channel.\n\nUse tags to categorize and track the status of items."
+    },
+    "add": {
+        "modalTitle": "Add Memory Item",
+        "titleLabel": "Title",
+        "titlePlaceholder": "Brief title for this item",
+        "descriptionLabel": "Description",
+        "descriptionPlaceholder": "Detailed description of the item",
+        "success": "Memory item created!",
+        "error": "Failed to create memory item",
+        "viewThread": "View Thread",
+        "selectCategory": "Select category...",
+        "selectStatus": "Select status...",
+        "noTagsConfigured": "No tags configured. Run /memory-setup first."
+    },
+    "capture": {
+        "modalTitle": "Capture Message",
+        "titleLabel": "Title",
+        "titlePlaceholder": "Enter a title for this captured message",
+        "success": "Message captured as memory item!",
+        "error": "Failed to capture message",
+        "invalidLink": "Invalid message link provided",
+        "messageNotFound": "Could not find the specified message",
+        "noReplyOrLink": "Please reply to a message or provide a message link",
+        "sourceLabel": "Captured from"
+    },
+    "update": {
+        "title": "Update Memory Item",
+        "selectStatus": "Select new status for this item",
+        "success": "Memory item status updated!",
+        "error": "Failed to update memory item",
+        "notInForum": "This command can only be used in the memory forum channel",
+        "notAThread": "This command must be run inside a memory thread",
+        "itemNotFound": "Could not find this memory item in the database",
+        "confirmTitle": "Update Status",
+        "confirmMessage": "Update status from **{0}** to **{1}**?"
+    },
+    "delete": {
+        "success": "Memory item deleted!",
+        "error": "Failed to delete memory item",
+        "notInForum": "This command can only be used in the memory forum channel",
+        "notAThread": "This command must be run inside a memory thread",
+        "cannotDeleteWelcome": "Cannot delete the welcome post",
+        "confirmMessage": "Are you sure you want to delete this memory item? This cannot be undone."
+    },
+    "tags": {
+        "title": "Memory Tags",
+        "description": "Manage tags for organizing memory items",
+        "selectAction": "Select an action",
+        "categoryTags": "Category Tags",
+        "statusTags": "Status Tags",
+        "noTags": "No custom tags configured",
+        "add": {
+            "modalTitle": "Add Tag",
+            "nameLabel": "Tag Name",
+            "namePlaceholder": "Enter tag name (e.g., Bug)",
+            "emojiLabel": "Emoji (optional)",
+            "emojiPlaceholder": "Enter an emoji",
+            "typeLabel": "Tag Type",
+            "success": "Tag added!",
+            "error": "Failed to add tag",
+            "duplicate": "A tag with this name already exists"
+        },
+        "edit": {
+            "selectTag": "Select a tag to edit",
+            "modalTitle": "Edit Tag",
+            "success": "Tag updated!",
+            "error": "Failed to update tag",
+            "tagNotFound": "Tag not found"
+        },
+        "remove": {
+            "selectTag": "Select a tag to remove",
+            "confirmTitle": "Remove Tag",
+            "confirmMessage": "Are you sure you want to remove this tag? This cannot be undone.",
+            "success": "Tag removed!",
+            "error": "Failed to remove tag",
+            "cancelled": "Tag removal cancelled",
+            "cannotRemoveDefault": "Cannot remove default tags"
+        },
+        "list": {
+            "title": "All Memory Tags",
+            "empty": "No tags configured",
+            "default": "(default)"
+        }
+    },
+    "defaultTags": {
+        "category": {
+            "bug": "Bug",
+            "feature": "Feature",
+            "suggestion": "Suggestion",
+            "reminder": "Reminder",
+            "note": "Note"
+        },
+        "status": {
+            "open": "Open",
+            "inProgress": "In Progress",
+            "onHold": "On Hold",
+            "completed": "Completed"
+        }
+    },
+    "errors": {
+        "notConfigured": "Memory system is not configured. Run /memory-setup first.",
+        "forumNotFound": "Memory forum channel not found. Please run /memory-setup again.",
+        "tagSyncFailed": "Failed to sync tags with Discord forum"
+    }
+}

@@ -29,6 +29,7 @@ import dev from './dev.json';
 import errors from './errors.json';
 import general from './general.json';
 import main from './main.json';
+import memory from './memory.json';
 import roles from './roles.json';
 import ticket from './ticket.json';
 
@@ -44,7 +45,6 @@ export const lang: Language = {
     botSetup,
     ticket,
     ticketSetup: ticket.setup,
-    ticketReply: ticket.reply,
     archiveSetup: {
         initialMsg: 'This channel has been made as an archive for tickets. Once a ticket is closed, you it can be found and referenced again in this channel.',
         fail: 'Failed to setup Ticket Archive Channel!'
@@ -65,7 +65,8 @@ export const lang: Language = {
     baitChannel,
     dataExport,
     errors,
-    dev
+    dev,
+    memory
 };
 
 // Export type definitions for external use
