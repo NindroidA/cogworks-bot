@@ -1,46 +1,32 @@
-import { ChannelType, PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
+import { ChannelType, PermissionsBitField, SlashCommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
 
 const tl = lang.ticketSetup;
 
-/* subcommands */
-const channel = new SlashCommandSubcommandBuilder()
-    .setName('channel')
-    .setDescription(tl.subcmdDescrp.channel)
-    .addChannelOption((option) => option
-        .setName('channel')
-        .setDescription(tl.subcmdDescrp.option)
-        .setRequired(true)
-        .addChannelTypes(ChannelType.GuildText)
-    );
-
-const archive = new SlashCommandSubcommandBuilder()
-    .setName('archive')
-    .setDescription(tl.subcmdDescrp.archive)
-    .addChannelOption((option) => option
-        .setName('channel')
-        .setDescription(tl.subcmdDescrp.option)
-        .setRequired(true)
-        .addChannelTypes(ChannelType.GuildForum)
-    );
-
-const category = new SlashCommandSubcommandBuilder()
-    .setName('category')
-    .setDescription(tl.subcmdDescrp.category)
-    .addChannelOption((option) => option
-        .setName('category')
-        .setDescription(tl.subcmdDescrp.catset)
-        .setRequired(true)
-        .addChannelTypes(ChannelType.GuildCategory)
-    );
-
-
-/* main slash command */
+/* main slash command — all options are optional so admins can update individual settings */
 export const ticketSetup = new SlashCommandBuilder()
-    .setName('ticket-setup')
-    .setDescription(tl.cmdDescrp)
-    .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
-    .addSubcommand(channel)
-    .addSubcommand(archive)
-    .addSubcommand(category)
-    .toJSON();
+  .setName('ticket-setup')
+  .setDescription(tl.cmdDescrp)
+  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  .addChannelOption(option =>
+    option
+      .setName('channel')
+      .setDescription(tl.options.channel)
+      .setRequired(false)
+      .addChannelTypes(ChannelType.GuildText),
+  )
+  .addChannelOption(option =>
+    option
+      .setName('archive')
+      .setDescription(tl.options.archive)
+      .setRequired(false)
+      .addChannelTypes(ChannelType.GuildForum),
+  )
+  .addChannelOption(option =>
+    option
+      .setName('category')
+      .setDescription(tl.options.category)
+      .setRequired(false)
+      .addChannelTypes(ChannelType.GuildCategory),
+  )
+  .toJSON();

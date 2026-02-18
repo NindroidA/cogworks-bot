@@ -1,102 +1,170 @@
-# cogworks-bot
+# Cogworks Bot
 
-Discord ticketing bot developed for ease-of-use
+A modular Discord server management bot built for communities that need more than just moderation. Tickets, applications, announcements, reaction roles, rules enforcement, anti-bot detection, and more — all in one bot with per-server isolation.
 
-## Overview
+<p>
+  <img src="https://img.shields.io/badge/version-2.10.0-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/badge/discord.js-v14-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord.js" />
+  <img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/runtime-Bun-f9f1e1?style=flat-square&logo=bun&logoColor=white" alt="Bun" />
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
+</p>
 
-A comprehensive Discord bot for server management featuring:
-- 🎫 Advanced ticket system with archiving
-- 📝 Application management with custom positions
-- 📢 Announcement system with rich embeds and previews
-- 🎣 Bait channel anti-bot detection system
-- 👥 Role management for staff
-- 🌐 Multi-server support with full data isolation
-- 🛡️ GDPR-compliant data export and deletion
-- 🔧 Robust development/production mode separation
-- 🛡️ Comprehensive error handling with rate limiting
-- 📊 Archive migration and database storage
-- ❤️‍🩹 Health monitoring with HTTP endpoints
-- 📝 Production-grade logging system
-- ⚡ Bun-powered runtime with Node.js fallback
+## Quick Start
 
-Built with TypeScript, Discord.js, TypeORM, and Bun.
+```
+/bot-setup
+```
 
-## Documentation
-
-- **[Commands](docs/commands.md)** - Available bot commands
-- **[Privacy Policy](docs/privacy_policy.md)** - Data handling policy
-- **[Terms of Service](docs/terms_of_service.md)** - Usage terms
+The setup wizard auto-detects what's already configured and walks you through the rest.
 
 ## Features
 
-### Multi-Server Ready 🌐
-- **Full Data Isolation**: Each server's data completely separated
-- **GDPR Compliance**: `/data-export` command for admins
-- **Automatic Cleanup**: Data deleted when bot leaves a server
-- **Guild-Scoped Queries**: All database operations isolated by server
-- **Performance Optimized**: Indexed queries for fast multi-server operation
+<table>
+<tr>
+<td width="50%" valign="top">
 
-### Ticket System
-- Create support tickets with custom categories
+### Tickets
+- Custom ticket types with configurable fields
 - Admin-only mode for sensitive tickets
-- Automatic archiving with full transcripts
-- Age verification for 18+ tickets
-- Archive migration from YAGPDB
-- Per-server configuration and isolation
+- Forum-based archive with full transcripts
+- Per-type staff ping settings
+- Email import support
+- User restrictions per ticket type
 
-### Application System
-- Custom application positions
-- Template-based applications
-- Age verification for positions
-- Application archiving
-- Server-specific positions and templates
+</td>
+<td width="50%" valign="top">
 
-### Announcement System
+### Applications
+- Position-based application system
+- Modal forms with custom questions
+- Forum-based archive for closed applications
+- Streamlined review workflow
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### Reaction Roles
+- Create menus with emoji-to-role mappings
+- **Normal** — select multiple roles
+- **Unique** — one role at a time (auto-swap)
+- **Lock** — once selected, can't be removed
+- Up to 25 menus / 20 options each
+
+</td>
+<td width="50%" valign="top">
+
+### Rules Acknowledgment
+- Post a rules message in any channel
+- Users react to receive a configured role
+- Un-react removes the role
+- Custom message text and emoji
+- Role hierarchy validation on setup
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### Announcements
 - Rich embed templates (maintenance, updates, back online)
-- Preview system with Send/Cancel buttons
-- Discord timestamps with timezone support
-- Role pinging support
-- Auto-publish to news channels
+- Preview before sending with Send/Cancel
+- Discord timestamps (user timezone)
 - Scheduled announcements
-- Configurable per server
+- Auto-publish to news channels
 
-### Bait Channel System
-- Smart spam/bot detection with 7 detection flags
-- Configurable actions (ban, kick, log-only)
-- Suspicion scoring (0-100)
-- Whitelist management
-- Activity tracking and leaderboards
-- Grace period with countdown timer
-- Independent configuration per server
+</td>
+<td width="50%" valign="top">
 
-### Security & Rate Limiting 🔒
-- **User-level rate limiting**: Prevents spam and abuse
-- **Guild-level rate limiting**: Protects server resources
-- **Permission validation**: Comprehensive permission checks
-- **Command throttling**: 30 commands/minute per user globally
-- **Data export limits**: Once per 24 hours per server
-- **Application limits**: 2 submissions per day per user
+### Memory System
+- Forum-based tracker for bugs, features, suggestions, reminders, notes
+- Capture messages directly into the tracker
+- Category and status tags with custom tag support
+- Status-driven thread archiving
 
-### Admin Tools
-- Role management (add/remove/get)
-- Bot configuration per server
-- Global staff role support
-- Archive analysis and migration
-- Data export for GDPR compliance
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
 
-## Commands
+### Bait Channel (Anti-Bot)
+- 7 detection flags with suspicion scoring (0-100)
+- Configurable actions: ban, kick, or log-only
+- Whitelist management for trusted users/roles
+- Smart detection: account age, membership, message count
+- Grace period with countdown
 
-Run `/bot-setup` in your Discord server to get started. See [docs/commands.md](docs/commands.md) for full command list.
+</td>
+<td width="50%" valign="top">
+
+### Outage Status
+- Bot owner sets operational status levels
+- Bot presence updates automatically (Online/Idle/DND)
+- Health check integration with auto-recovery
+- 24-hour manual override window
+- Optional status channel posting
+
+</td>
+</tr>
+</table>
+
+---
+
+### And Also...
+
+- **Role Management** — Admin/staff roles with custom aliases
+- **Health Monitoring** — HTTP endpoints for Docker health checks
+- **Data Export** — GDPR-compliant `/data-export` for full server data
+- **Auto-Cleanup** — All data removed when bot leaves a server
+- **Setup Wizard** — `/bot-setup` configures everything in one guided flow
+
+## Multi-Server Architecture
+
+Every piece of data is scoped to the guild it belongs to. Servers never see each other's config, tickets, applications, or logs. All database queries are filtered by `guildId` with indexed columns for performance.
+
+## Security
+
+| Layer | Protection |
+|-------|------------|
+| **Rate Limiting** | Per-user, per-guild, and global throttles |
+| **Permissions** | Admin/staff/owner validation on every command |
+| **Input Sanitization** | Discord markdown escaping, snowflake validation, parameterized SQL |
+| **Data Isolation** | Guild-scoped queries on all entities |
+| **GDPR** | Data export + automatic deletion on guild leave |
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Commands](docs/commands.md) | Full command reference |
+| [Privacy Policy](docs/privacy_policy.md) | Data handling policy |
+| [Terms of Service](docs/terms_of_service.md) | Usage terms |
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Language | TypeScript 5.9 |
+| Runtime | Bun (Node.js compatible) |
+| Framework | Discord.js v14 |
+| Database | MySQL + TypeORM |
+| Deployment | Docker |
+| Testing | Jest + ts-jest |
+| Logging | Structured logging with categories |
+| Monitoring | HTTP health endpoints |
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ## Support
 
 For issues or questions, open an issue on GitHub.
 
-## Development
-Since the release of version 2.0.0, Cogworks development has been accelerated through the use of AI-assisted development tools, including GitHub Copilot, Claude, and other AI programming assistants. These tools have enhanced productivity while maintaining code quality and best practices. All AI-generated code and documentation has been reviewed, tested, and refined to ensure reliability and security interests.
+Use `/coffee` in Discord to support Cogworks development.
 
-**Note**: This bot is in active development. Some features may be incomplete or subject to change.
+## Development
+
+Since the release of version 2.0.0, Cogworks development has been accelerated through the use of AI-assisted development tools, including GitHub Copilot, Claude, and other AI programming assistants. These tools have enhanced productivity while maintaining code quality and best practices. All AI-generated code and documentation has been reviewed, tested, and refined to ensure reliability and security.

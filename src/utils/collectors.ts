@@ -1,17 +1,17 @@
 /**
  * Collectors Module
- * 
+ *
  * Provides simplified interaction collector patterns for Discord.js components.
  * Includes utilities for button collectors and role select collectors with
  * proper TypeScript typing and error handling.
  */
 
 import {
-    ButtonInteraction,
-    ComponentType,
-    InteractionResponse,
-    Message,
-    RoleSelectMenuInteraction
+  type ButtonInteraction,
+  ComponentType,
+  type InteractionResponse,
+  type Message,
+  type RoleSelectMenuInteraction,
 } from 'discord.js';
 
 // ============================================================================
@@ -22,10 +22,10 @@ import {
  * Collector configuration options
  */
 export interface CollectorOptions {
-	/** Timeout in milliseconds (default: 60000 = 1 minute) */
-	timeout?: number;
-	/** User ID that should be able to interact */
-	userId: string;
+  /** Timeout in milliseconds (default: 60000 = 1 minute) */
+  timeout?: number;
+  /** User ID that should be able to interact */
+  userId: string;
 }
 
 /**
@@ -36,7 +36,9 @@ export type ButtonCollectorCallback = (interaction: ButtonInteraction) => Promis
 /**
  * Callback for handling role select interactions
  */
-export type RoleSelectCollectorCallback = (interaction: RoleSelectMenuInteraction) => Promise<void> | void;
+export type RoleSelectCollectorCallback = (
+  interaction: RoleSelectMenuInteraction,
+) => Promise<void> | void;
 
 // ============================================================================
 // Button Collector
@@ -44,11 +46,11 @@ export type RoleSelectCollectorCallback = (interaction: RoleSelectMenuInteractio
 
 /**
  * Creates a button collector with standard configuration
- * 
+ *
  * Supports two modes:
  * - Simple mode: Just message and timeout
  * - Full mode: With options, callbacks, and user filtering
- * 
+ *
  * @param message - The message to collect interactions from
  * @param optionsOrTimeout - Either collector options object or timeout in ms
  * @param onCollect - Optional callback when button is clicked
@@ -57,7 +59,7 @@ export type RoleSelectCollectorCallback = (interaction: RoleSelectMenuInteractio
  * @example
  * // Simple mode
  * createButtonCollector(message, 60000);
- * 
+ *
  * // Full mode with callbacks
  * createButtonCollector(
  *   message,
@@ -71,35 +73,35 @@ export type RoleSelectCollectorCallback = (interaction: RoleSelectMenuInteractio
  * );
  */
 export function createButtonCollector(
-	message: Message | InteractionResponse,
-	optionsOrTimeout: CollectorOptions | number,
-	onCollect?: ButtonCollectorCallback,
-	onTimeout?: () => Promise<void> | void
+  message: Message | InteractionResponse,
+  optionsOrTimeout: CollectorOptions | number,
+  onCollect?: ButtonCollectorCallback,
+  onTimeout?: () => Promise<void> | void,
 ) {
-	// Determine if using simple mode (just timeout) or full mode (with options)
-	const isSimpleMode = typeof optionsOrTimeout === 'number';
-	const timeout = isSimpleMode ? optionsOrTimeout : (optionsOrTimeout.timeout || 60_000);
-	const userId = isSimpleMode ? undefined : optionsOrTimeout.userId;
+  // Determine if using simple mode (just timeout) or full mode (with options)
+  const isSimpleMode = typeof optionsOrTimeout === 'number';
+  const timeout = isSimpleMode ? optionsOrTimeout : optionsOrTimeout.timeout || 60_000;
+  const userId = isSimpleMode ? undefined : optionsOrTimeout.userId;
 
-	const collector = message.createMessageComponentCollector({
-		componentType: ComponentType.Button,
-		time: timeout,
-		filter: userId ? (i) => i.user.id === userId : undefined,
-	});
+  const collector = message.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    time: timeout,
+    filter: userId ? i => i.user.id === userId : undefined,
+  });
 
-	if (onCollect) {
-		collector.on('collect', onCollect);
-	}
+  if (onCollect) {
+    collector.on('collect', onCollect);
+  }
 
-	if (onTimeout) {
-		collector.on('end', async (collected, reason) => {
-			if (reason === 'time') {
-				await onTimeout();
-			}
-		});
-	}
+  if (onTimeout) {
+    collector.on('end', async (_collected, reason) => {
+      if (reason === 'time') {
+        await onTimeout();
+      }
+    });
+  }
 
-	return collector;
+  return collector;
 }
 
 // ============================================================================
@@ -127,27 +129,26 @@ export function createButtonCollector(
  * );
  */
 export function createRoleSelectCollector(
-	message: Message | InteractionResponse,
-	options: CollectorOptions,
-	onCollect: RoleSelectCollectorCallback,
-	onTimeout?: () => Promise<void> | void
+  message: Message | InteractionResponse,
+  options: CollectorOptions,
+  onCollect: RoleSelectCollectorCallback,
+  onTimeout?: () => Promise<void> | void,
 ) {
-	const collector = message.createMessageComponentCollector({
-		componentType: ComponentType.RoleSelect,
-		time: options.timeout || 60_000,
-		filter: (i) => i.user.id === options.userId,
-	});
+  const collector = message.createMessageComponentCollector({
+    componentType: ComponentType.RoleSelect,
+    time: options.timeout || 60_000,
+    filter: i => i.user.id === options.userId,
+  });
 
-	collector.on('collect', onCollect);
+  collector.on('collect', onCollect);
 
-	if (onTimeout) {
-		collector.on('end', async (collected, reason) => {
-			if (reason === 'time') {
-				await onTimeout();
-			}
-		});
-	}
+  if (onTimeout) {
+    collector.on('end', async (_collected, reason) => {
+      if (reason === 'time') {
+        await onTimeout();
+      }
+    });
+  }
 
-	return collector;
+  return collector;
 }
-

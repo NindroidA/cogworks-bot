@@ -5,7 +5,7 @@ const tl = lang.botSetup;
 
 /* main slash command */
 export const botSetup = new SlashCommandBuilder()
-    .setName('bot-setup')
-    .setDescription(tl.cmdDescrp)
-    .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
-    .toJSON();
+  .setName('bot-setup')
+  .setDescription(tl.cmdDescrp)
+  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  .toJSON();

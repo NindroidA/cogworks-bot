@@ -1,52 +1,52 @@
 {
-	"builder": {
-		"cmdDescrp": "[ADMIN ONLY] Development and maintenance commands",
-		"bulkCloseTickets": "Close all active tickets in this server",
-		"deleteArchivedTicket": {
-			"descrp": "Delete a specific archived ticket by user",
-			"user": "The user whose archived ticket to delete"
-		},
-		"deleteAllArchivedTickets": "DELETE ALL archived tickets in this server",
-		"deleteArchivedApplication": {
-			"descrp": "Delete a specific archived application by user",
-			"user": "The user whose archived application to delete"
-		},
-		"deleteAllArchivedApplications": "Delete ALL archived applications in this server"
-	},
-	"migrate": {
-		"cmdDescrp": "[ADMIN ONLY] Migrate and update existing data",
-		"ticketTags": "Retroactively apply forum tags to existing archived tickets",
-		"applicationTags": "Retroactively apply forum tags to existing archived applications"
-	},
-	"bulkCloseTickets": {
-		"noTickets": "No open tickets found!",
-		"complete": "**Bulk Close Complete**",
-		"totalTickets": "Total tickets: {count}",
-		"successfullyClosed": "Successfully closed: {count}",
-		"failed": "Failed: {count}"
-	},
-	"deleteArchivedTicket": {
-		"notFound": "No archived ticket found for {user}",
-		"successWithPost": "Deleted archived ticket and forum post for {user}",
-		"successNoPost": "Deleted archived ticket for {user} (forum post not found)"
-	},
-	"deleteAllArchivedTickets": {
-		"complete": "**Bulk Delete Complete**",
-		"results": "**Results:**",
-		"dbRecordsDeleted": "- Database records deleted: {count}",
-		"forumPostsDeleted": "- Forum posts deleted: {count}",
-		"forumPostsFailed": "- Forum posts failed: {count}"
-	},
-	"deleteArchivedApplication": {
-		"notFound": "No archived application found for {user}",
-		"successWithPost": "Deleted archived application and forum post for {user}",
-		"successNoPost": "Deleted archived application for {user} (forum post not found)"
-	},
-	"deleteAllArchivedApplications": {
-		"complete": "**Bulk Delete Complete**",
-		"results": "**Results:**",
-		"dbRecordsDeleted": "- Database records deleted: {count}",
-		"forumPostsDeleted": "- Forum posts deleted: {count}",
-		"forumPostsFailed": "- Forum posts failed: {count}"
-	}
+  "builder": {
+    "cmdDescrp": "[ADMIN ONLY] Development and maintenance commands",
+    "bulkCloseTickets": "Close all active tickets in this server",
+    "deleteArchivedTicket": {
+      "descrp": "Delete a specific archived ticket by user",
+      "user": "The user whose archived ticket to delete"
+    },
+    "deleteAllArchivedTickets": "DELETE ALL archived tickets in this server",
+    "deleteArchivedApplication": {
+      "descrp": "Delete a specific archived application by user",
+      "user": "The user whose archived application to delete"
+    },
+    "deleteAllArchivedApplications": "Delete ALL archived applications in this server"
+  },
+  "migrate": {
+    "cmdDescrp": "[ADMIN ONLY] Migrate and update existing data",
+    "ticketTags": "Retroactively apply forum tags to existing archived tickets",
+    "applicationTags": "Retroactively apply forum tags to existing archived applications"
+  },
+  "bulkCloseTickets": {
+    "noTickets": "No open tickets found!",
+    "complete": "**Bulk Close Complete**",
+    "totalTickets": "Total tickets: {count}",
+    "successfullyClosed": "Successfully closed: {count}",
+    "failed": "Failed: {count}"
+  },
+  "deleteArchivedTicket": {
+    "notFound": "No archived ticket found for {user}",
+    "successWithPost": "Deleted archived ticket and forum post for {user}",
+    "successNoPost": "Deleted archived ticket for {user} (forum post not found)"
+  },
+  "deleteAllArchivedTickets": {
+    "complete": "**Bulk Delete Complete**",
+    "results": "**Results:**",
+    "dbRecordsDeleted": "- Database records deleted: {count}",
+    "forumPostsDeleted": "- Forum posts deleted: {count}",
+    "forumPostsFailed": "- Forum posts failed: {count}"
+  },
+  "deleteArchivedApplication": {
+    "notFound": "No archived application found for {user}",
+    "successWithPost": "Deleted archived application and forum post for {user}",
+    "successNoPost": "Deleted archived application for {user} (forum post not found)"
+  },
+  "deleteAllArchivedApplications": {
+    "complete": "**Bulk Delete Complete**",
+    "results": "**Results:**",
+    "dbRecordsDeleted": "- Database records deleted: {count}",
+    "forumPostsDeleted": "- Forum posts deleted: {count}",
+    "forumPostsFailed": "- Forum posts failed: {count}"
+  }
 }

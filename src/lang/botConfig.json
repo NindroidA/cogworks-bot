@@ -1,4 +1,4 @@
 {
-    "notFound": "This server has not setup a Bot Config!",
-    "noStaffRole": "This server has not setup a Global Staff Role but has it enabled!"
+  "notFound": "This server has not setup a Bot Config!",
+  "noStaffRole": "This server has not setup a Global Staff Role but has it enabled!"
 }

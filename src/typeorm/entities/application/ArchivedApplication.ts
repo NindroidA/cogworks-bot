@@ -1,19 +1,17 @@
 import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
-@Entity({ name: 'archived_applications'})
+@Entity({ name: 'archived_applications' })
 @Index(['guildId'])
 export class ArchivedApplication {
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @PrimaryGeneratedColumn()
-    id: number;
+  @Column()
+  guildId: string;
 
-    @Column()
-    guildId: string;
+  @Column({ nullable: true })
+  messageId: string;
 
-    @Column({ nullable: true })
-    messageId: string;
-
-    @Column()
-    createdBy: string;
-
+  @Column()
+  createdBy: string;
 }

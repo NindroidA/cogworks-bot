@@ -1,6 +1,6 @@
 /**
  * Command List
- * 
+ *
  * Centralized list of all slash commands to be registered.
  * Used by both main bot initialization and guildCreate event.
  */
@@ -18,28 +18,34 @@ import { memory } from './builders/memory';
 import { memorySetup } from './builders/memorySetup';
 import { migrate } from './builders/migrate';
 import { ping } from './builders/ping';
+import { reactionRole } from './builders/reactionRole';
 import { role } from './builders/role';
+import { rulesSetup } from './builders/rulesSetup';
+import { status } from './builders/status';
 import { ticket } from './builders/ticket';
 import { ticketSetup } from './builders/ticketSetup';
 
 // Base commands available in all environments
 const baseCommands = [
-	botSetup,            // bot setup
-	role,                // role management (add, remove, list)
-	ticketSetup,         // ticket setup
-	ticket,              // ticket management (custom types & email import)
-	applicationSetup,    // application setup
-	application,         // application management (position)
-	announcementSetup,   // announcement setup
-	announcement,        // announcement module
-	baitChannelCommand,  // bait channel system
-	dataExport,          // data export
-	dev,                 // development/maintenance commands (admin-only)
-	migrate,             // migration commands (admin-only)
-	ping,                // ping/status command
-	coffee,              // support/donation command
-	memorySetup,         // memory system setup
-	memory               // memory/todo tracking system
+  botSetup, // bot setup
+  role, // role management (add, remove, list)
+  ticketSetup, // ticket setup
+  ticket, // ticket management (custom types & email import)
+  applicationSetup, // application setup
+  application, // application management (position)
+  announcementSetup, // announcement setup
+  announcement, // announcement module
+  baitChannelCommand, // bait channel system
+  dataExport, // data export
+  dev, // development/maintenance commands (admin-only)
+  migrate, // migration commands (admin-only)
+  ping, // ping/status command
+  coffee, // support/donation command
+  memorySetup, // memory system setup
+  memory, // memory/todo tracking system
+  rulesSetup, // rules acknowledgment system
+  reactionRole, // reaction role menu system
+  status, // outage status system (owner-only)
 ];
 
 // All commands available in both dev and production

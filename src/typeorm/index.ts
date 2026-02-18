@@ -11,8 +11,11 @@ import { BaitChannelConfig } from './entities/BaitChannelConfig';
 import { BaitChannelLog } from './entities/BaitChannelLog';
 import { BotConfig } from './entities/BotConfig';
 import { MemoryConfig, MemoryItem, MemoryTag } from './entities/memory';
+import { ReactionRoleMenu, ReactionRoleOption } from './entities/reactionRole';
+import { RulesConfig } from './entities/rules';
 import { SavedRole } from './entities/SavedRole';
 import { ServerConfig } from './entities/ServerConfig';
+import { BotStatus } from './entities/status';
 import { ArchivedTicket } from './entities/ticket/ArchivedTicket';
 import { ArchivedTicketConfig } from './entities/ticket/ArchivedTicketConfig';
 import { CustomTicketType } from './entities/ticket/CustomTicketType';
@@ -20,15 +23,43 @@ import { Ticket } from './entities/ticket/Ticket';
 import { TicketConfig } from './entities/ticket/TicketConfig';
 import { UserTicketRestriction } from './entities/ticket/UserTicketRestriction';
 import { UserActivity } from './entities/UserActivity';
+
 dotenv.config();
 
 export const AppDataSource = new DataSource({
-    type: 'mysql',
-    host: process.env.MYSQL_DB_HOST,
-    port: parseInt(process.env.MYSQL_DB_PORT!),
-    username: process.env.MYSQL_DB_USERNAME,
-    password: process.env.MYSQL_DB_PASSWORD,
-    database: process.env.MYSQL_DB_DATABASE,
-    synchronize: true,
-    entities: [TicketConfig, Ticket, ArchivedTicketConfig, ArchivedTicket, CustomTicketType, UserTicketRestriction, ServerConfig, SavedRole, BotConfig, Application, ApplicationConfig, ArchivedApplication, ArchivedApplicationConfig, Position, AnnouncementConfig, AnnouncementLog, BaitChannelConfig, BaitChannelLog, UserActivity, MemoryConfig, MemoryTag, MemoryItem],
+  type: 'mysql',
+  host: process.env.MYSQL_DB_HOST,
+  port: parseInt(process.env.MYSQL_DB_PORT!, 10),
+  username: process.env.MYSQL_DB_USERNAME,
+  password: process.env.MYSQL_DB_PASSWORD,
+  database: process.env.MYSQL_DB_DATABASE,
+  synchronize: true,
+  entities: [
+    TicketConfig,
+    Ticket,
+    ArchivedTicketConfig,
+    ArchivedTicket,
+    CustomTicketType,
+    UserTicketRestriction,
+    ServerConfig,
+    SavedRole,
+    BotConfig,
+    Application,
+    ApplicationConfig,
+    ArchivedApplication,
+    ArchivedApplicationConfig,
+    Position,
+    AnnouncementConfig,
+    AnnouncementLog,
+    BaitChannelConfig,
+    BaitChannelLog,
+    UserActivity,
+    MemoryConfig,
+    MemoryTag,
+    MemoryItem,
+    RulesConfig,
+    ReactionRoleMenu,
+    ReactionRoleOption,
+    BotStatus,
+  ],
 });

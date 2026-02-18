@@ -5,6 +5,6 @@ const tl = lang.general.coffee;
 
 /* main slash command */
 export const coffee = new SlashCommandBuilder()
-    .setName('coffee')
-    .setDescription(tl.cmdDescrp)
-    .toJSON();
+  .setName('coffee')
+  .setDescription(tl.cmdDescrp)
+  .toJSON();

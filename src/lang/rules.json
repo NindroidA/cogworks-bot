@@ -1,0 +1,50 @@
+{
+  "builder": {
+    "cmdDescrp": "Configure rules acknowledgment system",
+    "setup": {
+      "descrp": "Set up the rules acknowledgment message",
+      "channel": "Channel to post the rules message in",
+      "role": "Role to assign when user reacts",
+      "message": "Custom message text (optional)",
+      "emoji": "Custom emoji for reaction (default: ✅)"
+    },
+    "view": {
+      "descrp": "View current rules configuration"
+    },
+    "remove": {
+      "descrp": "Remove the rules message and disable the system"
+    }
+  },
+  "setup": {
+    "success": "Rules acknowledgment configured successfully!",
+    "updated": "Rules acknowledgment updated!",
+    "error": "Failed to configure rules acknowledgment.",
+    "roleTooHigh": "I cannot assign this role — it's positioned above my highest role. Please move my role higher or choose a different role.",
+    "cannotUseEveryone": "The @everyone role cannot be used for rules acknowledgment.",
+    "cannotUseManagedRole": "Managed roles (bot roles, integration roles) cannot be used for rules acknowledgment.",
+    "defaultMessage": "## ✅ Rules Acknowledgment\n\nBy reacting to this message, you acknowledge that you have read and agree to the server rules.\n\nReact with {emoji} to receive the **{roleName}** role.",
+    "invalidEmoji": "Invalid emoji. Use a standard emoji (e.g., ✅) or a custom Discord emoji."
+  },
+  "view": {
+    "title": "Rules Acknowledgment Configuration",
+    "notConfigured": "Rules acknowledgment is not configured for this server. Use `/rules-setup setup` to set it up.",
+    "channel": "Channel",
+    "role": "Role",
+    "emoji": "Emoji",
+    "customMessage": "Custom Message",
+    "defaultLabel": "(Default)"
+  },
+  "remove": {
+    "success": "Rules acknowledgment has been removed.",
+    "notConfigured": "Rules acknowledgment is not configured for this server.",
+    "error": "Failed to remove rules acknowledgment configuration.",
+    "messageDeleteFailed": "Configuration removed but could not delete the rules message (it may have been deleted already)."
+  },
+  "reaction": {
+    "roleAssigned": "Assigned rules role to user",
+    "roleRemoved": "Removed rules role from user",
+    "roleNotFound": "Rules role no longer exists",
+    "assignError": "Failed to assign rules role",
+    "removeError": "Failed to remove rules role"
+  }
+}

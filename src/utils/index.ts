@@ -4,9 +4,9 @@ import chalk from 'chalk';
 // Language Module Exports
 // ============================================================================
 
+export type { Language } from '../lang';
 /** Re-export lang module with type safety */
 export { lang } from '../lang';
-export type { Language } from '../lang';
 
 // ============================================================================
 // Utility Module Exports
@@ -17,30 +17,32 @@ export * from './apiConnector';
 export * from './baitChannelManager';
 export * from './collectors';
 export * from './colors';
-export * from './emojis';
+// Database utilities
+export * from './database/ensureDefaultTicketTypes';
+export * from './database/guildQueries';
 export * from './embedBuilders';
+export * from './emojis';
 export * from './errorHandler';
-export * from './types';
-
-// Validation utilities
-export * from './validation/permissions';
-export * from './validation/permissionValidator';
-export * from './validation/validators';
-
+// Forum utilities
+export * from './forumTagManager';
 // Monitoring utilities
 export * from './monitoring/enhancedLogger';
 export * from './monitoring/healthMonitor';
 export * from './monitoring/healthServer';
-
-// Database utilities
-export * from './database/ensureDefaultTicketTypes';
-export * from './database/guildQueries';
-
-// Forum utilities
-export * from './forumTagManager';
-
+// Reaction role utilities
+export * from './reactionRole';
 // Security utilities
 export * from './security/rateLimiter';
+// Setup utilities
+export * from './setup';
+// Status utilities
+export * from './status';
+export * from './types';
+// Validation utilities
+export * from './validation/inputSanitizer';
+export * from './validation/permissions';
+export * from './validation/permissionValidator';
+export * from './validation/validators';
 
 // ============================================================================
 // String Utilities
@@ -56,10 +58,10 @@ export * from './security/rateLimiter';
  * // Returns: "Hello John, you have 5 messages"
  */
 export function LANGF(template: string, ...args: (string | number)[]): string {
-	return template.replace(/\{(\d+)\}/g, (match, index) => {
-		const argIndex = parseInt(index);
-		return args[argIndex] !== undefined ? String(args[argIndex]) : match;
-	});
+  return template.replace(/\{(\d+)\}/g, (match, index) => {
+    const argIndex = parseInt(index, 10);
+    return args[argIndex] !== undefined ? String(args[argIndex]) : match;
+  });
 }
 
 /**
@@ -71,8 +73,8 @@ export function LANGF(template: string, ...args: (string | number)[]): string {
  * extractIdFromMention("<@&987654321>") // Returns: "987654321"
  */
 export function extractIdFromMention(mention: string): string | null {
-	const matches = mention.match(/^<@&?(\d+)>$/);
-	return matches ? matches[1] : null;
+  const matches = mention.match(/^<@&?(\d+)>$/);
+  return matches ? matches[1] : null;
 }
 
 // ============================================================================
@@ -88,11 +90,11 @@ export function extractIdFromMention(mention: string): string | null {
  * formatBytes(1536000) // Returns: "1.46 MB"
  */
 export function formatBytes(bytes: number): string {
-	if (bytes === 0) return '0 B';
-	const k = 1024;
-	const sizes = ['B', 'KB', 'MB', 'GB'];
-	const i = Math.floor(Math.log(bytes) / Math.log(k));
-	return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 }
 
 // ============================================================================
@@ -104,11 +106,13 @@ export function formatBytes(bytes: number): string {
  * @returns Formatted time string (e.g., "3:45 pm")
  */
 export function getTimestamp(): string {
-	return new Date().toLocaleTimeString('en-US', { 
-		hour: 'numeric', 
-		minute: '2-digit',
-		hour12: true 
-	}).toLowerCase();
+  return new Date()
+    .toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+    .toLowerCase();
 }
 
 /**
@@ -120,31 +124,31 @@ export function getTimestamp(): string {
  * // Returns: Date object for October 27, 2025 at 3:45 PM CST
  */
 export function parseTimeInput(timeInput: string): Date | null {
-	try {
-		// Parse YYYY-MM-DD HH:MM AM/PM format
-		const match = timeInput.match(/^(\d{4})-(\d{2})-(\d{2})\s(\d{1,2}):(\d{2})\s?(AM|PM)$/i);
-		if (!match) return null;
+  try {
+    // Parse YYYY-MM-DD HH:MM AM/PM format
+    const match = timeInput.match(/^(\d{4})-(\d{2})-(\d{2})\s(\d{1,2}):(\d{2})\s?(AM|PM)$/i);
+    if (!match) return null;
 
-		const [, year, month, day, hourStr, minute, ampm] = match;
-		
-		// Convert to 24-hour format
-		let hour = parseInt(hourStr);
-		if (ampm.toUpperCase() === 'PM' && hour !== 12) {
-			hour += 12;
-		} else if (ampm.toUpperCase() === 'AM' && hour === 12) {
-			hour = 0;
-		}
+    const [, year, month, day, hourStr, minute, ampm] = match;
 
-		// Format hour with leading zero if needed
-		const hourFormatted = hour.toString().padStart(2, '0');
-		
-		// Assuming timezone CST (UTC-6)
-		const centralTime = new Date(`${year}-${month}-${day}T${hourFormatted}:${minute}:00-05:00`);
-		
-		return centralTime;
-	} catch {
-		return null;
-	}
+    // Convert to 24-hour format
+    let hour = parseInt(hourStr, 10);
+    if (ampm.toUpperCase() === 'PM' && hour !== 12) {
+      hour += 12;
+    } else if (ampm.toUpperCase() === 'AM' && hour === 12) {
+      hour = 0;
+    }
+
+    // Format hour with leading zero if needed
+    const hourFormatted = hour.toString().padStart(2, '0');
+
+    // Assuming timezone CST (UTC-6)
+    const centralTime = new Date(`${year}-${month}-${day}T${hourFormatted}:${minute}:00-05:00`);
+
+    return centralTime;
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================================
@@ -161,16 +165,16 @@ export function parseTimeInput(timeInput: string): Date | null {
  * logger("Failed to connect", "ERROR") // ERROR level
  */
 export function logger(message: string, level: 'INFO' | 'WARN' | 'ERROR' = 'INFO'): void {
-	const prefix = `[${getTimestamp()} - ${level}]`;
+  const prefix = `[${getTimestamp()} - ${level}]`;
 
-	switch (level) {
-		case 'ERROR':
-			console.error(chalk.redBright(`${prefix} ${message}`));
-			break;
-		case 'WARN':
-			console.warn(chalk.yellow(`${prefix} ${message}`));
-			break;
-		default:
-			console.log(`${prefix} ${message}`);
-	}
+  switch (level) {
+    case 'ERROR':
+      console.error(chalk.redBright(`${prefix} ${message}`));
+      break;
+    case 'WARN':
+      console.warn(chalk.yellow(`${prefix} ${message}`));
+      break;
+    default:
+      console.log(`${prefix} ${message}`);
+  }
 }

@@ -1,11 +1,11 @@
 /**
  * Profile Functions Module
- * 
+ *
  * Utilities for managing the bot's Discord profile settings including
  * status/presence and description/about me text.
  */
 
-import { ActivityType, Client } from 'discord.js';
+import { ActivityType, type Client } from 'discord.js';
 import pjson from '../../package.json';
 import { lang } from './index';
 
@@ -23,18 +23,21 @@ import { lang } from './index';
  * setStatus(client, true);  // Development
  */
 export function setStatus(client: Client, isDev: boolean = false): void {
-	const statusMessage = isDev 
-		? '🔧 Development Mode' 
-		: lang.general.presenceMsg;
-	
-	client.user?.setPresence({
-		activities: [{
-			name: 'Status',                  // Ignored for custom type
-			type: ActivityType.Custom,       // Use custom presence
-			state: statusMessage,            // Actual text shown in status
-		}],
-		status: isDev ? 'idle' : 'online'    // Yellow dot for dev, green for prod
-	});
+  const messages = lang.general.presenceMessages;
+  const statusMessage = isDev
+    ? '🔧 Development Mode'
+    : messages[Math.floor(Math.random() * messages.length)];
+
+  client.user?.setPresence({
+    activities: [
+      {
+        name: 'Status', // Ignored for custom type
+        type: ActivityType.Custom, // Use custom presence
+        state: statusMessage, // Actual text shown in status
+      },
+    ],
+    status: isDev ? 'idle' : 'online', // Yellow dot for dev, green for prod
+  });
 }
 
 /**
@@ -47,10 +50,10 @@ export function setStatus(client: Client, isDev: boolean = false): void {
  * setDescription(client, true);  // Development
  */
 export function setDescription(client: Client, isDev: boolean = false): void {
-	const devPrefix = isDev ? '🔧 [DEV] ' : '';
-	
-	client.application?.edit({ 
-		// Include bot version and description message
-		description: `${devPrefix}v${pjson.version}\n\n${lang.general.descriptionMsg}`,
-	});
+  const devPrefix = isDev ? '🔧 [DEV] ' : '';
+
+  client.application?.edit({
+    // Include bot version and description message
+    description: `${devPrefix}v${pjson.version}\n\n${lang.general.descriptionMsg}`,
+  });
 }

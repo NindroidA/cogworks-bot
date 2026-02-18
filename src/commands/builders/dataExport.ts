@@ -9,7 +9,7 @@ import { PermissionsBitField, SlashCommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
 
 export const dataExport = new SlashCommandBuilder()
-	.setName('data-export')
-	.setDescription(lang.dataExport.cmdDescrp)
-	.setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
-	.toJSON();
+  .setName('data-export')
+  .setDescription(lang.dataExport.cmdDescrp)
+  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  .toJSON();

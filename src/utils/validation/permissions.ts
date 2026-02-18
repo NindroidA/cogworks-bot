@@ -1,15 +1,17 @@
 /**
  * Permissions Module
- * 
+ *
  * Provides reusable permission sets and utility functions for Discord permission management.
  * Includes predefined permission sets for common use cases and helper functions for
  * permission checks and channel configuration.
  */
 
-import { GuildMember,
-    PermissionFlagsBits,
-    PermissionResolvable,
-    PermissionsBitField, MessageFlags } from 'discord.js';
+import {
+  type GuildMember,
+  PermissionFlagsBits,
+  type PermissionResolvable,
+  PermissionsBitField,
+} from 'discord.js';
 
 // ============================================================================
 // Permission Sets
@@ -19,45 +21,45 @@ import { GuildMember,
  * Predefined permission sets for common scenarios
  */
 export const PermissionSets = {
-	/**
-	 * Standard permissions for ticket/application creators
-	 */
-	TICKET_CREATOR: [
-		PermissionFlagsBits.ViewChannel,
-		PermissionFlagsBits.SendMessages,
-		PermissionFlagsBits.AttachFiles,
-		PermissionFlagsBits.AddReactions,
-		PermissionFlagsBits.UseExternalEmojis,
-	] as PermissionResolvable[],
+  /**
+   * Standard permissions for ticket/application creators
+   */
+  TICKET_CREATOR: [
+    PermissionFlagsBits.ViewChannel,
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.AttachFiles,
+    PermissionFlagsBits.AddReactions,
+    PermissionFlagsBits.UseExternalEmojis,
+  ] as PermissionResolvable[],
 
-	/**
-	 * Standard permissions for staff members in tickets/applications
-	 */
-	STAFF_MEMBER: [
-		PermissionFlagsBits.ViewChannel,
-		PermissionFlagsBits.SendMessages,
-		PermissionFlagsBits.ReadMessageHistory,
-		PermissionFlagsBits.AttachFiles,
-		PermissionFlagsBits.AddReactions,
-		PermissionFlagsBits.UseExternalEmojis,
-	] as PermissionResolvable[],
+  /**
+   * Standard permissions for staff members in tickets/applications
+   */
+  STAFF_MEMBER: [
+    PermissionFlagsBits.ViewChannel,
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.ReadMessageHistory,
+    PermissionFlagsBits.AttachFiles,
+    PermissionFlagsBits.AddReactions,
+    PermissionFlagsBits.UseExternalEmojis,
+  ] as PermissionResolvable[],
 
-	/**
-	 * Standard permissions for application creators (includes embed links)
-	 */
-	APPLICATION_CREATOR: [
-		PermissionFlagsBits.ViewChannel,
-		PermissionFlagsBits.SendMessages,
-		PermissionFlagsBits.AttachFiles,
-		PermissionFlagsBits.AddReactions,
-		PermissionFlagsBits.UseExternalEmojis,
-		PermissionFlagsBits.EmbedLinks,
-	] as PermissionResolvable[],
+  /**
+   * Standard permissions for application creators (includes embed links)
+   */
+  APPLICATION_CREATOR: [
+    PermissionFlagsBits.ViewChannel,
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.AttachFiles,
+    PermissionFlagsBits.AddReactions,
+    PermissionFlagsBits.UseExternalEmojis,
+    PermissionFlagsBits.EmbedLinks,
+  ] as PermissionResolvable[],
 
-	/**
-	 * Deny all channel access
-	 */
-	DENY_ALL: [PermissionFlagsBits.ViewChannel] as PermissionResolvable[],
+  /**
+   * Deny all channel access
+   */
+  DENY_ALL: [PermissionFlagsBits.ViewChannel] as PermissionResolvable[],
 } as const;
 
 // ============================================================================
@@ -77,15 +79,15 @@ export const PermissionSets = {
  * }
  */
 export function hasPermissions(
-	member: GuildMember,
-	permissions: PermissionResolvable[],
-	requireAll: boolean = true
+  member: GuildMember,
+  permissions: PermissionResolvable[],
+  requireAll: boolean = true,
 ): boolean {
-	if (requireAll) {
-		return member.permissions.has(permissions);
-	} else {
-		return permissions.some(perm => member.permissions.has(perm));
-	}
+  if (requireAll) {
+    return member.permissions.has(permissions);
+  } else {
+    return permissions.some(perm => member.permissions.has(perm));
+  }
 }
 
 /**
@@ -98,7 +100,7 @@ export function hasPermissions(
  * }
  */
 export function isAdmin(member: GuildMember): boolean {
-	return member.permissions.has(PermissionFlagsBits.Administrator);
+  return member.permissions.has(PermissionFlagsBits.Administrator);
 }
 
 /**
@@ -111,7 +113,7 @@ export function isAdmin(member: GuildMember): boolean {
  * }
  */
 export function canManageChannels(member: GuildMember): boolean {
-	return member.permissions.has(PermissionFlagsBits.ManageChannels);
+  return member.permissions.has(PermissionFlagsBits.ManageChannels);
 }
 
 /**
@@ -124,7 +126,7 @@ export function canManageChannels(member: GuildMember): boolean {
  * }
  */
 export function canManageRoles(member: GuildMember): boolean {
-	return member.permissions.has(PermissionFlagsBits.ManageRoles);
+  return member.permissions.has(PermissionFlagsBits.ManageRoles);
 }
 
 // ============================================================================
@@ -151,36 +153,40 @@ export function canManageRoles(member: GuildMember): boolean {
  * });
  */
 export function createPrivateChannelPermissions(
-	guildId: string,
-	allowedUserIds: string[],
-	allowedRoleIds: string[],
-	permissions: PermissionResolvable[] = PermissionSets.STAFF_MEMBER
+  guildId: string,
+  allowedUserIds: string[],
+  allowedRoleIds: string[],
+  permissions: PermissionResolvable[] = PermissionSets.STAFF_MEMBER,
 ): Array<{ id: string; deny?: PermissionResolvable[]; allow?: PermissionResolvable[] }> {
-	const overwrites: Array<{ id: string; deny?: PermissionResolvable[]; allow?: PermissionResolvable[] }> = [
-		// Deny @everyone
-		{
-			id: guildId,
-			deny: PermissionSets.DENY_ALL,
-		},
-	];
+  const overwrites: Array<{
+    id: string;
+    deny?: PermissionResolvable[];
+    allow?: PermissionResolvable[];
+  }> = [
+    // Deny @everyone
+    {
+      id: guildId,
+      deny: PermissionSets.DENY_ALL,
+    },
+  ];
 
-	// Add allowed users
-	allowedUserIds.forEach(userId => {
-		overwrites.push({
-			id: userId,
-			allow: permissions,
-		});
-	});
+  // Add allowed users
+  allowedUserIds.forEach(userId => {
+    overwrites.push({
+      id: userId,
+      allow: permissions,
+    });
+  });
 
-	// Add allowed roles
-	allowedRoleIds.forEach(roleId => {
-		overwrites.push({
-			id: roleId,
-			allow: permissions,
-		});
-	});
+  // Add allowed roles
+  allowedRoleIds.forEach(roleId => {
+    overwrites.push({
+      id: roleId,
+      allow: permissions,
+    });
+  });
 
-	return overwrites;
+  return overwrites;
 }
 
 // ============================================================================
@@ -197,10 +203,8 @@ export function createPrivateChannelPermissions(
  * console.log(`Member has: ${readable}`);
  */
 export function formatPermissions(permissions: PermissionsBitField | bigint): string {
-	const permBitField = typeof permissions === 'bigint' 
-		? new PermissionsBitField(permissions) 
-		: permissions;
-	
-	return permBitField.toArray().join(', ');
-}
+  const permBitField =
+    typeof permissions === 'bigint' ? new PermissionsBitField(permissions) : permissions;
 
+  return permBitField.toArray().join(', ');
+}

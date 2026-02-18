@@ -1,6 +1,6 @@
 /**
  * Types Module
- * 
+ *
  * Shared TypeScript type definitions used across the bot.
  */
 
@@ -25,12 +25,12 @@ export type SavedRoleTypes = 'staff' | 'admin';
  * Options for downloading and archiving Discord data
  */
 export interface DownloadOptions {
-	/** Output directory for downloaded files */
-	outputDir: string;
-	/** Skip files that already exist */
-	skipExisting?: boolean;
-	/** Number of items to download at once */
-	batchSize?: number;
-	/** Max retry attempts for failed downloads */
-	maxRetries?: number;
+  /** Output directory for downloaded files */
+  outputDir: string;
+  /** Skip files that already exist */
+  skipExisting?: boolean;
+  /** Number of items to download at once */
+  batchSize?: number;
+  /** Max retry attempts for failed downloads */
+  maxRetries?: number;
 }

@@ -1,3 +1,152 @@
+# Dev Update v2.10.0
+
+## Added
+- **Message Guard System**: Shared utility for safe channel/message fetching and cleanup (`src/utils/setup/messageGuard.ts`)
+  - `safeChannelFetch()` — wraps guild channel fetch with null-safe error handling
+  - `safeMessageFetch()` — wraps message fetch with null-safe error handling
+  - `cleanupOldMessage()` — combines both + deletion, returns true if message is gone
+- **Channel Delete Handler**: New `channelDelete` event listener cleans up all config references when channels are deleted
+  - Checks TicketConfig, ArchivedTicketConfig, ApplicationConfig, ArchivedApplicationConfig, BaitChannelConfig, RulesConfig, ReactionRoleMenu, MemoryConfig, AnnouncementConfig
+  - Uses `Promise.allSettled` for fault isolation — one failure doesn't block others
+  - RulesConfig and ReactionRoleMenu entries are fully deleted (can't function without channel)
+  - BaitChannelConfig is disabled when its main channel is deleted
+- **Random Presence Messages**: Bot now randomly selects from 12 humorous presence messages on startup instead of a single static message
+- **Emoji Validation**: New `validateEmoji()` utility validates Unicode and custom Discord emoji format in `/rules-setup` and `/reactionrole add`
+- **`requireBotOwner()` Helper**: Centralized bot-owner permission check used across all `/status` subcommands
+
+## Fixed
+- **Duplicate Bot Messages on Re-Setup**: `/ticket-setup`, `/application-setup`, and `/rules-setup` now always clean up old messages, even when re-running with the same channel
+  - Previously only cleaned up when the channel *changed* — same-channel re-setup left orphan messages
+- **Dev Bot Status Presence**: Dev mode now respects non-operational status levels (degraded, outage, maintenance) instead of always showing "Development Mode"
+- **Rules Cache Invalidation**: `/rules-setup setup` and `/rules-setup remove` now properly invalidate the in-memory rules cache after config changes
+- **Reaction Role Create Crash**: Fixed `rateCheck.message` crash when rate limit triggers — now uses `LANGF()` for formatted messages
+- **Guild-Scoped Reload Queries**: `/reactionrole add` and `/reactionrole remove` now include `guildId` in reload queries to prevent cross-guild data leaks
+- **`truncateWithNotice()` Edge Case**: Fixed negative slice when `maxLength` is smaller than the suffix length
+- **Reaction Role List Error**: Fixed incorrect error message key reference
+- **Import Paths**: Fixed `../../lang` → `../index` in StatusManager and menuBuilder for consistent barrel exports
+
+## Changed
+- **Enhanced `messageDelete` Handler**: Expanded from bait-channel-only to tracking all config entity message IDs
+  - Now clears stale references when tracked bot messages are externally deleted
+  - RulesConfig and ReactionRoleMenu entries are fully deleted when their message is removed
+  - Bait channel handling preserved as first check (regression safety)
+  - Performance guard: skips non-bot messages early
+- **Rate Limiting Expanded**: Added rate limits to `/reactionrole add`, `/reactionrole remove`, `/reactionrole edit`, `/status set`, `/status clear`
+- **Input Length Constraints**: Added `setMaxLength()` to all user-facing string options (emoji: 64, descriptions: 200-4000, messages: 1800, status systems: 500)
+- **Affected Systems Cap**: `/status set` now caps affected systems to 10 entries with `escapeDiscordMarkdown()` on each
+- **GDPR Enhancement**: `guildDelete` handler now clears `BotStatus.updatedBy` when a guild is removed
+- **Cache Guild Verification**: Rules reaction and reaction role caches now verify guild ownership before serving cached data
+- **Reaction Cooldowns**: 2-second per-user cooldown on rules reaction and reaction role handlers to prevent spam
+- **Database Indexes**: Added `@Index(['guildId'])` to BaitChannelConfig, composite `@Index(['guildId', 'messageId'])` to ReactionRoleMenu
+- **Autocomplete Performance**: Removed eager `relations: ['options']` from reaction role autocomplete queries
+- **Status Command Visibility**: Added `setDefaultMemberPermissions(0)` to hide `/status` from non-admin users
+- **Logging**: Migrated comprehensive wizard to `enhancedLogger`, improved logging in channelDelete and messageDelete
+- **Biome Formatting**: Auto-formatted 30 files to single-quote, condensed import style
+
+---
+
+# Dev Update v2.9.1
+
+## Changed
+- **Dependency Updates**: Updated all production and dev dependencies to latest stable versions
+  - discord.js 14.17.3 → 14.25.1, TypeScript 5.7 → 5.9, TypeORM 0.3.20 → 0.3.28
+  - mysql2 3.12 → 3.17, express 5.1 → 5.2, axios 1.8 → 1.13, @discordjs/rest 2.4 → 2.6
+- **Linting Migration**: Replaced ESLint + Prettier (7 dev deps) with Biome (1 dep)
+  - Faster linting and formatting with zero-config setup
+  - Consistent single-quote, semicolons, trailing commas formatting
+  - Import organization via `biome check --write`
+  - New scripts: `lint`, `lint:fix`, `format`, `format:fix`, `check`, `check:fix`
+
+## Fixed
+- Removed unused `this.startTime` assignment in APIConnector constructor
+- Removed unused imports across the codebase (caught by Biome)
+- Fixed `==` comparison to `===` in command router
+- Fixed `isNaN()` to `Number.isNaN()` in validators
+- Converted string concatenation to template literals across handlers
+
+## Removed
+- `eslint.config.js`, `.prettierrc`, `.prettierignore` (replaced by `biome.json`)
+- ESLint/Prettier dev dependencies: eslint, @typescript-eslint/*, prettier, eslint-config-prettier, eslint-plugin-unused-imports, globals, typescript-eslint
+
+---
+
+# Dev Update v2.9.0
+
+## Added
+- **Outage Status System**: Bot-owner-only status management with automated health integration
+  - **Bot presence sync**: Status level automatically updates Discord presence (online/idle/dnd)
+  - **Manual override**: 24-hour window where automation won't override manually set status
+  - **Health check integration**: Auto-set degraded/outage when health checks fail, auto-clear on recovery (respects manual override)
+  - **Status channel posting**: Optional `STATUS_CHANNEL_ID` env var for posting status update embeds
+
+---
+
+# Dev Update v2.8.0
+
+## Added
+- **Rules Acknowledgment System**: React-to-accept-rules role assignment
+  - `/rules-setup setup` — Configure rules message with channel, role, emoji, and optional custom message
+  - `/rules-setup view` — View current rules configuration
+  - `/rules-setup remove` — Remove rules message and configuration
+  - Automatic role assignment on reaction, role removal on un-react
+  - In-memory cache for fast reaction event handling
+  - Role validation: prevents @everyone, managed roles, and roles above bot
+  - Cache invalidated on setup/remove and guild leave
+- **Reaction Role Menu System**: Carl-bot-style reaction role menus with 3 modes
+  - `/reactionrole create` — Create a menu with channel, name, description, and mode (normal/unique/lock)
+  - `/reactionrole add` — Add emoji→role option to a menu (validates role, duplicate checks)
+  - `/reactionrole remove` — Remove an option by emoji
+  - `/reactionrole edit` — Edit menu name, description, or mode
+  - `/reactionrole delete` — Delete entire menu with confirmation
+  - `/reactionrole list` — List all menus and their options
+  - Autocomplete for menu selection in all subcommands
+  - **Normal mode**: Users can select/deselect multiple roles
+  - **Unique mode**: Only one role at a time — selecting new removes old
+  - **Lock mode**: Once selected, role cannot be removed by un-reacting
+  - In-memory caching for fast reaction event handling
+  - Max 25 menus per guild, 20 options per menu (Discord reaction limit)
+  - Deleted role detection shown with warning in list view
+
+## Changed
+- **GDPR Cleanup**: `deleteAllGuildData()` now covers RulesConfig and ReactionRoleMenu entities
+- **Event Infrastructure**: Added `GatewayIntentBits.GuildMessageReactions` intent and `Partials` for uncached message/reaction handling
+
+---
+
+# Dev Update v2.7.0
+
+## Changed
+- **Setup Command Consolidation**: `/ticket-setup` and `/application-setup` no longer use subcommands
+  - `/ticket-setup channel`, `/ticket-setup archive`, `/ticket-setup category` → Single `/ticket-setup` command with optional `channel`, `archive`, `category` options
+  - `/application-setup` now uses optional `channel`, `archive`, `category` options (same pattern)
+  - Admins can update individual settings or all at once in a single command
+
+## Fixed
+- **Memory System Bugs**:
+  - Fixed markdown formatting in memory items (bold labels, description display)
+  - `/memory capture` now accepts a `message_link` parameter (message ID or full link)
+  - Fixed "interaction failed" error when setting memory items to "Completed" status (reply now sent before thread archive)
+  - Added double-click guard on confirmation buttons in `/memory update`
+- **SQL Injection in Database Migration**: Fixed 4 raw SQL statements using string interpolation in `databaseMigration.ts` — now uses parameterized queries with `?` placeholders
+- **requireAdmin() Bypass**: Fixed critical security bug in 4 command handlers (`role/add`, `role/remove`, `role/list`, `announcement/setup`) where `requireAdmin()` result was incorrectly used as a boolean instead of checking `.allowed` property
+- **Health Server Security**: Added `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY` headers
+
+## Added
+- **Input Sanitization Utility** (`src/utils/validation/inputSanitizer.ts`):
+  - `escapeDiscordMarkdown()` — escapes `*`, `_`, `` ` ``, `~`, `|`, `>` in user text
+  - `validateSnowflake()` — validates Discord snowflake IDs (17-20 digit numeric)
+  - `truncateWithNotice()` — truncates long text with indicator
+- **Markdown Escaping**: Applied `escapeDiscordMarkdown()` to user-provided text in ticket forms (all types) and application submissions where content appears inline with bot formatting
+- **DDL Allowlist Validation**: Database migration DDL queries now validate table/column names against hardcoded allowlists
+
+## Security
+- Parameterized all raw SQL in database migration
+- Hardened health server HTTP headers
+- Fixed permission bypass in 4 admin-only command handlers
+- Added Discord markdown injection prevention on all ticket and application user inputs
+
+---
+
 # Dev Update v2.6.0
 
 ## Added

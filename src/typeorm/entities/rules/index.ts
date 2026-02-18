@@ -1,0 +1,1 @@
+export { RulesConfig } from './RulesConfig';

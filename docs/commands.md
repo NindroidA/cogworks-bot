@@ -1,6 +1,6 @@
 # Cogworks Bot Commands
 
-**Last Updated:** `January 27, 2026`
+**Last Updated:** `February 18, 2026` (v2.10.0)
 
 Complete command reference for all bot systems.
 
@@ -48,24 +48,11 @@ Complete command reference for all bot systems.
 ## Ticket System
 
 ### Ticket Setup
-**`/ticket-setup channel [channel]`**
-- Configure ticket creation channel
-- `channel` - Text channel to send the setup message to
-
-**`/ticket-setup archive [channel]`**
-- Configure ticket archive storage
-- `channel` - Forum channel to send archived transcripts to
-
-**`/ticket-setup category [category]`**
-- Set the category for ticket channels
-- `category` - Category to create ticket channels in
-
-### Ticket Management
-**`/ticket-reply bapple approve`**
-- Approve a ban appeal ticket
-
-**`/ticket-reply bapple deny`**
-- Deny a ban appeal ticket
+**`/ticket-setup [channel] [archive] [category]`**
+- Configure the ticket system (all options are optional — update one or all at once)
+- `channel` - (Optional) Text channel for the ticket creation message
+- `archive` - (Optional) Forum channel for archived ticket transcripts
+- `category` - (Optional) Category to create ticket channels in
 
 ### Custom Ticket Types
 **`/ticket type-add`**
@@ -149,10 +136,11 @@ All announcements display a preview before sending with Send/Cancel buttons.
 ## Application System
 
 ### Application Setup
-**`/application-setup position-name:[name] questions:[q1|q2|q3...]`**
-- Create custom application forms
-- Questions separated by `|` character
-- Automatically generates application button and form
+**`/application-setup [channel] [archive] [category]`**
+- Configure the application system (all options are optional — update one or all at once)
+- `channel` - (Optional) Text channel for the application submission message
+- `archive` - (Optional) Forum channel for archived applications
+- `category` - (Optional) Category to create application review channels in
 
 ### Application Management
 Applications are submitted via modal forms and stored in the database.
@@ -275,7 +263,7 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 
 **`/memory capture [message_link]`**
 - Capture an existing message as a memory item
-- `message_link` - Link to the message to capture
+- `message_link` - Message ID or full Discord message link
 - Pre-fills description with message content
 - Shows source channel link in the created post
 
@@ -313,6 +301,75 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 - ⏸️ On Hold
 - ✅ Completed
 
+## Rules Acknowledgment
+
+### Rules Setup
+**`/rules-setup setup channel:[channel] role:[role] [message] [emoji]`**
+- **Admin-only command**
+- Set up a react-to-accept-rules system
+- `channel` - Text channel to post the rules message in
+- `role` - Role to assign when users react
+- `message` - (Optional) Custom message text (default: "React with {emoji} to accept the rules...")
+- `emoji` - (Optional) Emoji for the reaction (default: ✅)
+- Reconfiguring replaces the old message
+
+**`/rules-setup view`**
+- View current rules configuration (channel, role, emoji, custom message)
+
+**`/rules-setup remove`**
+- Remove the rules message and configuration
+
+### How It Works
+1. Admin runs `/rules-setup setup` with a channel and role
+2. Bot posts the rules message and adds the configured reaction
+3. When users react, they receive the specified role
+4. When users remove their reaction, the role is removed
+
+## Reaction Role Menus
+
+### Menu Management
+**`/reactionrole create channel:[channel] name:[name] [description] [mode]`**
+- **Admin-only command**
+- Create a new reaction role menu
+- `channel` - Text channel to post the menu in
+- `name` - Menu title
+- `description` - (Optional) Menu description
+- `mode` - (Optional) `normal` (default), `unique`, or `lock`
+
+**`/reactionrole add menu:[menu] emoji:[emoji] role:[role] [description]`**
+- Add a role option to an existing menu
+- `menu` - Menu to add to (autocomplete)
+- `emoji` - Emoji for this option
+- `role` - Role to assign
+- `description` - (Optional) Description for this option
+
+**`/reactionrole remove menu:[menu] emoji:[emoji]`**
+- Remove a role option from a menu
+- Updates the embed and removes the reaction
+
+**`/reactionrole edit menu:[menu] [name] [description] [mode]`**
+- Edit menu properties (name, description, mode)
+
+**`/reactionrole delete menu:[menu]`**
+- Delete an entire menu (with confirmation)
+- Removes the Discord message and all database records
+
+**`/reactionrole list`**
+- List all reaction role menus and their options
+- Shows warnings for deleted roles
+
+### Menu Modes
+
+| Mode | Behavior |
+|------|----------|
+| **Normal** | Users can select multiple roles. React = add, un-react = remove. |
+| **Unique** | Only one role at a time. Selecting new automatically removes old. |
+| **Lock** | Once selected, role cannot be removed by un-reacting. |
+
+### Limits
+- Maximum 25 menus per server
+- Maximum 20 options per menu (Discord reaction limit)
+
 ## Support
 
 ### Coffee (Support Development)
@@ -320,6 +377,50 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 - Show support links for Cogworks development
 - Links to Buy Me a Coffee page
 - Available to all users
+
+## Outage Status System
+
+### Status Management (Bot Owner Only)
+**`/status set level:[level] [message] [systems]`**
+- Set the bot's operational status
+- `level` - Status level: Operational, Degraded Performance, Partial Outage, Major Outage, Scheduled Maintenance
+- `message` - (Optional) Status message describing the issue
+- `systems` - (Optional) Comma-separated affected systems
+- Sets a 24-hour manual override window (automation won't overwrite)
+- Updates bot's Discord presence based on level
+- Posts update to status channel if `STATUS_CHANNEL_ID` is configured
+
+**`/status clear [message]`**
+- Clear active status and resume normal operations
+- `message` - (Optional) Resolution message
+- Returns bot to operational status
+- Ends manual override, re-enables automation
+- Posts resolution to status channel if configured
+
+**`/status view`**
+- View current bot status details
+- Shows: level, message, affected systems, started at, updated by, manual override status
+
+### Status Levels
+
+| Level | Bot Presence | Activity |
+|-------|-------------|----------|
+| Operational | Online | Normal activity |
+| Degraded Performance | Idle | :warning: Degraded performance |
+| Partial Outage | Idle | :warning: Partial outage |
+| Major Outage | DND | :red_circle: Major outage |
+| Scheduled Maintenance | Idle | :wrench: Scheduled maintenance |
+
+### Health Check Integration
+- Health monitor automatically updates bot status when issues are detected
+- `unhealthy` health → Major Outage (auto-set)
+- `degraded` health → Degraded Performance (auto-set)
+- `healthy` recovery → Operational (auto-clear)
+- Manual override (24 hours) prevents automation from overwriting intentional status
+
+### Environment Variables
+- `BOT_OWNER_ID` — Required for status commands (restricts to bot owner)
+- `STATUS_CHANNEL_ID` — Optional channel for posting status update embeds
 
 ## System Information
 
@@ -365,8 +466,11 @@ All commands are protected with rate limiting:
 - **Ticket creation**: 3 per hour per user
 - **Application submission**: 2 per day per user
 - **Announcements**: 5 per hour per user
+- **Reaction role changes**: 5 per hour per guild (add/remove/edit)
+- **Status commands**: 5 per hour (set/clear)
 - **Bot setup**: 5 per hour per guild
 - **Data export**: Once per 24 hours per guild
+- **Reaction cooldown**: 2 seconds per user on reaction-based features
 - **Global throttle**: 30 commands/minute per user
 
 ### Permission Checks

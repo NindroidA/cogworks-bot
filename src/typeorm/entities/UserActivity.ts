@@ -1,32 +1,39 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 @Entity('user_activity')
 @Index(['guildId', 'userId'])
 export class UserActivity {
-	@PrimaryGeneratedColumn()
-	id: number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-	@Column()
-	guildId: string;
+  @Column()
+  guildId: string;
 
-	@Column()
-	userId: string;
+  @Column()
+  userId: string;
 
-	@Column({ default: 0 })
-	messageCount: number;
+  @Column({ default: 0 })
+  messageCount: number;
 
-	@Column({ type: 'timestamp', nullable: true })
-	firstMessageAt: Date;
+  @Column({ type: 'timestamp', nullable: true })
+  firstMessageAt: Date;
 
-	@Column({ type: 'timestamp', nullable: true })
-	lastMessageAt: Date;
+  @Column({ type: 'timestamp', nullable: true })
+  lastMessageAt: Date;
 
-	@Column({ type: 'timestamp', nullable: true })
-	joinedAt: Date;
+  @Column({ type: 'timestamp', nullable: true })
+  joinedAt: Date;
 
-	@CreateDateColumn()
-	createdAt: Date;
+  @CreateDateColumn()
+  createdAt: Date;
 
-	@UpdateDateColumn()
-	updatedAt: Date;
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

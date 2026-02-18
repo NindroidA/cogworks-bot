@@ -1,10 +1,10 @@
 /**
  * Database Migration Utility
- * 
+ *
  * This file contains database migration scripts for multi-server deployment.
- * 
+ *
  * TODO: Remove this file after migration is complete on production server
- * 
+ *
  * Migration adds:
  * - guildId column to Application and Ticket entities
  * - Database indexes on all guildId columns for performance
@@ -14,9 +14,14 @@ import { DataSource } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
 import { logger } from '../index';
 
+/** Validates a Discord snowflake ID (17-20 digit numeric string). */
+function isValidSnowflake(id: string): boolean {
+  return /^\d{17,20}$/.test(id);
+}
+
 /**
  * Run database migration for multi-server support
- * 
+ *
  * This migration:
  * 1. Adds guildId column to applications table
  * 2. Adds guildId column to tickets table
@@ -26,248 +31,296 @@ import { logger } from '../index';
  * 6. Adds indexes on all guildId columns
  */
 export async function runMultiServerMigration(): Promise<void> {
-	try {
-		logger('Starting multi-server database migration...', 'INFO');
+  try {
+    logger('Starting multi-server database migration...', 'INFO');
 
-		// Close existing connection if any
-		if (AppDataSource.isInitialized) {
-			await AppDataSource.destroy();
-		}
+    // Close existing connection if any
+    if (AppDataSource.isInitialized) {
+      await AppDataSource.destroy();
+    }
 
-		// Initialize WITHOUT synchronize to prevent auto-schema updates
-		const migrationDataSource = new DataSource({
-			type: 'mysql',
-			host: process.env.MYSQL_DB_HOST,
-			port: parseInt(process.env.MYSQL_DB_PORT!),
-			username: process.env.MYSQL_DB_USERNAME,
-			password: process.env.MYSQL_DB_PASSWORD,
-			database: process.env.MYSQL_DB_DATABASE,
-			synchronize: false, // CRITICAL: Don't let TypeORM auto-sync during migration
-		});
+    // Initialize WITHOUT synchronize to prevent auto-schema updates
+    const migrationDataSource = new DataSource({
+      type: 'mysql',
+      host: process.env.MYSQL_DB_HOST,
+      port: parseInt(process.env.MYSQL_DB_PORT!, 10),
+      username: process.env.MYSQL_DB_USERNAME,
+      password: process.env.MYSQL_DB_PASSWORD,
+      database: process.env.MYSQL_DB_DATABASE,
+      synchronize: false, // CRITICAL: Don't let TypeORM auto-sync during migration
+    });
 
-		await migrationDataSource.initialize();
-		const queryRunner = migrationDataSource.createQueryRunner();
-		await queryRunner.connect();
+    await migrationDataSource.initialize();
+    const queryRunner = migrationDataSource.createQueryRunner();
+    await queryRunner.connect();
 
-		// Check if migration has already been run
-		const applicationsHasGuildId = await queryRunner.hasColumn('applications', 'guildId');
-		const ticketsHasGuildId = await queryRunner.hasColumn('tickets', 'guildId');
-		const archivedAppsHasGuildId = await queryRunner.hasColumn('archived_applications', 'guildId');
-		const archivedTicketsHasGuildId = await queryRunner.hasColumn('archived_tickets', 'guildId');
+    // Check if migration has already been run
+    const applicationsHasGuildId = await queryRunner.hasColumn('applications', 'guildId');
+    const ticketsHasGuildId = await queryRunner.hasColumn('tickets', 'guildId');
+    const archivedAppsHasGuildId = await queryRunner.hasColumn('archived_applications', 'guildId');
+    const archivedTicketsHasGuildId = await queryRunner.hasColumn('archived_tickets', 'guildId');
 
-		if (applicationsHasGuildId && ticketsHasGuildId && archivedAppsHasGuildId && archivedTicketsHasGuildId) {
-			logger('Migration already completed - guildId columns exist', 'INFO');
-			await queryRunner.release();
-			return;
-		}
+    if (
+      applicationsHasGuildId &&
+      ticketsHasGuildId &&
+      archivedAppsHasGuildId &&
+      archivedTicketsHasGuildId
+    ) {
+      logger('Migration already completed - guildId columns exist', 'INFO');
+      await queryRunner.release();
+      return;
+    }
 
-		await queryRunner.startTransaction();
+    await queryRunner.startTransaction();
 
-		try {
-			// Migration 1: Add guildId to applications table
-			if (!applicationsHasGuildId) {
-				logger('Adding guildId column to applications table...', 'INFO');
-				
-				// Add column
-				await queryRunner.query(`
+    try {
+      // Migration 1: Add guildId to applications table
+      if (!applicationsHasGuildId) {
+        logger('Adding guildId column to applications table...', 'INFO');
+
+        // Add column
+        await queryRunner.query(`
 					ALTER TABLE applications 
 					ADD COLUMN guildId VARCHAR(255) NULL
 				`);
 
-				// Populate guildId from application_configs
-				// Since there's only one guild in your current setup, get it from application_configs
-				const configGuildId = await queryRunner.query(`
+        // Populate guildId from application_configs
+        // Since there's only one guild in your current setup, get it from application_configs
+        const configGuildId = await queryRunner.query(`
 					SELECT guildId FROM application_configs LIMIT 1
 				`);
 
-				if (configGuildId.length > 0) {
-					await queryRunner.query(`
-						UPDATE applications 
-						SET guildId = '${configGuildId[0].guildId}'
-						WHERE guildId IS NULL
-					`);
-					logger(`Set guildId to ${configGuildId[0].guildId} for all applications`, 'INFO');
-				} else {
-					logger('No application config found - cannot populate guildId', 'ERROR');
-					throw new Error('Cannot migrate: no application config exists');
-				}
+        if (configGuildId.length > 0) {
+          const guildId = configGuildId[0].guildId;
+          if (!isValidSnowflake(guildId)) {
+            throw new Error(`Invalid guildId format in application_configs: ${guildId}`);
+          }
+          // Parameterized query to prevent SQL injection
+          await queryRunner.query(`UPDATE applications SET guildId = ? WHERE guildId IS NULL`, [
+            guildId,
+          ]);
+          logger(`Set guildId to ${guildId} for all applications`, 'INFO');
+        } else {
+          logger('No application config found - cannot populate guildId', 'ERROR');
+          throw new Error('Cannot migrate: no application config exists');
+        }
 
-				// Make guildId NOT NULL after population
-				await queryRunner.query(`
+        // Make guildId NOT NULL after population
+        await queryRunner.query(`
 					ALTER TABLE applications 
 					MODIFY COLUMN guildId VARCHAR(255) NOT NULL
 				`);
 
-				logger('✅ Added guildId to applications table', 'INFO');
-			}
+        logger('✅ Added guildId to applications table', 'INFO');
+      }
 
-			// Migration 2: Add guildId to tickets table
-			if (!ticketsHasGuildId) {
-				logger('Adding guildId column to tickets table...', 'INFO');
-				
-				// Add column
-				await queryRunner.query(`
+      // Migration 2: Add guildId to tickets table
+      if (!ticketsHasGuildId) {
+        logger('Adding guildId column to tickets table...', 'INFO');
+
+        // Add column
+        await queryRunner.query(`
 					ALTER TABLE tickets 
 					ADD COLUMN guildId VARCHAR(255) NULL
 				`);
 
-				// Populate guildId from ticket_configs
-				const configGuildId = await queryRunner.query(`
+        // Populate guildId from ticket_configs
+        const configGuildId = await queryRunner.query(`
 					SELECT guildId FROM ticket_configs LIMIT 1
 				`);
 
-				if (configGuildId.length > 0) {
-					await queryRunner.query(`
-						UPDATE tickets 
-						SET guildId = '${configGuildId[0].guildId}'
-						WHERE guildId IS NULL
-					`);
-					logger(`Set guildId to ${configGuildId[0].guildId} for all tickets`, 'INFO');
-				} else {
-					logger('No ticket config found - cannot populate guildId', 'ERROR');
-					throw new Error('Cannot migrate: no ticket config exists');
-				}
+        if (configGuildId.length > 0) {
+          const guildId = configGuildId[0].guildId;
+          if (!isValidSnowflake(guildId)) {
+            throw new Error(`Invalid guildId format in ticket_configs: ${guildId}`);
+          }
+          // Parameterized query to prevent SQL injection
+          await queryRunner.query(`UPDATE tickets SET guildId = ? WHERE guildId IS NULL`, [
+            guildId,
+          ]);
+          logger(`Set guildId to ${guildId} for all tickets`, 'INFO');
+        } else {
+          logger('No ticket config found - cannot populate guildId', 'ERROR');
+          throw new Error('Cannot migrate: no ticket config exists');
+        }
 
-				// Make guildId NOT NULL after population
-				await queryRunner.query(`
+        // Make guildId NOT NULL after population
+        await queryRunner.query(`
 					ALTER TABLE tickets 
 					MODIFY COLUMN guildId VARCHAR(255) NOT NULL
 				`);
 
-				logger('✅ Added guildId to tickets table', 'INFO');
-			}
+        logger('✅ Added guildId to tickets table', 'INFO');
+      }
 
-			// Migration 3: Add guildId to archived_applications table
-			if (!archivedAppsHasGuildId) {
-				logger('Adding guildId column to archived_applications table...', 'INFO');
-				
-				await queryRunner.query(`
+      // Migration 3: Add guildId to archived_applications table
+      if (!archivedAppsHasGuildId) {
+        logger('Adding guildId column to archived_applications table...', 'INFO');
+
+        await queryRunner.query(`
 					ALTER TABLE archived_applications 
 					ADD COLUMN guildId VARCHAR(255) NULL
 				`);
 
-				// Populate from archived_application_configs
-				const configGuildId = await queryRunner.query(`
+        // Populate from archived_application_configs
+        const configGuildId = await queryRunner.query(`
 					SELECT guildId FROM archived_application_configs LIMIT 1
 				`);
 
-				if (configGuildId.length > 0) {
-					await queryRunner.query(`
-						UPDATE archived_applications 
-						SET guildId = '${configGuildId[0].guildId}'
-						WHERE guildId IS NULL
-					`);
-					logger(`Set guildId to ${configGuildId[0].guildId} for all archived applications`, 'INFO');
-				} else {
-					logger('No archived application config found - cannot populate guildId', 'ERROR');
-					throw new Error('Cannot migrate: no archived application config exists');
-				}
+        if (configGuildId.length > 0) {
+          const guildId = configGuildId[0].guildId;
+          if (!isValidSnowflake(guildId)) {
+            throw new Error(`Invalid guildId format in archived_application_configs: ${guildId}`);
+          }
+          // Parameterized query to prevent SQL injection
+          await queryRunner.query(
+            `UPDATE archived_applications SET guildId = ? WHERE guildId IS NULL`,
+            [guildId],
+          );
+          logger(`Set guildId to ${guildId} for all archived applications`, 'INFO');
+        } else {
+          logger('No archived application config found - cannot populate guildId', 'ERROR');
+          throw new Error('Cannot migrate: no archived application config exists');
+        }
 
-				await queryRunner.query(`
+        await queryRunner.query(`
 					ALTER TABLE archived_applications 
 					MODIFY COLUMN guildId VARCHAR(255) NOT NULL
 				`);
 
-				logger('✅ Added guildId to archived_applications table', 'INFO');
-			}
+        logger('✅ Added guildId to archived_applications table', 'INFO');
+      }
 
-			// Migration 4: Add guildId to archived_tickets table
-			if (!archivedTicketsHasGuildId) {
-				logger('Adding guildId column to archived_tickets table...', 'INFO');
-				
-				await queryRunner.query(`
+      // Migration 4: Add guildId to archived_tickets table
+      if (!archivedTicketsHasGuildId) {
+        logger('Adding guildId column to archived_tickets table...', 'INFO');
+
+        await queryRunner.query(`
 					ALTER TABLE archived_tickets 
 					ADD COLUMN guildId VARCHAR(255) NULL
 				`);
 
-				// Populate from archived_ticket_configs
-				const configGuildId = await queryRunner.query(`
+        // Populate from archived_ticket_configs
+        const configGuildId = await queryRunner.query(`
 					SELECT guildId FROM archived_ticket_configs LIMIT 1
 				`);
 
-				if (configGuildId.length > 0) {
-					await queryRunner.query(`
-						UPDATE archived_tickets 
-						SET guildId = '${configGuildId[0].guildId}'
-						WHERE guildId IS NULL
-					`);
-					logger(`Set guildId to ${configGuildId[0].guildId} for all archived tickets`, 'INFO');
-				} else {
-					logger('No archived ticket config found - cannot populate guildId', 'ERROR');
-					throw new Error('Cannot migrate: no archived ticket config exists');
-				}
+        if (configGuildId.length > 0) {
+          const guildId = configGuildId[0].guildId;
+          if (!isValidSnowflake(guildId)) {
+            throw new Error(`Invalid guildId format in archived_ticket_configs: ${guildId}`);
+          }
+          // Parameterized query to prevent SQL injection
+          await queryRunner.query(`UPDATE archived_tickets SET guildId = ? WHERE guildId IS NULL`, [
+            guildId,
+          ]);
+          logger(`Set guildId to ${guildId} for all archived tickets`, 'INFO');
+        } else {
+          logger('No archived ticket config found - cannot populate guildId', 'ERROR');
+          throw new Error('Cannot migrate: no archived ticket config exists');
+        }
 
-				await queryRunner.query(`
+        await queryRunner.query(`
 					ALTER TABLE archived_tickets 
 					MODIFY COLUMN guildId VARCHAR(255) NOT NULL
 				`);
 
-				logger('✅ Added guildId to archived_tickets table', 'INFO');
-			}
+        logger('✅ Added guildId to archived_tickets table', 'INFO');
+      }
 
-			// Migration 5: Add indexes for performance
-			logger('Creating indexes on guildId columns...', 'INFO');
+      // Migration 5: Add indexes for performance
+      logger('Creating indexes on guildId columns...', 'INFO');
 
-			const indexesToCreate = [
-				// Only create indexes on tables that don't already have UNIQUE constraints or existing indexes
-				// Config tables already have UNIQUE(guildId), so skip those
-				{ table: 'applications', columns: ['guildId'], name: 'IDX_applications_guildId' },
-				{ table: 'positions', columns: ['guildId', 'isActive'], name: 'IDX_positions_guildId_isActive' },
-				{ table: 'archived_applications', columns: ['guildId'], name: 'IDX_archived_applications_guildId' },
-				{ table: 'tickets', columns: ['guildId', 'status'], name: 'IDX_tickets_guildId_status' },
-				{ table: 'archived_tickets', columns: ['guildId'], name: 'IDX_archived_tickets_guildId' },
-				{ table: 'staff_roles', columns: ['guildId'], name: 'IDX_staff_roles_guildId' },
-				{ table: 'announcement_log', columns: ['guildId'], name: 'IDX_announcement_log_guildId' },
-			];
+      // SAFE: Table/column/index names are hardcoded constants below (not user input).
+      // MySQL DDL (SHOW INDEX, CREATE INDEX) cannot use parameterized identifiers,
+      // so we validate against this allowlist instead.
+      const allowedTables = [
+        'applications',
+        'positions',
+        'archived_applications',
+        'tickets',
+        'archived_tickets',
+        'staff_roles',
+        'announcement_log',
+      ];
+      const allowedColumns = ['guildId', 'isActive', 'status'];
 
-			for (const index of indexesToCreate) {
-				try {
-					// Check if table exists first
-					const tableExists = await queryRunner.query(`
-						SHOW TABLES LIKE '${index.table}'
-					`);
+      const indexesToCreate = [
+        { table: 'applications', columns: ['guildId'], name: 'IDX_applications_guildId' },
+        {
+          table: 'positions',
+          columns: ['guildId', 'isActive'],
+          name: 'IDX_positions_guildId_isActive',
+        },
+        {
+          table: 'archived_applications',
+          columns: ['guildId'],
+          name: 'IDX_archived_applications_guildId',
+        },
+        { table: 'tickets', columns: ['guildId', 'status'], name: 'IDX_tickets_guildId_status' },
+        { table: 'archived_tickets', columns: ['guildId'], name: 'IDX_archived_tickets_guildId' },
+        { table: 'staff_roles', columns: ['guildId'], name: 'IDX_staff_roles_guildId' },
+        { table: 'announcement_log', columns: ['guildId'], name: 'IDX_announcement_log_guildId' },
+      ];
 
-					if (tableExists.length === 0) {
-						logger(`Skipping ${index.table} - table does not exist`, 'INFO');
-						continue;
-					}
+      for (const index of indexesToCreate) {
+        try {
+          // Validate table/column names against allowlist
+          if (!allowedTables.includes(index.table)) {
+            throw new Error(`Invalid table name: ${index.table}`);
+          }
+          if (!index.columns.every(c => allowedColumns.includes(c))) {
+            throw new Error(`Invalid column name in: ${index.columns.join(', ')}`);
+          }
 
-					// Check if any index exists on the guildId column(s)
-					const existingIndexes = await queryRunner.query(`
-						SHOW INDEX FROM ${index.table} WHERE Column_name IN (${index.columns.map(c => `'${c}'`).join(',')})
-					`);
+          // SHOW TABLES LIKE supports parameterized values
+          const tableExists = await queryRunner.query(`SHOW TABLES LIKE ?`, [index.table]);
 
-					if (existingIndexes.length === 0) {
-						const columnList = index.columns.join(', ');
-						await queryRunner.query(`
-							CREATE INDEX ${index.name} ON ${index.table} (${columnList})
-						`);
-						logger(`✅ Created index ${index.name} on ${index.table}`, 'INFO');
-					} else {
-						logger(`Index already exists on ${index.table}(${index.columns.join(', ')})`, 'INFO');
-					}
-				} catch (error) {
-					logger(`⚠️  Could not create index on ${index.table}: ${(error as Error).message}`, 'WARN');
-				}
-			}
+          if (tableExists.length === 0) {
+            logger(`Skipping ${index.table} - table does not exist`, 'INFO');
+            continue;
+          }
 
-			await queryRunner.commitTransaction();
-			logger('✅ Multi-server migration completed successfully!', 'INFO');
-			logger('⚠️  Remember to remove src/utils/database/databaseMigration.ts after confirming migration', 'WARN');
+          // SHOW INDEX FROM requires identifier — validated above against allowlist
+          const columnParams = index.columns.map(() => '?').join(',');
+          const existingIndexes = await queryRunner.query(
+            `SHOW INDEX FROM \`${index.table}\` WHERE Column_name IN (${columnParams})`,
+            index.columns,
+          );
 
-		} catch (error) {
-			await queryRunner.rollbackTransaction();
-			logger('❌ Migration failed, rolled back changes', 'ERROR');
-			throw error;
-		} finally {
-			await queryRunner.release();
-			await migrationDataSource.destroy();
-		}
+          if (existingIndexes.length === 0) {
+            const columnList = index.columns.map(c => `\`${c}\``).join(', ');
+            // DDL identifiers validated against allowlist above
+            await queryRunner.query(
+              `CREATE INDEX \`${index.name}\` ON \`${index.table}\` (${columnList})`,
+            );
+            logger(`Created index ${index.name} on ${index.table}`, 'INFO');
+          } else {
+            logger(`Index already exists on ${index.table}(${index.columns.join(', ')})`, 'INFO');
+          }
+        } catch (error) {
+          logger(`Could not create index on ${index.table}: ${(error as Error).message}`, 'WARN');
+        }
+      }
 
-	} catch (error) {
-		logger('Error during migration: ' + (error as Error).message, 'ERROR');
-		throw error;
-	}
+      await queryRunner.commitTransaction();
+      logger('✅ Multi-server migration completed successfully!', 'INFO');
+      logger(
+        '⚠️  Remember to remove src/utils/database/databaseMigration.ts after confirming migration',
+        'WARN',
+      );
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      logger('❌ Migration failed, rolled back changes', 'ERROR');
+      throw error;
+    } finally {
+      await queryRunner.release();
+      await migrationDataSource.destroy();
+    }
+  } catch (error) {
+    logger(`Error during migration: ${(error as Error).message}`, 'ERROR');
+    throw error;
+  }
 }
 
 /**
@@ -275,13 +328,13 @@ export async function runMultiServerMigration(): Promise<void> {
  * Usage: ts-node src/utils/databaseMigration.ts
  */
 if (require.main === module) {
-	runMultiServerMigration()
-		.then(() => {
-			logger('Migration completed. You can now start the bot.', 'INFO');
-			process.exit(0);
-		})
-		.catch((error) => {
-			logger('Migration failed: ' + error.message, 'ERROR');
-			process.exit(1);
-		});
+  runMultiServerMigration()
+    .then(() => {
+      logger('Migration completed. You can now start the bot.', 'INFO');
+      process.exit(0);
+    })
+    .catch(error => {
+      logger(`Migration failed: ${error.message}`, 'ERROR');
+      process.exit(1);
+    });
 }

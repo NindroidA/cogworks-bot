@@ -11,24 +11,24 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 
 @Index(['guildId', 'typeId'])
 @Index(['guildId', 'userId', 'typeId'], { unique: true })
 export class UserTicketRestriction {
-	@PrimaryGeneratedColumn()
-	id: number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-	@Column()
-	guildId: string;
+  @Column()
+  guildId: string;
 
-	@Column()
-	userId: string;
+  @Column()
+  userId: string;
 
-	@Column()
-	typeId: string;
+  @Column()
+  typeId: string;
 
-	@Column({ nullable: true })
-	restrictedBy: string;
+  @Column({ nullable: true })
+  restrictedBy: string;
 
-	@Column({ type: 'text', nullable: true })
-	reason: string | null;
+  @Column({ type: 'text', nullable: true })
+  reason: string | null;
 
-	@CreateDateColumn()
-	createdAt: Date;
+  @CreateDateColumn()
+  createdAt: Date;
 }

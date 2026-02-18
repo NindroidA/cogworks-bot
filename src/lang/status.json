@@ -1,0 +1,62 @@
+{
+  "builder": {
+    "cmdDescrp": "Manage bot status and outage information",
+    "set": {
+      "descrp": "Set the bot's operational status",
+      "level": "Status level",
+      "message": "Status message",
+      "systems": "Affected systems (comma-separated)"
+    },
+    "clear": {
+      "descrp": "Clear active status and resume normal operations",
+      "message": "Resolution message"
+    },
+    "view": {
+      "descrp": "View current bot status"
+    }
+  },
+  "ownerOnly": "Only the bot owner can manage status.",
+  "set": {
+    "success": "Status set to **{level}**.",
+    "error": "Failed to set status.",
+    "rateLimit": "Too many status changes. Please try again later."
+  },
+  "clear": {
+    "success": "Status cleared. Bot is now operational.",
+    "error": "Failed to clear status.",
+    "alreadyOperational": "Bot is already operational."
+  },
+  "view": {
+    "title": "Bot Status",
+    "level": "Status Level",
+    "message": "Message",
+    "systems": "Affected Systems",
+    "startedAt": "Started At",
+    "updatedBy": "Updated By",
+    "manualOverride": "Manual Override",
+    "overrideExpires": "Override Expires",
+    "operational": "All systems operational.",
+    "noMessage": "No message set.",
+    "noSystems": "None specified.",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "levels": {
+    "operational": "Operational",
+    "degraded": "Degraded Performance",
+    "partial-outage": "Partial Outage",
+    "major-outage": "Major Outage",
+    "maintenance": "Scheduled Maintenance"
+  },
+  "presence": {
+    "degraded": "⚠️ Degraded performance",
+    "partial-outage": "⚠️ Partial outage",
+    "major-outage": "🔴 Major outage",
+    "maintenance": "🔧 Scheduled maintenance"
+  },
+  "channel": {
+    "statusUpdate": "Status Update",
+    "resolved": "Status Resolved",
+    "resolvedMessage": "All systems are now operational."
+  }
+}

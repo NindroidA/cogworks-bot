@@ -13,6 +13,8 @@ build/
 .env
 .env.local
 .env.*.local
+.env.production
+.env.*.production
 *.key
 *.pem
 
@@ -29,11 +31,6 @@ lerna-debug.log*
 *.pid
 *.seed
 *.pid.lock
-.pm2/
-
-
-# TypeScript
-*.tsbuildinfo
 
 # Testing
 coverage/
@@ -69,7 +66,6 @@ Temporary Items
 .bun/
 
 # Cache & Temp Files
-.eslintcache
 .cache/
 .temp/
 temp/
@@ -82,6 +78,7 @@ temp/
 .github/copilot-instructions.md
 .claude/
 .plans/
+CLAUDE.md
 
 # Docker
 *.tar.gz
@@ -90,7 +87,6 @@ temp/
 private/
 archivedTickets/
 archiveDownload/
-temp/
 src/utils/baResponses.json
 
 # Development

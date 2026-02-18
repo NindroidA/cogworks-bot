@@ -9,4 +9,3 @@ export * from './typeList';
 export * from './typeRemove';
 export * from './typeToggle';
 export * from './userRestrict';
-

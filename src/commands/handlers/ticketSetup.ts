@@ -1,222 +1,222 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, CacheType, CategoryChannel, ChatInputCommandInteraction, Client, ForumChannel, MessageFlags, TextChannel } from 'discord.js';
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  type CacheType,
+  type CategoryChannel,
+  type ChatInputCommandInteraction,
+  type Client,
+  type ForumChannel,
+  MessageFlags,
+  type TextChannel,
+} from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
-import { createRateLimitKey, lang, LANGF, logger, rateLimiter, RateLimits, requireAdmin } from '../../utils';
+import {
+  buildConfigStatusEmbed,
+  cleanupOldMessage,
+  createRateLimitKey,
+  enhancedLogger,
+  LANGF,
+  LogCategory,
+  lang,
+  RateLimits,
+  rateLimiter,
+  requireAdmin,
+} from '../../utils';
+import type { ConfigItem } from '../../utils/setup/configStatusEmbed';
 
 const tl = lang.ticketSetup;
 const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
 const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
 
-export const ticketSetupHandler = async(client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
-    // Require admin permissions
-    if (!await requireAdmin(interaction)) return;
+export const ticketSetupHandler = async (
+  _client: Client,
+  interaction: ChatInputCommandInteraction<CacheType>,
+) => {
+  // Require admin permissions (check .allowed — object is always truthy)
+  const adminCheck = requireAdmin(interaction);
+  if (!adminCheck.allowed) {
+    await interaction.reply({
+      content: adminCheck.message!,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
 
-    // Rate limit check (10 ticket setups per hour per guild)
-    const rateLimitKey = createRateLimitKey.guild(interaction.guildId!, 'ticket-setup');
-    const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.TICKET_SETUP);
-    
-    if (!rateCheck.allowed) {
-        await interaction.reply({
-            content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
-            flags: [MessageFlags.Ephemeral]
+  // Rate limit check (10 ticket setups per hour per guild)
+  const rateLimitKey = createRateLimitKey.guild(interaction.guildId!, 'ticket-setup');
+  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.TICKET_SETUP);
+
+  if (!rateCheck.allowed) {
+    await interaction.reply({
+      content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
+      flags: [MessageFlags.Ephemeral],
+    });
+    enhancedLogger.info(
+      `Rate limit exceeded for ticket setup in guild ${interaction.guildId}`,
+      LogCategory.SECURITY,
+    );
+    return;
+  }
+
+  const guildId = interaction.guildId!;
+  const guild = interaction.guild!;
+
+  // Get provided options (all optional)
+  const channelOption = interaction.options.getChannel('channel') as TextChannel | null;
+  const archiveOption = interaction.options.getChannel('archive') as ForumChannel | null;
+  const categoryOption = interaction.options.getChannel('category') as CategoryChannel | null;
+
+  const hasAnyOption = channelOption || archiveOption || categoryOption;
+
+  // Load existing configs
+  let ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
+  let archivedTicketConfig = await archivedTicketConfigRepo.findOneBy({
+    guildId,
+  });
+
+  try {
+    // ── Channel setup ──────────────────────────────────────────────
+    if (channelOption) {
+      const createTicketButton = new ActionRowBuilder<ButtonBuilder>().setComponents(
+        new ButtonBuilder()
+          .setCustomId('create_ticket')
+          .setEmoji('🎫')
+          .setLabel('Create Ticket')
+          .setStyle(ButtonStyle.Primary),
+      );
+
+      const mainMsg = {
+        content: tl.createTicket,
+        components: [createTicketButton],
+      };
+
+      // Clean up old message (always, even on same-channel re-setup)
+      if (ticketConfig?.messageId) {
+        await cleanupOldMessage(guild, ticketConfig.channelId, ticketConfig.messageId);
+      }
+
+      // Send new message
+      const msg = await channelOption.send(mainMsg);
+
+      if (!ticketConfig) {
+        ticketConfig = ticketConfigRepo.create({
+          guildId,
+          messageId: msg.id,
+          channelId: channelOption.id,
         });
-        logger(`Rate limit exceeded for ticket setup in guild ${interaction.guildId}`, 'WARN');
-        return;
+      } else {
+        ticketConfig.channelId = channelOption.id;
+        ticketConfig.messageId = msg.id;
+      }
+
+      await ticketConfigRepo.save(ticketConfig);
+
+      enhancedLogger.info(
+        `Ticket channel configured to ${channelOption.name}`,
+        LogCategory.COMMAND_EXECUTION,
+        { guildId, channelId: channelOption.id },
+      );
     }
 
-    const subCommand = interaction.options.getSubcommand();
-    const guildId = interaction.guildId || '';
-    const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
-    const archivedTicketConfig = await archivedTicketConfigRepo.findOneBy({ guildId });
+    // ── Archive setup ──────────────────────────────────────────────
+    if (archiveOption) {
+      // Create welcome thread in new forum
+      const thread = await archiveOption.threads.create({
+        name: 'Ticket Archive',
+        message: { content: tl.archiveInitialMsg },
+      });
 
-    /* CHANNEL SUBCOMMAND */
-    if (subCommand == 'channel') {
-        // create ticket button
-        const createTicketButton = new ActionRowBuilder<ButtonBuilder>().setComponents(
-            new ButtonBuilder()
-                .setCustomId('create_ticket')
-                .setEmoji('🎫')
-                .setLabel('Create Ticket')
-                .setStyle(ButtonStyle.Primary),
+      try {
+        await thread.pin();
+      } catch {
+        enhancedLogger.info(
+          'Could not pin archive thread (max pins may be reached)',
+          LogCategory.SYSTEM,
         );
+      }
 
-        const channel = interaction.options.getChannel('channel') as TextChannel;
-        
-        const mainMsg = {
-            content: tl.createTicket,
-            components: [createTicketButton],
-        };
-        
-        // make sure the channel exists
-        if (!channel) {
-            await interaction.reply({
-                content: lang.general.channelNotFound,
-                flags: [MessageFlags.Ephemeral],
-            });
-            return;
-        }
-        
-        try {
-            // if we don't have a ticket config
-            if (!ticketConfig) {
-                // send main message to the designated channel
-                const msg = await channel.send(mainMsg);
+      if (!archivedTicketConfig) {
+        archivedTicketConfig = archivedTicketConfigRepo.create({
+          guildId,
+          messageId: thread.id,
+          channelId: archiveOption.id,
+        });
+      } else {
+        archivedTicketConfig.channelId = archiveOption.id;
+        archivedTicketConfig.messageId = thread.id;
+      }
 
-                // make a new config containing guild id, main message id, and channel id
-                const newTicketConfig = ticketConfigRepo.create({
-                    guildId,
-                    messageId: msg.id,
-                    channelId: channel.id,
-                });
-                
-                // save the new config
-                await ticketConfigRepo.save(newTicketConfig);
+      await archivedTicketConfigRepo.save(archivedTicketConfig);
 
-                // after completion, send an ephemeral success message
-                await interaction.reply({
-                    content: tl.successSet + `${channel}`,
-                    flags: [MessageFlags.Ephemeral],
-                });
-
-            // if we DO have a ticket config    
-            } else {
-                // send main message to designated channel
-                const msg = await channel.send(mainMsg);
-
-                // update the config channelId and messageId and save
-                ticketConfig.channelId = channel.id;
-                ticketConfig.messageId = msg.id;
-                await ticketConfigRepo.save(ticketConfig);
-
-                // after completion, send an ephemeral success message
-                await interaction.reply({
-                    content: tl.successUpdate + `${channel}`,
-                    flags: [MessageFlags.Ephemeral],
-                });
-            }
-        } catch (error) {
-            logger(tl.fail + error, 'ERROR');
-            await interaction.reply({
-                content: tl.fail,
-                flags: [MessageFlags.Ephemeral],
-            });
-        }
-
-    /* CATEGORY SUBCOMMAND */
-    } else if (subCommand == 'category') {
-        const tlC = lang.categorySetup;
-        const category = interaction.options.getChannel('category') as CategoryChannel;
-        const categoryId = category.id;
-
-        try {
-            // check to make sure we have a ticket config
-            if (!ticketConfig) {
-                await interaction.reply({
-                    content: tlC.setChannelFirst,
-                    flags: [MessageFlags.Ephemeral],
-                });
-                return;
-            }
-
-            // save the categoryId to the ticket config
-            ticketConfig.categoryId = categoryId;
-            ticketConfigRepo.save(ticketConfig);
-
-            await interaction.reply({
-                content: tlC.success,
-                flags: [MessageFlags.Ephemeral],
-            });
-
-        } catch (error) {
-            logger(tlC.fail + error, 'ERROR');
-            await interaction.reply({
-                content: tlC.fail,
-                flags: [MessageFlags.Ephemeral],
-            });
-
-        }
-
-    /* ARCHIVE SUBCOMMAND */    
-    } else if (subCommand == 'archive') {
-        const tlA = lang.archiveSetup;
-        const channel = interaction.options.getChannel('channel') as ForumChannel;
-
-        // make sure the channel exists
-        if (!channel) {
-            await interaction.reply({
-                content: lang.general.channelNotFound,
-                flags: [MessageFlags.Ephemeral],
-            });
-            return;
-        }
-
-        try {
-            // if we don't have an archived ticket config
-            if (!archivedTicketConfig) {
-                // send main message to designated channel and pin it
-                const msg = await channel.threads.create({
-                    name: 'Ticket Archive',
-                    message: {
-                        content: tlA.initialMsg
-                    },
-                });
-                
-                // Try to pin, but don't fail if max pins reached
-                try {
-                    await msg.pin();
-                } catch {
-                    logger('Could not pin thread (max pins may be reached)', 'WARN');
-                }
-
-                // make a new config containing the guildId, main message id, and channel id
-                const newArchivedTicketConfig = archivedTicketConfigRepo.create({
-                    guildId,
-                    messageId: msg.id,
-                    channelId: channel.id,
-                });
-
-                // save the new config
-                await archivedTicketConfigRepo.save(newArchivedTicketConfig);
-
-                // after completion, send an ephemeral success message
-                await interaction.reply({
-                    content: tl.successSet + `${channel}`,
-                    flags: [MessageFlags.Ephemeral],
-                });
-            } else {
-                // send main message to designated channel
-                const msg = await channel.threads.create({
-                    name: 'Ticket Archive',
-                    message: {
-                        content: tlA.initialMsg
-                    },
-                });
-                
-                // Try to pin, but don't fail if max pins reached
-                try {
-                    await msg.pin();
-                } catch {
-                    logger('Could not pin thread (max pins may be reached)', 'WARN');
-                }
-
-                // update the config channelId and messageId and save
-                archivedTicketConfig.channelId = channel.id;
-                archivedTicketConfig.messageId = msg.id;
-                await archivedTicketConfigRepo.save(archivedTicketConfig);
-
-                // after completion, send an ephemeral success message
-                await interaction.reply({
-                    content: tl.successUpdate + ` ${channel}`,
-                    flags: [MessageFlags.Ephemeral],
-                });
-            }
-        } catch (error) {
-            logger(tlA.fail + error, 'ERROR');
-            await interaction.reply({
-                content: tlA.fail,
-                flags: [MessageFlags.Ephemeral],
-            });
-        }
+      enhancedLogger.info(
+        `Ticket archive configured to ${archiveOption.name}`,
+        LogCategory.COMMAND_EXECUTION,
+        { guildId, channelId: archiveOption.id },
+      );
     }
+
+    // ── Category setup ─────────────────────────────────────────────
+    if (categoryOption) {
+      if (!ticketConfig) {
+        // Create a minimal config so category can be stored
+        ticketConfig = ticketConfigRepo.create({
+          guildId,
+          messageId: '',
+          channelId: '',
+          categoryId: categoryOption.id,
+        });
+      } else {
+        ticketConfig.categoryId = categoryOption.id;
+      }
+
+      await ticketConfigRepo.save(ticketConfig);
+
+      enhancedLogger.info(
+        `Ticket category configured to ${categoryOption.name}`,
+        LogCategory.COMMAND_EXECUTION,
+        { guildId, categoryId: categoryOption.id },
+      );
+    }
+
+    // ── Build status embed ─────────────────────────────────────────
+    const items: ConfigItem[] = [
+      {
+        label: 'Channel',
+        value: ticketConfig?.channelId ? `<#${ticketConfig.channelId}>` : null,
+        missingDescription: tl.missingChannel,
+      },
+      {
+        label: 'Archive',
+        value: archivedTicketConfig?.channelId ? `<#${archivedTicketConfig.channelId}>` : null,
+        missingDescription: tl.missingArchive,
+      },
+      {
+        label: 'Category',
+        value: ticketConfig?.categoryId ? `<#${ticketConfig.categoryId}>` : null,
+        missingDescription: tl.missingCategory,
+      },
+    ];
+
+    const statusEmbed = buildConfigStatusEmbed({
+      systemName: tl.statusTitle,
+      items,
+      hasUpdates: !!hasAnyOption,
+    });
+
+    await interaction.reply({
+      embeds: [statusEmbed],
+      flags: [MessageFlags.Ephemeral],
+    });
+  } catch (error) {
+    enhancedLogger.error('Ticket setup failed', error as Error, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+    });
+    await interaction.reply({
+      content: tl.fail,
+      flags: [MessageFlags.Ephemeral],
+    });
+  }
 };

@@ -1,0 +1,106 @@
+{
+  "builder": {
+    "cmdDescrp": "Manage reaction role menus",
+    "create": {
+      "descrp": "Create a new reaction role menu",
+      "channel": "Channel to post the menu in",
+      "name": "Menu name/title",
+      "description": "Menu description text",
+      "mode": "Menu mode: normal, unique, or lock"
+    },
+    "add": {
+      "descrp": "Add a role option to a menu",
+      "menuId": "Menu to add the option to",
+      "emoji": "Emoji for this role option",
+      "role": "Role to assign when reacted",
+      "description": "Description for this option"
+    },
+    "remove": {
+      "descrp": "Remove a role option from a menu",
+      "menuId": "Menu to remove from",
+      "emoji": "Emoji to remove"
+    },
+    "edit": {
+      "descrp": "Edit a reaction role menu's properties",
+      "menuId": "Menu to edit",
+      "name": "New menu name",
+      "description": "New menu description",
+      "mode": "New menu mode"
+    },
+    "delete": {
+      "descrp": "Delete a reaction role menu",
+      "menuId": "Menu to delete"
+    },
+    "list": {
+      "descrp": "List all reaction role menus in this server"
+    }
+  },
+  "create": {
+    "success": "Reaction role menu **{name}** created in {channel}!",
+    "error": "Failed to create reaction role menu.",
+    "maxMenus": "This server has reached the maximum of 25 reaction role menus.",
+    "invalidMode": "Invalid mode. Choose: `normal`, `unique`, or `lock`."
+  },
+  "add": {
+    "success": "Added {emoji} → {role} to **{menu}**.",
+    "error": "Failed to add role option.",
+    "duplicateEmoji": "This emoji is already used in this menu.",
+    "duplicateRole": "This role is already in this menu.",
+    "maxOptions": "This menu has reached the maximum of 20 options (Discord reaction limit).",
+    "roleTooHigh": "Cannot use this role — it is higher than or equal to the bot's highest role.",
+    "cannotUseEveryone": "Cannot use the @everyone role.",
+    "cannotUseManagedRole": "Cannot use a managed (bot/integration) role.",
+    "invalidEmoji": "Invalid emoji. Use a standard emoji or a custom Discord emoji (<:name:id>)."
+  },
+  "remove": {
+    "success": "Removed {emoji} option from **{menu}**.",
+    "error": "Failed to remove role option.",
+    "notFound": "No option with that emoji found in this menu."
+  },
+  "edit": {
+    "success": "Menu **{name}** updated.",
+    "error": "Failed to edit menu.",
+    "noChanges": "No changes provided."
+  },
+  "delete": {
+    "success": "Reaction role menu **{name}** deleted.",
+    "error": "Failed to delete menu.",
+    "confirmTitle": "Delete Reaction Role Menu",
+    "confirmMessage": "Are you sure you want to delete **{name}**? This will remove the menu message and all role options."
+  },
+  "list": {
+    "title": "Reaction Role Menus",
+    "empty": "No reaction role menus configured in this server.",
+    "error": "Failed to list reaction role menus.",
+    "menuEntry": "**{name}** — {optionCount} option(s) — Mode: {mode}",
+    "optionEntry": "{emoji} → <@&{roleId}>",
+    "channelLabel": "Channel",
+    "modeLabel": "Mode",
+    "optionsLabel": "Options",
+    "roleDeletedWarning": "⚠️ Role deleted"
+  },
+  "menu": {
+    "embedFooter": "React to assign yourself a role!",
+    "modeNormal": "Normal (select multiple)",
+    "modeUnique": "Unique (one at a time)",
+    "modeLock": "Lock (cannot remove)",
+    "noOptions": "No role options configured yet. Use `/reactionrole add` to add options."
+  },
+  "reaction": {
+    "roleAssigned": "Reaction role assigned",
+    "roleRemoved": "Reaction role removed",
+    "roleNotFound": "Reaction role not found in guild",
+    "assignError": "Error assigning reaction role",
+    "removeError": "Error removing reaction role",
+    "lockModeIgnore": "Role removal ignored (lock mode)"
+  },
+  "errors": {
+    "menuNotFound": "Menu not found.",
+    "messageNotFound": "Could not find the menu message. It may have been deleted.",
+    "channelNotFound": "Could not find the menu channel.",
+    "noPermission": "Bot lacks permission to manage reactions or roles in that channel."
+  },
+  "autocomplete": {
+    "noMenus": "No menus found"
+  }
+}

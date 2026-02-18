@@ -22,9 +22,8 @@ logs/
 .github/
 
 # Development files
-nodemon.json
-ecosystem.config.js
 jest.config.js
+biome.json
 
 # Tests
 tests/

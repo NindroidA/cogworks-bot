@@ -1,62 +1,75 @@
 {
-    "presenceMsg": "Look at me go!",
-    "descriptionMsg": "A special lil bot made by a special lil Nindroid :3",
-    "fatalError": "There was a fatal error! Please contact your admin!",
-    "channelNotFound": "The selected channel was not found.",
-    "cmdTicketNotFound": "This command can only be used in a ticket!",
-    "cmdGuildNotFound": "This command can only be used in a server!",
-    "welcome": {
-        "title": "Thanks for adding Cogworks Bot!",
-        "description": "**Cogworks Bot** is a comprehensive Discord management bot with ticketing, applications, announcements, and more!\n\nTo get started, use the `/bot-setup` command to configure the bot for your server.",
-        "features": {
-            "title": "Features",
-            "value": "- **Ticketing System** - Organized support tickets with categories\n- **Application System** - Job/role applications with custom positions\n- **Announcements** - Beautiful announcement templates\n- **Bait Channel** - Anti-bot/scammer protection\n- **Role Management** - Easy role assignment commands"
-        },
-        "quickStart": {
-            "title": "Quick Start",
-            "value": "1. Run `/bot-setup` to configure your server\n2. Set up systems you need (tickets, applications, etc.)\n3. Customize settings for each system\n4. You're ready to go!"
-        },
-        "commands": {
-            "title": "Commands",
-            "value": "- `/bot-setup` - Complete bot configuration wizard\n- `/ticket-setup` - Set up ticket system\n- `/application-setup` - Set up application system\n- `/announcement-setup` - Set up announcements\n- `/baitchannel setup` - Set up anti-bot protection\n- `/data-export` - Export your server data (GDPR)"
-        },
-        "privacy": {
-            "title": "Privacy & Terms",
-            "value": "- [Privacy Policy](https://github.com/NindroidA/cogworks-bot/blob/main/docs/privacy_policy.md)\n- [Terms of Service](https://github.com/NindroidA/cogworks-bot/blob/main/docs/terms_of_service.md)\n- We only store data necessary for bot functionality\n- Data is deleted when the bot leaves your server"
-        },
-        "needHelp": {
-            "title": "Need Help?",
-            "value": "Join our [Support Server](https://discord.gg/cogworks) for:\n- Setup assistance\n- Feature requests\n- Bug reports\n- General questions"
-        },
-        "footer": "Serving {0} servers"
+  "presenceMessages": [
+    "Look at me go!",
+    "You spin me right round baby, right round",
+    "YOU SPIN MY HAIR RIGHT ROUND",
+    "Spinny cog go spinny weeeeeeee",
+    "Round and round we go!",
+    "R o t a t i n g",
+    "Have you tried turning it off and on again?",
+    "I'm a little cog, short and round",
+    "Cogito ergo cog",
+    "Just a cog in the machine",
+    "Gears grinding, vibes thriving",
+    "Currently overthinking at over 9000 RPM"
+  ],
+  "descriptionMsg": "A special lil bot made by a special lil Nindroid :3",
+  "fatalError": "There was a fatal error! Please contact your admin!",
+  "channelNotFound": "The selected channel was not found.",
+  "cmdTicketNotFound": "This command can only be used in a ticket!",
+  "cmdGuildNotFound": "This command can only be used in a server!",
+  "welcome": {
+    "title": "Thanks for adding Cogworks Bot!",
+    "description": "**Cogworks Bot** is a comprehensive Discord management bot with ticketing, applications, announcements, and more!\n\nTo get started, use the `/bot-setup` command to configure the bot for your server.",
+    "features": {
+      "title": "Features",
+      "value": "- **Ticketing System** - Organized support tickets with categories\n- **Application System** - Job/role applications with custom positions\n- **Announcements** - Beautiful announcement templates\n- **Bait Channel** - Anti-bot/scammer protection\n- **Role Management** - Easy role assignment commands"
     },
-    "buttons": {
-        "cancel": "Cancel",
-        "done": "Done",
-        "confirm": "Confirm",
-        "delete": "Delete",
-        "cancelSetup": "Cancel Setup",
-        "addAnother": "Add Another",
-        "addAnotherRole": "Add Another Role",
-        "save": "Save",
-        "edit": "Edit",
-        "preview": "Preview",
-        "yes": "Yes",
-        "no": "No"
+    "quickStart": {
+      "title": "Quick Start",
+      "value": "1. Run `/bot-setup` to configure your server\n2. Set up systems you need (tickets, applications, etc.)\n3. Customize settings for each system\n4. You're ready to go!"
     },
-    "ping": {
-        "cmdDescrp": "Check bot latency and status",
-        "calculating": "Calculating...",
-        "title": "Pong!",
-        "wsLatency": "WebSocket",
-        "apiLatency": "API Latency",
-        "uptime": "Uptime"
+    "commands": {
+      "title": "Commands",
+      "value": "- `/bot-setup` - Complete bot configuration wizard\n- `/ticket-setup` - Set up ticket system\n- `/application-setup` - Set up application system\n- `/announcement-setup` - Set up announcements\n- `/baitchannel setup` - Set up anti-bot protection\n- `/data-export` - Export your server data (GDPR)"
     },
-    "coffee": {
-        "cmdDescrp": "Support Cogworks development",
-        "title": "Support Cogworks",
-        "description": "If you enjoy using Cogworks, consider buying me a coffee! Your support helps keep the bot running and development active.",
-        "linkTitle": "Buy Me a Coffee",
-        "footer": "Thank you for your support!"
-    }
+    "privacy": {
+      "title": "Privacy & Terms",
+      "value": "- [Privacy Policy](https://github.com/NindroidA/cogworks-bot/blob/main/docs/privacy_policy.md)\n- [Terms of Service](https://github.com/NindroidA/cogworks-bot/blob/main/docs/terms_of_service.md)\n- We only store data necessary for bot functionality\n- Data is deleted when the bot leaves your server"
+    },
+    "needHelp": {
+      "title": "Need Help?",
+      "value": "Join our [Support Server](https://discord.gg/cogworks) for:\n- Setup assistance\n- Feature requests\n- Bug reports\n- General questions"
+    },
+    "footer": "Serving {0} servers"
+  },
+  "buttons": {
+    "cancel": "Cancel",
+    "done": "Done",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "cancelSetup": "Cancel Setup",
+    "addAnother": "Add Another",
+    "addAnotherRole": "Add Another Role",
+    "save": "Save",
+    "edit": "Edit",
+    "preview": "Preview",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "ping": {
+    "cmdDescrp": "Check bot latency and status",
+    "calculating": "Calculating...",
+    "title": "Pong!",
+    "wsLatency": "WebSocket",
+    "apiLatency": "API Latency",
+    "uptime": "Uptime"
+  },
+  "coffee": {
+    "cmdDescrp": "Support Cogworks development",
+    "title": "Support Cogworks",
+    "description": "If you enjoy using Cogworks, consider buying me a coffee! Your support helps keep the bot running and development active.",
+    "linkTitle": "Buy Me a Coffee",
+    "footer": "Thank you for your support!"
+  }
 }
