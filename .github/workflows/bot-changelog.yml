@@ -38,8 +38,8 @@ jobs:
               next;
             }
 
-            # Print content within sections
-            found && in_section { print }
+            # Print content within sections (skip blank lines to avoid extra Discord spacing)
+            found && in_section && /\S/ { print }
 
           ' CHANGELOG.md)
 

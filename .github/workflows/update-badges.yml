@@ -27,7 +27,7 @@ jobs:
           cat > .github/badges/loc.json << EOF
           {
             "schemaVersion": 1,
-            "label": "TypeScript",
+            "label": "lines of code",
             "message": "${LINE_COUNT} lines",
             "color": "7C3AED"
           }
