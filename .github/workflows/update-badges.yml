@@ -1,0 +1,43 @@
+name: Update Repo Badges
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**/*.ts'
+
+jobs:
+  update-loc-badge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Count TypeScript lines
+        id: count
+        run: |
+          LINES=$(find src -name "*.ts" -exec cat {} + | wc -l | tr -d ' ')
+          FORMATTED=$(printf "%'d" "$LINES")
+          echo "lines=$FORMATTED" >> $GITHUB_OUTPUT
+
+      - name: Update badge JSON
+        env:
+          LINE_COUNT: ${{ steps.count.outputs.lines }}
+        run: |
+          cat > .github/badges/loc.json << EOF
+          {
+            "schemaVersion": 1,
+            "label": "TypeScript",
+            "message": "${LINE_COUNT} lines",
+            "color": "7C3AED"
+          }
+          EOF
+
+      - name: Commit badge update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/badges/loc.json
+          git diff --staged --quiet && exit 0
+          git commit -m "chore: update TypeScript LOC badge [skip ci]"
+          git push

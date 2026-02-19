@@ -3,11 +3,12 @@
 A modular Discord server management bot built for communities that need more than just moderation. Tickets, applications, announcements, reaction roles, rules enforcement, anti-bot detection, and more — all in one bot with per-server isolation.
 
 <p>
-  <img src="https://img.shields.io/badge/version-2.10.0-blue?style=flat-square" alt="Version" />
+  <img src="https://img.shields.io/github/package-json/v/NindroidA/cogworks-bot?style=flat-square&color=blue" alt="Version" />
   <img src="https://img.shields.io/badge/discord.js-v14-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord.js" />
   <img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/runtime-Bun-f9f1e1?style=flat-square&logo=bun&logoColor=white" alt="Bun" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
+  <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/NindroidA/cogworks-bot/main/.github/badges/loc.json&style=flat-square" alt="TypeScript Lines of Code" />
 </p>
 
 ## Quick Start

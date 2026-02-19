@@ -16,29 +16,25 @@ jobs:
       - name: Extract and format changelog
         id: changelog
         run: |
-          # Extract version from first line
-          VERSION=$(head -1 CHANGELOG.md | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "Latest")
+          # Extract version from first changelog entry (## [X.Y.Z] - date)
+          VERSION=$(grep -oE '## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          VERSION="v${VERSION:-Latest}"
 
-          # Extract the first changelog section (between first and second "# Dev Update")
-          # Then format sections
+          # Extract the first changelog section (between first and second ## [version])
           CHANGELOG=$(awk '
-            BEGIN { found=0; in_section=0; current_section="" }
+            BEGIN { found=0; in_section=0 }
 
-            # Start capturing at first "# Dev Update"
-            /^# Dev Update/ {
+            # Match version headers: ## [X.Y.Z] - YYYY-MM-DD
+            /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ {
               if (found) exit;
               found=1;
               next;
             }
 
-            # Skip horizontal rules
-            /^---$/ { next }
-
-            # Capture section headers (Added, Fixed, etc.)
-            found && /^## / {
-              current_section = substr($0, 4);
+            # Capture section headers (### Added, ### Fixed, etc.)
+            found && /^### / {
               in_section=1;
-              print "### " current_section;
+              print;
               next;
             }
 
@@ -47,22 +43,44 @@ jobs:
 
           ' CHANGELOG.md)
 
+          # Random subheader quotes — add new lines to scale
+          QUOTES=(
+            "Yippee! New working cogs!"
+            "Fresh gears, who dis?"
+            "My cogs have been oiled!"
+            "Beep boop"
+            "Another day, another cog in the machine"
+            "SPINNY COGS!"
+            "Turning the wheels of progress"
+            "Let's get spinning!"
+            "Squeaky clean ;)"
+            "Vibing with better cogs!"
+            "Oops, I did it again"
+            "Oops All Cogs!"
+            "Whoops, you found the secret cog stash!"
+            "I stole more cogs from the factory"
+            "EXPLOSION OF COGS! (Don't worry, they're all new and shiny)"
+            "Another one"
+            "Cog go brrrrrrr"
+            "Cog in the works?"
+          )
+          QUOTE="${QUOTES[$((RANDOM % ${#QUOTES[@]}))]}"
+
           # Build the formatted message
           REPO_URL="https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md"
 
-          # Create the full message using printf to handle special characters
           HEADER="# Cogworks Bot ${VERSION}"
-          QUOTE="> Yippee! New working cogs!"
+          SUBHEADER="> ${QUOTE}"
           FOOTER="-# [View full changelog](${REPO_URL})"
 
-          MESSAGE=$(printf '%s\n\n%s\n\n%s\n---\n%s' "$HEADER" "$QUOTE" "$CHANGELOG" "$FOOTER")
+          MESSAGE=$(printf '%s\n\n%s\n\n%s\n\n%s' "$HEADER" "$SUBHEADER" "$CHANGELOG" "$FOOTER")
 
-          # Truncate if too long (Discord limit is 2000 chars)
+          # Truncate if too long (Discord limit - 2000 chars)
           if [ ${#MESSAGE} -gt 1950 ]; then
             TRUNCATED="${MESSAGE:0:1850}"
             # Remove the last line to avoid partial items
             TRUNCATED=$(echo "$TRUNCATED" | head -n -1)
-            MESSAGE=$(printf '%s\n\n...\n\n---\n%s' "$TRUNCATED" "$FOOTER")
+            MESSAGE=$(printf '%s\n\n...\n\n%s' "$TRUNCATED" "$FOOTER")
           fi
 
           # Set outputs using heredoc for multiline content

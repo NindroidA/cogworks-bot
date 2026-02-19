@@ -142,7 +142,9 @@ class HealthServer {
     });
 
     this.server.on('error', (error: Error) => {
-      enhancedLogger.error('Health server error', error, LogCategory.SYSTEM, { port });
+      enhancedLogger.error('Health server error', error, LogCategory.SYSTEM, {
+        port,
+      });
     });
   }
 
@@ -378,18 +380,18 @@ class HealthServer {
     heapTotalMB: string;
     rssMB: string;
   }): HealthCheckResult {
-    const heapUsed = parseInt(memory.heapUsedMB, 10);
-    const heapTotal = parseInt(memory.heapTotalMB, 10);
-    const heapPercentage = (heapUsed / heapTotal) * 100;
+    const rssMB = parseInt(memory.rssMB, 10);
+    const thresholdMB = Number.parseInt(process.env.MEMORY_THRESHOLD_MB || '512', 10);
+    const effectiveThreshold = Number.isNaN(thresholdMB) ? 512 : thresholdMB;
 
-    if (heapPercentage > 90) {
+    if (rssMB > effectiveThreshold) {
       return {
         status: 'warn',
         message: 'High memory usage',
         details: {
+          rssMB: memory.rssMB,
+          thresholdMB: `${effectiveThreshold} MB`,
           heapUsedMB: memory.heapUsedMB,
-          heapTotalMB: memory.heapTotalMB,
-          percentage: `${heapPercentage.toFixed(1)}%`,
         },
       };
     }
@@ -398,9 +400,9 @@ class HealthServer {
       status: 'pass',
       message: 'Memory usage normal',
       details: {
+        rssMB: memory.rssMB,
+        thresholdMB: `${effectiveThreshold} MB`,
         heapUsedMB: memory.heapUsedMB,
-        heapTotalMB: memory.heapTotalMB,
-        percentage: `${heapPercentage.toFixed(1)}%`,
       },
     };
   }

@@ -92,11 +92,21 @@ class HealthMonitor {
   private client?: Client;
   private startTime: Date = new Date();
   private commandStats: Map<string, CommandStats> = new Map();
-  private errorLog: Array<{ timestamp: Date; message: string; category: string }> = [];
+  private errorLog: Array<{
+    timestamp: Date;
+    message: string;
+    category: string;
+  }> = [];
   private maxErrorLogSize = 100;
   private statsWindow = 60000; // 1 minute for rate calculations
   private previousStatus: 'healthy' | 'degraded' | 'unhealthy' | null = null;
   private statusManager?: StatusManager;
+  private readonly rssThresholdBytes: number;
+
+  constructor() {
+    const thresholdMB = Number.parseInt(process.env.MEMORY_THRESHOLD_MB || '512', 10);
+    this.rssThresholdBytes = (Number.isNaN(thresholdMB) ? 512 : thresholdMB) * 1024 * 1024;
+  }
 
   /**
    * Set status manager for auto-status updates from health checks
@@ -320,7 +330,7 @@ class HealthMonitor {
 
     if (!database.connected) {
       status = 'unhealthy';
-    } else if (errors.errorRate > 10 || memory.heapUsed / memory.heapTotal > 0.9) {
+    } else if (errors.errorRate > 10 || memory.rss > this.rssThresholdBytes) {
       status = 'degraded';
     }
 
