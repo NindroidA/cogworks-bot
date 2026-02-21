@@ -1,18 +1,7 @@
 import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import type { CustomInputField } from '../shared/CustomInputField';
 
-/**
- * Input field configuration for custom ticket type modals
- * Allows admins to define custom questions for each ticket type
- */
-export interface CustomInputField {
-  id: string; // Unique identifier (e.g., 'player_name', 'incident_date')
-  label: string; // Field label shown to user (e.g., 'Player Name')
-  style: 'short' | 'paragraph'; // Short = single line, paragraph = multi-line
-  placeholder?: string; // Optional placeholder text
-  required: boolean; // Whether field is required
-  minLength?: number; // Minimum character length
-  maxLength?: number; // Maximum character length (max 4000 for paragraph, 100 for short)
-}
+export type { CustomInputField };
 
 @Entity({ name: 'custom_ticket_types' })
 @Index(['guildId'])

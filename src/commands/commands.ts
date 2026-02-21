@@ -18,6 +18,8 @@ import {
 } from '../utils';
 import { announcementHandler } from './handlers/announcement';
 import { announcementSetupHandler } from './handlers/announcement/setup';
+import { applicationEditHandler } from './handlers/application/applicationEdit';
+import { applicationFieldsHandler } from './handlers/application/applicationFields';
 import { applicationPositionHandler } from './handlers/application/applicationPosition';
 import { applicationSetupHandler } from './handlers/application/applicationSetup';
 import { baitChannelHandler } from './handlers/baitChannel';
@@ -206,7 +208,18 @@ export const handleSlashCommand = async (
           // Route to appropriate application subcommand handler
           const appSubcommandGroup = interaction.options.getSubcommandGroup(false);
           if (appSubcommandGroup === 'position') {
-            await applicationPositionHandler(client, interaction);
+            const appSubcommand = interaction.options.getSubcommand();
+            switch (appSubcommand) {
+              case 'edit':
+                await applicationEditHandler(interaction);
+                break;
+              case 'fields':
+                await applicationFieldsHandler(interaction);
+                break;
+              default:
+                await applicationPositionHandler(client, interaction);
+                break;
+            }
           }
           break;
         }

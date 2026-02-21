@@ -63,23 +63,29 @@ export const handleApplicationInteraction = async (client: Client, interaction: 
       return;
     }
 
-    // age verification buttons
-    const ageVerificationRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`age_verify_yes_${positionId}`)
-        .setLabel(pl.ageVerifyYes)
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(`age_verify_no_${positionId}`)
-        .setLabel(pl.ageVerifyNo)
-        .setStyle(ButtonStyle.Danger),
-    );
+    // Check if age gate is enabled for this position
+    if (position.ageGateEnabled) {
+      // age verification buttons
+      const ageVerificationRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`age_verify_yes_${positionId}`)
+          .setLabel(pl.ageVerifyYes)
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`age_verify_no_${positionId}`)
+          .setLabel(pl.ageVerifyNo)
+          .setStyle(ButtonStyle.Danger),
+      );
 
-    await interaction.reply({
-      content: `🔞 **Age Verification Required**\n\nTo apply for the **${position.title}** position, you must be 18 years or older.\n\nAre you 18 or older?`,
-      components: [ageVerificationRow],
-      flags: [MessageFlags.Ephemeral],
-    });
+      await interaction.reply({
+        content: `🔞 **Age Verification Required**\n\nTo apply for the **${position.title}** position, you must be 18 years or older.\n\nAre you 18 or older?`,
+        components: [ageVerificationRow],
+        flags: [MessageFlags.Ephemeral],
+      });
+    } else {
+      // Skip age gate — show modal directly
+      await showApplicationModal(interaction, position);
+    }
   }
 
   /* Age Verification - Yes */
@@ -104,73 +110,7 @@ export const handleApplicationInteraction = async (client: Client, interaction: 
       return;
     }
 
-    // application modal
-    const modal = new ModalBuilder()
-      .setCustomId(`application_modal_${positionId}`)
-      .setTitle(`Apply for ${position.title}`);
-
-    // name input
-    const nameInput = new TextInputBuilder()
-      .setCustomId('name')
-      .setLabel(pl.modal.name)
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setMaxLength(100);
-
-    // experience input
-    const experienceInput = new TextInputBuilder()
-      .setCustomId('experience')
-      .setLabel(pl.modal.experience)
-      .setStyle(TextInputStyle.Paragraph)
-      .setRequired(true)
-      .setMaxLength(1000)
-      .setPlaceholder(pl.modal.experienceP);
-
-    // why you want it input
-    const whyInput = new TextInputBuilder()
-      .setCustomId('why_position')
-      .setLabel(pl.modal.why)
-      .setStyle(TextInputStyle.Paragraph)
-      .setRequired(true)
-      .setMaxLength(1000)
-      .setPlaceholder(pl.modal.whyP);
-
-    // availability input
-    const availabilityInput = new TextInputBuilder()
-      .setCustomId('availability')
-      .setLabel(pl.modal.availability)
-      .setStyle(TextInputStyle.Paragraph)
-      .setRequired(true)
-      .setMaxLength(500)
-      .setPlaceholder(pl.modal.availabilityP);
-
-    // location/country input
-    const locationInput = new TextInputBuilder()
-      .setCustomId('location')
-      .setLabel(pl.modal.location)
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setPlaceholder(pl.modal.locationP);
-
-    const nameActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput);
-    const experienceActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
-      experienceInput,
-    );
-    const whyActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(whyInput);
-    const locationActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(locationInput);
-    const availabilityActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(
-      availabilityInput,
-    );
-
-    modal.addComponents(
-      nameActionRow,
-      experienceActionRow,
-      whyActionRow,
-      locationActionRow,
-      availabilityActionRow,
-    );
-
-    await interaction.showModal(modal);
+    await showApplicationModal(interaction, position);
   }
 
   /* Age Verification - No */
@@ -263,30 +203,34 @@ export const handleApplicationInteraction = async (client: Client, interaction: 
     }
 
     try {
-      // get user input from modal
-      const fields = interaction.fields;
-      const name = fields.getTextInputValue('name');
-      const experience = fields.getTextInputValue('experience');
-      const whyPosition = fields.getTextInputValue('why_position');
-      const location = fields.getTextInputValue('location');
-      const availability = fields.getTextInputValue('availability');
+      // Build response messages from dynamic fields
+      const customFields = position.customFields;
+      const positionEmoji = position.emoji || '📝';
 
-      // Split application into multiple parts to avoid 2000 char limit
-      // Escape user-provided values inline with bot formatting to prevent markdown injection
-      const description = `## 📋 Application for ${position.title}
+      let headerMsg: string;
+      const fieldMessages: string[] = [];
 
-**Applicant:** ${escapeDiscordMarkdown(name)}
-**Discord:** ${member.user.tag}
-**Location:** ${escapeDiscordMarkdown(location)}`;
+      if (customFields && customFields.length > 0) {
+        // Dynamic fields — build from custom field config
+        headerMsg = `## ${positionEmoji} Application for ${position.title}\n\n**Applicant:** ${member.user.tag}`;
 
-      const experienceMsg = `**Experience:**
-${experience}`;
-
-      const whyPositionMsg = `**Why this position:**
-${whyPosition}`;
-
-      const availabilityMsg = `**Availability:**
-${availability}`;
+        for (const field of customFields) {
+          const value = interaction.fields.getTextInputValue(field.id);
+          if (field.style === 'paragraph' && value.length > 500) {
+            // Long paragraph fields get their own message
+            fieldMessages.push(`**${field.label}:**\n${value}`);
+          } else {
+            // Short fields or short paragraphs can be inline (escape markdown)
+            const displayValue = field.style === 'short' ? escapeDiscordMarkdown(value) : value;
+            fieldMessages.push(`**${field.label}:** ${displayValue}`);
+          }
+        }
+      } else {
+        // Default single field
+        const aboutValue = interaction.fields.getTextInputValue('default_about');
+        headerMsg = `## ${positionEmoji} Application for ${position.title}\n\n**Applicant:** ${member.user.tag}`;
+        fieldMessages.push(`**About:**\n${aboutValue}`);
+      }
 
       // create new application in the database
       const newApplication = applicationRepo.create({
@@ -359,26 +303,17 @@ ${availability}`;
         components: [buttonOptions],
       });
 
-      // Send application info in separate messages to avoid 2000 character limit
+      // Send header
       await newChannel.send({
-        content: description,
+        content: headerMsg,
       });
 
-      await newChannel.send({
-        content: experienceMsg,
-      });
-
-      await newChannel.send({
-        content: whyPositionMsg,
-      });
-
-      await newChannel.send({
-        content: availabilityMsg,
-      });
-
-      await newChannel.send({
-        content: `${member.user} Please remember to include any reels, images, or any examples of your work!`,
-      });
+      // Send field responses (each in its own message to avoid 2000 char limit)
+      for (const msg of fieldMessages) {
+        await newChannel.send({
+          content: msg,
+        });
+      }
 
       // update application record
       applicationRepo.update(
@@ -471,3 +406,51 @@ ${availability}`;
     });
   }
 };
+
+/**
+ * Build and show the application modal for a position
+ * Uses custom fields if configured, otherwise shows a single default field
+ */
+async function showApplicationModal(
+  interaction: { showModal: (modal: ModalBuilder) => Promise<void> },
+  position: Position,
+): Promise<void> {
+  const positionEmoji = position.emoji || '📝';
+  const modalTitle = `${positionEmoji} ${position.title}`.substring(0, 45);
+
+  const modal = new ModalBuilder()
+    .setCustomId(`application_modal_${position.id}`)
+    .setTitle(modalTitle);
+
+  const customFields = position.customFields;
+
+  if (customFields && customFields.length > 0) {
+    // Build modal from custom fields
+    for (const field of customFields) {
+      const input = new TextInputBuilder()
+        .setCustomId(field.id)
+        .setLabel(field.label)
+        .setStyle(field.style === 'short' ? TextInputStyle.Short : TextInputStyle.Paragraph)
+        .setRequired(field.required);
+
+      if (field.placeholder) input.setPlaceholder(field.placeholder);
+      if (field.minLength) input.setMinLength(field.minLength);
+      if (field.maxLength) input.setMaxLength(field.maxLength);
+
+      modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
+    }
+  } else {
+    // Default single field
+    const defaultInput = new TextInputBuilder()
+      .setCustomId('default_about')
+      .setLabel(pl.modal.defaultField)
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true)
+      .setMaxLength(2000)
+      .setPlaceholder('Tell us about yourself and why you want to apply...');
+
+    modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(defaultInput));
+  }
+
+  await interaction.showModal(modal);
+}

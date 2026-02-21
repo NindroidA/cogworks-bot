@@ -572,31 +572,30 @@ export interface LangApplication {
       'add-template': string;
       'add-title': string;
       'add-description': string;
+      'add-emoji': string;
       remove: string;
-      'remove-id': string;
+      'remove-position': string;
       toggle: string;
-      'toggle-id': string;
+      'toggle-position': string;
+      edit: string;
+      'edit-position': string;
+      fields: string;
+      'fields-position': string;
       list: string;
       refresh: string;
+      reindex: string;
     };
     notAvailable: string;
     ageVerifyYes: string;
     ageVerifyNo: string;
     ageVerifyNoReply: string;
     modal: {
-      name: string;
-      experience: string;
-      experienceP: string;
-      why: string;
-      whyP: string;
-      location: string;
-      locationP: string;
-      availability: string;
-      availabilityP: string;
+      defaultField: string;
     };
     noneFound: string;
     noneAvailable: string;
     available: string;
+    templateApplied: string;
     templateNotFound: string;
     provideEither: string;
     notFound: string;
@@ -607,6 +606,35 @@ export interface LangApplication {
     failRefresh: string;
     failUpdate: string;
     successRefresh: string;
+    reindex: string;
+    failReindex: string;
+    sessionExpired: string;
+    sessionCompleted: string;
+    addedInactive: string;
+    edit: {
+      title: string;
+      success: string;
+      notFound: string;
+    };
+    fields: {
+      title: string;
+      noFields: string;
+      maxReached: string;
+      added: string;
+      removed: string;
+      reordered: string;
+      complete: string;
+      previewNote: string;
+      notFound: string;
+      duplicateId: string;
+      invalidId: string;
+      invalidStyle: string;
+    };
+    ageGateEnabled: string;
+    ageGateDisabled: string;
+    autocomplete: {
+      noPositions: string;
+    };
   };
 }
 

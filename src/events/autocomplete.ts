@@ -1,4 +1,5 @@
 import type { AutocompleteInteraction, Client } from 'discord.js';
+import { applicationPositionAutocomplete } from '../commands/handlers/application/applicationPosition';
 import { reactionRoleMenuAutocomplete } from '../commands/handlers/reactionRole';
 import {
   ticketTypeAutocomplete,
@@ -37,6 +38,24 @@ export const handleAutocomplete = async (_client: Client, interaction: Autocompl
         } else if (subcommand === 'settings') {
           // Settings needs both legacy and custom types for ping-on-create
           await ticketTypeAutocompleteWithLegacy(interaction);
+        }
+        break;
+      }
+      case 'application': {
+        const subcommand = interaction.options.getSubcommand();
+        enhancedLogger.debug(
+          `Autocomplete: /${commandName} position ${subcommand}`,
+          LogCategory.COMMAND_EXECUTION,
+          { userId: interaction.user.id, guildId, subcommand },
+        );
+
+        if (
+          subcommand === 'remove' ||
+          subcommand === 'toggle' ||
+          subcommand === 'edit' ||
+          subcommand === 'fields'
+        ) {
+          await applicationPositionAutocomplete(interaction);
         }
         break;
       }

@@ -50,32 +50,31 @@
       "add-template": "Use a predefined template",
       "add-title": "Custom position title (if not using template)",
       "add-description": "Custom position description (if not using template)",
+      "add-emoji": "Custom emoji for the position button (e.g., 🤝)",
       "remove": "Remove a position",
-      "remove-id": "Position ID to remove",
+      "remove-position": "Position to remove",
       "toggle": "Toggle position visibility",
-      "toggle-id": "Position ID to toggle",
+      "toggle-position": "Position to toggle",
+      "edit": "Edit a position's details",
+      "edit-position": "Position to edit",
+      "fields": "Manage custom application fields for a position",
+      "fields-position": "Position to configure fields for",
       "list": "List all positions",
-      "refresh": "Refresh the application channel message"
+      "refresh": "Refresh the application channel message",
+      "reindex": "Reindex position display numbers to fill gaps"
     },
     "notAvailable": "This position is no longer available.",
     "ageVerifyYes": "Yes, I'm 18+",
     "ageVerifyNo": "No, I'm under 18",
     "ageVerifyNoReply": "**Sorry!** You must be 18 or older to apply for this position. Please try again when you meet the age requirement.",
     "modal": {
-      "name": "Name",
-      "experience": "Relevant Experience",
-      "experienceP": "Tell us about your relevant experience...",
-      "why": "Why do you want this position?",
-      "whyP": "What interests you about this role?",
-      "location": "Location/Country",
-      "locationP": "Where are you located?",
-      "availability": "Availability",
-      "availabilityP": "When are you available to work?"
+      "defaultField": "Tell us about yourself"
     },
     "noneFound": "No positions found.",
-    "noneAvailable": "## No positions are currently available.",
+    "noneAvailable": "## 📭 No positions are currently available.",
     "available": "# Available Positions:\n\n",
-    "templateNotFound": "Template not found. Available templates: set_builder",
+    "templateApplied": "Position created from template!",
+    "templateNotFound": "Template not found. Available templates: general, staff, content_creator, developer, partnership",
     "provideEither": "Please provide either a template or both title and description.",
     "notFound": "Position not found.",
     "failAdd": "Failed to add position.",
@@ -84,6 +83,35 @@
     "failList": "Failed to list positions.",
     "failRefresh": "Failed to refresh application message. Make sure the application channel is set up properly.",
     "failUpdate": "Failed to update application message.",
-    "successRefresh": "Application channel message has been refreshed!"
+    "successRefresh": "Application channel message has been refreshed!",
+    "reindex": "Position display numbers have been reindexed successfully!",
+    "failReindex": "Failed to reindex positions.",
+    "sessionExpired": "⏰ Your field management session has expired. Please run the command again.",
+    "sessionCompleted": "✅ This field editor has already been completed. You can dismiss this message.",
+    "addedInactive": "\n⚠️ This position is **inactive** by default. Use `/application position toggle` to make it visible.",
+    "edit": {
+      "title": "Edit Position",
+      "success": "Position updated successfully!",
+      "notFound": "Position not found."
+    },
+    "fields": {
+      "title": "Configure Fields",
+      "noFields": "No custom fields configured. Add fields to customize the application form.",
+      "maxReached": "Maximum 5 fields per position (Discord limitation)!",
+      "added": "Field added successfully!",
+      "removed": "Field deleted successfully!",
+      "reordered": "Fields reordered successfully!",
+      "complete": "Field configuration complete!",
+      "previewNote": "This was just a preview! The modal works correctly.",
+      "notFound": "Field not found!",
+      "duplicateId": "A field with that ID already exists!",
+      "invalidId": "Field ID must contain only lowercase letters, numbers, and underscores!",
+      "invalidStyle": "Field style must be either \"short\" or \"paragraph\"!"
+    },
+    "ageGateEnabled": "Age verification is now **enabled** for this position.",
+    "ageGateDisabled": "Age verification is now **disabled** for this position.",
+    "autocomplete": {
+      "noPositions": "No positions found"
+    }
   }
 }

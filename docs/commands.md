@@ -1,6 +1,6 @@
 # Cogworks Bot Commands
 
-**Last Updated:** `February 18, 2026` (v2.10.0)
+**Last Updated:** `February 21, 2026` (v2.11.0)
 
 Complete command reference for all bot systems.
 
@@ -142,8 +142,85 @@ All announcements display a preview before sending with Send/Cancel buttons.
 - `archive` - (Optional) Forum channel for archived applications
 - `category` - (Optional) Category to create application review channels in
 
-### Application Management
-Applications are submitted via modal forms and stored in the database.
+### Position Management
+
+**`/application position add [template] [title] [description] [emoji]`**
+- Create a new application position
+- `template` - (Optional) Use a preset template: `General Application`, `Staff Application`, `Content Creator`, `Developer Application`, `Partnership Application`
+- `title` - (Optional) Position title (required if no template)
+- `description` - (Optional) Position description (required if no template)
+- `emoji` - (Optional) Custom emoji for the apply button (default: 📝)
+- Templates pre-populate title, description, emoji, custom fields, and age gate settings
+
+**`/application position edit <position>`**
+- Edit an existing position via modal
+- `position` - Position to edit (autocomplete)
+- Editable fields: Title, Description, Emoji, Age Gate (yes/no)
+- Changes are reflected immediately in the application channel
+
+**`/application position fields <position>`**
+- Configure custom modal fields for a position
+- `position` - Position to configure (autocomplete)
+- Interactive field manager with buttons:
+  - **Add Field**: Opens modal to configure Field ID, Label, Style (short/paragraph), Required, Placeholder
+  - **Delete Field**: Select menu to remove a field
+  - **Reorder**: Move fields up/down
+  - **Preview Modal**: Shows how the modal will look to applicants
+- Up to 5 custom fields per position (Discord modal limit)
+- Field ID format: lowercase letters, numbers, underscores only
+
+**`/application position remove <position>`**
+- Remove a position
+- `position` - Position to remove (autocomplete)
+
+**`/application position toggle <position>`**
+- Activate or deactivate a position
+- `position` - Position to toggle (autocomplete)
+- Inactive positions are hidden from the application message
+
+**`/application position list`**
+- List all positions with their emoji, status, field count, and age gate setting
+
+**`/application position refresh`**
+- Manually refresh the application channel message with current positions
+
+### Preset Templates
+
+| Template | Emoji | Age Gate | Fields |
+|----------|-------|----------|--------|
+| General Application | 📝 | OFF | Name, About Yourself, Relevant Experience, Why Applying, Availability |
+| Staff Application | 🛡️ | ON | Name, Moderation Experience, Why This Server, Timezone/Availability, Age |
+| Content Creator | 🎨 | OFF | Name, Portfolio/Examples, Relevant Experience, Tools/Software, Availability |
+| Developer Application | 💻 | OFF | Name, Project/Plugin Description, Technical Skills, Repository Link, Integration Goals |
+| Partnership Application | 🤝 | OFF | Organization Name, Description, What You're Looking For, Website/Links, Contact Info |
+
+### Age Gate
+
+Positions can optionally require age verification before showing the application modal:
+- **Enabled**: User must click "I am 18+" confirmation button before applying
+- **Disabled**: Modal opens directly when user clicks Apply
+- Configured per position via `/application position edit` or preset templates
+
+### How It Works
+
+1. **Position Created**: Admin creates positions (from template or custom)
+2. **Custom Fields**: Admin optionally configures custom modal fields per position
+3. **Apply Button**: Each active position gets an Apply button in the submission channel
+4. **Age Gate** (optional): If enabled, user confirms age before proceeding
+5. **Modal Form**: Dynamic modal with custom fields (or default "Tell us about yourself")
+6. **Review Channel**: New channel created with application responses
+7. **Decision**: Staff review and Accept/Deny
+8. **Archive**: Application archived with decision
+
+### Limits
+
+| Constraint | Value |
+|------------|-------|
+| Max positions per guild | 25 (5 rows × 5 buttons) |
+| Max custom fields per position | 5 (Discord modal limit) |
+| Field label length | 45 characters |
+| Field value max length | 4,000 characters |
+| Modal title | 45 characters |
 
 ## Role Management
 
@@ -465,6 +542,7 @@ All commands use centralized error handling with:
 All commands are protected with rate limiting:
 - **Ticket creation**: 3 per hour per user
 - **Application submission**: 2 per day per user
+- **Application position management**: 15 per hour per guild
 - **Announcements**: 5 per hour per user
 - **Reaction role changes**: 5 per hour per guild (add/remove/edit)
 - **Status commands**: 5 per hour (set/clear)

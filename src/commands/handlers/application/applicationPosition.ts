@@ -1,5 +1,6 @@
 import {
   ActionRowBuilder,
+  type AutocompleteInteraction,
   ButtonBuilder,
   ButtonStyle,
   type CacheType,
@@ -12,13 +13,15 @@ import { ApplicationConfig } from '../../../typeorm/entities/application/Applica
 import { Position } from '../../../typeorm/entities/application/Position';
 import {
   createRateLimitKey,
+  enhancedLogger,
   LANGF,
+  LogCategory,
   lang,
-  logger,
   RateLimits,
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
+import { getTemplate } from './applicationTemplates';
 
 const positionRepo = AppDataSource.getRepository(Position);
 const pl = lang.application.position;
@@ -37,9 +40,10 @@ export const applicationPositionHandler = async (
       content: permissionCheck.message,
       flags: [MessageFlags.Ephemeral],
     });
-    logger(
+    enhancedLogger.warn(
       `Unauthorized application position operation attempt by user ${interaction.user.id} in guild ${guildId}`,
-      'WARN',
+      LogCategory.SECURITY,
+      { userId: interaction.user.id, guildId },
     );
     return;
   }
@@ -53,7 +57,13 @@ export const applicationPositionHandler = async (
       content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
       flags: [MessageFlags.Ephemeral],
     });
-    logger(`Rate limit exceeded for application position in guild ${guildId}`, 'WARN');
+    enhancedLogger.warn(
+      `Rate limit exceeded for application position in guild ${guildId}`,
+      LogCategory.SECURITY,
+      {
+        guildId,
+      },
+    );
     return;
   }
 
@@ -61,13 +71,17 @@ export const applicationPositionHandler = async (
     const title = interaction.options.getString('title');
     const description = interaction.options.getString('description');
     const template = interaction.options.getString('template');
+    const emoji = interaction.options.getString('emoji');
 
     let finalTitle: string;
     let finalDescription: string;
+    let finalEmoji: string | null = emoji || null;
+    let finalCustomFields: Position['customFields'] = null;
+    let finalAgeGate = false;
 
     // if template is provided, use that instead of title/description
     if (template) {
-      const templateData = getPositionTemplate(template);
+      const templateData = getTemplate(template);
       if (!templateData) {
         await interaction.reply({
           content: pl.templateNotFound,
@@ -75,8 +89,11 @@ export const applicationPositionHandler = async (
         });
         return;
       }
-      finalTitle = templateData.title;
-      finalDescription = templateData.description;
+      finalTitle = title || templateData.title;
+      finalDescription = description || templateData.description;
+      finalEmoji = emoji || templateData.emoji;
+      finalCustomFields = templateData.customFields;
+      finalAgeGate = templateData.ageGateEnabled;
     } else {
       // use provided title and description
       if (!title || !description) {
@@ -102,27 +119,48 @@ export const applicationPositionHandler = async (
         guildId,
         title: finalTitle,
         description: finalDescription,
+        emoji: finalEmoji,
+        customFields: finalCustomFields,
+        ageGateEnabled: finalAgeGate,
         displayOrder: (maxOrder?.maxOrder || 0) + 1,
       });
 
       await positionRepo.save(newPosition);
 
+      const fieldCount = finalCustomFields?.length || 0;
       await interaction.reply({
-        content: `✅ Position "${finalTitle}" added successfully! (ID: ${newPosition.id})`,
+        content: `✅ Position "${finalTitle}" added successfully! (ID: ${newPosition.id})${template ? `\n📋 Template applied with ${fieldCount} custom field(s).` : ''}${pl.addedInactive}`,
         flags: [MessageFlags.Ephemeral],
       });
+
+      enhancedLogger.info(
+        `Position added: "${finalTitle}" (ID: ${newPosition.id})`,
+        LogCategory.COMMAND_EXECUTION,
+        {
+          userId: interaction.user.id,
+          guildId,
+          positionId: newPosition.id,
+          template: template || 'custom',
+        },
+      );
 
       // update the application channel message
       await updateApplicationMessage(interaction.client, guildId);
     } catch (error) {
-      logger(pl.failAdd + error, 'ERROR');
+      enhancedLogger.error(
+        'Failed to add position',
+        error instanceof Error ? error : new Error(String(error)),
+        LogCategory.COMMAND_EXECUTION,
+        { userId: interaction.user.id, guildId },
+      );
       await interaction.reply({
         content: pl.failAdd,
         flags: [MessageFlags.Ephemeral],
       });
     }
   } else if (subCommand === 'remove') {
-    const positionId = interaction.options.getInteger('id', true);
+    const positionValue = interaction.options.getString('position', true);
+    const positionId = parseInt(positionValue, 10);
 
     try {
       const position = await positionRepo.findOne({
@@ -139,22 +177,46 @@ export const applicationPositionHandler = async (
 
       await positionRepo.remove(position);
 
+      // Auto-reindex remaining positions to fill gaps
+      const remaining = await positionRepo.find({
+        where: { guildId },
+        order: { displayOrder: 'ASC', id: 'ASC' },
+      });
+      for (let i = 0; i < remaining.length; i++) {
+        remaining[i].displayOrder = i + 1;
+      }
+      if (remaining.length > 0) {
+        await positionRepo.save(remaining);
+      }
+
       await interaction.reply({
         content: `✅ Position "${position.title}" removed successfully!`,
         flags: [MessageFlags.Ephemeral],
       });
 
+      enhancedLogger.info(`Position removed: "${position.title}"`, LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+        guildId,
+        positionId,
+      });
+
       // update the application channel message
       await updateApplicationMessage(interaction.client, guildId);
     } catch (error) {
-      logger(pl.failRemove + error, 'ERROR');
+      enhancedLogger.error(
+        'Failed to remove position',
+        error instanceof Error ? error : new Error(String(error)),
+        LogCategory.COMMAND_EXECUTION,
+        { userId: interaction.user.id, guildId },
+      );
       await interaction.reply({
         content: pl.failRemove,
         flags: [MessageFlags.Ephemeral],
       });
     }
   } else if (subCommand === 'toggle') {
-    const positionId = interaction.options.getInteger('id', true);
+    const positionValue = interaction.options.getString('position', true);
+    const positionId = parseInt(positionValue, 10);
 
     try {
       const position = await positionRepo.findOne({
@@ -177,10 +239,21 @@ export const applicationPositionHandler = async (
         flags: [MessageFlags.Ephemeral],
       });
 
+      enhancedLogger.info(
+        `Position toggled: "${position.title}" -> ${position.isActive ? 'active' : 'inactive'}`,
+        LogCategory.COMMAND_EXECUTION,
+        { userId: interaction.user.id, guildId, positionId },
+      );
+
       // update the application channel message
       await updateApplicationMessage(interaction.client, guildId);
     } catch (error) {
-      logger(pl.failToggle + error, 'ERROR');
+      enhancedLogger.error(
+        'Failed to toggle position',
+        error instanceof Error ? error : new Error(String(error)),
+        LogCategory.COMMAND_EXECUTION,
+        { userId: interaction.user.id, guildId },
+      );
       await interaction.reply({
         content: pl.failToggle,
         flags: [MessageFlags.Ephemeral],
@@ -202,10 +275,13 @@ export const applicationPositionHandler = async (
       }
 
       const positionList = positions
-        .map(
-          pos =>
-            `**${pos.id}** - ${pos.title} ${pos.isActive ? '✅' : '❌'}\n${pos.description.substring(0, 100)}${pos.description.length > 100 ? '...' : ''}`,
-        )
+        .map(pos => {
+          const emoji = pos.emoji || '📝';
+          const status = pos.isActive ? '✅' : '❌';
+          const fieldCount = pos.customFields?.length || 0;
+          const ageGate = pos.ageGateEnabled ? '🔞' : '';
+          return `**#${pos.displayOrder}** (ID: ${pos.id}) - ${emoji} ${pos.title} ${status} ${ageGate}\n${pos.description.substring(0, 100)}${pos.description.length > 100 ? '...' : ''}\n📋 ${fieldCount} field(s)`;
+        })
         .join('\n\n');
 
       await interaction.reply({
@@ -213,7 +289,12 @@ export const applicationPositionHandler = async (
         flags: [MessageFlags.Ephemeral],
       });
     } catch (error) {
-      logger(pl.failList + error, 'ERROR');
+      enhancedLogger.error(
+        'Failed to list positions',
+        error instanceof Error ? error : new Error(String(error)),
+        LogCategory.COMMAND_EXECUTION,
+        { userId: interaction.user.id, guildId },
+      );
       await interaction.reply({
         content: pl.failList,
         flags: [MessageFlags.Ephemeral],
@@ -228,9 +309,60 @@ export const applicationPositionHandler = async (
         flags: [MessageFlags.Ephemeral],
       });
     } catch (error) {
-      logger(pl.failRefresh + error, 'ERROR');
+      enhancedLogger.error(
+        'Failed to refresh application message',
+        error instanceof Error ? error : new Error(String(error)),
+        LogCategory.COMMAND_EXECUTION,
+        { userId: interaction.user.id, guildId },
+      );
       await interaction.reply({
         content: pl.failRefresh,
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
+  } else if (subCommand === 'reindex') {
+    try {
+      const positions = await positionRepo.find({
+        where: { guildId },
+        order: { displayOrder: 'ASC', id: 'ASC' },
+      });
+
+      if (positions.length === 0) {
+        await interaction.reply({
+          content: pl.noneFound,
+          flags: [MessageFlags.Ephemeral],
+        });
+        return;
+      }
+
+      // Reassign displayOrder sequentially: 1, 2, 3, ...
+      for (let i = 0; i < positions.length; i++) {
+        positions[i].displayOrder = i + 1;
+      }
+      await positionRepo.save(positions);
+
+      await interaction.reply({
+        content: `✅ ${pl.reindex}`,
+        flags: [MessageFlags.Ephemeral],
+      });
+
+      enhancedLogger.info(
+        `Positions reindexed: ${positions.length} positions`,
+        LogCategory.COMMAND_EXECUTION,
+        { userId: interaction.user.id, guildId },
+      );
+
+      // Update the application channel message
+      await updateApplicationMessage(interaction.client, guildId);
+    } catch (error) {
+      enhancedLogger.error(
+        'Failed to reindex positions',
+        error instanceof Error ? error : new Error(String(error)),
+        LogCategory.COMMAND_EXECUTION,
+        { userId: interaction.user.id, guildId },
+      );
+      await interaction.reply({
+        content: pl.failReindex,
         flags: [MessageFlags.Ephemeral],
       });
     }
@@ -241,7 +373,9 @@ export const applicationPositionHandler = async (
 export async function updateApplicationMessage(client: Client, guildId: string) {
   try {
     const applicationConfigRepo = AppDataSource.getRepository(ApplicationConfig);
-    const applicationConfig = await applicationConfigRepo.findOneBy({ guildId });
+    const applicationConfig = await applicationConfigRepo.findOneBy({
+      guildId,
+    });
 
     if (!applicationConfig) return;
 
@@ -265,7 +399,11 @@ export async function updateApplicationMessage(client: Client, guildId: string) 
       components,
     });
   } catch (error) {
-    logger(pl.failUpdate + error, 'ERROR');
+    enhancedLogger.error(
+      'Failed to update application message',
+      error instanceof Error ? error : new Error(String(error)),
+      LogCategory.COMMAND_EXECUTION,
+    );
   }
 }
 
@@ -284,14 +422,29 @@ export async function buildApplicationMessage(positions: Position[]) {
   const maxButtonsPerRow = 5;
   let currentRow = [];
 
+  // Track emoji usage for duplicate button style cycling
+  const emojiUsageCount = new Map<string, number>();
+  const styleCycle = [
+    ButtonStyle.Primary,
+    ButtonStyle.Secondary,
+    ButtonStyle.Success,
+    ButtonStyle.Danger,
+  ];
+
   for (const position of positions) {
-    content += `## __${position.title}__\n` + `${position.description}\n\n`;
+    const emoji = position.emoji || '📝';
+    content += `## ${emoji} __${position.title}__\n${position.description}\n\n`;
+
+    // Determine button style based on emoji usage count
+    const usageCount = emojiUsageCount.get(emoji) || 0;
+    emojiUsageCount.set(emoji, usageCount + 1);
+    const buttonStyle = styleCycle[usageCount % styleCycle.length];
 
     const button = new ButtonBuilder()
       .setCustomId(`apply_${position.id}`)
-      .setLabel('Apply')
-      .setStyle(ButtonStyle.Primary)
-      .setEmoji('📝');
+      .setLabel(`Apply - ${position.title}`.substring(0, 80))
+      .setStyle(buttonStyle)
+      .setEmoji(emoji);
 
     currentRow.push(button);
 
@@ -305,34 +458,33 @@ export async function buildApplicationMessage(positions: Position[]) {
   return { content, components };
 }
 
-function getPositionTemplate(templateName: string): { title: string; description: string } | null {
-  const templates: Record<string, { title: string; description: string }> = {
-    set_builder: {
-      title: 'Set Builder',
-      description: `**Role Overview:**
-As a Set Builder, you'll be responsible for helping to build some of the sets we use. The goal is to create vibrant, visually pleasing sets that our characters can be a part of. You'll be collaborating with the team and a build supervisor to create the sets for scenes in our signature Element Animation style.
+/**
+ * Autocomplete handler for position selection
+ */
+export async function applicationPositionAutocomplete(interaction: AutocompleteInteraction) {
+  const guildId = interaction.guildId || '';
+  const focused = interaction.options.getFocused().toLowerCase();
 
-**Key Responsibilities:**
-To work with the senior set builder to create sets to flow into the next stage of the production process. To be able to create and provide working world files and make edits to them. Be able to keep to the Minecraft Vanilla look. 
+  try {
+    const positions = await positionRepo.find({
+      where: { guildId },
+      order: { displayOrder: 'ASC' },
+    });
 
-**You'll Be a Great Fit If You:** 
-• Enjoy set building and bringing worlds to life
-• Have experience in Set Building
-• Are confident working in Axiom and Worldedit
-• Are collaborative, communicative, and love giving and receiving feedback
-• Are comfortable working remotely and asynchronously with a small, dedicated team
-• Are available for occasional meetings during our office hours (10AM - 6PM (UK Time), Monday - Friday)
+    const filtered = positions
+      .filter(
+        pos => pos.title.toLowerCase().includes(focused) || pos.id.toString().includes(focused),
+      )
+      .slice(0, 25)
+      .map(pos => ({
+        name: `#${pos.displayOrder} ${pos.emoji || '📝'} ${pos.title} (ID: ${pos.id})${pos.isActive ? '' : ' [inactive]'}`,
+        value: pos.id.toString(),
+      }));
 
-**Details:** 
-• Type: Freelance
-• Location: Remote (At least 2 hours cross-over with our UK team, 10AM-6PM BST)
-• Software: Axiom, World Build 
-• Start Date: ASAP
-• Duration: Project-based
-
-Please include a reel or examples of work once your application is opened.`,
-    },
-  };
-
-  return templates[templateName] || null;
+    await interaction.respond(
+      filtered.length > 0 ? filtered : [{ name: pl.autocomplete.noPositions, value: '0' }],
+    );
+  } catch {
+    await interaction.respond([]);
+  }
 }

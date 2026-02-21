@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.11.1] - 2026-02-21
+
+### Fixed
+- **Reorder UI Crash**: Fixed 5-field reorder exceeding Discord's 5 action row limit — "Done" button now merges into the last field's row
+- **Auto-Reindex on Removal**: Position removal now auto-reindexes remaining display numbers to fill gaps
+- **Stale Field Editor Detection**: Interacting with a completed field editor now shows a "already completed" message instead of silently failing
+- **Session Timeout Handling**: Field management sessions now properly expire after 15 minutes with clear feedback
+- **Ephemeral Message Optimization**: Replaced `setTimeout` hack in field deletion with `deferUpdate()` + `showFieldManager()`, fixed error paths to use `followUp()`
+
+### Changed
+- **New Positions Default Inactive**: Positions now default to inactive on creation — use `/application position toggle` to activate
+- **Application Message Emoji**: Position titles now display emoji in the channel message headings
+- **Button Differentiation**: Duplicate emoji buttons now cycle through Primary/Secondary/Success/Danger styles
+- **Button Labels**: Apply buttons now show "Apply - {Title}" instead of just "Apply"
+- **"No Positions" Message**: Added emoji prefix to the empty positions message
+- **Position List Display**: Now shows `#displayOrder (ID: id)` format for clarity
+- **Position Autocomplete**: Now shows `#displayOrder` prefix with active/inactive status
+
+### Added
+- **Reindex Command**: `/application position reindex` to manually reindex position display numbers
+- **Session Timeout System**: Field management sessions auto-expire after 15 minutes
+
+## [2.11.0] - 2026-02-21
+
+### Added
+- **Custom Application Templates**: 5 preset templates (General, Staff, Content Creator, Developer, Partnership) with pre-configured fields, emoji, and age gate settings
+- **Custom Application Fields**: Per-position custom modal fields (up to 5 per Discord limits) — same interactive field manager as the ticket system with Add, Delete, Reorder, and Preview
+- **Position Edit Command**: `/application position edit` with modal-based editing for title, description, emoji, and age gate toggle
+- **Position Fields Command**: `/application position fields` for interactive custom field management
+- **Per-Position Emoji**: Each position can have a custom emoji displayed on its apply button
+- **Per-Position Age Gate**: Age verification can be toggled on/off per position (previously always on)
+- **Dynamic Application Modals**: Application modals are built dynamically from custom fields instead of hardcoded inputs
+- **Position Autocomplete**: Remove, toggle, edit, and fields subcommands now use autocomplete instead of integer IDs
+
+### Changed
+- **Shared CustomInputField Interface**: Moved `CustomInputField` from ticket entity to shared location (`src/typeorm/entities/shared/`) for reuse across tickets and applications
+- **Application Position Handler**: Migrated all logging from `logger()` to `enhancedLogger` with proper categories
+- **Position List Display**: Now shows emoji, field count, and age gate status per position
+- **Application Responses**: Dynamic field display instead of hardcoded 5-field messages — supports any combination of short and paragraph fields
+- **Template System**: Replaced single "Set Builder" template with 5 versatile preset templates
+
+### Removed
+- Hardcoded "Set Builder" template and its specific modal fields
+- Hardcoded "Please remember to include reels/examples" prompt (was Set Builder-specific)
+- Fixed 5-field modal (Name, Experience, Why, Location, Availability) — replaced by dynamic fields
+
 ## [2.10.2] - 2026-02-19
 
 ### Fixed
