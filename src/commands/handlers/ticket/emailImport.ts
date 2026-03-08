@@ -1,5 +1,7 @@
 import {
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   ChannelType,
   type ChatInputCommandInteraction,
   DiscordAPIError,
@@ -69,7 +71,7 @@ export async function emailImportHandler(
       .setLabel(tl.senderEmailLabel)
       .setPlaceholder(tl.senderEmailPlaceholder)
       .setStyle(TextInputStyle.Short)
-      .setRequired(false)
+      .setRequired(true)
       .setMaxLength(254); // RFC 5321 max email length
 
     const senderNameInput = new TextInputBuilder()
@@ -161,8 +163,9 @@ export async function emailImportModalHandler(
     );
 
     // Get modal inputs
-    const senderEmail =
-      interaction.fields.getTextInputValue("senderEmail")?.trim() || null;
+    const senderEmail = interaction.fields
+      .getTextInputValue("senderEmail")
+      .trim();
     const senderName =
       interaction.fields.getTextInputValue("senderName")?.trim() || null;
     const subject = interaction.fields.getTextInputValue("subject").trim();
@@ -170,21 +173,19 @@ export async function emailImportModalHandler(
     const attachmentsInput =
       interaction.fields.getTextInputValue("attachments")?.trim() || "";
 
-    // Validate email format (only if provided)
-    if (senderEmail) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(senderEmail)) {
-        enhancedLogger.warn(
-          `Email-import validation failed: invalid email '${senderEmail}'`,
-          LogCategory.COMMAND_EXECUTION,
-          { userId: interaction.user.id, guildId },
-        );
-        await interaction.reply({
-          content: tl.invalidEmail,
-          flags: [MessageFlags.Ephemeral],
-        });
-        return;
-      }
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(senderEmail)) {
+      enhancedLogger.warn(
+        `Email-import validation failed: invalid email '${senderEmail}'`,
+        LogCategory.COMMAND_EXECUTION,
+        { userId: interaction.user.id, guildId },
+      );
+      await interaction.reply({
+        content: tl.invalidEmail,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
     }
 
     // Validate email body length
@@ -291,8 +292,9 @@ export async function emailImportModalHandler(
       return;
     }
 
-    // Truncate subject to 100 chars for channel name
-    const channelName = `📧-${subject
+    // Channel name: 📧_sender-name (use sender name if provided, otherwise email username)
+    const nameForChannel = senderName || senderEmail.split("@")[0];
+    const channelName = `📧_${nameForChannel
       .substring(0, 100)
       .toLowerCase()
       .replace(/[^a-z0-9-]/g, "-")}`;
@@ -340,7 +342,7 @@ export async function emailImportModalHandler(
         permissionOverwrites,
       });
 
-      // Create embed for email content
+      // Create embed for email content (email address kept internal — not shown)
       const embed = new EmbedBuilder()
         .setTitle(`📧 Email Import: ${subject}`)
         .setColor(emailType.embedColor as `#${string}`)
@@ -348,10 +350,7 @@ export async function emailImportModalHandler(
         .addFields(
           {
             name: "From",
-            value:
-              senderName && senderEmail
-                ? `${senderName} <${senderEmail}>`
-                : senderName || senderEmail || "Unknown",
+            value: senderName || senderEmail.split("@")[0],
             inline: true,
           },
           {
@@ -371,7 +370,22 @@ export async function emailImportModalHandler(
         });
       }
 
-      const welcomeMessage = await ticketChannel.send({ embeds: [embed] });
+      // Add close button (same as regular tickets)
+      const buttonRow = new ActionRowBuilder<ButtonBuilder>().setComponents(
+        new ButtonBuilder()
+          .setCustomId("admin_only_ticket")
+          .setLabel("Admin Only")
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId("close_ticket")
+          .setLabel("Close Ticket")
+          .setStyle(ButtonStyle.Danger),
+      );
+
+      const welcomeMessage = await ticketChannel.send({
+        embeds: [embed],
+        components: [buttonRow],
+      });
 
       // Save ticket to database
       const ticket = ticketRepo.create({
@@ -382,7 +396,7 @@ export async function emailImportModalHandler(
         type: "email_import",
         customTypeId: "email_import",
         isEmailTicket: true,
-        emailSender: senderEmail || undefined,
+        emailSender: senderEmail,
         emailSenderName: senderName || undefined,
         emailSubject: subject,
         status: "created",
@@ -391,7 +405,7 @@ export async function emailImportModalHandler(
       await ticketRepo.save(ticket);
 
       enhancedLogger.info(
-        `Email ticket imported: #${ticket.id} from ${senderEmail || "unknown sender"}`,
+        `Email ticket imported: #${ticket.id} from ${senderEmail}`,
         LogCategory.COMMAND_EXECUTION,
         {
           userId: interaction.user.id,
