@@ -1,7 +1,10 @@
 import {
+  ChannelType,
   type Client,
+  type Collection,
   type ColorResolvable,
   EmbedBuilder,
+  type Guild,
   type GuildMember,
   type Message,
   PermissionFlagsBits,
@@ -13,7 +16,13 @@ import type { BaitChannelLog } from '../typeorm/entities/BaitChannelLog';
 import type { UserActivity } from '../typeorm/entities/UserActivity';
 import { Colors } from './colors';
 import { ErrorCategory, ErrorSeverity, logError } from './errorHandler';
-import { enhancedLogger, LogCategory } from './index';
+import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
+
+interface PurgeResult {
+  totalDeleted: number;
+  channelCount: number;
+  error?: string;
+}
 
 interface PendingBan {
   userId: string;
@@ -488,6 +497,126 @@ export class BaitChannelManager {
     }
   }
 
+  /**
+   * Scan all text channels in a guild and delete recent messages from a banned user.
+   * Processes channels sequentially to avoid rate limits.
+   */
+  private async purgeUserMessages(
+    guild: Guild,
+    userId: string,
+    baitChannelId: string,
+  ): Promise<PurgeResult> {
+    let totalDeleted = 0;
+    let channelCount = 0;
+
+    try {
+      const channels = guild.channels.cache.filter(
+        ch =>
+          (ch.type === ChannelType.GuildText ||
+            ch.type === ChannelType.GuildAnnouncement ||
+            ch.type === ChannelType.GuildVoice) &&
+          ch.id !== baitChannelId,
+      );
+
+      for (const [, channel] of channels) {
+        try {
+          const textChannel = channel as TextChannel;
+
+          // Check bot has required permissions
+          const botMember = guild.members.me;
+          if (!botMember) continue;
+
+          const perms = textChannel.permissionsFor(botMember);
+          if (
+            !perms?.has(PermissionFlagsBits.ViewChannel) ||
+            !perms?.has(PermissionFlagsBits.ManageMessages) ||
+            !perms?.has(PermissionFlagsBits.ReadMessageHistory)
+          ) {
+            continue;
+          }
+
+          // Fetch last 100 messages and filter by the banned user
+          let messages: Collection<string, Message>;
+          try {
+            messages = await textChannel.messages.fetch({ limit: 100 });
+          } catch {
+            continue; // Can't fetch messages in this channel, skip
+          }
+
+          const userMessages = messages.filter(m => m.author.id === userId);
+          if (userMessages.size === 0) continue;
+
+          // Separate messages into bulk-deletable (< 14 days old) and old
+          const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+          const bulkDeletable = userMessages.filter(m => m.createdTimestamp > fourteenDaysAgo);
+          const tooOld = userMessages.filter(m => m.createdTimestamp <= fourteenDaysAgo);
+
+          // Bulk delete recent messages (up to 100 at once)
+          if (bulkDeletable.size > 0) {
+            try {
+              const deleted = await textChannel.bulkDelete(bulkDeletable, true);
+              totalDeleted += deleted.size;
+            } catch {
+              // Fallback to individual delete if bulk fails
+              for (const [, msg] of bulkDeletable) {
+                try {
+                  await msg.delete();
+                  totalDeleted++;
+                } catch {
+                  // Skip messages we can't delete
+                }
+              }
+            }
+          }
+
+          // Delete old messages individually
+          for (const [, msg] of tooOld) {
+            try {
+              await msg.delete();
+              totalDeleted++;
+            } catch {
+              // Skip messages we can't delete
+            }
+          }
+
+          if (userMessages.size > 0) {
+            channelCount++;
+          }
+        } catch (error) {
+          enhancedLogger.debug(
+            `Purge: failed to process channel ${channel.id}`,
+            LogCategory.SECURITY,
+            { channelId: channel.id, userId, error: (error as Error).message },
+          );
+        }
+      }
+
+      if (totalDeleted > 0) {
+        enhancedLogger.info(
+          `Purged ${totalDeleted} messages across ${channelCount} channels for user ${userId}`,
+          LogCategory.SECURITY,
+          { userId, guildId: guild.id, totalDeleted, channelCount },
+        );
+      }
+    } catch (error) {
+      logError({
+        category: ErrorCategory.DISCORD_API,
+        severity: ErrorSeverity.MEDIUM,
+        message: 'Failed to purge user messages across channels',
+        error,
+        context: { userId, guildId: guild.id },
+      });
+
+      return {
+        totalDeleted,
+        channelCount,
+        error: 'Purge failed - see logs for details',
+      };
+    }
+
+    return { totalDeleted, channelCount };
+  }
+
   private async executeAction(
     member: GuildMember,
     message: Message,
@@ -525,7 +654,12 @@ export class BaitChannelManager {
           enhancedLogger.info(
             `Banned user ${member.user.tag} (Score: ${analysis.score})`,
             LogCategory.SECURITY,
-            { userId: member.id, score: analysis.score, action: 'ban', guildId: message.guild!.id },
+            {
+              userId: member.id,
+              score: analysis.score,
+              action: 'ban',
+              guildId: message.guild!.id,
+            },
           );
           break;
 
@@ -573,7 +707,11 @@ export class BaitChannelManager {
         `Failed to execute action ${config.actionType} for ${member.user.tag}`,
         err,
         LogCategory.ERROR,
-        { userId: member.id, action: config.actionType, guildId: message.guild!.id },
+        {
+          userId: member.id,
+          action: config.actionType,
+          guildId: message.guild!.id,
+        },
       );
 
       logError({
@@ -589,10 +727,25 @@ export class BaitChannelManager {
       });
     }
 
-    // Step 3: Log to channel AFTER action (with result)
-    await this.logToChannel(member, message, config, analysis, reason, actionResult, failureReason);
+    // Step 3: Purge user messages across all channels (ban only)
+    let purgeResult: PurgeResult | undefined;
+    if (actionResult === 'success' && config.actionType === 'ban' && message.guild) {
+      purgeResult = await this.purgeUserMessages(message.guild, member.id, config.channelId);
+    }
 
-    // Step 4: Log to database
+    // Step 4: Log to channel AFTER purge (with result)
+    await this.logToChannel(
+      member,
+      message,
+      config,
+      analysis,
+      reason,
+      actionResult,
+      failureReason,
+      purgeResult,
+    );
+
+    // Step 5: Log to database
     await this.logAction(message, actionTaken, config, analysis, failureReason);
   }
 
@@ -655,6 +808,7 @@ export class BaitChannelManager {
     reason: string,
     actionResult: 'success' | 'failed' = 'success',
     failureReason?: string,
+    purgeResult?: PurgeResult,
   ): Promise<void> {
     if (!config.logChannelId) return;
 
@@ -708,7 +862,11 @@ export class BaitChannelManager {
         .setTitle(`${actionEmoji} Bait Channel ${actionText}`)
         .setDescription(description)
         .addFields(
-          { name: '👤 User', value: `${member.user.tag}\n\`${member.id}\``, inline: true },
+          {
+            name: '👤 User',
+            value: `${member.user.tag}\n\`${member.id}\``,
+            inline: true,
+          },
           {
             name: '🎭 Roles',
             value:
@@ -726,7 +884,11 @@ export class BaitChannelManager {
             value: `<t:${Math.floor(member.joinedTimestamp! / 1000)}:R>`,
             inline: true,
           },
-          { name: '📊 Suspicion Score', value: `**${analysis.score}/100**`, inline: true },
+          {
+            name: '📊 Suspicion Score',
+            value: `**${analysis.score}/100**`,
+            inline: true,
+          },
         )
         .setThumbnail(member.user.displayAvatarURL());
 
@@ -760,6 +922,22 @@ export class BaitChannelManager {
         embed.addFields({
           name: '📎 Attachments',
           value: `${message.attachments.size} attachment(s)`,
+        });
+      }
+
+      // Add purge summary if a purge was attempted
+      if (purgeResult) {
+        let purgeValue: string;
+        if (purgeResult.error) {
+          purgeValue = purgeResult.error;
+        } else if (purgeResult.totalDeleted > 0) {
+          purgeValue = `Removed ${purgeResult.totalDeleted} message(s) across ${purgeResult.channelCount} channel(s)`;
+        } else {
+          purgeValue = 'No additional messages found';
+        }
+        embed.addFields({
+          name: '🧹 Message Purge',
+          value: purgeValue,
         });
       }
 
@@ -801,14 +979,22 @@ export class BaitChannelManager {
           `**${member.user.tag}** posted in the bait channel but is whitelisted.\nMessage was removed but **no action was taken**.`,
         )
         .addFields(
-          { name: '👤 User', value: `${member.user.tag}\n\`${member.id}\``, inline: true },
+          {
+            name: '👤 User',
+            value: `${member.user.tag}\n\`${member.id}\``,
+            inline: true,
+          },
           {
             name: '🎭 Roles',
             value:
               member.roles.cache.size > 1 ? `${member.roles.cache.size - 1} roles` : 'No roles',
             inline: true,
           },
-          { name: '🛡️ Whitelist Reason', value: whitelistReason, inline: false },
+          {
+            name: '🛡️ Whitelist Reason',
+            value: whitelistReason,
+            inline: false,
+          },
           {
             name: '📅 Account Created',
             value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`,

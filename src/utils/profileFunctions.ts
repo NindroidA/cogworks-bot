@@ -7,7 +7,7 @@
 
 import { ActivityType, type Client } from 'discord.js';
 import pjson from '../../package.json';
-import { lang } from './index';
+import { lang } from '../lang';
 
 // ============================================================================
 // Status Functions

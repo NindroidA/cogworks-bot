@@ -1,7 +1,7 @@
 import { EmbedBuilder, type Guild, type TextChannel } from 'discord.js';
+import { lang } from '../../lang';
 import type { ReactionRoleMenu } from '../../typeorm/entities/reactionRole';
 import { Colors } from '../colors';
-import { lang } from '../index';
 
 const tl = lang.reactionRole;
 

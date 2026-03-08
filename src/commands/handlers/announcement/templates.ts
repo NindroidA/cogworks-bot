@@ -22,7 +22,7 @@ export type TemplateParams =
     }
   | Record<string, unknown>;
 
-export interface AnnouncementTemplate {
+interface AnnouncementTemplate {
   id: string;
   name: string;
   description: string;
@@ -44,7 +44,7 @@ export interface AnnouncementTemplate {
 /**
  * Pre-built announcement templates
  */
-export const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
+const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
   maintenance: {
     id: 'maintenance',
     name: 'Maintenance (Immediate)',
@@ -94,8 +94,16 @@ export const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
         .setColor(0xffa500)
         .addFields(
           { name: '⏱️ Expected Duration', value: durationText, inline: true },
-          { name: '📅 Scheduled Time', value: `<t:${p.timestamp}:F>`, inline: false },
-          { name: '🕐 Relative Time', value: `<t:${p.timestamp}:R>`, inline: false },
+          {
+            name: '📅 Scheduled Time',
+            value: `<t:${p.timestamp}:F>`,
+            inline: false,
+          },
+          {
+            name: '🕐 Relative Time',
+            value: `<t:${p.timestamp}:R>`,
+            inline: false,
+          },
         )
         .setFooter({
           text: 'Times shown are in your local timezone • Thank you for your patience!',
@@ -154,8 +162,16 @@ export const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
         .setColor(0x5865f2)
         .addFields(
           { name: '📌 Version', value: p.version, inline: true },
-          { name: '📅 Scheduled Time', value: `<t:${p.timestamp}:F>`, inline: false },
-          { name: '🕐 Relative Time', value: `<t:${p.timestamp}:R>`, inline: false },
+          {
+            name: '📅 Scheduled Time',
+            value: `<t:${p.timestamp}:F>`,
+            inline: false,
+          },
+          {
+            name: '🕐 Relative Time',
+            value: `<t:${p.timestamp}:R>`,
+            inline: false,
+          },
         )
         .setFooter({ text: 'Times shown are in your local timezone' })
         .setTimestamp();
@@ -185,7 +201,11 @@ export const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
         .addFields(
           { name: '📌 New Version', value: p.version, inline: true },
           { name: '🎮 Status', value: 'Online and ready', inline: true },
-          { name: '⏰ Updated', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: false },
+          {
+            name: '⏰ Updated',
+            value: `<t:${Math.floor(Date.now() / 1000)}:R>`,
+            inline: false,
+          },
         )
         .setFooter({ text: 'Thank you for your patience!' })
         .setTimestamp();
@@ -244,13 +264,6 @@ export const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
  */
 export function getTemplate(templateId: string): AnnouncementTemplate | null {
   return BUILT_IN_TEMPLATES[templateId] || null;
-}
-
-/**
- * Get all available templates
- */
-export function getAllTemplates(): AnnouncementTemplate[] {
-  return Object.values(BUILT_IN_TEMPLATES);
 }
 
 /**

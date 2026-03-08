@@ -9,7 +9,8 @@ import {
   type GuildMember,
   PermissionsBitField,
 } from 'discord.js';
-import { lang, logger } from '../index';
+import { lang } from '../../lang';
+import { logger } from '../logger';
 
 /**
  * Permission check result

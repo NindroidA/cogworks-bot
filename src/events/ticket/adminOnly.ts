@@ -25,8 +25,6 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
   const guildId = interaction.guildId;
   const user = interaction.user.displayName;
   const userId = interaction.user.id;
-  const ticket = await ticketRepo.findOneBy({ channelId: channelId });
-
   if (!guildId) {
     await interaction.reply({
       content: lang.general.cmdGuildNotFound,
@@ -34,6 +32,8 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
     });
     return;
   }
+
+  const ticket = await ticketRepo.findOneBy({ guildId, channelId: channelId });
 
   // get the bot config repo
   const botConfigRepo = AppDataSource.getRepository(BotConfig);

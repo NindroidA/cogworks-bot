@@ -7,7 +7,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { ReactionRoleOption } from './ReactionRoleOption';
+import type { ReactionRoleOption } from './ReactionRoleOption';
 
 @Entity({ name: 'reaction_role_menus' })
 @Index(['guildId'])
@@ -35,8 +35,8 @@ export class ReactionRoleMenu {
   mode: 'normal' | 'unique' | 'lock';
 
   @OneToMany(
-    () => ReactionRoleOption,
-    option => option.menu,
+    () => require('./ReactionRoleOption').ReactionRoleOption,
+    (option: ReactionRoleOption) => option.menu,
     {
       cascade: true,
       eager: true,

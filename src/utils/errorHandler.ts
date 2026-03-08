@@ -20,7 +20,7 @@ import {
   type ModalSubmitInteraction,
 } from 'discord.js';
 import { E } from './emojis';
-import { logger } from './index';
+import { logger } from './logger';
 
 // ============================================================================
 // Enums & Types
@@ -123,7 +123,10 @@ export function classifyError(error: unknown): {
     errorMessage.includes('rest api') ||
     errorMessage.includes('unknown interaction')
   ) {
-    return { category: ErrorCategory.DISCORD_API, severity: ErrorSeverity.MEDIUM };
+    return {
+      category: ErrorCategory.DISCORD_API,
+      severity: ErrorSeverity.MEDIUM,
+    };
   }
 
   // Permission errors
@@ -151,7 +154,10 @@ export function classifyError(error: unknown): {
     errorMessage.includes('setup') ||
     errorMessage.includes('not configured')
   ) {
-    return { category: ErrorCategory.CONFIGURATION, severity: ErrorSeverity.MEDIUM };
+    return {
+      category: ErrorCategory.CONFIGURATION,
+      severity: ErrorSeverity.MEDIUM,
+    };
   }
 
   // External API errors
@@ -160,7 +166,10 @@ export function classifyError(error: unknown): {
     errorMessage.includes('fetch') ||
     errorMessage.includes('request failed')
   ) {
-    return { category: ErrorCategory.EXTERNAL_API, severity: ErrorSeverity.MEDIUM };
+    return {
+      category: ErrorCategory.EXTERNAL_API,
+      severity: ErrorSeverity.MEDIUM,
+    };
   }
 
   // Default to unknown

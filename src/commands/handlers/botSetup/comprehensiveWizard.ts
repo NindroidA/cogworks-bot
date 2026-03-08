@@ -111,7 +111,7 @@ interface ComprehensiveWizardState {
   };
 }
 
-export interface ExistingConfigs {
+interface ExistingConfigs {
   existingBotConfig?: BotConfig;
   existingTicketConfig?: TicketConfig;
   existingArchivedTicketConfig?: ArchivedTicketConfig;

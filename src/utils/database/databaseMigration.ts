@@ -12,7 +12,7 @@
 
 import { DataSource } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
-import { logger } from '../index';
+import { logger } from '../logger';
 
 /** Validates a Discord snowflake ID (17-20 digit numeric string). */
 function isValidSnowflake(id: string): boolean {
@@ -246,7 +246,11 @@ export async function runMultiServerMigration(): Promise<void> {
       const allowedColumns = ['guildId', 'isActive', 'status'];
 
       const indexesToCreate = [
-        { table: 'applications', columns: ['guildId'], name: 'IDX_applications_guildId' },
+        {
+          table: 'applications',
+          columns: ['guildId'],
+          name: 'IDX_applications_guildId',
+        },
         {
           table: 'positions',
           columns: ['guildId', 'isActive'],
@@ -257,10 +261,26 @@ export async function runMultiServerMigration(): Promise<void> {
           columns: ['guildId'],
           name: 'IDX_archived_applications_guildId',
         },
-        { table: 'tickets', columns: ['guildId', 'status'], name: 'IDX_tickets_guildId_status' },
-        { table: 'archived_tickets', columns: ['guildId'], name: 'IDX_archived_tickets_guildId' },
-        { table: 'staff_roles', columns: ['guildId'], name: 'IDX_staff_roles_guildId' },
-        { table: 'announcement_log', columns: ['guildId'], name: 'IDX_announcement_log_guildId' },
+        {
+          table: 'tickets',
+          columns: ['guildId', 'status'],
+          name: 'IDX_tickets_guildId_status',
+        },
+        {
+          table: 'archived_tickets',
+          columns: ['guildId'],
+          name: 'IDX_archived_tickets_guildId',
+        },
+        {
+          table: 'staff_roles',
+          columns: ['guildId'],
+          name: 'IDX_staff_roles_guildId',
+        },
+        {
+          table: 'announcement_log',
+          columns: ['guildId'],
+          name: 'IDX_announcement_log_guildId',
+        },
       ];
 
       for (const index of indexesToCreate) {

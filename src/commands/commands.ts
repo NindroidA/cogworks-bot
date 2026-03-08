@@ -23,7 +23,7 @@ import { applicationFieldsHandler } from './handlers/application/applicationFiel
 import { applicationPositionHandler } from './handlers/application/applicationPosition';
 import { applicationSetupHandler } from './handlers/application/applicationSetup';
 import { baitChannelHandler } from './handlers/baitChannel';
-import { botSetupHandler, botSetupNotFound } from './handlers/botSetup';
+import { botSetupHandler } from './handlers/botSetup';
 import { coffeeHandler } from './handlers/coffee';
 import { dataExportHandler } from './handlers/dataExport';
 import {
@@ -108,7 +108,11 @@ export const handleSlashCommand = async (
     if (commandName === 'bot-setup') {
       await botSetupHandler(client, interaction);
     } else if (!botConfig) {
-      await botSetupNotFound(client, interaction);
+      logger(lang.botConfig.notFound, 'WARN');
+      await interaction.reply({
+        content: lang.botConfig.notFound,
+        flags: [MessageFlags.Ephemeral],
+      });
     } else {
       switch (commandName) {
         // setup command

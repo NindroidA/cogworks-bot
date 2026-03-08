@@ -13,7 +13,7 @@
 import axios, { type AxiosError, type AxiosInstance } from 'axios';
 import type { Client } from 'discord.js';
 import { version } from '../../package.json';
-import { logger } from './index';
+import { logger } from './logger';
 
 // ============================================================================
 // Interfaces & Types

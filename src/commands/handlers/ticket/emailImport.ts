@@ -12,12 +12,12 @@ import {
   PermissionsBitField,
   TextInputBuilder,
   TextInputStyle,
-} from "discord.js";
-import { AppDataSource } from "../../../typeorm";
-import { BotConfig } from "../../../typeorm/entities/BotConfig";
-import { CustomTicketType } from "../../../typeorm/entities/ticket/CustomTicketType";
-import { Ticket } from "../../../typeorm/entities/ticket/Ticket";
-import { TicketConfig } from "../../../typeorm/entities/ticket/TicketConfig";
+} from 'discord.js';
+import { AppDataSource } from '../../../typeorm';
+import { BotConfig } from '../../../typeorm/entities/BotConfig';
+import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
+import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
+import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import {
   enhancedLogger,
   extractIdFromMention,
@@ -25,7 +25,8 @@ import {
   LANGF,
   LogCategory,
   lang,
-} from "../../../utils";
+  requireAdmin,
+} from '../../../utils';
 
 const tl = lang.ticket.customTypes.emailImport;
 
@@ -33,18 +34,12 @@ const tl = lang.ticket.customTypes.emailImport;
  * Handler for /ticket import-email command
  * Shows modal for importing an email as a ticket
  */
-export async function emailImportHandler(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function emailImportHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     if (!interaction.guild) {
-      enhancedLogger.warn(
-        "Email-import handler: guild not found",
-        LogCategory.COMMAND_EXECUTION,
-        {
-          userId: interaction.user.id,
-        },
-      );
+      enhancedLogger.warn('Email-import handler: guild not found', LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+      });
       await interaction.reply({
         content: lang.general.cmdGuildNotFound,
         flags: [MessageFlags.Ephemeral],
@@ -52,22 +47,28 @@ export async function emailImportHandler(
       return;
     }
 
-    enhancedLogger.debug(
-      `Command: /ticket import-email`,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        userId: interaction.user.id,
-        guildId: interaction.guild.id,
-      },
-    );
+    // Permission check — email import is an admin-level operation
+    const adminCheck = requireAdmin(interaction);
+    if (!adminCheck.allowed) {
+      await interaction.reply({
+        content: adminCheck.message,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    enhancedLogger.debug(`Command: /ticket import-email`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId: interaction.guild.id,
+    });
 
     // Create modal
     const modal = new ModalBuilder()
-      .setCustomId("ticket-email-import-modal")
+      .setCustomId('ticket-email-import-modal')
       .setTitle(tl.modalTitle);
 
     const senderEmailInput = new TextInputBuilder()
-      .setCustomId("senderEmail")
+      .setCustomId('senderEmail')
       .setLabel(tl.senderEmailLabel)
       .setPlaceholder(tl.senderEmailPlaceholder)
       .setStyle(TextInputStyle.Short)
@@ -75,7 +76,7 @@ export async function emailImportHandler(
       .setMaxLength(254); // RFC 5321 max email length
 
     const senderNameInput = new TextInputBuilder()
-      .setCustomId("senderName")
+      .setCustomId('senderName')
       .setLabel(tl.senderNameLabel)
       .setPlaceholder(tl.senderNamePlaceholder)
       .setStyle(TextInputStyle.Short)
@@ -83,7 +84,7 @@ export async function emailImportHandler(
       .setMaxLength(100);
 
     const subjectInput = new TextInputBuilder()
-      .setCustomId("subject")
+      .setCustomId('subject')
       .setLabel(tl.subjectLabel)
       .setPlaceholder(tl.subjectPlaceholder)
       .setStyle(TextInputStyle.Short)
@@ -91,7 +92,7 @@ export async function emailImportHandler(
       .setMaxLength(256); // Discord channel topic max
 
     const bodyInput = new TextInputBuilder()
-      .setCustomId("body")
+      .setCustomId('body')
       .setLabel(tl.bodyLabel)
       .setPlaceholder(tl.bodyPlaceholder)
       .setStyle(TextInputStyle.Paragraph)
@@ -99,52 +100,36 @@ export async function emailImportHandler(
       .setMaxLength(4000); // Discord modal max
 
     const attachmentsInput = new TextInputBuilder()
-      .setCustomId("attachments")
+      .setCustomId('attachments')
       .setLabel(tl.attachmentsLabel)
       .setPlaceholder(tl.attachmentsPlaceholder)
       .setStyle(TextInputStyle.Paragraph)
       .setRequired(false)
       .setMaxLength(2000);
 
-    const row1 = new ActionRowBuilder<TextInputBuilder>().addComponents(
-      senderEmailInput,
-    );
-    const row2 = new ActionRowBuilder<TextInputBuilder>().addComponents(
-      senderNameInput,
-    );
-    const row3 = new ActionRowBuilder<TextInputBuilder>().addComponents(
-      subjectInput,
-    );
-    const row4 = new ActionRowBuilder<TextInputBuilder>().addComponents(
-      bodyInput,
-    );
-    const row5 = new ActionRowBuilder<TextInputBuilder>().addComponents(
-      attachmentsInput,
-    );
+    const row1 = new ActionRowBuilder<TextInputBuilder>().addComponents(senderEmailInput);
+    const row2 = new ActionRowBuilder<TextInputBuilder>().addComponents(senderNameInput);
+    const row3 = new ActionRowBuilder<TextInputBuilder>().addComponents(subjectInput);
+    const row4 = new ActionRowBuilder<TextInputBuilder>().addComponents(bodyInput);
+    const row5 = new ActionRowBuilder<TextInputBuilder>().addComponents(attachmentsInput);
 
     modal.addComponents(row1, row2, row3, row4, row5);
 
     await interaction.showModal(modal);
   } catch (error) {
-    await handleInteractionError(interaction, error, "emailImportHandler");
+    await handleInteractionError(interaction, error, 'emailImportHandler');
   }
 }
 
 /**
  * Handler for ticket email import modal submission
  */
-export async function emailImportModalHandler(
-  interaction: ModalSubmitInteraction,
-): Promise<void> {
+export async function emailImportModalHandler(interaction: ModalSubmitInteraction): Promise<void> {
   try {
     if (!interaction.guild) {
-      enhancedLogger.warn(
-        "Email-import modal: guild not found",
-        LogCategory.COMMAND_EXECUTION,
-        {
-          userId: interaction.user.id,
-        },
-      );
+      enhancedLogger.warn('Email-import modal: guild not found', LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+      });
       await interaction.reply({
         content: lang.general.cmdGuildNotFound,
         flags: [MessageFlags.Ephemeral],
@@ -153,25 +138,17 @@ export async function emailImportModalHandler(
     }
 
     const guildId = interaction.guild.id;
-    enhancedLogger.debug(
-      `Modal submit: email-import`,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        userId: interaction.user.id,
-        guildId,
-      },
-    );
+    enhancedLogger.debug(`Modal submit: email-import`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+    });
 
     // Get modal inputs
-    const senderEmail = interaction.fields
-      .getTextInputValue("senderEmail")
-      .trim();
-    const senderName =
-      interaction.fields.getTextInputValue("senderName")?.trim() || null;
-    const subject = interaction.fields.getTextInputValue("subject").trim();
-    const body = interaction.fields.getTextInputValue("body").trim();
-    const attachmentsInput =
-      interaction.fields.getTextInputValue("attachments")?.trim() || "";
+    const senderEmail = interaction.fields.getTextInputValue('senderEmail').trim();
+    const senderName = interaction.fields.getTextInputValue('senderName')?.trim() || null;
+    const subject = interaction.fields.getTextInputValue('subject').trim();
+    const body = interaction.fields.getTextInputValue('body').trim();
+    const attachmentsInput = interaction.fields.getTextInputValue('attachments')?.trim() || '';
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -191,7 +168,7 @@ export async function emailImportModalHandler(
     // Validate email body length
     if (body.length > 4000) {
       await interaction.reply({
-        content: LANGF(tl.bodyTooLong, "4000"),
+        content: LANGF(tl.bodyTooLong, '4000'),
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -201,13 +178,13 @@ export async function emailImportModalHandler(
     const attachmentUrls: string[] = [];
     if (attachmentsInput) {
       const urls = attachmentsInput
-        .split("\n")
-        .map((u) => u.trim())
-        .filter((u) => u);
+        .split('\n')
+        .map(u => u.trim())
+        .filter(u => u);
 
       if (urls.length > 10) {
         await interaction.reply({
-          content: LANGF(tl.tooManyUrls, "10"),
+          content: LANGF(tl.tooManyUrls, '10'),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -216,14 +193,21 @@ export async function emailImportModalHandler(
       for (const url of urls) {
         if (url.length > 500) {
           await interaction.reply({
-            content: LANGF(tl.urlTooLong, "500"),
+            content: LANGF(tl.urlTooLong, '500'),
             flags: [MessageFlags.Ephemeral],
           });
           return;
         }
 
         try {
-          new URL(url); // Validate URL format
+          const parsed = new URL(url);
+          if (!['http:', 'https:'].includes(parsed.protocol)) {
+            await interaction.reply({
+              content: LANGF(tl.invalidUrl, url),
+              flags: [MessageFlags.Ephemeral],
+            });
+            return;
+          }
           attachmentUrls.push(url);
         } catch {
           await interaction.reply({
@@ -261,18 +245,18 @@ export async function emailImportModalHandler(
 
     // Get default ticket type or create "email" type
     let emailType = await typeRepo.findOne({
-      where: { guildId, typeId: "email_import" },
+      where: { guildId, typeId: 'email_import' },
     });
 
     if (!emailType) {
       // Create email import type if it doesn't exist
       emailType = typeRepo.create({
         guildId,
-        typeId: "email_import",
-        displayName: "Email Import",
-        emoji: "📧",
-        embedColor: "#7289da",
-        description: "Ticket imported from email",
+        typeId: 'email_import',
+        displayName: 'Email Import',
+        emoji: '📧',
+        embedColor: '#7289da',
+        description: 'Ticket imported from email',
         isActive: true,
         isDefault: false,
         sortOrder: 999,
@@ -281,9 +265,7 @@ export async function emailImportModalHandler(
     }
 
     // Get ticket category
-    const category = await interaction.guild.channels.fetch(
-      ticketConfig.categoryId,
-    );
+    const category = await interaction.guild.channels.fetch(ticketConfig.categoryId);
     if (!category || category.type !== ChannelType.GuildCategory) {
       await interaction.reply({
         content: lang.ticket.ticketCategoryNotFound,
@@ -293,11 +275,11 @@ export async function emailImportModalHandler(
     }
 
     // Channel name: 📧_sender-name (use sender name if provided, otherwise email username)
-    const nameForChannel = senderName || senderEmail.split("@")[0];
+    const nameForChannel = senderName || senderEmail.split('@')[0];
     const channelName = `📧_${nameForChannel
       .substring(0, 100)
       .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-")}`;
+      .replace(/[^a-z0-9-]/g, '-')}`;
 
     try {
       // Build permission overwrites
@@ -349,12 +331,12 @@ export async function emailImportModalHandler(
         .setDescription(body.substring(0, 4096))
         .addFields(
           {
-            name: "From",
-            value: senderName || senderEmail.split("@")[0],
+            name: 'From',
+            value: senderName || senderEmail.split('@')[0],
             inline: true,
           },
           {
-            name: "Imported By",
+            name: 'Imported By',
             value: `<@${interaction.user.id}>`,
             inline: true,
           },
@@ -363,22 +345,20 @@ export async function emailImportModalHandler(
 
       if (attachmentUrls.length > 0) {
         embed.addFields({
-          name: "Attachments",
-          value: attachmentUrls
-            .map((url, i) => `[Attachment ${i + 1}](${url})`)
-            .join("\n"),
+          name: 'Attachments',
+          value: attachmentUrls.map((url, i) => `[Attachment ${i + 1}](${url})`).join('\n'),
         });
       }
 
       // Add close button (same as regular tickets)
       const buttonRow = new ActionRowBuilder<ButtonBuilder>().setComponents(
         new ButtonBuilder()
-          .setCustomId("admin_only_ticket")
-          .setLabel("Admin Only")
+          .setCustomId('admin_only_ticket')
+          .setLabel('Admin Only')
           .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
-          .setCustomId("close_ticket")
-          .setLabel("Close Ticket")
+          .setCustomId('close_ticket')
+          .setLabel('Close Ticket')
           .setStyle(ButtonStyle.Danger),
       );
 
@@ -393,13 +373,13 @@ export async function emailImportModalHandler(
         channelId: ticketChannel.id,
         messageId: welcomeMessage.id,
         createdBy: interaction.user.id,
-        type: "email_import",
-        customTypeId: "email_import",
+        type: 'email_import',
+        customTypeId: 'email_import',
         isEmailTicket: true,
         emailSender: senderEmail,
         emailSenderName: senderName || undefined,
         emailSubject: subject,
-        status: "created",
+        status: 'created',
       });
 
       await ticketRepo.save(ticket);
@@ -424,7 +404,7 @@ export async function emailImportModalHandler(
       if (error instanceof DiscordAPIError) {
         if (error.code === 50013) {
           enhancedLogger.warn(
-            "Email-import failed: missing permissions",
+            'Email-import failed: missing permissions',
             LogCategory.COMMAND_EXECUTION,
             { userId: interaction.user.id, guildId, errorCode: error.code },
           );
@@ -436,7 +416,7 @@ export async function emailImportModalHandler(
         }
 
         enhancedLogger.error(
-          "Email-import Discord API error",
+          'Email-import Discord API error',
           error,
           LogCategory.COMMAND_EXECUTION,
           { userId: interaction.user.id, guildId, errorCode: error.code },
@@ -450,6 +430,6 @@ export async function emailImportModalHandler(
       throw error;
     }
   } catch (error) {
-    await handleInteractionError(interaction, error, "emailImportModalHandler");
+    await handleInteractionError(interaction, error, 'emailImportModalHandler');
   }
 }

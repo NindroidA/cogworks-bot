@@ -1,6 +1,6 @@
 import type { CustomInputField } from '../../../typeorm/entities/shared/CustomInputField';
 
-export interface PositionTemplate {
+interface PositionTemplate {
   name: string;
   title: string;
   description: string;
@@ -253,8 +253,6 @@ const templates: Record<string, PositionTemplate> = {
     ],
   },
 };
-
-export const TEMPLATE_KEYS = Object.keys(templates);
 
 export function getTemplate(key: string): PositionTemplate | null {
   return templates[key] || null;

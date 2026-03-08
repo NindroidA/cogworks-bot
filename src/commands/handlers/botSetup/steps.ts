@@ -19,7 +19,7 @@ export { ticketStep } from './steps/ticketStep';
 /**
  * Setup step interface - all steps must implement this
  */
-export interface SetupStep {
+interface SetupStep {
   id: string;
   title: string;
   description: string;
@@ -125,62 +125,6 @@ export function buildRoleSelector() {
 }
 
 /**
- * Step 3: Configuration Summary & Confirmation
- */
-export function buildSummaryEmbed(config: Partial<BotConfig>) {
-  const embed = createInfoEmbed(
-    '📋 Configuration Summary',
-    '**Please review your bot configuration:**\n\n' + "Here's what will be saved:",
-  );
-
-  // Add configuration fields
-  if (config.enableGlobalStaffRole && config.globalStaffRole) {
-    embed.addFields({
-      name: '👥 Global Staff Role',
-      value: `✅ Enabled\n**Role:** ${config.globalStaffRole}`,
-      inline: false,
-    });
-  } else {
-    embed.addFields({
-      name: '👥 Global Staff Role',
-      value: '❌ Disabled (can be enabled later)',
-      inline: false,
-    });
-  }
-
-  embed.addFields({
-    name: '📍 Step 3 of 3',
-    value: 'Click **Confirm & Save** to apply these settings',
-    inline: false,
-  });
-
-  embed.setFooter({ text: '💡 You can modify these settings anytime with /bot-setup' });
-
-  return embed;
-}
-
-export function buildSummaryButtons() {
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('setup_confirm')
-      .setLabel('Confirm & Save')
-      .setStyle(ButtonStyle.Success)
-      .setEmoji('✅'),
-    new ButtonBuilder()
-      .setCustomId('setup_restart')
-      .setLabel('Start Over')
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji('🔄'),
-    new ButtonBuilder()
-      .setCustomId('setup_cancel')
-      .setLabel('Cancel Setup')
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji('❌'),
-  );
-  return [row];
-}
-
-/**
  * Final Success Step
  */
 export function buildSuccessEmbed(
@@ -248,7 +192,9 @@ export function buildSuccessEmbed(
     inline: false,
   });
 
-  embed.setFooter({ text: '💡 Need help? Check our documentation or contact support' });
+  embed.setFooter({
+    text: '💡 Need help? Check our documentation or contact support',
+  });
 
   return embed;
 }
@@ -279,24 +225,4 @@ export function buildUpdateEmbed(config: BotConfig) {
   embed.setFooter({ text: '💡 Select an option below to reconfigure' });
 
   return embed;
-}
-
-export function buildUpdateButtons() {
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('update_staff_role')
-      .setLabel('Change Staff Role')
-      .setStyle(ButtonStyle.Primary)
-      .setEmoji('👥'),
-    new ButtonBuilder()
-      .setCustomId('update_disable_staff')
-      .setLabel('Disable Staff Role')
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji('❌'),
-    new ButtonBuilder()
-      .setCustomId('setup_cancel')
-      .setLabel('Cancel')
-      .setStyle(ButtonStyle.Secondary),
-  );
-  return [row];
 }

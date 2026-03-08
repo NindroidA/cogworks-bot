@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.12.0] - 2026-03-08
+
+### Added
+- **Shared Field Manager Core**: Extracted generic `fieldManagerCore.ts` module eliminating ~1,300 LOC duplication between ticket type fields and application position fields
+- **Shared Tag Selection UI**: Extracted `tagSelection.ts` module with reusable Discord collector pattern for memory add/capture flows
+- **New Unit Tests**: Added test coverage for `errorHandler` (classifyError, safeDbOperation), `inputSanitizer` (escapeDiscordMarkdown, validateSnowflake, truncateWithNotice), and `logger` (getTimestamp, logger) - 53 new tests
+
+### Fixed
+- **Import Cycle**: Broke circular dependency between ReactionRoleMenu and ReactionRoleOption using `import type` + lazy `require()` pattern
+- **MemoryTagType Export**: Fixed type-only export in memory entity barrel file causing Bun resolver errors
+- **Unused E Import**: Removed unused emoji import from tagSelection.ts
+
+### Changed
+- **Dead Export Cleanup**: Removed unused exports from botSetup steps, announcement templates, application templates, and comprehensiveWizard
+- **Dead Code Removal**: Removed unused imports, variables, and functions across private scripts and extractCommands utility
+- **Inlined botSetupNotFound**: Removed deprecated exported function, inlined logic in commands.ts
+- **Code Smell Fixes**: Refactored monster functions in memory/add.ts (391 -> 180 LOC) and memory/capture.ts (503 -> 265 LOC)
+
+## [2.11.4] - 2026-03-08
+
+### Added
+- **Bait Channel Message Purge**: Auto-purge banned user messages across all server channels after bait channel ban
+  - Scans text, announcement, and voice channels (skips bait channel itself)
+  - Uses bulkDelete for recent messages with individual delete fallback for older messages
+  - Sequential channel processing to avoid Discord rate limits
+  - Checks bot permissions per channel before attempting purge
+  - Purge summary logged in ban embed (deleted count, channel count)
+
+### Fixed
+- **Email Import Permission Check**: Added missing requireAdmin() check to email import handler (was accessible to all users)
+- **Ticket Close Guild Scoping**: Added guildId to ticket query in close and admin-only handlers (data isolation convention)
+- **Attachment URL Validation**: Restricted email import attachment URLs to HTTP/HTTPS only (blocked file:, data:, javascript: schemes)
+- **Purge Error Logging**: Added debug logging to empty catch block in purge channel loop
+
+## [2.11.3] - 2026-03-07
+
+### Changed
+- **Email Import Channel Naming**: Channel name now uses sender name format: emoji_sender-name
+- **Email Import Privacy**: Email address hidden from ticket embed (kept internal for privacy)
+- **Email Import From Field**: Shows sender name or email username instead of full email address
+- **Email Import Email Field**: Reverted email field back to required (needed for archive matching)
+
+### Added
+- **Email Import Buttons**: Close and Admin Only buttons added to email import tickets (matches regular ticket behavior)
+- **Email Archive Grouping**: Email tickets now archive by sender email address instead of importing user
+  - Repeat emails from same sender group into one archive thread
+  - Archive thread named after sender (name or email username)
+
+## [2.11.2] - 2026-03-07
+
+### Fixed
+- **Email Import Staff Role Crash**: Fixed permission overwrite crash when globalStaffRole is stored as mention string instead of raw ID
+  - Now uses extractIdFromMention() utility for consistent ID extraction
+- **Email Import Staff Role Check**: Added missing enableGlobalStaffRole check to match codebase convention
+
 ## [2.11.1] - 2026-02-21
 
 ### Fixed

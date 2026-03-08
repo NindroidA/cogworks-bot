@@ -10,7 +10,7 @@ import path from 'node:path';
 import axios from 'axios';
 import type { GuildTextBasedChannel, Message } from 'discord.js';
 import JSZip from 'jszip';
-import { lang } from './index';
+import { lang } from '../lang';
 
 // ============================================================================
 // Archiving Functions
@@ -92,7 +92,9 @@ export async function fetchMessagesAndSaveToFile(
     for (const attach of msg.attachments.values()) {
       // Only save images
       if (attach.contentType?.startsWith('image/')) {
-        const resp = await axios.get(attach.url, { responseType: 'arraybuffer' });
+        const resp = await axios.get(attach.url, {
+          responseType: 'arraybuffer',
+        });
         zip.file(attach.name, resp.data);
         attachmentCount++;
       }

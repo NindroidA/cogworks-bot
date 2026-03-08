@@ -5,7 +5,7 @@
  * Uses in-memory Map with automatic cleanup
  */
 
-import { logger } from '../index';
+import { logger } from '../logger';
 
 /**
  * Rate limit entry with timestamp and count

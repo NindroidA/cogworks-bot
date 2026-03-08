@@ -5,11 +5,12 @@ import {
   type PresenceStatusData,
   type TextChannel,
 } from 'discord.js';
+import { lang } from '../../lang';
 import { AppDataSource } from '../../typeorm';
 import { BotStatus, type StatusLevel } from '../../typeorm/entities/status';
 import { Colors } from '../colors';
-import { lang, truncateWithNotice } from '../index';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+import { truncateWithNotice } from '../validation/inputSanitizer';
 
 const tl = lang.status;
 

@@ -1,4 +1,4 @@
-import fs from "node:fs";
+import fs from 'node:fs';
 import {
   type ButtonInteraction,
   type Client,
@@ -6,12 +6,12 @@ import {
   type ForumThreadChannel,
   type GuildTextBasedChannel,
   MessageFlags,
-} from "discord.js";
-import { AppDataSource } from "../../typeorm";
-import { ArchivedTicket } from "../../typeorm/entities/ticket/ArchivedTicket";
-import { ArchivedTicketConfig } from "../../typeorm/entities/ticket/ArchivedTicketConfig";
-import { CustomTicketType } from "../../typeorm/entities/ticket/CustomTicketType";
-import { Ticket } from "../../typeorm/entities/ticket/Ticket";
+} from 'discord.js';
+import { AppDataSource } from '../../typeorm';
+import { ArchivedTicket } from '../../typeorm/entities/ticket/ArchivedTicket';
+import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
+import { CustomTicketType } from '../../typeorm/entities/ticket/CustomTicketType';
+import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import {
   applyForumTags,
   enhancedLogger,
@@ -19,26 +19,22 @@ import {
   LogCategory,
   lang,
   logger,
-} from "../../utils";
-import { fetchMessagesAndSaveToFile } from "../../utils/fetchAllMessages";
+} from '../../utils';
+import { fetchMessagesAndSaveToFile } from '../../utils/fetchAllMessages';
 
 const tl = lang.ticket.close;
 const ticketRepo = AppDataSource.getRepository(Ticket);
-const archivedTicketConfigRepo =
-  AppDataSource.getRepository(ArchivedTicketConfig);
+const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
 const archivedTicketRepo = AppDataSource.getRepository(ArchivedTicket);
 const customTicketTypeRepo = AppDataSource.getRepository(CustomTicketType);
 
-export const ticketCloseEvent = async (
-  client: Client,
-  interaction: ButtonInteraction,
-) => {
-  const guildId = interaction.guildId || ""; // guild where the event was initiated
+export const ticketCloseEvent = async (client: Client, interaction: ButtonInteraction) => {
+  const guildId = interaction.guildId || ''; // guild where the event was initiated
   const channel = interaction.channel as GuildTextBasedChannel; // text channel the event was initiated
-  const channelId = interaction.channelId || "";
-  const transcriptPath = process.env.TEMP_STORAGE_PATH || "temp/"; // path to temporarily save transcripts
+  const channelId = interaction.channelId || '';
+  const transcriptPath = process.env.TEMP_STORAGE_PATH || 'temp/'; // path to temporarily save transcripts
   const archivedConfig = await archivedTicketConfigRepo.findOneBy({ guildId }); // get the archived ticket config by guildId
-  const ticket = await ticketRepo.findOneBy({ channelId: channelId }); // // get the ticket this event was initiated from the Ticket database using channelId
+  const ticket = await ticketRepo.findOneBy({ guildId, channelId: channelId }); // get the ticket this event was initiated from the Ticket database using channelId
 
   // check if the archived ticket config exists
   if (!archivedConfig) {
@@ -47,7 +43,7 @@ export const ticketCloseEvent = async (
 
   // check if the ticket exists
   if (!ticket) {
-    return logger(lang.general.fatalError, "ERROR");
+    return logger(lang.general.fatalError, 'ERROR');
   }
 
   // get archived channel from ArchivedTicket database (CRITICAL: must be guild-scoped!)
@@ -78,7 +74,7 @@ export const ticketCloseEvent = async (
   try {
     await fetchMessagesAndSaveToFile(channel, transcriptPath);
   } catch (error) {
-    logger(tl.transcriptCreate.error + error, "ERROR");
+    logger(tl.transcriptCreate.error + error, 'ERROR');
     // Only reply if we haven't already replied/deferred
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({
@@ -112,15 +108,11 @@ export const ticketCloseEvent = async (
     let displayName: string | null = null;
     let emoji: string | null = null;
 
-    enhancedLogger.debug(
-      "Forum tag: ticket data",
-      LogCategory.COMMAND_EXECUTION,
-      {
-        customTypeId: ticket.customTypeId,
-        type: ticket.type,
-        ticketId: ticket.id,
-      },
-    );
+    enhancedLogger.debug('Forum tag: ticket data', LogCategory.COMMAND_EXECUTION, {
+      customTypeId: ticket.customTypeId,
+      type: ticket.type,
+      ticketId: ticket.id,
+    });
 
     if (ticket.customTypeId) {
       // Custom ticket type - fetch from database
@@ -128,13 +120,9 @@ export const ticketCloseEvent = async (
         where: { guildId, typeId: ticket.customTypeId },
       });
 
-      enhancedLogger.debug(
-        "Forum tag: custom type lookup",
-        LogCategory.COMMAND_EXECUTION,
-        {
-          customType,
-        },
-      );
+      enhancedLogger.debug('Forum tag: custom type lookup', LogCategory.COMMAND_EXECUTION, {
+        customType,
+      });
 
       if (customType) {
         typeId = customType.typeId;
@@ -146,14 +134,13 @@ export const ticketCloseEvent = async (
       typeId = ticket.type;
 
       // Map legacy type IDs to display names
-      const legacyTypeMap: Record<string, { display: string; emoji: string }> =
-        {
-          "18_verify": { display: "18+ Verification", emoji: "🔞" },
-          ban_appeal: { display: "Ban Appeal", emoji: "⚖️" },
-          player_report: { display: "Player Report", emoji: "📢" },
-          bug_report: { display: "Bug Report", emoji: "🐛" },
-          other: { display: "Other", emoji: "❓" },
-        };
+      const legacyTypeMap: Record<string, { display: string; emoji: string }> = {
+        '18_verify': { display: '18+ Verification', emoji: '🔞' },
+        ban_appeal: { display: 'Ban Appeal', emoji: '⚖️' },
+        player_report: { display: 'Player Report', emoji: '📢' },
+        bug_report: { display: 'Bug Report', emoji: '🐛' },
+        other: { display: 'Other', emoji: '❓' },
+      };
 
       const legacyInfo = legacyTypeMap[ticket.type];
       if (legacyInfo) {
@@ -161,79 +148,53 @@ export const ticketCloseEvent = async (
         emoji = legacyInfo.emoji;
       }
 
-      enhancedLogger.debug(
-        "Forum tag: legacy type info",
-        LogCategory.COMMAND_EXECUTION,
-        {
-          typeId,
-          displayName,
-          emoji,
-        },
-      );
-    }
-
-    enhancedLogger.debug(
-      "Forum tag: final type info",
-      LogCategory.COMMAND_EXECUTION,
-      {
+      enhancedLogger.debug('Forum tag: legacy type info', LogCategory.COMMAND_EXECUTION, {
         typeId,
         displayName,
         emoji,
-      },
-    );
+      });
+    }
+
+    enhancedLogger.debug('Forum tag: final type info', LogCategory.COMMAND_EXECUTION, {
+      typeId,
+      displayName,
+      emoji,
+    });
 
     // Prepare forum tags (will be applied to new or existing post)
     const forumTagIds: string[] = [];
     let tagId: string | null = null;
 
     if (typeId && displayName) {
-      enhancedLogger.debug(
-        "Forum tag: creating/finding tag",
-        LogCategory.COMMAND_EXECUTION,
-        {
-          typeId,
-          displayName,
-        },
-      );
-      tagId = await ensureForumTag(
-        forumChannel,
+      enhancedLogger.debug('Forum tag: creating/finding tag', LogCategory.COMMAND_EXECUTION, {
         typeId,
         displayName,
-        emoji || null,
-      );
+      });
+      tagId = await ensureForumTag(forumChannel, typeId, displayName, emoji || null);
 
-      enhancedLogger.debug(
-        "Forum tag: got tag ID",
-        LogCategory.COMMAND_EXECUTION,
-        { tagId },
-      );
+      enhancedLogger.debug('Forum tag: got tag ID', LogCategory.COMMAND_EXECUTION, { tagId });
 
       if (tagId) {
         forumTagIds.push(tagId);
       }
     } else {
-      enhancedLogger.debug(
-        "Forum tag: missing required data",
-        LogCategory.COMMAND_EXECUTION,
-        {
-          typeId,
-          displayName,
-        },
-      );
+      enhancedLogger.debug('Forum tag: missing required data', LogCategory.COMMAND_EXECUTION, {
+        typeId,
+        displayName,
+      });
     }
 
     // if transcript channel doesn't exist, make one and put the transcript
     if (!transcriptChannel) {
       enhancedLogger.debug(
-        "Forum tag: creating new post for first-time close",
+        'Forum tag: creating new post for first-time close',
         LogCategory.COMMAND_EXECUTION,
         { guildId },
       );
       // For email tickets, use sender name/email as thread name; for regular tickets, use Discord username
       let archiveThreadName: string;
       if (ticket.isEmailTicket && ticket.emailSender) {
-        archiveThreadName =
-          ticket.emailSenderName || ticket.emailSender.split("@")[0];
+        archiveThreadName = ticket.emailSenderName || ticket.emailSender.split('@')[0];
       } else {
         const archiveUser = await client.users.fetch(createdBy);
         archiveThreadName = archiveUser.username;
@@ -250,7 +211,7 @@ export const ticketCloseEvent = async (
       // Apply forum tags to the new post
       if (forumTagIds.length > 0) {
         enhancedLogger.debug(
-          "Forum tag: applying tags to new post",
+          'Forum tag: applying tags to new post',
           LogCategory.COMMAND_EXECUTION,
           { postId: newPost.id, tagIds: forumTagIds },
         );
@@ -279,14 +240,12 @@ export const ticketCloseEvent = async (
       // if transcript channel DOES exist, just add the transcript to the channel
     } else {
       enhancedLogger.debug(
-        "Forum tag: adding transcript to existing thread",
+        'Forum tag: adding transcript to existing thread',
         LogCategory.COMMAND_EXECUTION,
         { messageId: transcriptChannel.messageId },
       );
       const existMsg = transcriptChannel.messageId; // existing message in the thread
-      const post = (await forumChannel.threads.fetch(
-        existMsg,
-      )) as ForumThreadChannel; // existing thread
+      const post = (await forumChannel.threads.fetch(existMsg)) as ForumThreadChannel; // existing thread
       await post.send({ files: files });
 
       // Apply forum tags to EXISTING post (merge with existing tags)
@@ -301,7 +260,7 @@ export const ticketCloseEvent = async (
           const mergedTags = [...existingTags, newTagId];
 
           enhancedLogger.debug(
-            "Forum tag: adding tag to existing post",
+            'Forum tag: adding tag to existing post',
             LogCategory.COMMAND_EXECUTION,
             { postId: existMsg, existingTags, newTag: newTagId, mergedTags },
           );
@@ -313,7 +272,7 @@ export const ticketCloseEvent = async (
           await archivedTicketRepo.save(transcriptChannel);
         } else {
           enhancedLogger.debug(
-            "Forum tag: post already has this tag, skipping",
+            'Forum tag: post already has this tag, skipping',
             LogCategory.COMMAND_EXECUTION,
           );
         }
@@ -321,22 +280,22 @@ export const ticketCloseEvent = async (
     }
 
     // delete the saved txt file
-    fs.unlink(txtPath, (error) => {
-      if (error) logger(tl.transcriptDelete.error1 + error, "ERROR");
+    fs.unlink(txtPath, error => {
+      if (error) logger(tl.transcriptDelete.error1 + error, 'ERROR');
     });
 
     if (zipCheck) {
       // delete the saved zip file
-      fs.unlink(zipPath, (error) => {
-        if (error) logger(tl.transcriptDelete.attachmentError + error, "ERROR");
+      fs.unlink(zipPath, error => {
+        if (error) logger(tl.transcriptDelete.attachmentError + error, 'ERROR');
       });
     }
   } catch (error) {
-    return logger(tl.transcriptDelete.error2 + error, "ERROR");
+    return logger(tl.transcriptDelete.error2 + error, 'ERROR');
   }
 
   // update the ticket status
-  await ticketRepo.update({ id: ticket.id }, { status: "closed" });
+  await ticketRepo.update({ id: ticket.id }, { status: 'closed' });
 
   // log success message
   logger(tl.transcriptCreate.success);

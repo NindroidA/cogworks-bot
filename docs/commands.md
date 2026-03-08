@@ -1,6 +1,6 @@
 # Cogworks Bot Commands
 
-**Last Updated:** `February 21, 2026` (v2.11.0)
+**Last Updated:** `March 8, 2026` (v2.12.0)
 
 Complete command reference for all bot systems.
 
@@ -305,6 +305,7 @@ The bait channel system can be configured through the main setup wizard with bas
 - **Auto-Protected Users**: Server owner and administrators are automatically protected
 - **Grace Period**: Give users time to delete their message before action
 - **Suspicion Scoring**: 7 detection flags contribute to a suspicion score (0-100)
+- **Message Purge**: Automatically purges banned user's messages across all server channels
 - **Detailed Logging**: Track all detections with full context
 - **Statistics**: Monitor bot activity over time
 

@@ -6,7 +6,7 @@
  */
 
 import type { FindManyOptions, FindOneOptions, FindOptionsWhere, Repository } from 'typeorm';
-import { logger } from '../index';
+import { logger } from '../logger';
 
 /**
  * Safely find one entity scoped to a specific guild
@@ -208,24 +208,48 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     const deletions = [
       { name: 'BotConfig', repo: AppDataSource.getRepository(BotConfig) },
       { name: 'TicketConfig', repo: AppDataSource.getRepository(TicketConfig) },
-      { name: 'ArchivedTicketConfig', repo: AppDataSource.getRepository(ArchivedTicketConfig) },
+      {
+        name: 'ArchivedTicketConfig',
+        repo: AppDataSource.getRepository(ArchivedTicketConfig),
+      },
       { name: 'Ticket', repo: AppDataSource.getRepository(Ticket) },
-      { name: 'ArchivedTicket', repo: AppDataSource.getRepository(ArchivedTicket) },
-      { name: 'ApplicationConfig', repo: AppDataSource.getRepository(ApplicationConfig) },
+      {
+        name: 'ArchivedTicket',
+        repo: AppDataSource.getRepository(ArchivedTicket),
+      },
+      {
+        name: 'ApplicationConfig',
+        repo: AppDataSource.getRepository(ApplicationConfig),
+      },
       {
         name: 'ArchivedApplicationConfig',
         repo: AppDataSource.getRepository(ArchivedApplicationConfig),
       },
       { name: 'Application', repo: AppDataSource.getRepository(Application) },
-      { name: 'ArchivedApplication', repo: AppDataSource.getRepository(ArchivedApplication) },
+      {
+        name: 'ArchivedApplication',
+        repo: AppDataSource.getRepository(ArchivedApplication),
+      },
       { name: 'Position', repo: AppDataSource.getRepository(Position) },
-      { name: 'AnnouncementConfig', repo: AppDataSource.getRepository(AnnouncementConfig) },
-      { name: 'BaitChannelConfig', repo: AppDataSource.getRepository(BaitChannelConfig) },
-      { name: 'BaitChannelLog', repo: AppDataSource.getRepository(BaitChannelLog) },
+      {
+        name: 'AnnouncementConfig',
+        repo: AppDataSource.getRepository(AnnouncementConfig),
+      },
+      {
+        name: 'BaitChannelConfig',
+        repo: AppDataSource.getRepository(BaitChannelConfig),
+      },
+      {
+        name: 'BaitChannelLog',
+        repo: AppDataSource.getRepository(BaitChannelLog),
+      },
       { name: 'SavedRole', repo: AppDataSource.getRepository(SavedRole) },
       { name: 'UserActivity', repo: AppDataSource.getRepository(UserActivity) },
       { name: 'RulesConfig', repo: AppDataSource.getRepository(RulesConfig) },
-      { name: 'ReactionRoleMenu', repo: AppDataSource.getRepository(ReactionRoleMenu) },
+      {
+        name: 'ReactionRoleMenu',
+        repo: AppDataSource.getRepository(ReactionRoleMenu),
+      },
     ];
 
     for (const { name, repo } of deletions) {

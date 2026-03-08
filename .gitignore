@@ -78,6 +78,7 @@ temp/
 .github/copilot-instructions.md
 .claude/
 .plans/
+.desloppify/
 CLAUDE.md
 
 # Docker

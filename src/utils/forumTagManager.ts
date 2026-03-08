@@ -1,5 +1,5 @@
 import type { ForumChannel, GuildForumTag } from 'discord.js';
-import { logger } from './index';
+import { logger } from './logger';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
 
 /**
