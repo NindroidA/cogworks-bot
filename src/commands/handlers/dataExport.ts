@@ -92,8 +92,12 @@ export const dataExportHandler = async (
     // Bait Channel
     const baitChannelConfigRepo = AppDataSource.getRepository(BaitChannelConfig);
     const baitChannelLogRepo = AppDataSource.getRepository(BaitChannelLog);
-    exportData.baitChannelConfig = await baitChannelConfigRepo.find({ where: { guildId } });
-    exportData.baitChannelLogs = await baitChannelLogRepo.find({ where: { guildId } });
+    exportData.baitChannelConfig = await baitChannelConfigRepo.find({
+      where: { guildId },
+    });
+    exportData.baitChannelLogs = await baitChannelLogRepo.find({
+      where: { guildId },
+    });
 
     // Saved Roles
     const savedRoleRepo = AppDataSource.getRepository(SavedRole);
@@ -101,7 +105,9 @@ export const dataExportHandler = async (
 
     // Announcements
     const announcementConfigRepo = AppDataSource.getRepository(AnnouncementConfig);
-    exportData.announcementConfig = await announcementConfigRepo.find({ where: { guildId } });
+    exportData.announcementConfig = await announcementConfigRepo.find({
+      where: { guildId },
+    });
 
     // Applications
     const applicationRepo = AppDataSource.getRepository(Application);
@@ -110,10 +116,16 @@ export const dataExportHandler = async (
     const archivedApplicationRepo = AppDataSource.getRepository(ArchivedApplication);
     const archivedApplicationConfigRepo = AppDataSource.getRepository(ArchivedApplicationConfig);
 
-    exportData.applications = await applicationRepo.find({ where: { guildId } });
-    exportData.applicationConfig = await applicationConfigRepo.find({ where: { guildId } });
+    exportData.applications = await applicationRepo.find({
+      where: { guildId },
+    });
+    exportData.applicationConfig = await applicationConfigRepo.find({
+      where: { guildId },
+    });
     exportData.positions = await positionRepo.find({ where: { guildId } });
-    exportData.archivedApplications = await archivedApplicationRepo.find({ where: { guildId } });
+    exportData.archivedApplications = await archivedApplicationRepo.find({
+      where: { guildId },
+    });
     exportData.archivedApplicationConfig = await archivedApplicationConfigRepo.find({
       where: { guildId },
     });
@@ -125,13 +137,21 @@ export const dataExportHandler = async (
     const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
 
     exportData.tickets = await ticketRepo.find({ where: { guildId } });
-    exportData.ticketConfig = await ticketConfigRepo.find({ where: { guildId } });
-    exportData.archivedTickets = await archivedTicketRepo.find({ where: { guildId } });
-    exportData.archivedTicketConfig = await archivedTicketConfigRepo.find({ where: { guildId } });
+    exportData.ticketConfig = await ticketConfigRepo.find({
+      where: { guildId },
+    });
+    exportData.archivedTickets = await archivedTicketRepo.find({
+      where: { guildId },
+    });
+    exportData.archivedTicketConfig = await archivedTicketConfigRepo.find({
+      where: { guildId },
+    });
 
     // User Activity
     const userActivityRepo = AppDataSource.getRepository(UserActivity);
-    exportData.userActivity = await userActivityRepo.find({ where: { guildId } });
+    exportData.userActivity = await userActivityRepo.find({
+      where: { guildId },
+    });
 
     // Calculate total records
     const totalRecords = Object.values(exportData).reduce((sum, arr) => sum + arr.length, 0);
@@ -166,7 +186,7 @@ export const dataExportHandler = async (
     // Write to file
     const filename = `guild-${guildId}-export-${Date.now()}.json`;
     const filepath = path.join(tempDir, filename);
-    fs.writeFileSync(filepath, JSON.stringify(fullExport, null, 2));
+    await fs.promises.writeFile(filepath, JSON.stringify(fullExport, null, 2));
 
     logger(
       LANGF(tl.completed, totalRecords.toString(), Object.keys(exportData).length.toString()),
@@ -181,9 +201,21 @@ export const dataExportHandler = async (
         .setTitle(tl.exportTitle)
         .setDescription(LANGF(tl.exportDescription, interaction.guild?.name || 'Unknown'))
         .addFields(
-          { name: tl.totalRecords, value: totalRecords.toString(), inline: true },
-          { name: tl.tables, value: Object.keys(exportData).length.toString(), inline: true },
-          { name: tl.exportedAt, value: new Date().toLocaleString(), inline: true },
+          {
+            name: tl.totalRecords,
+            value: totalRecords.toString(),
+            inline: true,
+          },
+          {
+            name: tl.tables,
+            value: Object.keys(exportData).length.toString(),
+            inline: true,
+          },
+          {
+            name: tl.exportedAt,
+            value: new Date().toLocaleString(),
+            inline: true,
+          },
         )
         .setColor(0x00ff00)
         .setFooter({ text: tl.footer })
@@ -195,7 +227,7 @@ export const dataExportHandler = async (
       });
 
       // Delete temp file
-      fs.unlinkSync(filepath);
+      await fs.promises.unlink(filepath).catch(() => null);
 
       await interaction.editReply({
         content: tl.dmSuccess,

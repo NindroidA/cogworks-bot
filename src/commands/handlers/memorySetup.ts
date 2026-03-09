@@ -54,7 +54,10 @@ export const memorySetupHandler = async (
   const startTime = Date.now();
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
-    await interaction.reply({ content: adminCheck.message, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: adminCheck.message,
+      flags: [MessageFlags.Ephemeral],
+    });
     return;
   }
 
@@ -65,7 +68,10 @@ export const memorySetupHandler = async (
   const rateLimitKey = createRateLimitKey.guild(guildId, 'memory-setup');
   const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.BOT_SETUP);
   if (!rateCheck.allowed) {
-    await interaction.reply({ content: rateCheck.message!, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: rateCheck.message!,
+      flags: [MessageFlags.Ephemeral],
+    });
     healthMonitor.recordCommand('memory-setup', Date.now() - startTime, true);
     return;
   }
@@ -184,7 +190,7 @@ export const memorySetupHandler = async (
             embeds: [],
             components: [],
           })
-          .catch(() => {});
+          .catch(() => null);
       }
     });
   } catch (error) {

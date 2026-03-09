@@ -34,7 +34,10 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
   const startTime = Date.now();
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
-    await interaction.reply({ content: adminCheck.message, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: adminCheck.message,
+      flags: [MessageFlags.Ephemeral],
+    });
     return;
   }
 
@@ -45,7 +48,10 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
   const rateLimitKey = createRateLimitKey.userGuild(userId, guildId, 'memory-update');
   const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.MEMORY_OPERATION);
   if (!rateCheck.allowed) {
-    await interaction.reply({ content: rateCheck.message!, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: rateCheck.message!,
+      flags: [MessageFlags.Ephemeral],
+    });
     healthMonitor.recordCommand('memory update', Date.now() - startTime, true);
     return;
   }
@@ -83,7 +89,10 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
   }
 
   // Get the memory item from database
-  const memoryItem = await memoryItemRepo.findOneBy({ guildId, threadId: threadChannel.id });
+  const memoryItem = await memoryItemRepo.findOneBy({
+    guildId,
+    threadId: threadChannel.id,
+  });
   if (!memoryItem) {
     await interaction.reply({
       content: `${E.error} ${tl.update.itemNotFound}`,
@@ -93,7 +102,9 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
   }
 
   // Get available status tags
-  const statusTags = await memoryTagRepo.find({ where: { guildId, tagType: 'status' } });
+  const statusTags = await memoryTagRepo.find({
+    where: { guildId, tagType: 'status' },
+  });
 
   if (statusTags.length === 0) {
     await interaction.reply({
@@ -172,7 +183,10 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
 
   collector.on('collect', async i => {
     if (i.user.id !== interaction.user.id) {
-      await i.reply({ content: lang.errors.notYourInteraction, flags: [MessageFlags.Ephemeral] });
+      await i.reply({
+        content: lang.errors.notYourInteraction,
+        flags: [MessageFlags.Ephemeral],
+      });
       return;
     }
 
@@ -306,7 +320,7 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
           embeds: [],
           components: [],
         })
-        .catch(() => {});
+        .catch(() => null);
     }
   });
 };

@@ -27,7 +27,10 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
   const archivedConfig = await archivedApplicationConfigRepo.findOneBy({
     guildId,
   }); // get the archived application config by guildId
-  const application = await applicationRepo.findOneBy({ channelId: channelId }); // get the application this event was initiated from the Application database using channelId
+  const application = await applicationRepo.findOneBy({
+    guildId,
+    channelId: channelId,
+  }); // get the application this event was initiated from the Application database using channelId
 
   // check if the archived application config exists
   if (!archivedConfig) {
@@ -124,15 +127,19 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
     }
 
     // delete the saved txt file
-    fs.unlink(txtPath, error => {
-      if (error) logger(tl.transcriptDelete.error1 + error, 'ERROR');
-    });
+    try {
+      await fs.promises.unlink(txtPath);
+    } catch (error) {
+      logger(tl.transcriptDelete.error1 + error, 'ERROR');
+    }
 
     if (zipCheck) {
       // delete the saved zip file
-      fs.unlink(zipPath, error => {
-        if (error) logger(tl.transcriptDelete.attachmentError + error, 'ERROR');
-      });
+      try {
+        await fs.promises.unlink(zipPath);
+      } catch (error) {
+        logger(tl.transcriptDelete.attachmentError + error, 'ERROR');
+      }
     }
   } catch (error) {
     return logger(tl.transcriptDelete.error2 + error, 'ERROR');

@@ -209,7 +209,7 @@ export async function runTagSelectionCollector(
     if (reason === 'time') {
       interaction
         .editReply({ content: lang.errors.timeout, embeds: [], components: [] })
-        .catch(() => {});
+        .catch(() => null);
     }
   });
 }

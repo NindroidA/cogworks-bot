@@ -29,7 +29,10 @@ export const memoryDeleteHandler = async (interaction: ChatInputCommandInteracti
   const startTime = Date.now();
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
-    await interaction.reply({ content: adminCheck.message, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: adminCheck.message,
+      flags: [MessageFlags.Ephemeral],
+    });
     return;
   }
 
@@ -40,7 +43,10 @@ export const memoryDeleteHandler = async (interaction: ChatInputCommandInteracti
   const rateLimitKey = createRateLimitKey.userGuild(userId, guildId, 'memory-delete');
   const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.MEMORY_OPERATION);
   if (!rateCheck.allowed) {
-    await interaction.reply({ content: rateCheck.message!, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: rateCheck.message!,
+      flags: [MessageFlags.Ephemeral],
+    });
     healthMonitor.recordCommand('memory delete', Date.now() - startTime, true);
     return;
   }
@@ -87,7 +93,10 @@ export const memoryDeleteHandler = async (interaction: ChatInputCommandInteracti
   }
 
   // Get the memory item from database (optional - thread might exist without DB entry)
-  const memoryItem = await memoryItemRepo.findOneBy({ guildId, threadId: threadChannel.id });
+  const memoryItem = await memoryItemRepo.findOneBy({
+    guildId,
+    threadId: threadChannel.id,
+  });
 
   // Show confirmation
   const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -113,7 +122,10 @@ export const memoryDeleteHandler = async (interaction: ChatInputCommandInteracti
 
   collector.on('collect', async i => {
     if (i.user.id !== interaction.user.id) {
-      await i.reply({ content: lang.errors.notYourInteraction, flags: [MessageFlags.Ephemeral] });
+      await i.reply({
+        content: lang.errors.notYourInteraction,
+        flags: [MessageFlags.Ephemeral],
+      });
       return;
     }
 
@@ -155,7 +167,7 @@ export const memoryDeleteHandler = async (interaction: ChatInputCommandInteracti
             content: `${E.error} ${tl.delete.error}`,
             components: [],
           })
-          .catch(() => {});
+          .catch(() => null);
       }
       return;
     }
@@ -168,7 +180,7 @@ export const memoryDeleteHandler = async (interaction: ChatInputCommandInteracti
           content: lang.errors.timeout,
           components: [],
         })
-        .catch(() => {});
+        .catch(() => null);
     }
   });
 };
