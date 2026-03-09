@@ -13,6 +13,16 @@ const tl = lang.reactionRole.reaction;
 const reactionCooldowns = new Map<string, number>();
 const COOLDOWN_MS = 2000;
 
+// Clean up expired cooldown entries every 60 seconds to prevent unbounded growth
+setInterval(() => {
+  const cutoff = Date.now() - COOLDOWN_MS;
+  for (const [key, timestamp] of reactionCooldowns.entries()) {
+    if (timestamp < cutoff) {
+      reactionCooldowns.delete(key);
+    }
+  }
+}, 60 * 1000);
+
 function isOnCooldown(userId: string, messageId: string): boolean {
   const key = `${userId}:${messageId}`;
   const lastTime = reactionCooldowns.get(key);

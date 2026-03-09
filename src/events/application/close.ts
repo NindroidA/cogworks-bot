@@ -24,7 +24,9 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
   const channel = interaction.channel as GuildTextBasedChannel; // text channel the event was initiated
   const channelId = interaction.channelId || '';
   const transcriptPath = process.env.TEMP_STORAGE_PATH || 'temp/'; // path to temporarily save transcripts
-  const archivedConfig = await archivedApplicationConfigRepo.findOneBy({ guildId }); // get the archived application config by guildId
+  const archivedConfig = await archivedApplicationConfigRepo.findOneBy({
+    guildId,
+  }); // get the archived application config by guildId
   const application = await applicationRepo.findOneBy({ channelId: channelId }); // get the application this event was initiated from the Application database using channelId
 
   // check if the archived application config exists
@@ -36,6 +38,15 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
   if (!application) {
     return logger(lang.general.fatalError, 'ERROR');
   }
+
+  // Prevent duplicate close (double-click race condition)
+  if (application.status === 'closed') {
+    logger('Application already closed, skipping duplicate archive', 'WARN');
+    return;
+  }
+
+  // Immediately mark as closed to prevent concurrent close attempts
+  await applicationRepo.update({ id: application.id }, { status: 'closed' });
 
   // get archive channel from ArchivedApplication db using createdBy AND guildId (CRITICAL: must be guild-scoped!)
   const createdBy = application.createdBy;
@@ -126,9 +137,6 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
   } catch (error) {
     return logger(tl.transcriptDelete.error2 + error, 'ERROR');
   }
-
-  // update the application status
-  await applicationRepo.update({ id: application.id }, { status: 'closed' });
 
   // log success message
   logger(tl.transcriptCreate.success);

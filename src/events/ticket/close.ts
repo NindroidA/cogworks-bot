@@ -46,6 +46,15 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
     return logger(lang.general.fatalError, 'ERROR');
   }
 
+  // Prevent duplicate close (double-click race condition)
+  if (ticket.status === 'closed') {
+    logger('Ticket already closed, skipping duplicate archive', 'WARN');
+    return;
+  }
+
+  // Immediately mark as closed to prevent concurrent close attempts
+  await ticketRepo.update({ id: ticket.id }, { status: 'closed' });
+
   // get archived channel from ArchivedTicket database (CRITICAL: must be guild-scoped!)
   const createdBy = ticket.createdBy;
 
@@ -293,9 +302,6 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
   } catch (error) {
     return logger(tl.transcriptDelete.error2 + error, 'ERROR');
   }
-
-  // update the ticket status
-  await ticketRepo.update({ id: ticket.id }, { status: 'closed' });
 
   // log success message
   logger(tl.transcriptCreate.success);

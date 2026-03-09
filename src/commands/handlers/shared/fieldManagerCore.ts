@@ -62,8 +62,12 @@ export interface FieldManagerConfig<T extends FieldBearingEntity> {
   showEdit?: boolean;
   /** Session management callbacks (optional, used by application fields) */
   session?: {
-    check: (userId: string, guildId: string) => 'active' | 'expired' | 'completed' | 'none';
-    complete: (userId: string, guildId: string) => void;
+    check: (
+      userId: string,
+      guildId: string,
+      entityId?: string,
+    ) => 'active' | 'expired' | 'completed' | 'none';
+    complete: (userId: string, guildId: string, entityId?: string) => void;
     expiredMessage: string;
     completedMessage: string;
   };
@@ -281,7 +285,7 @@ export async function handleAddFieldModal<T extends FieldBearingEntity>(
 
     // Check session if configured
     if (config.session) {
-      const sessionStatus = config.session.check(userId, guildId);
+      const sessionStatus = config.session.check(userId, guildId, entityId);
       if (sessionStatus !== 'active') {
         await interaction.reply({
           content:
@@ -620,7 +624,12 @@ export async function handleMoveField<T extends FieldBearingEntity>(
   enhancedLogger.info(
     `Field reordered in ${config.entityLabel}: ${config.getEntityId(entity)}`,
     LogCategory.COMMAND_EXECUTION,
-    { guildId: entity.guildId, entityId: config.getEntityId(entity), fieldIndex, newIndex },
+    {
+      guildId: entity.guildId,
+      entityId: config.getEntityId(entity),
+      fieldIndex,
+      newIndex,
+    },
   );
 
   await showReorderInterface(interaction, entity, config);
@@ -649,7 +658,7 @@ export async function handleFieldButton<T extends FieldBearingEntity>(
 
     // Check session if configured
     if (config.session) {
-      const sessionStatus = config.session.check(interaction.user.id, guildId);
+      const sessionStatus = config.session.check(interaction.user.id, guildId, entityId);
       if (sessionStatus !== 'active') {
         await interaction.update({
           content:
@@ -686,7 +695,7 @@ export async function handleFieldButton<T extends FieldBearingEntity>(
         break;
       case 'done':
         if (config.session) {
-          config.session.complete(interaction.user.id, guildId);
+          config.session.complete(interaction.user.id, guildId, entityId);
         }
         await interaction.update({
           content: `✅ ${config.messages.fieldComplete}`,
@@ -739,7 +748,7 @@ export async function handleFieldSelectMenu<T extends FieldBearingEntity>(
 
     // Check session if configured
     if (config.session) {
-      const sessionStatus = config.session.check(interaction.user.id, guildId);
+      const sessionStatus = config.session.check(interaction.user.id, guildId, entityId);
       if (sessionStatus !== 'active') {
         await interaction.update({
           content:

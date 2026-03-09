@@ -26,14 +26,14 @@ const fieldSessionMap = new Map<string, number>();
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 const SESSION_COMPLETED = -1;
 
-function getSessionKey(userId: string, guildId: string): string {
-  return `${userId}_${guildId}`;
+function getSessionKey(userId: string, guildId: string, positionId?: string): string {
+  return positionId ? `${userId}_${guildId}_${positionId}` : `${userId}_${guildId}`;
 }
 
 type SessionStatus = 'active' | 'expired' | 'completed' | 'none';
 
-function checkSession(userId: string, guildId: string): SessionStatus {
-  const key = getSessionKey(userId, guildId);
+function checkSession(userId: string, guildId: string, entityId?: string): SessionStatus {
+  const key = getSessionKey(userId, guildId, entityId);
   const sessionStart = fieldSessionMap.get(key);
   if (sessionStart === undefined) return 'none';
   if (sessionStart === SESSION_COMPLETED) return 'completed';
@@ -41,8 +41,8 @@ function checkSession(userId: string, guildId: string): SessionStatus {
   return 'active';
 }
 
-function completeSession(userId: string, guildId: string): void {
-  fieldSessionMap.set(getSessionKey(userId, guildId), SESSION_COMPLETED);
+function completeSession(userId: string, guildId: string, entityId?: string): void {
+  fieldSessionMap.set(getSessionKey(userId, guildId, entityId), SESSION_COMPLETED);
 }
 
 // Clean up expired/completed sessions every minute
@@ -126,8 +126,8 @@ export async function applicationFieldsHandler(
       return;
     }
 
-    // Start a new session for this user
-    fieldSessionMap.set(getSessionKey(interaction.user.id, guildId), Date.now());
+    // Start a new session for this user (keyed by positionId to allow concurrent editing)
+    fieldSessionMap.set(getSessionKey(interaction.user.id, guildId, positionValue), Date.now());
 
     await showFieldManager(interaction, position, appFieldConfig);
   } catch (error) {

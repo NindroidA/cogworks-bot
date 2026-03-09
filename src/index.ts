@@ -19,6 +19,7 @@ import { AppDataSource } from './typeorm';
 import { BaitChannelConfig } from './typeorm/entities/BaitChannelConfig';
 import { BaitChannelLog } from './typeorm/entities/BaitChannelLog';
 import { BotConfig } from './typeorm/entities/BotConfig';
+import { PendingBan } from './typeorm/entities/PendingBan';
 import { UserActivity } from './typeorm/entities/UserActivity';
 import {
   E,
@@ -177,7 +178,9 @@ client.once('clientReady', async () => {
     AppDataSource.getRepository(BaitChannelConfig),
     AppDataSource.getRepository(BaitChannelLog),
     AppDataSource.getRepository(UserActivity),
+    AppDataSource.getRepository(PendingBan),
   );
+  await baitChannelManager.initialize();
 
   // attach to client for access in events and commands
   (client as typeof client & { baitChannelManager: BaitChannelManager }).baitChannelManager =

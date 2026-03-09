@@ -11,6 +11,7 @@ import { BaitChannelConfig } from './entities/BaitChannelConfig';
 import { BaitChannelLog } from './entities/BaitChannelLog';
 import { BotConfig } from './entities/BotConfig';
 import { MemoryConfig, MemoryItem, MemoryTag } from './entities/memory';
+import { PendingBan } from './entities/PendingBan';
 import { ReactionRoleMenu, ReactionRoleOption } from './entities/reactionRole';
 import { RulesConfig } from './entities/rules';
 import { SavedRole } from './entities/SavedRole';
@@ -53,6 +54,7 @@ export const AppDataSource = new DataSource({
     AnnouncementLog,
     BaitChannelConfig,
     BaitChannelLog,
+    PendingBan,
     UserActivity,
     MemoryConfig,
     MemoryTag,

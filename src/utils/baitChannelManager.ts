@@ -10,9 +10,10 @@ import {
   PermissionFlagsBits,
   type TextChannel,
 } from 'discord.js';
-import type { Repository } from 'typeorm';
+import { LessThan, type Repository } from 'typeorm';
 import type { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
 import type { BaitChannelLog } from '../typeorm/entities/BaitChannelLog';
+import type { PendingBan as PendingBanEntity } from '../typeorm/entities/PendingBan';
 import type { UserActivity } from '../typeorm/entities/UserActivity';
 import { Colors } from './colors';
 import { ErrorCategory, ErrorSeverity, logError } from './errorHandler';
@@ -57,7 +58,106 @@ export class BaitChannelManager {
     private configRepo: Repository<BaitChannelConfig>,
     private logRepo: Repository<BaitChannelLog>,
     private activityRepo: Repository<UserActivity>,
+    private pendingBanRepo?: Repository<PendingBanEntity>,
   ) {}
+
+  /**
+   * Initialize: restore unexpired pending bans from DB and clean up expired ones.
+   * Call after construction once the bot is ready.
+   */
+  async initialize(): Promise<void> {
+    if (!this.pendingBanRepo) return;
+
+    try {
+      // Clean up expired entries
+      await this.pendingBanRepo.delete({ expiresAt: LessThan(new Date()) });
+
+      // Load unexpired pending bans and re-create timeouts
+      const activeBans = await this.pendingBanRepo.find();
+      for (const ban of activeBans) {
+        const remainingMs = ban.expiresAt.getTime() - Date.now();
+        if (remainingMs <= 0) {
+          await this.pendingBanRepo.remove(ban);
+          continue;
+        }
+
+        const key = `${ban.userId}-${ban.messageId}`;
+        const timeoutId = setTimeout(async () => {
+          this.pendingBans.delete(key);
+          await this.removePendingBanFromDb(ban.userId, ban.messageId);
+        }, remainingMs);
+
+        this.pendingBans.set(key, {
+          userId: ban.userId,
+          messageId: ban.messageId,
+          channelId: ban.channelId,
+          timestamp: ban.createdAt.getTime(),
+          timeoutId,
+          suspicionScore: ban.suspicionScore,
+          warningMessageId: ban.warningMessageId || undefined,
+        });
+      }
+
+      if (activeBans.length > 0) {
+        enhancedLogger.info(
+          `Restored ${this.pendingBans.size} pending bans from database`,
+          LogCategory.SYSTEM,
+        );
+      }
+    } catch (error) {
+      logError({
+        category: ErrorCategory.DATABASE,
+        severity: ErrorSeverity.MEDIUM,
+        message: 'Failed to restore pending bans from database',
+        error,
+        context: {},
+      });
+    }
+  }
+
+  private async savePendingBanToDb(
+    guildId: string,
+    pendingBan: PendingBan,
+    gracePeriodSeconds: number,
+  ): Promise<void> {
+    if (!this.pendingBanRepo) return;
+    try {
+      const entity = this.pendingBanRepo.create({
+        guildId,
+        userId: pendingBan.userId,
+        messageId: pendingBan.messageId,
+        channelId: pendingBan.channelId,
+        suspicionScore: pendingBan.suspicionScore,
+        warningMessageId: pendingBan.warningMessageId || undefined,
+        createdAt: new Date(pendingBan.timestamp),
+        expiresAt: new Date(pendingBan.timestamp + gracePeriodSeconds * 1000),
+      });
+      await this.pendingBanRepo.save(entity);
+    } catch (error) {
+      logError({
+        category: ErrorCategory.DATABASE,
+        severity: ErrorSeverity.LOW,
+        message: 'Failed to persist pending ban to database',
+        error,
+        context: { userId: pendingBan.userId, guildId },
+      });
+    }
+  }
+
+  private async removePendingBanFromDb(userId: string, messageId: string): Promise<void> {
+    if (!this.pendingBanRepo) return;
+    try {
+      await this.pendingBanRepo.delete({ userId, messageId });
+    } catch (error) {
+      logError({
+        category: ErrorCategory.DATABASE,
+        severity: ErrorSeverity.LOW,
+        message: 'Failed to remove pending ban from database',
+        error,
+        context: { userId, messageId },
+      });
+    }
+  }
 
   async handleMessage(message: Message): Promise<void> {
     try {
@@ -393,6 +493,7 @@ export class BaitChannelManager {
 
         // Message still exists - remove from pending and execute action
         this.pendingBans.delete(key);
+        await this.removePendingBanFromDb(member.id, message.id);
         await this.executeAction(member, message, config, analysis, 'Grace period expired');
 
         // Delete the bot's warning message
@@ -414,6 +515,7 @@ export class BaitChannelManager {
         // Check again in case handleMessageDelete ran between our check and here
         if (this.pendingBans.has(key)) {
           this.pendingBans.delete(key);
+          await this.removePendingBanFromDb(member.id, message.id);
           await this.logAction(message, 'deleted-in-time', config, analysis);
 
           // Delete the bot's warning message since the user complied
@@ -434,7 +536,7 @@ export class BaitChannelManager {
       }
     }, config.gracePeriodSeconds * 1000);
 
-    this.pendingBans.set(key, {
+    const pendingBanData: PendingBan = {
       userId: member.id,
       messageId: message.id,
       channelId: message.channelId,
@@ -442,7 +544,11 @@ export class BaitChannelManager {
       timeoutId,
       suspicionScore: analysis.score,
       warningMessageId: warningMessage?.id,
-    });
+    };
+    this.pendingBans.set(key, pendingBanData);
+
+    // Persist to DB for crash recovery
+    await this.savePendingBanToDb(message.guild!.id, pendingBanData, config.gracePeriodSeconds);
   }
 
   async handleMessageDelete(messageId: string, guildId: string): Promise<void> {
@@ -451,6 +557,7 @@ export class BaitChannelManager {
         if (pendingBan.messageId === messageId) {
           clearTimeout(pendingBan.timeoutId);
           this.pendingBans.delete(key);
+          await this.removePendingBanFromDb(pendingBan.userId, messageId);
 
           const guild = this.client.guilds.cache.get(guildId);
           if (!guild) return;
