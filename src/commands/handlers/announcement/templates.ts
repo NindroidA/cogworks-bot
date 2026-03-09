@@ -8,10 +8,11 @@ import { lang } from '../../../utils';
 
 // Template parameter types
 export type TemplateParams =
-  | { duration: 'short' | 'long' }
-  | { duration: 'short' | 'long'; timestamp: number }
-  | { version: string; timestamp: number }
-  | { version: string }
+  | { duration: 'short' | 'long'; customMessage?: string }
+  | { duration: 'short' | 'long'; timestamp: number; customMessage?: string }
+  | { version: string; timestamp: number; customMessage?: string }
+  | { version: string; customMessage?: string }
+  | { customMessage?: string }
   | {
       title?: string;
       description: string;
@@ -51,22 +52,24 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
     description: 'Announce immediate server maintenance',
     color: 0xffa500, // Orange
     buildEmbed: (params: TemplateParams, mentionRole?: string) => {
-      const p = params as { duration: 'short' | 'long' };
+      const p = params as {
+        duration: 'short' | 'long';
+        customMessage?: string;
+      };
       const tl = lang.announcement.maintenance;
       const isShort = p.duration === 'short';
       const durationText = isShort ? '5-10 minutes' : 'up to 1 hour or more';
-      const messageText = isShort ? tl.duration.short.msg : tl.duration.long.msg;
+      const defaultMessage = isShort ? tl.duration.short.msg : tl.duration.long.msg;
 
       const embed = new EmbedBuilder()
         .setTitle('🔧 Server Maintenance')
-        .setDescription(messageText)
+        .setDescription(p.customMessage || defaultMessage)
         .setColor(0xffa500)
         .addFields(
           { name: '⏱️ Expected Duration', value: durationText, inline: true },
           { name: '📅 Starting', value: 'In about 5 minutes', inline: true },
         )
-        .setFooter({ text: 'Thank you for your patience!' })
-        .setTimestamp();
+        .setFooter({ text: 'Times shown are in your local timezone' });
 
       return {
         embeds: [embed],
@@ -81,16 +84,20 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
     description: 'Announce scheduled server maintenance',
     color: 0xffa500,
     buildEmbed: (params: TemplateParams, mentionRole?: string) => {
-      const p = params as { duration: 'short' | 'long'; timestamp: number };
+      const p = params as {
+        duration: 'short' | 'long';
+        timestamp: number;
+        customMessage?: string;
+      };
       const isShort = p.duration === 'short';
       const durationText = isShort ? '5-10 minutes' : 'up to 1 hour';
+      const defaultMessage =
+        'The Minecraft server will be going down for server-side maintenance and updates. ' +
+        'We will update this channel if anything goes awry.';
 
       const embed = new EmbedBuilder()
         .setTitle('🔧 Scheduled Server Maintenance')
-        .setDescription(
-          'The Minecraft server will be going down for server-side maintenance and updates. ' +
-            'We will update this channel if anything goes awry.',
-        )
+        .setDescription(p.customMessage || defaultMessage)
         .setColor(0xffa500)
         .addFields(
           { name: '⏱️ Expected Duration', value: durationText, inline: true },
@@ -106,9 +113,8 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
           },
         )
         .setFooter({
-          text: 'Times shown are in your local timezone • Thank you for your patience!',
-        })
-        .setTimestamp();
+          text: 'Times shown are in your local timezone',
+        });
 
       return {
         embeds: [embed],
@@ -122,12 +128,13 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
     name: 'Back Online',
     description: 'Announce server is back online',
     color: 0x00ff00, // Green
-    buildEmbed: (_params: TemplateParams, mentionRole?: string) => {
+    buildEmbed: (params: TemplateParams, mentionRole?: string) => {
+      const p = params as { customMessage?: string };
       const tl = lang.announcement['back-online'];
 
       const embed = new EmbedBuilder()
         .setTitle('✅ Server is Back Online!')
-        .setDescription(tl.success)
+        .setDescription(p.customMessage || tl.success)
         .setColor(0x00ff00)
         .addFields(
           { name: '🎮 Status', value: 'Online and ready', inline: true },
@@ -137,8 +144,7 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
             inline: true,
           },
         )
-        .setFooter({ text: 'Thank you for your patience!' })
-        .setTimestamp();
+        .setFooter({ text: 'Times shown are in your local timezone' });
 
       return {
         embeds: [embed],
@@ -153,12 +159,17 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
     description: 'Announce scheduled server update',
     color: 0x5865f2, // Discord Blurple
     buildEmbed: (params: TemplateParams, mentionRole?: string) => {
-      const p = params as { version: string; timestamp: number };
+      const p = params as {
+        version: string;
+        timestamp: number;
+        customMessage?: string;
+      };
       const tl = lang.announcement['update-scheduled'];
+      const defaultMessage = `The server will be updating to **${p.version}** later today. ${tl.msg}`;
 
       const embed = new EmbedBuilder()
         .setTitle('📦 Scheduled Server Update')
-        .setDescription(`The server will be updating to **${p.version}** later today. ${tl.msg}`)
+        .setDescription(p.customMessage || defaultMessage)
         .setColor(0x5865f2)
         .addFields(
           { name: '📌 Version', value: p.version, inline: true },
@@ -173,8 +184,7 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
             inline: false,
           },
         )
-        .setFooter({ text: 'Times shown are in your local timezone' })
-        .setTimestamp();
+        .setFooter({ text: 'Times shown are in your local timezone' });
 
       return {
         embeds: [embed],
@@ -189,14 +199,13 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
     description: 'Announce completed server update',
     color: 0x00ff00,
     buildEmbed: (params: TemplateParams, mentionRole?: string) => {
-      const p = params as { version: string };
+      const p = params as { version: string; customMessage?: string };
       const tl = lang.announcement['update-complete'];
+      const defaultMessage = `The server has been successfully updated to **version ${p.version}**!\n\n${tl.msg}`;
 
       const embed = new EmbedBuilder()
         .setTitle('✅ Server Update Complete!')
-        .setDescription(
-          `The server has been successfully updated to **version ${p.version}**!\n\n${tl.msg}`,
-        )
+        .setDescription(p.customMessage || defaultMessage)
         .setColor(0x00ff00)
         .addFields(
           { name: '📌 New Version', value: p.version, inline: true },
@@ -207,8 +216,7 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
             inline: false,
           },
         )
-        .setFooter({ text: 'Thank you for your patience!' })
-        .setTimestamp();
+        .setFooter({ text: 'Times shown are in your local timezone' });
 
       return {
         embeds: [embed],

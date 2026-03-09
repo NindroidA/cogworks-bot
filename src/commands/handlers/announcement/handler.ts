@@ -168,9 +168,10 @@ async function buildAnnouncementData(
   switch (subCommand) {
     case 'maintenance': {
       const duration = interaction.options.getString('duration', true) as 'short' | 'long';
+      const customMessage = interaction.options.getString('message') || undefined;
       return {
         templateId: 'maintenance',
-        params: { duration },
+        params: { duration, customMessage },
         announcementType: `maintenance_${duration}`,
       };
     }
@@ -178,6 +179,7 @@ async function buildAnnouncementData(
     case 'maintenance-scheduled': {
       const timeInput = interaction.options.getString('time', true);
       const duration = interaction.options.getString('duration', true) as 'short' | 'long';
+      const customMessage = interaction.options.getString('message') || undefined;
 
       const scheduledTime = parseTimeInput(timeInput);
       if (!scheduledTime) {
@@ -191,16 +193,17 @@ async function buildAnnouncementData(
       const timestamp = Math.floor(scheduledTime.getTime() / 1000);
       return {
         templateId: 'maintenanceScheduled',
-        params: { duration, timestamp },
+        params: { duration, timestamp, customMessage },
         announcementType: `maintenance_scheduled_${duration}`,
         scheduledTime,
       };
     }
 
     case 'back-online': {
+      const customMessage = interaction.options.getString('message') || undefined;
       return {
         templateId: 'backOnline',
-        params: {},
+        params: { customMessage },
         announcementType: 'back_online',
       };
     }
@@ -208,6 +211,7 @@ async function buildAnnouncementData(
     case 'update-scheduled': {
       const version = interaction.options.getString('version', true);
       const timeInput = interaction.options.getString('time', true);
+      const customMessage = interaction.options.getString('message') || undefined;
 
       const scheduledTime = parseTimeInput(timeInput);
       if (!scheduledTime) {
@@ -221,7 +225,7 @@ async function buildAnnouncementData(
       const timestamp = Math.floor(scheduledTime.getTime() / 1000);
       return {
         templateId: 'updateScheduled',
-        params: { version, timestamp },
+        params: { version, timestamp, customMessage },
         announcementType: 'update_scheduled',
         scheduledTime,
         version,
@@ -230,9 +234,10 @@ async function buildAnnouncementData(
 
     case 'update-complete': {
       const version = interaction.options.getString('version', true);
+      const customMessage = interaction.options.getString('message') || undefined;
       return {
         templateId: 'updateComplete',
-        params: { version },
+        params: { version, customMessage },
         announcementType: 'update_complete',
         version,
       };
@@ -308,6 +313,11 @@ async function showPreview(
 
     // Send the announcement
     await buttonInteraction.deferUpdate();
+
+    // Set timestamp to confirm time (not preview build time)
+    for (const embed of messageData.embeds) {
+      embed.setTimestamp(new Date());
+    }
 
     const sentMessage = await targetChannel.send({
       content: messageData.content,

@@ -1,7 +1,7 @@
 {
   "cmdDescrp": "Sends a specialized server announcement.",
   "channel": "Channel to send announcement (optional).",
-  "invalidTime": "Invalid time format. Please use: YYYY-MM-DD HH:MM (24-hour format, Central Time)\nExample: 2024-01-15 14:30",
+  "invalidTime": "Invalid time format. Please use: YYYY-MM-DD HH:MM AM/PM (Central Time)\nExample: 2026-03-15 3:00 PM",
   "setup": {
     "cmdDescrp": "Initializes and sets up the announcement module.",
     "mcRole": "The Minecraft role to ping in announcements",
@@ -50,7 +50,7 @@
       "cmdDescrp": "Minecraft version (e.g., 1.21.5)"
     },
     "time": {
-      "cmdDescrp": "Time in format: YYYY-MM-DD HH:MM AM/PM (Eastern Time)."
+      "cmdDescrp": "Time in format: YYYY-MM-DD HH:MM AM/PM (Central Time)."
     },
     "msg": "The update itself shouldn't take too long, but no promises in case there are any issues. There will be another announcement once the server is updated and good to go.\n\n*Times shown are in your local timezone*"
   },

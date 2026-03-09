@@ -17,9 +17,22 @@ const maintenance = new SlashCommandSubcommandBuilder()
       .setDescription(tl.maintenance.duration.cmdDescrp)
       .setRequired(true)
       .addChoices(
-        { name: tl.maintenance.duration.short.name, value: tl.maintenance.duration.short.value },
-        { name: tl.maintenance.duration.long.name, value: tl.maintenance.duration.long.value },
+        {
+          name: tl.maintenance.duration.short.name,
+          value: tl.maintenance.duration.short.value,
+        },
+        {
+          name: tl.maintenance.duration.long.name,
+          value: tl.maintenance.duration.long.value,
+        },
       ),
+  )
+  .addStringOption(option =>
+    option
+      .setName('message')
+      .setDescription('Custom message (overrides default)')
+      .setRequired(false)
+      .setMaxLength(2048),
   )
   .addChannelOption(option =>
     option.setName('channel').setDescription(tl.channel).setRequired(false),
@@ -42,9 +55,22 @@ const maintenanceScheduled = new SlashCommandSubcommandBuilder()
       .setDescription(tl.maintenance.duration.cmdDescrp)
       .setRequired(true)
       .addChoices(
-        { name: tl.maintenance.duration.short.name, value: tl.maintenance.duration.short.value },
-        { name: tl.maintenance.duration.long.name, value: tl.maintenance.duration.long.value },
+        {
+          name: tl.maintenance.duration.short.name,
+          value: tl.maintenance.duration.short.value,
+        },
+        {
+          name: tl.maintenance.duration.long.name,
+          value: tl.maintenance.duration.long.value,
+        },
       ),
+  )
+  .addStringOption(option =>
+    option
+      .setName('message')
+      .setDescription('Custom message (overrides default)')
+      .setRequired(false)
+      .setMaxLength(2048),
   )
   .addChannelOption(option =>
     option.setName('channel').setDescription(tl.channel).setRequired(false),
@@ -53,6 +79,13 @@ const maintenanceScheduled = new SlashCommandSubcommandBuilder()
 const backOnline = new SlashCommandSubcommandBuilder()
   .setName('back-online')
   .setDescription(tl['back-online'].cmdDescrp)
+  .addStringOption(option =>
+    option
+      .setName('message')
+      .setDescription('Custom message (overrides default)')
+      .setRequired(false)
+      .setMaxLength(2048),
+  )
   .addChannelOption(option =>
     option.setName('channel').setDescription(tl.channel).setRequired(false),
   );
@@ -74,6 +107,13 @@ const updateScheduled = new SlashCommandSubcommandBuilder()
       .setMinLength(19)
       .setMaxLength(22),
   )
+  .addStringOption(option =>
+    option
+      .setName('message')
+      .setDescription('Custom message (overrides default)')
+      .setRequired(false)
+      .setMaxLength(2048),
+  )
   .addChannelOption(option =>
     option.setName('channel').setDescription(tl.channel).setRequired(false),
   );
@@ -86,6 +126,13 @@ const updateComplete = new SlashCommandSubcommandBuilder()
       .setName('version')
       .setDescription(tl['update-scheduled'].version.cmdDescrp)
       .setRequired(true),
+  )
+  .addStringOption(option =>
+    option
+      .setName('message')
+      .setDescription('Custom message (overrides default)')
+      .setRequired(false)
+      .setMaxLength(2048),
   )
   .addChannelOption(option =>
     option.setName('channel').setDescription(tl.channel).setRequired(false),
