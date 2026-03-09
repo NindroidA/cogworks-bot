@@ -22,6 +22,7 @@ export const detectionHandler = async (
     const minMessages = interaction.options.getInteger('min_messages');
     const requireVerification = interaction.options.getBoolean('require_verification');
     const disableAdminWhitelist = interaction.options.getBoolean('disable_admin_whitelist');
+    const threshold = interaction.options.getInteger('threshold');
 
     const configRepo = AppDataSource.getRepository(BaitChannelConfig);
     const config = await safeDbOperation(
@@ -43,10 +44,13 @@ export const detectionHandler = async (
     if (minMessages !== null) config.minMessageCount = minMessages;
     if (requireVerification !== null) config.requireVerification = requireVerification;
     if (disableAdminWhitelist !== null) config.disableAdminWhitelist = disableAdminWhitelist;
+    if (threshold !== null) config.instantActionThreshold = threshold;
 
     await safeDbOperation(() => configRepo.save(config), 'Save bait channel config');
 
-    const { baitChannelManager } = client as { baitChannelManager?: BaitChannelManager };
+    const { baitChannelManager } = client as {
+      baitChannelManager?: BaitChannelManager;
+    };
     if (baitChannelManager) {
       baitChannelManager.clearConfigCache(interaction.guildId!);
     }
@@ -70,15 +74,27 @@ export const detectionHandler = async (
           value: tl.detection.minutes.replace('{0}', config.minMembershipMinutes.toString()),
           inline: true,
         },
-        { name: tl.detection.minMessages, value: `${config.minMessageCount}`, inline: true },
+        {
+          name: tl.detection.minMessages,
+          value: `${config.minMessageCount}`,
+          inline: true,
+        },
         {
           name: tl.detection.requireVerification,
           value: config.requireVerification ? tl.detection.yes : tl.detection.no,
           inline: true,
         },
+        {
+          name: tl.detection.threshold,
+          value: `${config.instantActionThreshold ?? 90}/100`,
+          inline: true,
+        },
       );
 
-    await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      embeds: [embed],
+      flags: [MessageFlags.Ephemeral],
+    });
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.updateDetection);
   }

@@ -46,7 +46,11 @@ export const statusHandler = async (_client: Client, interaction: ChatInputComma
           inline: true,
         },
         { name: 'Action Type', value: config.actionType, inline: true },
-        { name: 'Grace Period', value: `${config.gracePeriodSeconds}s`, inline: true },
+        {
+          name: 'Grace Period',
+          value: `${config.gracePeriodSeconds}s`,
+          inline: true,
+        },
         {
           name: 'Smart Detection',
           value: config.enableSmartDetection ? tl.status.smartOn : tl.status.smartOff,
@@ -69,6 +73,10 @@ export const statusHandler = async (_client: Client, interaction: ChatInputComma
           tl.status.requireVerification.replace(
             '{0}',
             config.requireVerification ? tl.status.yes : tl.status.no,
+          ),
+          tl.status.actionThreshold.replace(
+            '{0}',
+            (config.instantActionThreshold ?? 90).toString(),
           ),
         ].join('\n'),
       });
@@ -93,7 +101,10 @@ export const statusHandler = async (_client: Client, interaction: ChatInputComma
       });
     }
 
-    await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      embeds: [embed],
+      flags: [MessageFlags.Ephemeral],
+    });
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.fetchStatus);
   }

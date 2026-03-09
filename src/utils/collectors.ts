@@ -8,11 +8,15 @@
 
 import {
   type ButtonInteraction,
+  type ChatInputCommandInteraction,
   ComponentType,
   type InteractionResponse,
   type Message,
+  type MessageComponentInteraction,
+  MessageFlags,
   type RoleSelectMenuInteraction,
 } from 'discord.js';
+import { lang } from '../lang';
 
 // ============================================================================
 // Types & Interfaces
@@ -151,4 +155,34 @@ export function createRoleSelectCollector(
   }
 
   return collector;
+}
+
+// ============================================================================
+// Modal Timeout Notifier
+// ============================================================================
+
+/**
+ * Notify the user that a modal/form timed out.
+ * Safe to call on any interaction state (replied, deferred, or fresh).
+ * Use in awaitModalSubmit catch blocks to replace silent failures.
+ */
+export async function notifyModalTimeout(
+  interaction: ChatInputCommandInteraction | ButtonInteraction | MessageComponentInteraction,
+): Promise<void> {
+  try {
+    const message = lang.errors.timeout;
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({
+        content: message,
+        flags: [MessageFlags.Ephemeral],
+      });
+    } else {
+      await interaction.reply({
+        content: message,
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
+  } catch {
+    // Interaction may have expired — silently ignore
+  }
 }

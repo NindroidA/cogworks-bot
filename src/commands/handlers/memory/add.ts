@@ -18,6 +18,7 @@ import {
   healthMonitor,
   LogCategory,
   lang,
+  notifyModalTimeout,
   RateLimits,
   rateLimiter,
   requireAdmin,
@@ -37,7 +38,10 @@ export const memoryAddHandler = async (interaction: ChatInputCommandInteraction)
   const startTime = Date.now();
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
-    await interaction.reply({ content: adminCheck.message, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: adminCheck.message,
+      flags: [MessageFlags.Ephemeral],
+    });
     return;
   }
 
@@ -48,7 +52,10 @@ export const memoryAddHandler = async (interaction: ChatInputCommandInteraction)
   const rateLimitKey = createRateLimitKey.userGuild(userId, guildId, 'memory-add');
   const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.MEMORY_OPERATION);
   if (!rateCheck.allowed) {
-    await interaction.reply({ content: rateCheck.message!, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: rateCheck.message!,
+      flags: [MessageFlags.Ephemeral],
+    });
     healthMonitor.recordCommand('memory add', Date.now() - startTime, true);
     return;
   }
@@ -64,8 +71,12 @@ export const memoryAddHandler = async (interaction: ChatInputCommandInteraction)
   }
 
   // Get available tags for dropdowns
-  const categoryTags = await memoryTagRepo.find({ where: { guildId, tagType: 'category' } });
-  const statusTags = await memoryTagRepo.find({ where: { guildId, tagType: 'status' } });
+  const categoryTags = await memoryTagRepo.find({
+    where: { guildId, tagType: 'category' },
+  });
+  const statusTags = await memoryTagRepo.find({
+    where: { guildId, tagType: 'status' },
+  });
 
   if (categoryTags.length === 0 || statusTags.length === 0) {
     await interaction.reply({
@@ -135,7 +146,7 @@ async function showAddModal(
 
     await handleModalSubmit(modalSubmit, selectionState, guildId, forumChannelId);
   } catch {
-    // Modal timed out or was cancelled
+    await notifyModalTimeout(interaction);
   }
 }
 
@@ -153,15 +164,23 @@ async function handleModalSubmit(
 
     const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
     if (!forum) {
-      await interaction.editReply({ content: `${E.error} ${tl.errors.forumNotFound}` });
+      await interaction.editReply({
+        content: `${E.error} ${tl.errors.forumNotFound}`,
+      });
       return;
     }
 
     const categoryTag = selectionState.categoryId
-      ? await memoryTagRepo.findOneBy({ id: parseInt(selectionState.categoryId, 10), guildId })
+      ? await memoryTagRepo.findOneBy({
+          id: parseInt(selectionState.categoryId, 10),
+          guildId,
+        })
       : null;
     const statusTag = selectionState.statusId
-      ? await memoryTagRepo.findOneBy({ id: parseInt(selectionState.statusId, 10), guildId })
+      ? await memoryTagRepo.findOneBy({
+          id: parseInt(selectionState.statusId, 10),
+          guildId,
+        })
       : null;
 
     const appliedTags: string[] = [];

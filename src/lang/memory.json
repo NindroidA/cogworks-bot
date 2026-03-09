@@ -17,6 +17,15 @@
     "delete": {
       "descrp": "Delete a memory item (run in memory forum)"
     },
+    "updateStatus": {
+      "descrp": "Quick-update status of a memory item from anywhere",
+      "threadOption": "Select a memory item",
+      "statusOption": "New status for the item"
+    },
+    "updateTags": {
+      "descrp": "Quick-update tags on a memory item from anywhere",
+      "threadOption": "Select a memory item"
+    },
     "tags": {
       "descrp": "Manage memory tags",
       "action": "Action to perform",
@@ -69,8 +78,11 @@
     "error": "Failed to capture message",
     "invalidInput": "Please provide a valid message ID or message link.",
     "invalidLink": "Invalid message link provided",
-    "messageNotFound": "Could not find the specified message",
+    "messageNotFound": "Could not find the specified message.",
     "messageNotFoundHint": "Message not found in this channel. Use a full message link (right-click > Copy Message Link) to capture from other channels.",
+    "messageDeleted": "That message no longer exists. It may have been deleted.",
+    "channelNoAccess": "I don't have access to that channel.",
+    "channelNoPermission": "I don't have permission to read messages in that channel.",
     "messageWrongGuild": "That message is from a different server.",
     "noReplyOrLink": "Please provide a message ID or message link to capture.",
     "sourceLabel": "Captured from"
@@ -85,6 +97,15 @@
     "itemNotFound": "Could not find this memory item in the database",
     "confirmTitle": "Update Status",
     "confirmMessage": "Update status from **{0}** to **{1}**?"
+  },
+  "quickUpdate": {
+    "noItems": "No memory items found in this server.",
+    "itemNotFound": "Memory item not found.",
+    "threadNotFound": "Memory thread not found. It may have been deleted.",
+    "statusSuccess": "Status updated!",
+    "statusError": "Failed to update status.",
+    "tagsSuccess": "Tags updated!",
+    "tagsError": "Failed to update tags."
   },
   "delete": {
     "success": "Memory item deleted!",

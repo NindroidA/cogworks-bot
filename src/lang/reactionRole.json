@@ -33,6 +33,9 @@
     },
     "list": {
       "descrp": "List all reaction role menus in this server"
+    },
+    "validate": {
+      "descrp": "Check all reaction role menus for broken roles, channels, or messages"
     }
   },
   "create": {
@@ -99,6 +102,17 @@
     "messageNotFound": "Could not find the menu message. It may have been deleted.",
     "channelNotFound": "Could not find the menu channel.",
     "noPermission": "Bot lacks permission to manage reactions or roles in that channel."
+  },
+  "validate": {
+    "title": "Reaction Role Validation Report",
+    "checking": "Validating reaction role menus...",
+    "allValid": "All menus are healthy! No issues found.",
+    "issuesFound": "{count} issue(s) found across your reaction role menus.",
+    "menuValid": "Menu **{name}**: All checks passed",
+    "menuMissing": "Menu **{name}**: Message missing — the menu message was deleted from <#{channelId}>",
+    "channelMissing": "Menu **{name}**: Channel missing — <#{channelId}> no longer exists",
+    "roleMissing": "Menu **{name}**: Role deleted — {emoji} option references a role that no longer exists",
+    "error": "Failed to run validation."
   },
   "autocomplete": {
     "noMenus": "No menus found"

@@ -1,5 +1,6 @@
 import type { AutocompleteInteraction, Client } from 'discord.js';
 import { applicationPositionAutocomplete } from '../commands/handlers/application/applicationPosition';
+import { memoryAutocomplete } from '../commands/handlers/memory';
 import { reactionRoleMenuAutocomplete } from '../commands/handlers/reactionRole';
 import {
   ticketTypeAutocomplete,
@@ -56,6 +57,13 @@ export const handleAutocomplete = async (_client: Client, interaction: Autocompl
           subcommand === 'fields'
         ) {
           await applicationPositionAutocomplete(interaction);
+        }
+        break;
+      }
+      case 'memory': {
+        const subcommand = interaction.options.getSubcommand();
+        if (subcommand === 'update-status' || subcommand === 'update-tags') {
+          await memoryAutocomplete(interaction);
         }
         break;
       }

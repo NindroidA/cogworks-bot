@@ -1,6 +1,7 @@
 import {
   ActionRowBuilder,
   type ChatInputCommandInteraction,
+  DiscordAPIError,
   type ForumChannel,
   type Message,
   type MessageComponentInteraction,
@@ -20,6 +21,7 @@ import {
   healthMonitor,
   LogCategory,
   lang,
+  notifyModalTimeout,
   RateLimits,
   rateLimiter,
   requireAdmin,
@@ -41,6 +43,23 @@ const MESSAGE_LINK_REGEX =
 const SNOWFLAKE_REGEX = /^\d{17,20}$/;
 
 /**
+ * Map Discord API error codes to user-friendly messages.
+ */
+function getDiscordFetchErrorMessage(error: unknown): string {
+  if (error instanceof DiscordAPIError) {
+    switch (error.code) {
+      case 10008: // Unknown Message
+        return tl.capture.messageDeleted;
+      case 50001: // Missing Access
+        return tl.capture.channelNoAccess;
+      case 50013: // Missing Permissions
+        return tl.capture.channelNoPermission;
+    }
+  }
+  return tl.capture.messageNotFound;
+}
+
+/**
  * Resolve target message from user input (message ID or full link)
  */
 async function resolveTargetMessage(
@@ -52,11 +71,15 @@ async function resolveTargetMessage(
     try {
       if (interaction.channel?.isTextBased()) {
         const msg = await (interaction.channel as TextChannel).messages.fetch(messageInput);
-        return { message: msg, channelId: interaction.channelId, messageId: messageInput };
+        return {
+          message: msg,
+          channelId: interaction.channelId,
+          messageId: messageInput,
+        };
       }
-    } catch {
+    } catch (error) {
       await interaction.reply({
-        content: `${E.error} ${tl.capture.messageNotFoundHint}`,
+        content: `${E.error} ${getDiscordFetchErrorMessage(error)}`,
         flags: [MessageFlags.Ephemeral],
       });
       return null;
@@ -79,9 +102,9 @@ async function resolveTargetMessage(
         const msg = await (channel as TextChannel).messages.fetch(messageId);
         return { message: msg, channelId, messageId };
       }
-    } catch {
+    } catch (error) {
       await interaction.reply({
-        content: `${E.error} ${tl.capture.messageNotFound}`,
+        content: `${E.error} ${getDiscordFetchErrorMessage(error)}`,
         flags: [MessageFlags.Ephemeral],
       });
       return null;
@@ -105,7 +128,10 @@ export const memoryCaptureHandler = async (interaction: ChatInputCommandInteract
   const startTime = Date.now();
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
-    await interaction.reply({ content: adminCheck.message, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: adminCheck.message,
+      flags: [MessageFlags.Ephemeral],
+    });
     return;
   }
 
@@ -116,7 +142,10 @@ export const memoryCaptureHandler = async (interaction: ChatInputCommandInteract
   const rateLimitKey = createRateLimitKey.userGuild(userId, guildId, 'memory-capture');
   const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.MEMORY_OPERATION);
   if (!rateCheck.allowed) {
-    await interaction.reply({ content: rateCheck.message!, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: rateCheck.message!,
+      flags: [MessageFlags.Ephemeral],
+    });
     healthMonitor.recordCommand('memory capture', Date.now() - startTime, true);
     return;
   }
@@ -152,8 +181,12 @@ export const memoryCaptureHandler = async (interaction: ChatInputCommandInteract
   const sourceAuthor = targetMessage.author.displayName;
 
   // Get available tags
-  const categoryTags = await memoryTagRepo.find({ where: { guildId, tagType: 'category' } });
-  const statusTags = await memoryTagRepo.find({ where: { guildId, tagType: 'status' } });
+  const categoryTags = await memoryTagRepo.find({
+    where: { guildId, tagType: 'category' },
+  });
+  const statusTags = await memoryTagRepo.find({
+    where: { guildId, tagType: 'status' },
+  });
 
   if (categoryTags.length === 0 || statusTags.length === 0) {
     await interaction.reply({
@@ -241,7 +274,7 @@ async function showCaptureModal(
 
     await handleCaptureModalSubmit(modalSubmit, selectionState, guildId, forumChannelId);
   } catch {
-    // Modal timed out or was cancelled
+    await notifyModalTimeout(interaction);
   }
 }
 
@@ -263,15 +296,23 @@ async function handleCaptureModalSubmit(
 
     const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
     if (!forum) {
-      await interaction.editReply({ content: `${E.error} ${tl.errors.forumNotFound}` });
+      await interaction.editReply({
+        content: `${E.error} ${tl.errors.forumNotFound}`,
+      });
       return;
     }
 
     const categoryTag = selectionState.categoryId
-      ? await memoryTagRepo.findOneBy({ id: parseInt(selectionState.categoryId, 10), guildId })
+      ? await memoryTagRepo.findOneBy({
+          id: parseInt(selectionState.categoryId, 10),
+          guildId,
+        })
       : null;
     const statusTag = selectionState.statusId
-      ? await memoryTagRepo.findOneBy({ id: parseInt(selectionState.statusId, 10), guildId })
+      ? await memoryTagRepo.findOneBy({
+          id: parseInt(selectionState.statusId, 10),
+          guildId,
+        })
       : null;
 
     const appliedTags: string[] = [];

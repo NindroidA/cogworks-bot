@@ -21,7 +21,8 @@
       "minMembership": "Minimum server membership in minutes (default: 5)",
       "minMessages": "Minimum message count (default: 0)",
       "requireVerification": "Require verification role",
-      "disableAdminWhitelist": "Disable automatic admin whitelist (for testing)"
+      "disableAdminWhitelist": "Disable automatic admin whitelist (for testing)",
+      "threshold": "Instant action score threshold (default: 90, range: 50-100)"
     },
     "whitelist": {
       "descrp": "Manage whitelist",
@@ -57,6 +58,7 @@
     "minMembership": "- Min Membership: {0} minutes",
     "minMessages": "- Min Messages: {0}",
     "requireVerification": "- Require Verification: {0}",
+    "actionThreshold": "- Action Threshold: {0}/100",
     "whitelist": "Whitelist",
     "whitelistRoles": "**Roles:** {0}",
     "whitelistUsers": "**Users:** {0}",
@@ -101,6 +103,7 @@
     "minMembership": "Min Membership",
     "minMessages": "Min Messages",
     "requireVerification": "Require Verification",
+    "threshold": "Action Threshold",
     "days": "{0} days",
     "minutes": "{0} min",
     "yes": "Yes",

@@ -41,6 +41,7 @@ import {
   enhancedLogger,
   LogCategory,
   lang,
+  notifyModalTimeout,
 } from '../../../utils';
 import type { BaitChannelManager } from '../../../utils/baitChannelManager';
 import {
@@ -1167,7 +1168,10 @@ async function handleRoleSelection(
         filter: i => i.customId === modal.data.custom_id,
         time: 60_000,
       })
-      .catch(() => null);
+      .catch(async () => {
+        await notifyModalTimeout(roleInteraction);
+        return null;
+      });
 
     if (modalSubmit) {
       await modalSubmit.deferUpdate();

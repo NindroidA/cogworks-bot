@@ -13,7 +13,7 @@
 import axios, { type AxiosError, type AxiosInstance } from 'axios';
 import type { Client } from 'discord.js';
 import { version } from '../../package.json';
-import { logger } from './logger';
+import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
 
 // ============================================================================
 // Interfaces & Types
@@ -169,9 +169,13 @@ export class APIConnector {
 
       this.isConnected = true;
       this.startHealthCheck();
-      logger('✅ Bot registered with API', 'INFO');
+      enhancedLogger.info('Bot registered with API', LogCategory.API);
     } catch {
-      logger('❌ Failed to register bot with API!', 'ERROR');
+      enhancedLogger.error(
+        'Failed to register bot with API',
+        new Error('API registration failed'),
+        LogCategory.API,
+      );
       this.isConnected = false;
       // Don't throw - allow bot to continue without API
     }
@@ -211,9 +215,9 @@ export class APIConnector {
       // Check if we should retry
       if (retryCount < this.retryConfig.maxRetries && this.shouldRetry(error as Error)) {
         const delay = this.calculateBackoff(retryCount);
-        logger(
-          `⚠️ API request failed, retrying in ${delay}ms (attempt ${retryCount + 1}/${this.retryConfig.maxRetries})`,
-          'WARN',
+        enhancedLogger.warn(
+          `API request failed, retrying in ${delay}ms (attempt ${retryCount + 1}/${this.retryConfig.maxRetries})`,
+          LogCategory.API,
         );
 
         await this.sleep(delay);
@@ -310,9 +314,9 @@ export class APIConnector {
       }
     }
 
-    logger(
-      `📊 API Success: ${endpoint} (${this.metrics.successfulRequests}/${this.metrics.totalRequests})`,
-      'INFO',
+    enhancedLogger.debug(
+      `API Success: ${endpoint} (${this.metrics.successfulRequests}/${this.metrics.totalRequests})`,
+      LogCategory.API,
     );
   }
 
@@ -325,9 +329,14 @@ export class APIConnector {
     this.metrics.consecutiveFailures++;
 
     const status = error.response?.status || 'network error';
-    logger(
-      `❌ API Failure: ${endpoint} (${status}) - ${this.metrics.consecutiveFailures} consecutive failures`,
-      'WARN',
+    enhancedLogger.warn(
+      `API Failure: ${endpoint} (${status}) - ${this.metrics.consecutiveFailures} consecutive failures`,
+      LogCategory.API,
+      {
+        endpoint,
+        status,
+        consecutiveFailures: this.metrics.consecutiveFailures,
+      },
     );
 
     // Circuit breaker logic
@@ -347,7 +356,7 @@ export class APIConnector {
    * Transition circuit breaker to CLOSED state
    */
   private transitionToClosed(): void {
-    logger('🟢 Circuit Breaker: CLOSED (API healthy)', 'INFO');
+    enhancedLogger.info('Circuit Breaker: CLOSED (API healthy)', LogCategory.API);
     this.circuitState = CircuitState.CLOSED;
     this.circuitStateChangedAt = Date.now();
     this.halfOpenAttempts = 0;
@@ -358,7 +367,10 @@ export class APIConnector {
    * Transition circuit breaker to OPEN state
    */
   private transitionToOpen(): void {
-    logger('🔴 Circuit Breaker: OPEN (API unhealthy, blocking requests)', 'WARN');
+    enhancedLogger.warn(
+      'Circuit Breaker: OPEN (API unhealthy, blocking requests)',
+      LogCategory.API,
+    );
     this.circuitState = CircuitState.OPEN;
     this.circuitStateChangedAt = Date.now();
     this.halfOpenAttempts = 0;
@@ -368,7 +380,7 @@ export class APIConnector {
    * Transition circuit breaker to HALF_OPEN state
    */
   private transitionToHalfOpen(): void {
-    logger('🟡 Circuit Breaker: HALF-OPEN (testing API recovery)', 'INFO');
+    enhancedLogger.info('Circuit Breaker: HALF-OPEN (testing API recovery)', LogCategory.API);
     this.circuitState = CircuitState.HALF_OPEN;
     this.circuitStateChangedAt = Date.now();
     this.halfOpenAttempts = 0;
@@ -395,14 +407,14 @@ export class APIConnector {
       try {
         const isHealthy = await this.testConnection();
         if (!isHealthy && this.isConnected) {
-          logger('⚠️ API health check failed', 'WARN');
+          enhancedLogger.warn('API health check failed', LogCategory.API);
         }
       } catch {
         // Silent fail for health checks
       }
     }, 300000); // Check every 5 minutes
 
-    logger('💓 Started API health monitoring (5m interval)', 'INFO');
+    enhancedLogger.info('Started API health monitoring (5m interval)', LogCategory.API);
   }
 
   /**
@@ -424,11 +436,11 @@ export class APIConnector {
         }
       } catch {
         // Don't throw - just log the error and continue
-        logger('⚠️ Failed to sync stats with API', 'WARN');
+        enhancedLogger.warn('Failed to sync stats with API', LogCategory.API);
       }
     }, 300000); // 5 minutes
 
-    logger('🔄 Started stats synchronization (5m interval)', 'INFO');
+    enhancedLogger.info('Started stats synchronization (5m interval)', LogCategory.API);
   }
 
   /**
@@ -472,7 +484,7 @@ export class APIConnector {
       }
     } catch {
       // Silent fail for command logging - not critical
-      logger('⚠️ Failed to log command to API', 'WARN');
+      enhancedLogger.warn('Failed to log command to API', LogCategory.API);
     }
   }
 
@@ -548,7 +560,7 @@ export class APIConnector {
    */
   resetCircuitBreaker(): void {
     this.transitionToClosed();
-    logger('🔄 Circuit breaker manually reset', 'INFO');
+    enhancedLogger.info('Circuit breaker manually reset', LogCategory.API);
   }
 
   /**
@@ -577,12 +589,12 @@ export class APIConnector {
           }),
         );
       } catch {
-        logger('⚠️ Error during API disconnect', 'WARN');
+        enhancedLogger.warn('Error during API disconnect', LogCategory.API);
       }
     }
 
     this.isConnected = false;
-    logger('🔌 Disconnected from API', 'INFO');
+    enhancedLogger.info('Disconnected from API', LogCategory.API);
 
     // Log final metrics
     this.logMetricsSummary();
@@ -592,15 +604,18 @@ export class APIConnector {
    * Log metrics summary (useful for debugging and monitoring).
    */
   private logMetricsSummary(): void {
-    logger('� API Metrics Summary:', 'INFO');
-    logger(`   Total Requests: ${this.metrics.totalRequests}`, 'INFO');
-    logger(
-      `   Successful: ${this.metrics.successfulRequests} (${Math.round((this.metrics.successfulRequests / this.metrics.totalRequests) * 100)}%)`,
-      'INFO',
-    );
-    logger(`   Failed: ${this.metrics.failedRequests}`, 'INFO');
-    logger(`   Total Retries: ${this.metrics.totalRetries}`, 'INFO');
-    logger(`   Avg Response Time: ${Math.round(this.metrics.averageResponseTime)}ms`, 'INFO');
-    logger(`   Circuit Breaker State: ${this.circuitState}`, 'INFO');
+    const successRate =
+      this.metrics.totalRequests > 0
+        ? Math.round((this.metrics.successfulRequests / this.metrics.totalRequests) * 100)
+        : 0;
+    enhancedLogger.info('API Metrics Summary', LogCategory.API, {
+      totalRequests: this.metrics.totalRequests,
+      successful: this.metrics.successfulRequests,
+      successRate: `${successRate}%`,
+      failed: this.metrics.failedRequests,
+      totalRetries: this.metrics.totalRetries,
+      avgResponseTime: `${Math.round(this.metrics.averageResponseTime)}ms`,
+      circuitBreakerState: this.circuitState,
+    });
   }
 }

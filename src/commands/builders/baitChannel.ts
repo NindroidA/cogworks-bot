@@ -79,6 +79,13 @@ export const baitChannelCommand = new SlashCommandBuilder()
         option
           .setName('disable_admin_whitelist')
           .setDescription(tl.detection.disableAdminWhitelist),
+      )
+      .addIntegerOption(option =>
+        option
+          .setName('threshold')
+          .setDescription(tl.detection.threshold)
+          .setMinValue(50)
+          .setMaxValue(100),
       ),
   )
   .addSubcommand(subcommand =>

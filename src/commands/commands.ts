@@ -41,6 +41,8 @@ import {
   memoryDeleteHandler,
   memoryTagsHandler,
   memoryUpdateHandler,
+  memoryUpdateStatusHandler,
+  memoryUpdateTagsHandler,
 } from './handlers/memory';
 import { memorySetupHandler } from './handlers/memorySetup';
 import { migrateApplicationTagsHandler, migrateTicketTagsHandler } from './handlers/migrate';
@@ -180,6 +182,12 @@ export const handleSlashCommand = async (
               break;
             case 'update':
               await memoryUpdateHandler(interaction);
+              break;
+            case 'update-status':
+              await memoryUpdateStatusHandler(interaction);
+              break;
+            case 'update-tags':
+              await memoryUpdateTagsHandler(interaction);
               break;
             case 'delete':
               await memoryDeleteHandler(interaction);

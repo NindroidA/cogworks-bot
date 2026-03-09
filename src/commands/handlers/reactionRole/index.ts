@@ -13,6 +13,7 @@ import { reactionRoleDeleteHandler } from './delete';
 import { reactionRoleEditHandler } from './edit';
 import { reactionRoleListHandler } from './list';
 import { reactionRoleRemoveHandler } from './remove';
+import { reactionRoleValidateHandler } from './validate';
 
 const menuRepo = AppDataSource.getRepository(ReactionRoleMenu);
 
@@ -40,6 +41,9 @@ export const reactionRoleHandler = async (
       break;
     case 'list':
       await reactionRoleListHandler(interaction);
+      break;
+    case 'validate':
+      await reactionRoleValidateHandler(interaction);
       break;
   }
 };

@@ -1,6 +1,6 @@
 {
   "name": "cogworks-bot",
-  "version": "2.12.2",
+  "version": "2.12.4",
   "description": "A modular Discord server management bot built with TypeScript and Discord.js",
   "main": "index.js",
   "scripts": {
@@ -25,7 +25,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "MIT",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "devDependencies": {
     "@biomejs/biome": "^2.4.2",
     "@jest/globals": "^30.2.0",

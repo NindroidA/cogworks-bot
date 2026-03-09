@@ -24,6 +24,7 @@ import {
   healthMonitor,
   LogCategory,
   lang,
+  notifyModalTimeout,
   RateLimits,
   rateLimiter,
   requireAdmin,
@@ -37,7 +38,10 @@ export const memoryTagsHandler = async (interaction: ChatInputCommandInteraction
   const startTime = Date.now();
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
-    await interaction.reply({ content: adminCheck.message, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: adminCheck.message,
+      flags: [MessageFlags.Ephemeral],
+    });
     return;
   }
 
@@ -49,7 +53,10 @@ export const memoryTagsHandler = async (interaction: ChatInputCommandInteraction
   const rateLimitKey = createRateLimitKey.userGuild(userId, guildId, 'memory-tags');
   const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.MEMORY_OPERATION);
   if (!rateCheck.allowed) {
-    await interaction.reply({ content: rateCheck.message!, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: rateCheck.message!,
+      flags: [MessageFlags.Ephemeral],
+    });
     healthMonitor.recordCommand('memory tags', Date.now() - startTime, true);
     return;
   }
@@ -129,7 +136,7 @@ async function handleAddTag(
 
     await handleAddTagSubmit(modalSubmit, guildId, forumChannelId);
   } catch {
-    // Modal timed out or was cancelled
+    await notifyModalTimeout(interaction);
   }
 }
 
@@ -158,14 +165,18 @@ async function handleAddTagSubmit(
     // Check for duplicate
     const existing = await memoryTagRepo.findOneBy({ guildId, name });
     if (existing) {
-      await interaction.editReply({ content: `${E.error} ${tl.tags.add.duplicate}` });
+      await interaction.editReply({
+        content: `${E.error} ${tl.tags.add.duplicate}`,
+      });
       return;
     }
 
     // Get forum channel and add tag
     const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
     if (!forum) {
-      await interaction.editReply({ content: `${E.error} ${tl.errors.forumNotFound}` });
+      await interaction.editReply({
+        content: `${E.error} ${tl.errors.forumNotFound}`,
+      });
       return;
     }
 
@@ -199,7 +210,9 @@ async function handleAddTagSubmit(
     });
     await memoryTagRepo.save(newTag);
 
-    await interaction.editReply({ content: `${E.success} ${tl.tags.add.success}` });
+    await interaction.editReply({
+      content: `${E.success} ${tl.tags.add.success}`,
+    });
   } catch (error) {
     enhancedLogger.error(
       `Memory tag add error: ${error}`,
@@ -249,13 +262,29 @@ async function handleEditTag(
 
   collector.on('collect', async i => {
     if (i.user.id !== interaction.user.id) {
-      await i.reply({ content: lang.errors.notYourInteraction, flags: [MessageFlags.Ephemeral] });
+      await i.reply({
+        content: lang.errors.notYourInteraction,
+        flags: [MessageFlags.Ephemeral],
+      });
       return;
     }
 
     if (i.isStringSelectMenu() && i.customId === 'memory_tag_edit_select') {
       collector.stop('selected');
       await showEditModal(i as StringSelectMenuInteraction, guildId, forumChannelId);
+    }
+  });
+
+  collector.on('end', async (_collected, reason) => {
+    if (reason === 'time') {
+      try {
+        await interaction.editReply({
+          content: lang.errors.timeout,
+          components: [],
+        });
+      } catch {
+        // Interaction expired
+      }
     }
   });
 }
@@ -312,7 +341,7 @@ async function showEditModal(
 
     await handleEditTagSubmit(modalSubmit, tagId, guildId, forumChannelId);
   } catch {
-    // Modal timed out
+    await notifyModalTimeout(interaction);
   }
 }
 
@@ -330,7 +359,9 @@ async function handleEditTagSubmit(
 
     const tag = await memoryTagRepo.findOneBy({ id: tagId, guildId });
     if (!tag) {
-      await interaction.editReply({ content: `${E.error} ${tl.tags.edit.tagNotFound}` });
+      await interaction.editReply({
+        content: `${E.error} ${tl.tags.edit.tagNotFound}`,
+      });
       return;
     }
 
@@ -355,7 +386,9 @@ async function handleEditTagSubmit(
     tag.emoji = emoji;
     await memoryTagRepo.save(tag);
 
-    await interaction.editReply({ content: `${E.success} ${tl.tags.edit.success}` });
+    await interaction.editReply({
+      content: `${E.success} ${tl.tags.edit.success}`,
+    });
   } catch (error) {
     enhancedLogger.error(
       `Memory tag edit error: ${error}`,
@@ -363,7 +396,9 @@ async function handleEditTagSubmit(
       LogCategory.COMMAND_EXECUTION,
       { guildId },
     );
-    await interaction.editReply({ content: `${E.error} ${tl.tags.edit.error}` });
+    await interaction.editReply({
+      content: `${E.error} ${tl.tags.edit.error}`,
+    });
   }
 }
 
@@ -372,7 +407,9 @@ async function handleRemoveTag(
   guildId: string,
   forumChannelId: string,
 ) {
-  const tags = await memoryTagRepo.find({ where: { guildId, isDefault: false } });
+  const tags = await memoryTagRepo.find({
+    where: { guildId, isDefault: false },
+  });
 
   if (tags.length === 0) {
     await interaction.reply({
@@ -405,13 +442,29 @@ async function handleRemoveTag(
 
   collector.on('collect', async i => {
     if (i.user.id !== interaction.user.id) {
-      await i.reply({ content: lang.errors.notYourInteraction, flags: [MessageFlags.Ephemeral] });
+      await i.reply({
+        content: lang.errors.notYourInteraction,
+        flags: [MessageFlags.Ephemeral],
+      });
       return;
     }
 
     if (i.isStringSelectMenu() && i.customId === 'memory_tag_remove_select') {
       collector.stop('selected');
       await confirmRemoveTag(i as StringSelectMenuInteraction, guildId, forumChannelId);
+    }
+  });
+
+  collector.on('end', async (_collected, reason) => {
+    if (reason === 'time') {
+      try {
+        await interaction.editReply({
+          content: lang.errors.timeout,
+          components: [],
+        });
+      } catch {
+        // Interaction expired
+      }
     }
   });
 }
@@ -448,11 +501,16 @@ async function confirmRemoveTag(
     components: [confirmRow],
   });
 
-  const collector = interaction.message.createMessageComponentCollector({ time: 30000 });
+  const collector = interaction.message.createMessageComponentCollector({
+    time: 30000,
+  });
 
   collector.on('collect', async i => {
     if (i.user.id !== interaction.user.id) {
-      await i.reply({ content: lang.errors.notYourInteraction, flags: [MessageFlags.Ephemeral] });
+      await i.reply({
+        content: lang.errors.notYourInteraction,
+        flags: [MessageFlags.Ephemeral],
+      });
       return;
     }
 
@@ -478,7 +536,10 @@ async function confirmRemoveTag(
         // Remove from database
         await memoryTagRepo.remove(tag);
 
-        await i.update({ content: `${E.success} ${tl.tags.remove.success}`, components: [] });
+        await i.update({
+          content: `${E.success} ${tl.tags.remove.success}`,
+          components: [],
+        });
       } catch (error) {
         enhancedLogger.error(
           `Memory tag remove error: ${error}`,
@@ -486,15 +547,35 @@ async function confirmRemoveTag(
           LogCategory.COMMAND_EXECUTION,
           { guildId },
         );
-        await i.update({ content: `${E.error} ${tl.tags.remove.error}`, components: [] });
+        await i.update({
+          content: `${E.error} ${tl.tags.remove.error}`,
+          components: [],
+        });
+      }
+    }
+  });
+
+  collector.on('end', async (_collected, reason) => {
+    if (reason === 'time') {
+      try {
+        await interaction.editReply({
+          content: lang.errors.timeout,
+          components: [],
+        });
+      } catch {
+        // Interaction expired
       }
     }
   });
 }
 
 async function handleListTags(interaction: ChatInputCommandInteraction, guildId: string) {
-  const categoryTags = await memoryTagRepo.find({ where: { guildId, tagType: 'category' } });
-  const statusTags = await memoryTagRepo.find({ where: { guildId, tagType: 'status' } });
+  const categoryTags = await memoryTagRepo.find({
+    where: { guildId, tagType: 'category' },
+  });
+  const statusTags = await memoryTagRepo.find({
+    where: { guildId, tagType: 'status' },
+  });
 
   if (categoryTags.length === 0 && statusTags.length === 0) {
     await interaction.reply({
@@ -512,14 +593,22 @@ async function handleListTags(interaction: ChatInputCommandInteraction, guildId:
     const categoryList = categoryTags
       .map(t => `${t.emoji || '•'} ${t.name}${t.isDefault ? ` ${tl.tags.list.default}` : ''}`)
       .join('\n');
-    embed.addFields({ name: tl.tags.categoryTags, value: categoryList, inline: true });
+    embed.addFields({
+      name: tl.tags.categoryTags,
+      value: categoryList,
+      inline: true,
+    });
   }
 
   if (statusTags.length > 0) {
     const statusList = statusTags
       .map(t => `${t.emoji || '•'} ${t.name}${t.isDefault ? ` ${tl.tags.list.default}` : ''}`)
       .join('\n');
-    embed.addFields({ name: tl.tags.statusTags, value: statusList, inline: true });
+    embed.addFields({
+      name: tl.tags.statusTags,
+      value: statusList,
+      inline: true,
+    });
   }
 
   await interaction.reply({

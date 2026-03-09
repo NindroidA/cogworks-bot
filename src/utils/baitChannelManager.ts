@@ -217,8 +217,8 @@ export class BaitChannelManager {
         { userId: member.id, score: analysis.score, guildId: message.guild.id },
       );
 
-      // Instant action for high suspicion scores (90+)
-      if (config.enableSmartDetection && analysis.score >= 90) {
+      // Instant action for high suspicion scores (configurable threshold, default 90)
+      if (config.enableSmartDetection && analysis.score >= (config.instantActionThreshold ?? 90)) {
         await this.executeAction(
           member,
           message,

@@ -369,6 +369,19 @@ async function handleQuickStaffRoleUpdate(
       buttonCollector.stop();
     }
   });
+
+  roleCollector.on('end', async (_collected, reason) => {
+    if (reason === 'time') {
+      try {
+        await interaction.editReply({
+          embeds: [createErrorEmbed(lang.botSetup.errors.roleSelectTimeout)],
+          components: [],
+        });
+      } catch {
+        // Interaction expired
+      }
+    }
+  });
 }
 
 async function updateStaffRole(

@@ -19,12 +19,15 @@ import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketT
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import {
+  createRateLimitKey,
   enhancedLogger,
   extractIdFromMention,
   handleInteractionError,
   LANGF,
   LogCategory,
   lang,
+  RateLimits,
+  rateLimiter,
   requireAdmin,
 } from '../../../utils';
 
@@ -138,8 +141,21 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
     }
 
     const guildId = interaction.guild.id;
+    const userId = interaction.user.id;
+
+    // Rate limit: shares TICKET_CREATE budget with manual ticket creation
+    const rateLimitKey = createRateLimitKey.user(userId, 'ticket-create');
+    const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.TICKET_CREATE);
+    if (!rateCheck.allowed) {
+      await interaction.reply({
+        content: rateCheck.message!,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     enhancedLogger.debug(`Modal submit: email-import`, LogCategory.COMMAND_EXECUTION, {
-      userId: interaction.user.id,
+      userId,
       guildId,
     });
 

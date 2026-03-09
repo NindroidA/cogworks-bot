@@ -53,6 +53,9 @@ export class BaitChannelConfig {
   @Column({ default: true })
   enableSmartDetection: boolean;
 
+  @Column({ default: 90 })
+  instantActionThreshold: number;
+
   @Column({ default: 7 })
   minAccountAgeDays: number;
 

@@ -105,6 +105,10 @@ const deleteMenu = new SlashCommandSubcommandBuilder()
 
 const list = new SlashCommandSubcommandBuilder().setName('list').setDescription(tl.list.descrp);
 
+const validate = new SlashCommandSubcommandBuilder()
+  .setName('validate')
+  .setDescription(tl.validate.descrp);
+
 export const reactionRole = new SlashCommandBuilder()
   .setName('reactionrole')
   .setDescription(tl.cmdDescrp)
@@ -115,4 +119,5 @@ export const reactionRole = new SlashCommandBuilder()
   .addSubcommand(edit)
   .addSubcommand(deleteMenu)
   .addSubcommand(list)
+  .addSubcommand(validate)
   .toJSON();

@@ -768,6 +768,7 @@ export interface LangBaitChannel {
       minMessages: string;
       requireVerification: string;
       disableAdminWhitelist: string;
+      threshold: string;
     };
     whitelist: {
       descrp: string;
@@ -803,6 +804,7 @@ export interface LangBaitChannel {
     minMembership: string;
     minMessages: string;
     requireVerification: string;
+    actionThreshold: string;
     whitelist: string;
     whitelistRoles: string;
     whitelistUsers: string;
@@ -847,6 +849,7 @@ export interface LangBaitChannel {
     minMembership: string;
     minMessages: string;
     requireVerification: string;
+    threshold: string;
     days: string;
     minutes: string;
     yes: string;
@@ -909,6 +912,15 @@ export interface LangMemory {
     delete: {
       descrp: string;
     };
+    updateStatus: {
+      descrp: string;
+      threadOption: string;
+      statusOption: string;
+    };
+    updateTags: {
+      descrp: string;
+      threadOption: string;
+    };
     tags: {
       descrp: string;
       action: string;
@@ -963,6 +975,9 @@ export interface LangMemory {
     invalidLink: string;
     messageNotFound: string;
     messageNotFoundHint: string;
+    messageDeleted: string;
+    channelNoAccess: string;
+    channelNoPermission: string;
     messageWrongGuild: string;
     noReplyOrLink: string;
     sourceLabel: string;
@@ -977,6 +992,15 @@ export interface LangMemory {
     itemNotFound: string;
     confirmTitle: string;
     confirmMessage: string;
+  };
+  quickUpdate: {
+    noItems: string;
+    itemNotFound: string;
+    threadNotFound: string;
+    statusSuccess: string;
+    statusError: string;
+    tagsSuccess: string;
+    tagsError: string;
   };
   delete: {
     success: string;
@@ -1137,6 +1161,9 @@ export interface LangReactionRole {
     list: {
       descrp: string;
     };
+    validate: {
+      descrp: string;
+    };
   };
   create: {
     success: string;
@@ -1202,6 +1229,17 @@ export interface LangReactionRole {
     messageNotFound: string;
     channelNotFound: string;
     noPermission: string;
+  };
+  validate: {
+    title: string;
+    checking: string;
+    allValid: string;
+    issuesFound: string;
+    menuValid: string;
+    menuMissing: string;
+    channelMissing: string;
+    roleMissing: string;
+    error: string;
   };
   autocomplete: {
     noMenus: string;
