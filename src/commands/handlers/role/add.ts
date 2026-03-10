@@ -3,9 +3,10 @@ import { AppDataSource } from '../../../typeorm';
 import { SavedRole } from '../../../typeorm/entities/SavedRole';
 import {
   createRateLimitKey,
+  enhancedLogger,
   LANGF,
+  LogCategory,
   lang,
-  logger,
   RateLimits,
   rateLimiter,
   requireAdmin,
@@ -18,7 +19,10 @@ export const roleAddHandler = async (interaction: ChatInputCommandInteraction<Ca
   // Require admin permissions
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
-    await interaction.reply({ content: adminCheck.message, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: adminCheck.message,
+      flags: [MessageFlags.Ephemeral],
+    });
     return;
   }
 
@@ -31,7 +35,11 @@ export const roleAddHandler = async (interaction: ChatInputCommandInteraction<Ca
       content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
       flags: [MessageFlags.Ephemeral],
     });
-    logger(`Rate limit exceeded for role save by user ${interaction.user.id}`, 'WARN');
+    enhancedLogger.rateLimit(
+      'Role save rate limit exceeded',
+      interaction.user.id,
+      interaction.guildId || undefined,
+    );
     return;
   }
 
@@ -63,7 +71,10 @@ export const roleAddHandler = async (interaction: ChatInputCommandInteraction<Ca
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
-    logger(lang.addRole.fail + error, 'ERROR');
+    enhancedLogger.error('Failed to add role', error as Error, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+      role,
+    });
     await interaction.reply({
       content: tl.fail,
       flags: [MessageFlags.Ephemeral],

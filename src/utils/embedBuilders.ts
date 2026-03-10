@@ -9,27 +9,6 @@ import { type ColorResolvable, EmbedBuilder } from 'discord.js';
 import { Colors } from './colors';
 
 // ============================================================================
-// Legacy Color Constants (for backwards compatibility)
-// ============================================================================
-
-/**
- * Standardized embed colors for consistent UI across the bot
- * @deprecated Use Colors from './colors' instead
- */
-export const EmbedColors = {
-  /** Primary brand color (blue) */
-  PRIMARY: Colors.brand.primary,
-  /** Success messages (green) */
-  SUCCESS: Colors.status.success,
-  /** Error messages (red) */
-  ERROR: Colors.status.error,
-  /** Warning messages (orange) */
-  WARNING: Colors.status.warning,
-  /** Informational messages (discord blurple) */
-  INFO: Colors.status.info,
-} as const;
-
-// ============================================================================
 // Embed Builder Functions
 // ============================================================================
 

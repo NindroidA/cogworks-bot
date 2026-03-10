@@ -11,7 +11,7 @@ import { AppDataSource } from '../../typeorm';
 import { Application } from '../../typeorm/entities/application/Application';
 import { ArchivedApplication } from '../../typeorm/entities/application/ArchivedApplication';
 import { ArchivedApplicationConfig } from '../../typeorm/entities/application/ArchivedApplicationConfig';
-import { lang, logger } from '../../utils';
+import { enhancedLogger, LogCategory, lang } from '../../utils';
 import { fetchMessagesAndSaveToFile } from '../../utils/fetchAllMessages';
 
 const tl = lang.application.close;
@@ -34,17 +34,28 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
 
   // check if the archived application config exists
   if (!archivedConfig) {
-    return logger(lang.application.applicationConfigNotFound);
+    enhancedLogger.warn(lang.application.applicationConfigNotFound, LogCategory.SYSTEM, {
+      guildId,
+    });
+    return;
   }
 
   // check if the application exists
   if (!application) {
-    return logger(lang.general.fatalError, 'ERROR');
+    enhancedLogger.error(lang.general.fatalError, undefined, LogCategory.SYSTEM, {
+      guildId,
+      channelId,
+    });
+    return;
   }
 
   // Prevent duplicate close (double-click race condition)
   if (application.status === 'closed') {
-    logger('Application already closed, skipping duplicate archive', 'WARN');
+    enhancedLogger.warn(
+      'Application already closed, skipping duplicate archive',
+      LogCategory.SYSTEM,
+      { guildId, channelId },
+    );
     return;
   }
 
@@ -61,14 +72,19 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
   // ensure the transcript directory exists
   if (!fs.existsSync(transcriptPath)) {
     fs.mkdirSync(transcriptPath, { recursive: true });
-    logger(`Created transcript directory: ${transcriptPath}`);
+    enhancedLogger.info(`Created transcript directory: ${transcriptPath}`, LogCategory.SYSTEM);
   }
 
   // make the transcript file
   try {
     await fetchMessagesAndSaveToFile(channel, transcriptPath);
   } catch (error) {
-    logger(tl.transcriptCreate.error + error, 'ERROR');
+    enhancedLogger.error(
+      'Failed to create application transcript',
+      error as Error,
+      LogCategory.SYSTEM,
+      { guildId, channelId },
+    );
     // Only reply if we haven't already replied/deferred
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({
@@ -91,10 +107,16 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
     // if we have attachments, add them to the files array
     if (fs.existsSync(zipPath)) {
       files.push(zipPath);
-      logger(tl.transcriptCreate.attachmentFound);
+      enhancedLogger.debug(tl.transcriptCreate.attachmentFound, LogCategory.SYSTEM, {
+        guildId,
+        channelId,
+      });
       zipCheck = true;
     } else {
-      logger(tl.transcriptCreate.attachmentNotFound);
+      enhancedLogger.debug(tl.transcriptCreate.attachmentNotFound, LogCategory.SYSTEM, {
+        guildId,
+        channelId,
+      });
     }
 
     // if transcript channel doesn't exist, make one and put the transcript
@@ -130,7 +152,12 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
     try {
       await fs.promises.unlink(txtPath);
     } catch (error) {
-      logger(tl.transcriptDelete.error1 + error, 'ERROR');
+      enhancedLogger.error(
+        'Failed to delete application transcript file',
+        error as Error,
+        LogCategory.SYSTEM,
+        { guildId, txtPath },
+      );
     }
 
     if (zipCheck) {
@@ -138,15 +165,29 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
       try {
         await fs.promises.unlink(zipPath);
       } catch (error) {
-        logger(tl.transcriptDelete.attachmentError + error, 'ERROR');
+        enhancedLogger.error(
+          'Failed to delete application attachment zip',
+          error as Error,
+          LogCategory.SYSTEM,
+          { guildId, zipPath },
+        );
       }
     }
   } catch (error) {
-    return logger(tl.transcriptDelete.error2 + error, 'ERROR');
+    enhancedLogger.error(
+      'Failed to send application transcript',
+      error as Error,
+      LogCategory.SYSTEM,
+      { guildId, channelId },
+    );
+    return;
   }
 
   // log success message
-  logger(tl.transcriptCreate.success);
+  enhancedLogger.info('Application transcript archived successfully', LogCategory.SYSTEM, {
+    guildId,
+    channelId,
+  });
 
   // delete the channel
   await channel.delete(application.channelId);

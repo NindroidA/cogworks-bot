@@ -8,7 +8,7 @@
 import type { Client, Guild } from 'discord.js';
 import { AppDataSource } from '../typeorm';
 import { BotStatus } from '../typeorm/entities/status';
-import { invalidateGuildMenuCache, logger } from '../utils';
+import { enhancedLogger, invalidateGuildMenuCache, LogCategory } from '../utils';
 import { deleteAllGuildData } from '../utils/database/guildQueries';
 import { invalidateRulesCache } from './rulesReaction';
 
@@ -20,8 +20,14 @@ export default {
       const guildId = guild.id;
       const memberCount = guild.memberCount;
 
-      logger(`Left guild: ${guildName} (ID: ${guildId}) - Members: ${memberCount}`, 'INFO');
-      logger(`Starting GDPR-compliant data deletion for guild ${guildId}...`, 'INFO');
+      enhancedLogger.guildEvent(
+        `Left guild: ${guildName} (ID: ${guildId}) - Members: ${memberCount}`,
+        guildId,
+      );
+      enhancedLogger.info(
+        `Starting GDPR-compliant data deletion for guild ${guildId}...`,
+        LogCategory.DATABASE,
+      );
 
       // Invalidate in-memory caches for this guild
       invalidateRulesCache(guildId);
@@ -31,21 +37,19 @@ export default {
       const deletionResult = await deleteAllGuildData(guildId);
 
       if (deletionResult.success) {
-        logger(
-          `✅ Successfully deleted ${deletionResult.total} records across ${deletionResult.tables} tables for guild ${guildName}`,
-          'INFO',
+        enhancedLogger.info(
+          `Successfully deleted ${deletionResult.total} records across ${deletionResult.tables} tables for guild ${guildName}`,
+          LogCategory.DATABASE,
+          { guildId, details: deletionResult.details },
         );
-
-        // Log detailed deletion breakdown
-        logger('Deletion breakdown:', 'INFO');
-        for (const [table, count] of Object.entries(deletionResult.details)) {
-          if (count > 0) {
-            logger(`  - ${table}: ${count} records`, 'INFO');
-          }
-        }
       } else {
-        logger(`❌ Failed to delete data for guild ${guildName}: ${deletionResult.error}`, 'ERROR');
-        logger('⚠️  Manual cleanup may be required', 'WARN');
+        enhancedLogger.error(
+          `Failed to delete data for guild ${guildName}`,
+          undefined,
+          LogCategory.DATABASE,
+          { guildId, error: deletionResult.error },
+        );
+        enhancedLogger.warn('Manual cleanup may be required', LogCategory.DATABASE, { guildId });
       }
 
       // GDPR: Clear updatedBy in BotStatus if it references a user from this guild
@@ -61,13 +65,22 @@ export default {
       }
 
       // Log final bot statistics
-      logger(`Bot now serving ${client.guilds.cache.size} servers`, 'INFO');
-    } catch (error) {
-      logger(
-        `Error handling guild delete for ${guild.name} (${guild.id}): ${(error as Error).message}`,
-        'ERROR',
+      enhancedLogger.info(
+        `Bot now serving ${client.guilds.cache.size} servers`,
+        LogCategory.SYSTEM,
       );
-      logger('⚠️  Guild data may not have been fully deleted - manual cleanup required', 'WARN');
+    } catch (error) {
+      enhancedLogger.error(
+        `Error handling guild delete for ${guild.name} (${guild.id})`,
+        error as Error,
+        LogCategory.DATABASE,
+        { guildId: guild.id },
+      );
+      enhancedLogger.warn(
+        'Guild data may not have been fully deleted - manual cleanup required',
+        LogCategory.DATABASE,
+        { guildId: guild.id },
+      );
     }
   },
 };

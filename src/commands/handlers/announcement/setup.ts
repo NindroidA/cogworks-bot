@@ -8,9 +8,10 @@ import { AppDataSource } from '../../../typeorm';
 import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
 import {
   createRateLimitKey,
+  enhancedLogger,
   LANGF,
+  LogCategory,
   lang,
-  logger,
   RateLimits,
   rateLimiter,
   requireAdmin,
@@ -25,7 +26,10 @@ export const announcementSetupHandler = async (
   // Require admin permissions
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
-    await interaction.reply({ content: adminCheck.message, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: adminCheck.message,
+      flags: [MessageFlags.Ephemeral],
+    });
     return;
   }
 
@@ -41,7 +45,11 @@ export const announcementSetupHandler = async (
       content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
       flags: [MessageFlags.Ephemeral],
     });
-    logger(`Rate limit exceeded for announcement setup in guild ${guildId}`, 'WARN');
+    enhancedLogger.rateLimit(
+      'Announcement setup rate limit exceeded',
+      interaction.user.id,
+      guildId,
+    );
     return;
   }
 
@@ -69,9 +77,14 @@ export const announcementSetupHandler = async (
       flags: [MessageFlags.Ephemeral],
     });
 
-    logger(`User ${interaction.user.username}${tl.configured}${guildId}`);
+    enhancedLogger.command('Announcement configured', interaction.user.id, guildId);
   } catch (error) {
-    logger(tl.error + error, 'ERROR');
+    enhancedLogger.error(
+      'Announcement setup failed',
+      error as Error,
+      LogCategory.COMMAND_EXECUTION,
+      { guildId },
+    );
     await interaction.reply({
       content: '',
       flags: [MessageFlags.Ephemeral],

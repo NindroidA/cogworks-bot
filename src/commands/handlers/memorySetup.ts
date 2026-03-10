@@ -10,6 +10,7 @@ import {
   EmbedBuilder,
   type ForumChannel,
   type GuildForumTagData,
+  type MessageComponentInteraction,
   MessageFlags,
 } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
@@ -294,7 +295,7 @@ async function setupWithChannel(
   guildId: string,
   channel: ForumChannel,
   existingConfig: MemoryConfig | null,
-  componentInteraction?: any,
+  componentInteraction?: MessageComponentInteraction,
 ) {
   try {
     const isUpdate = !!existingConfig;

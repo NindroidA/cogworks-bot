@@ -39,7 +39,7 @@ export const ticketSetupHandler = async (
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
-      content: adminCheck.message!,
+      content: adminCheck.message ?? '',
       flags: [MessageFlags.Ephemeral],
     });
     return;

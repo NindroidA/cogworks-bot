@@ -12,14 +12,7 @@ import { ArchivedTicket } from '../../typeorm/entities/ticket/ArchivedTicket';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { CustomTicketType } from '../../typeorm/entities/ticket/CustomTicketType';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
-import {
-  applyForumTags,
-  enhancedLogger,
-  ensureForumTag,
-  LogCategory,
-  lang,
-  logger,
-} from '../../utils';
+import { applyForumTags, enhancedLogger, ensureForumTag, LogCategory, lang } from '../../utils';
 import { fetchMessagesAndSaveToFile } from '../../utils/fetchAllMessages';
 
 const tl = lang.ticket.close;
@@ -38,17 +31,25 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
 
   // check if the archived ticket config exists
   if (!archivedConfig) {
-    return logger(lang.ticket.archiveTicketConfigNotFound);
+    enhancedLogger.warn(lang.ticket.archiveTicketConfigNotFound, LogCategory.SYSTEM, { guildId });
+    return;
   }
 
   // check if the ticket exists
   if (!ticket) {
-    return logger(lang.general.fatalError, 'ERROR');
+    enhancedLogger.error(lang.general.fatalError, undefined, LogCategory.SYSTEM, {
+      guildId,
+      channelId,
+    });
+    return;
   }
 
   // Prevent duplicate close (double-click race condition)
   if (ticket.status === 'closed') {
-    logger('Ticket already closed, skipping duplicate archive', 'WARN');
+    enhancedLogger.warn('Ticket already closed, skipping duplicate archive', LogCategory.SYSTEM, {
+      guildId,
+      channelId,
+    });
     return;
   }
 
@@ -76,14 +77,17 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
   // ensure the transcript directory exists
   if (!fs.existsSync(transcriptPath)) {
     fs.mkdirSync(transcriptPath, { recursive: true });
-    logger(`Created transcript directory: ${transcriptPath}`);
+    enhancedLogger.info(`Created transcript directory: ${transcriptPath}`, LogCategory.SYSTEM);
   }
 
   // make the transcript file
   try {
     await fetchMessagesAndSaveToFile(channel, transcriptPath);
   } catch (error) {
-    logger(tl.transcriptCreate.error + error, 'ERROR');
+    enhancedLogger.error('Failed to create ticket transcript', error as Error, LogCategory.SYSTEM, {
+      guildId,
+      channelId,
+    });
     // Only reply if we haven't already replied/deferred
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({
@@ -106,10 +110,16 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
     // if we have attachments, add them to the files array
     if (fs.existsSync(zipPath)) {
       files.push(zipPath);
-      logger(tl.transcriptCreate.attachmentFound);
+      enhancedLogger.debug(tl.transcriptCreate.attachmentFound, LogCategory.SYSTEM, {
+        guildId,
+        channelId,
+      });
       zipCheck = true;
     } else {
-      logger(tl.transcriptCreate.attachmentNotFound);
+      enhancedLogger.debug(tl.transcriptCreate.attachmentNotFound, LogCategory.SYSTEM, {
+        guildId,
+        channelId,
+      });
     }
 
     // Get ticket type info FIRST (needed for both new and existing posts)
@@ -292,7 +302,12 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
     try {
       await fs.promises.unlink(txtPath);
     } catch (error) {
-      logger(tl.transcriptDelete.error1 + error, 'ERROR');
+      enhancedLogger.error(
+        'Failed to delete ticket transcript file',
+        error as Error,
+        LogCategory.SYSTEM,
+        { guildId, txtPath },
+      );
     }
 
     if (zipCheck) {
@@ -300,15 +315,27 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
       try {
         await fs.promises.unlink(zipPath);
       } catch (error) {
-        logger(tl.transcriptDelete.attachmentError + error, 'ERROR');
+        enhancedLogger.error(
+          'Failed to delete ticket attachment zip',
+          error as Error,
+          LogCategory.SYSTEM,
+          { guildId, zipPath },
+        );
       }
     }
   } catch (error) {
-    return logger(tl.transcriptDelete.error2 + error, 'ERROR');
+    enhancedLogger.error('Failed to send ticket transcript', error as Error, LogCategory.SYSTEM, {
+      guildId,
+      channelId,
+    });
+    return;
   }
 
   // log success message
-  logger(tl.transcriptCreate.success);
+  enhancedLogger.info('Ticket transcript archived successfully', LogCategory.SYSTEM, {
+    guildId,
+    channelId,
+  });
 
   // delete the channel
   await channel.delete(ticket.channelId);

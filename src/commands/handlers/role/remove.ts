@@ -3,9 +3,10 @@ import { AppDataSource } from '../../../typeorm';
 import { SavedRole } from '../../../typeorm/entities/SavedRole';
 import {
   createRateLimitKey,
+  enhancedLogger,
   LANGF,
+  LogCategory,
   lang,
-  logger,
   RateLimits,
   rateLimiter,
   requireAdmin,
@@ -18,7 +19,10 @@ export const roleRemoveHandler = async (interaction: ChatInputCommandInteraction
   // Require admin permissions
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
-    await interaction.reply({ content: adminCheck.message, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: adminCheck.message,
+      flags: [MessageFlags.Ephemeral],
+    });
     return;
   }
 
@@ -31,7 +35,11 @@ export const roleRemoveHandler = async (interaction: ChatInputCommandInteraction
       content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
       flags: [MessageFlags.Ephemeral],
     });
-    logger(`Rate limit exceeded for role removal by user ${interaction.user.id}`, 'WARN');
+    enhancedLogger.rateLimit(
+      'Role removal rate limit exceeded',
+      interaction.user.id,
+      interaction.guildId || undefined,
+    );
     return;
   }
 
@@ -60,7 +68,10 @@ export const roleRemoveHandler = async (interaction: ChatInputCommandInteraction
   }
 
   try {
-    const typeFinder = await savedRoleRepo.findOneBy({ guildId, type: subCommand });
+    const typeFinder = await savedRoleRepo.findOneBy({
+      guildId,
+      type: subCommand,
+    });
 
     if (!typeFinder) {
       await interaction.reply({
@@ -85,7 +96,10 @@ export const roleRemoveHandler = async (interaction: ChatInputCommandInteraction
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
-    logger(tl.fail + error, 'ERROR');
+    enhancedLogger.error('Failed to remove role', error as Error, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+      role,
+    });
     await interaction.reply({
       content: tl.fail,
       flags: [MessageFlags.Ephemeral],
