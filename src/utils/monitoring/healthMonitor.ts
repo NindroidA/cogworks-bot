@@ -99,9 +99,11 @@ class HealthMonitor {
   }> = [];
   private maxErrorLogSize = 100;
   private statsWindow = 60000; // 1 minute for rate calculations
+  private recentCommandTimestamps: number[] = [];
   private previousStatus: 'healthy' | 'degraded' | 'unhealthy' | null = null;
   private statusManager?: StatusManager;
   private readonly rssThresholdBytes: number;
+  private periodicCheckIntervals: NodeJS.Timeout[] = [];
 
   constructor() {
     const thresholdMB = Number.parseInt(process.env.MEMORY_THRESHOLD_MB || '512', 10);
@@ -133,14 +135,28 @@ class HealthMonitor {
    */
   private startPeriodicChecks(): void {
     // Check database connection every 5 minutes
-    setInterval(() => {
-      this.checkDatabaseHealth();
-    }, 300000);
+    this.periodicCheckIntervals.push(
+      setInterval(() => {
+        this.checkDatabaseHealth();
+      }, 300000),
+    );
 
     // Clean up old errors every 5 minutes
-    setInterval(() => {
-      this.cleanupOldErrors();
-    }, 300000);
+    this.periodicCheckIntervals.push(
+      setInterval(() => {
+        this.cleanupOldErrors();
+      }, 300000),
+    );
+  }
+
+  /**
+   * Stop all periodic health check intervals (call on shutdown)
+   */
+  public stopPeriodicChecks(): void {
+    for (const interval of this.periodicCheckIntervals) {
+      clearInterval(interval);
+    }
+    this.periodicCheckIntervals = [];
   }
 
   /**
@@ -165,6 +181,9 @@ class HealthMonitor {
     stats.lastExecuted = new Date();
 
     this.commandStats.set(commandName, stats);
+
+    // Track timestamp for commands-per-minute calculation
+    this.recentCommandTimestamps.push(Date.now());
   }
 
   /**
@@ -300,14 +319,10 @@ class HealthMonitor {
     const now = Date.now();
     const windowStart = now - this.statsWindow;
 
-    let recentCommandCount = 0;
-    this.commandStats.forEach(stats => {
-      if (stats.lastExecuted && stats.lastExecuted.getTime() > windowStart) {
-        recentCommandCount++;
-      }
-    });
+    // Prune old timestamps and count recent ones
+    this.recentCommandTimestamps = this.recentCommandTimestamps.filter(ts => ts > windowStart);
 
-    return recentCommandCount;
+    return this.recentCommandTimestamps.length;
   }
 
   /**

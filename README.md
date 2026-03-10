@@ -7,7 +7,7 @@ A modular Discord server management bot built for communities that need more tha
   <img src="https://img.shields.io/badge/discord.js-v14-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord.js" />
   <img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/runtime-Bun-f9f1e1?style=flat-square&logo=bun&logoColor=white" alt="Bun" />
-  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
+  <img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-green?style=flat-square" alt="License" />
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/NindroidA/cogworks-bot/main/.github/badges/loc.json&style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBvbHlsaW5lIHBvaW50cz0iMTYgMTggMjIgMTIgMTYgNiIvPjxwb2x5bGluZSBwb2ludHM9IjggNiAyIDEyIDggMTgiLz48L3N2Zz4=" alt="Lines of Code" />
 </p>
 
@@ -158,7 +158,7 @@ Every piece of data is scoped to the guild it belongs to. Servers never see each
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+PolyForm Noncommercial License 1.0.0 — see [LICENSE](LICENSE) for details.
 
 ## Support
 

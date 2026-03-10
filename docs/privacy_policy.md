@@ -1,6 +1,6 @@
 # Privacy Policy for Cogworks Bot
 
-**Last Updated:** `January 5, 2026`
+**Last Updated:** `March 9, 2026`
 
 ## 1. Introduction
 
@@ -16,7 +16,7 @@ When you interact with the Bot, we automatically collect:
 
 - **Discord User ID**: Your unique Discord identifier
 - **Discord Guild ID**: The server where the Bot is used
-- **Message Content**: Only for specific features (tickets, applications, bait channels)
+- **Message Content**: Only for specific features (tickets, applications, bait channels, memory capture)
 - **Channel IDs**: Where interactions occur
 - **Role IDs**: For permission management
 - **Timestamps**: When actions are performed
@@ -32,6 +32,10 @@ Information you explicitly provide through:
 - **Command Interactions**: Parameters and options provided to commands
 - **Configuration Settings**: Server-specific setup preferences
 - **User Restrictions**: Per-user ticket type access restrictions
+- **Memory Items**: Titles, descriptions, categories, and statuses for tracked items
+- **Rules Reactions**: Reaction acknowledgment tracking for role assignment
+- **Reaction Role Selections**: Role selections via reaction role menus
+- **Bot Status**: Operational status set by bot owner
 
 ## 3. How We Use Your Information
 
@@ -39,9 +43,13 @@ We use collected information for the following purposes:
 
 ### 3.1 Core Functionality
 - **Ticket Management**: Creating, tracking, and archiving support tickets
-- **Announcement Distribution**: Sending server announcements with proper mentions
+- **Announcement Distribution**: Sending server announcements with rich embeds and previews
 - **Application Processing**: Managing and reviewing user-submitted applications
 - **Role Management**: Configuring and maintaining permission-based access
+- **Memory System**: Forum-based tracking for bugs, features, suggestions, reminders, and notes
+- **Rules Acknowledgment**: React-to-accept-rules with automatic role assignment
+- **Reaction Role Menus**: Self-service role assignment via emoji reactions (normal, unique, lock modes)
+- **Outage Status System**: Bot operational status management with health check integration
 - **Bait Channel Anti-Bot System**: Detection and removal of automated bots
   - Detection flags and suspicion scores (account age, membership duration, message count)
   - Action logging (ban, kick, log-only)
@@ -49,7 +57,7 @@ We use collected information for the following purposes:
 
 ### 3.2 System Operations
 - **Error Logging**: Diagnosing and fixing technical issues
-- **API Integration**: Connecting with external NindroidSystems services
+- **API Integration**: Connecting with external Nindroid Systems services
 - **Activity Tracking**: Maintaining leaderboards and user statistics
 - **Configuration Storage**: Preserving server-specific settings
 
@@ -78,6 +86,10 @@ We use collected information for the following purposes:
 - **Custom Ticket Types**: Retained while Bot is active in server
 - **User Restrictions**: Retained while Bot is active in server
 - **Applications**: Retained until reviewed and processed
+- **Memory Items**: Retained while Bot is active in server (deletable via `/memory delete`)
+- **Rules Configuration**: Retained while Bot is active in server
+- **Reaction Role Menus**: Retained while Bot is active in server
+- **Bot Status**: Single record retained while Bot is active
 - **Bait Channel Logs**: Detection events retained for statistics and auditing
 - **Configuration Data**: Retained while Bot is active in server
 - **Error Logs**: Retained for debugging purposes (personally identifiable information removed)
@@ -88,7 +100,7 @@ We use collected information for the following purposes:
 
 We may share data with:
 
-- **Cogworks API**: For integration with NindroidSystems Homepage
+- **Cogworks API**: For integration with Nindroid Systems Homepage
 - **Discord**: As required for Bot functionality via Discord's API
 
 ### 5.2 No Sale of Data

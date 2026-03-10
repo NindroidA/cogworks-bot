@@ -13,8 +13,11 @@ import { ReactionCooldown } from '../utils/reactionCooldown';
 const rulesConfigRepo = AppDataSource.getRepository(RulesConfig);
 const tl = lang.rules.reaction;
 
-// In-memory cache: Map<messageId, RulesConfig>
-const rulesCache = new Map<string, RulesConfig>();
+// TTL for cache entries (30 minutes)
+const CACHE_TTL_MS = 30 * 60 * 1000;
+
+// In-memory cache: Map<messageId, { config, cachedAt }>
+const rulesCache = new Map<string, { config: RulesConfig; cachedAt: number }>();
 
 const cooldown = new ReactionCooldown();
 
@@ -25,8 +28,8 @@ export function stopRulesCooldownCleanup(): void {
 
 /** Clear cache for a guild (called on setup/remove/guild leave) */
 export function invalidateRulesCache(guildId: string): void {
-  for (const [messageId, config] of rulesCache) {
-    if (config.guildId === guildId) {
+  for (const [messageId, entry] of rulesCache) {
+    if (entry.config.guildId === guildId) {
       rulesCache.delete(messageId);
     }
   }
@@ -37,14 +40,19 @@ async function getRulesConfig(messageId: string, guildId: string): Promise<Rules
   // Check cache first — verify guildId matches to prevent cross-guild leaks
   const cached = rulesCache.get(messageId);
   if (cached) {
-    if (cached.guildId === guildId) return cached;
+    // Check TTL — evict stale entries
+    if (Date.now() - cached.cachedAt > CACHE_TTL_MS) {
+      rulesCache.delete(messageId);
+    } else if (cached.config.guildId === guildId) {
+      return cached.config;
+    }
     // Cache hit but wrong guild — ignore and fall through to DB
   }
 
   // DB lookup
   const config = await rulesConfigRepo.findOneBy({ guildId, messageId });
   if (config) {
-    rulesCache.set(messageId, config);
+    rulesCache.set(messageId, { config, cachedAt: Date.now() });
   }
   return config;
 }
