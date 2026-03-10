@@ -39,7 +39,16 @@ const savedRoleRepo = AppDataSource.getRepository(SavedRole);
 
 export const handleApplicationInteraction = async (client: Client, interaction: Interaction) => {
   const guildId = interaction.guildId || '';
-  const applicationConfig = await applicationConfigRepo.findOneBy({ guildId });
+  // applicationConfig is loaded lazily — only fetched when actually needed
+  let applicationConfig:
+    | import('../typeorm/entities/application/ApplicationConfig').ApplicationConfig
+    | null = null;
+  const getApplicationConfig = async () => {
+    if (applicationConfig === null) {
+      applicationConfig = await applicationConfigRepo.findOneBy({ guildId });
+    }
+    return applicationConfig;
+  };
 
   /* Apply Button for Specific Position */
   if (interaction.isButton() && interaction.customId.startsWith('apply_')) {
@@ -146,7 +155,8 @@ export const handleApplicationInteraction = async (client: Client, interaction: 
     const positionId = parseInt(interaction.customId.replace('application_modal_', ''), 10);
     const member = interaction.member as GuildMember;
     const guild = interaction.guild;
-    const category = applicationConfig?.categoryId;
+    const appConfig = await getApplicationConfig();
+    const category = appConfig?.categoryId;
 
     enhancedLogger.debug(
       `Modal submit: application_modal_${positionId}`,

@@ -305,16 +305,22 @@ async function main() {
       console.warn(tl.noFoundConfigs);
     }
 
-    // register commands for each guild found in database
-    for (const config of botConfigs) {
-      try {
-        await rest.put(Routes.applicationGuildCommands(CLIENT, config.guildId), {
-          body: commands,
-        });
-
-        console.log(tl.regCmdsSuccess + config.guildId);
-      } catch (error) {
-        console.error(`${tl.regCmdsFail}${config.guildId}:`, error);
+    // register commands for each guild found in database (in parallel)
+    const registrationResults = await Promise.allSettled(
+      botConfigs.map(config =>
+        rest
+          .put(Routes.applicationGuildCommands(CLIENT, config.guildId), {
+            body: commands,
+          })
+          .then(() => {
+            console.log(tl.regCmdsSuccess + config.guildId);
+          }),
+      ),
+    );
+    for (let i = 0; i < registrationResults.length; i++) {
+      const result = registrationResults[i];
+      if (result.status === 'rejected') {
+        console.error(`${tl.regCmdsFail}${botConfigs[i].guildId}:`, result.reason);
       }
     }
 

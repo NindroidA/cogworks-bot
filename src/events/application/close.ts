@@ -70,10 +70,7 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
   });
 
   // ensure the transcript directory exists
-  if (!fs.existsSync(transcriptPath)) {
-    fs.mkdirSync(transcriptPath, { recursive: true });
-    enhancedLogger.info(`Created transcript directory: ${transcriptPath}`, LogCategory.SYSTEM);
-  }
+  await fs.promises.mkdir(transcriptPath, { recursive: true });
 
   // make the transcript file
   try {
