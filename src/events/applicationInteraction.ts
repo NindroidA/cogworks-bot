@@ -316,8 +316,8 @@ export const handleApplicationInteraction = async (client: Client, interaction: 
       }
 
       // update application record
-      applicationRepo.update(
-        { id: savedApplication.id },
+      await applicationRepo.update(
+        { id: savedApplication.id, guildId },
         {
           messageId: welc.id,
           channelId: newChannel.id,

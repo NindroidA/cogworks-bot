@@ -54,7 +54,7 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
   }
 
   // Immediately mark as closed to prevent concurrent close attempts
-  await ticketRepo.update({ id: ticket.id }, { status: 'closed' });
+  await ticketRepo.update({ id: ticket.id, guildId }, { status: 'closed' });
 
   // get archived channel from ArchivedTicket database (CRITICAL: must be guild-scoped!)
   const createdBy = ticket.createdBy;

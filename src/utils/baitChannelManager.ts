@@ -92,7 +92,7 @@ export class BaitChannelManager {
         const key = `${ban.userId}-${ban.messageId}`;
         const timeoutId = setTimeout(async () => {
           this.pendingBans.delete(key);
-          await this.removePendingBanFromDb(ban.userId, ban.messageId);
+          await this.removePendingBanFromDb(ban.userId, ban.messageId, ban.guildId);
         }, remainingMs);
 
         this.pendingBans.set(key, {
@@ -152,17 +152,23 @@ export class BaitChannelManager {
     }
   }
 
-  private async removePendingBanFromDb(userId: string, messageId: string): Promise<void> {
+  private async removePendingBanFromDb(
+    userId: string,
+    messageId: string,
+    guildId?: string,
+  ): Promise<void> {
     if (!this.pendingBanRepo) return;
     try {
-      await this.pendingBanRepo.delete({ userId, messageId });
+      const where: Record<string, string> = { userId, messageId };
+      if (guildId) where.guildId = guildId;
+      await this.pendingBanRepo.delete(where);
     } catch (error) {
       logError({
         category: ErrorCategory.DATABASE,
         severity: ErrorSeverity.LOW,
         message: 'Failed to remove pending ban from database',
         error,
-        context: { userId, messageId },
+        context: { userId, messageId, guildId },
       });
     }
   }
@@ -501,7 +507,7 @@ export class BaitChannelManager {
 
         // Message still exists - remove from pending and execute action
         this.pendingBans.delete(key);
-        await this.removePendingBanFromDb(member.id, message.id);
+        await this.removePendingBanFromDb(member.id, message.id, message.guild?.id);
         await this.executeAction(member, message, config, analysis, 'Grace period expired');
 
         // Delete the bot's warning message
@@ -523,7 +529,7 @@ export class BaitChannelManager {
         // Check again in case handleMessageDelete ran between our check and here
         if (this.pendingBans.has(key)) {
           this.pendingBans.delete(key);
-          await this.removePendingBanFromDb(member.id, message.id);
+          await this.removePendingBanFromDb(member.id, message.id, message.guild?.id);
           await this.logAction(message, 'deleted-in-time', config, analysis);
 
           // Delete the bot's warning message since the user complied
@@ -565,7 +571,7 @@ export class BaitChannelManager {
         if (pendingBan.messageId === messageId) {
           clearTimeout(pendingBan.timeoutId);
           this.pendingBans.delete(key);
-          await this.removePendingBanFromDb(pendingBan.userId, messageId);
+          await this.removePendingBanFromDb(pendingBan.userId, messageId, guildId);
 
           const guild = this.client.guilds.cache.get(guildId);
           if (!guild) return;

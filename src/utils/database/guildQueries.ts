@@ -200,12 +200,39 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     const { UserActivity } = await import('../../typeorm/entities/UserActivity');
     const { RulesConfig } = await import('../../typeorm/entities/rules');
     const { ReactionRoleMenu } = await import('../../typeorm/entities/reactionRole');
+    const { CustomTicketType } = await import('../../typeorm/entities/ticket/CustomTicketType');
+    const { UserTicketRestriction } = await import(
+      '../../typeorm/entities/ticket/UserTicketRestriction'
+    );
+    const { PendingBan } = await import('../../typeorm/entities/PendingBan');
+    const { AnnouncementLog } = await import('../../typeorm/entities/announcement/AnnouncementLog');
+    const { MemoryConfig } = await import('../../typeorm/entities/memory/MemoryConfig');
+    const { MemoryItem } = await import('../../typeorm/entities/memory/MemoryItem');
+    const { MemoryTag } = await import('../../typeorm/entities/memory/MemoryTag');
 
     const details: Record<string, number> = {};
     let total = 0;
 
-    // Delete from all tables
+    // Delete from all tables (child entities before parents to respect FK constraints)
     const deletions = [
+      // Child entities first
+      {
+        name: 'UserTicketRestriction',
+        repo: AppDataSource.getRepository(UserTicketRestriction),
+      },
+      {
+        name: 'CustomTicketType',
+        repo: AppDataSource.getRepository(CustomTicketType),
+      },
+      { name: 'MemoryTag', repo: AppDataSource.getRepository(MemoryTag) },
+      { name: 'MemoryItem', repo: AppDataSource.getRepository(MemoryItem) },
+      { name: 'MemoryConfig', repo: AppDataSource.getRepository(MemoryConfig) },
+      { name: 'PendingBan', repo: AppDataSource.getRepository(PendingBan) },
+      {
+        name: 'AnnouncementLog',
+        repo: AppDataSource.getRepository(AnnouncementLog),
+      },
+      // Original entities
       { name: 'BotConfig', repo: AppDataSource.getRepository(BotConfig) },
       { name: 'TicketConfig', repo: AppDataSource.getRepository(TicketConfig) },
       {

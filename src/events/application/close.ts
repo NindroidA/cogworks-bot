@@ -60,7 +60,7 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
   }
 
   // Immediately mark as closed to prevent concurrent close attempts
-  await applicationRepo.update({ id: application.id }, { status: 'closed' });
+  await applicationRepo.update({ id: application.id, guildId }, { status: 'closed' });
 
   // get archive channel from ArchivedApplication db using createdBy AND guildId (CRITICAL: must be guild-scoped!)
   const createdBy = application.createdBy;

@@ -648,8 +648,8 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
         }
       }
 
-      ticketRepo.update(
-        { id: savedTicket.id },
+      await ticketRepo.update(
+        { id: savedTicket.id, guildId },
         {
           messageId: welc.id,
           channelId: newChannel.id,
