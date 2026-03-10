@@ -60,7 +60,14 @@ const LEGACY_PING_COLUMNS: Record<LegacyType, keyof TicketConfig> = {
 
 export const handleTicketInteraction = async (client: Client, interaction: Interaction) => {
   const guildId = interaction.guildId || '';
-  const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
+  // ticketConfig is loaded lazily — only fetched when actually needed
+  let ticketConfig: import('../typeorm/entities/ticket/TicketConfig').TicketConfig | null = null;
+  const getTicketConfig = async () => {
+    if (ticketConfig === null) {
+      ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
+    }
+    return ticketConfig;
+  };
 
   /* Handle Custom Ticket Type Modals */
   if (interaction.isModalSubmit()) {
@@ -167,7 +174,8 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
     });
 
     // check if the ticket config exists
-    if (!ticketConfig) {
+    const config = await getTicketConfig();
+    if (!config) {
       enhancedLogger.warn(
         'Create ticket failed: ticketConfig not found',
         LogCategory.COMMAND_EXECUTION,
@@ -177,7 +185,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
     }
 
     // check if we have the right messageid
-    if (ticketConfig.messageId === interaction.message.id) {
+    if (config.messageId === interaction.message.id) {
       try {
         // Try to get custom ticket types (filtered by user restrictions)
         const customOptions = await customTicketOptions(guildId, interaction.user.id);
@@ -408,7 +416,8 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
     const ticketType = interaction.customId.replace('ticket_modal_', '');
     const member = interaction.member as GuildMember;
     const guild = interaction.guild;
-    const category = ticketConfig?.categoryId;
+    const modalTicketConfig = await getTicketConfig();
+    const category = modalTicketConfig?.categoryId;
 
     enhancedLogger.debug(
       `Modal submit: ticket_modal_${ticketType}`,
@@ -457,6 +466,14 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
       const legacyTypes = ['18_verify', 'ban_appeal', 'player_report', 'bug_report', 'other'];
       const isLegacyType = legacyTypes.includes(ticketType);
 
+      // For custom types, fetch config once and reuse throughout
+      let customTypeConfig: CustomTicketType | null = null;
+      if (!isLegacyType) {
+        customTypeConfig = await customTypeRepo.findOne({
+          where: { guildId, typeId: ticketType },
+        });
+      }
+
       if (isLegacyType) {
         // Use legacy message builders for legacy types
         switch (ticketType) {
@@ -477,11 +494,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
             break;
         }
       } else {
-        // Get the ticket type from database for custom types
-        const typeRepo = AppDataSource.getRepository(CustomTicketType);
-        const ticketTypeConfig = await typeRepo.findOne({
-          where: { guildId, typeId: ticketType },
-        });
+        const ticketTypeConfig = customTypeConfig;
 
         if (!ticketTypeConfig) {
           await interaction.reply({
@@ -528,14 +541,9 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
         };
         displayName = legacyNames[ticketType] || ticketType;
       } else {
-        // Get from database for custom types
-        const typeRepo = AppDataSource.getRepository(CustomTicketType);
-        const ticketTypeConfig = await typeRepo.findOne({
-          where: { guildId, typeId: ticketType },
-        });
-
-        if (ticketTypeConfig) {
-          displayName = ticketTypeConfig.displayName || ticketType;
+        // Reuse custom type config fetched earlier
+        if (customTypeConfig) {
+          displayName = customTypeConfig.displayName || ticketType;
         }
       }
 
@@ -629,16 +637,12 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
         if (isLegacyType) {
           // Check legacy type ping setting from TicketConfig
           const pingColumn = LEGACY_PING_COLUMNS[ticketType as LegacyType];
-          if (pingColumn && ticketConfig) {
-            shouldPingStaff = ticketConfig[pingColumn] as boolean;
+          if (pingColumn && modalTicketConfig) {
+            shouldPingStaff = modalTicketConfig[pingColumn] as boolean;
           }
         } else {
-          // Check custom type ping setting
-          const customType = await customTypeRepo.findOneBy({
-            guildId,
-            typeId: ticketType,
-          });
-          shouldPingStaff = customType?.pingStaffOnCreate ?? true;
+          // Reuse custom type config fetched earlier
+          shouldPingStaff = customTypeConfig?.pingStaffOnCreate ?? true;
         }
 
         if (shouldPingStaff) {

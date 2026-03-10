@@ -92,123 +92,108 @@ export const dataExportHandler = async (
 
     logger(LANGF(tl.starting, guildId, interaction.user.tag), 'INFO');
 
-    // Collect all data
-    const exportData: Record<string, unknown[]> = {};
+    // Collect all data in parallel for performance
+    const [
+      botConfig,
+      baitChannelConfig,
+      baitChannelLogs,
+      savedRoles,
+      announcementConfig,
+      applications,
+      applicationConfig,
+      positions,
+      archivedApplications,
+      archivedApplicationConfig,
+      tickets,
+      ticketConfig,
+      archivedTickets,
+      archivedTicketConfig,
+      customTicketTypes,
+      userTicketRestrictions,
+      rulesConfig,
+      reactionRoleMenus,
+      pendingBans,
+      announcementLogs,
+      memoryConfig,
+      memoryItems,
+      memoryTags,
+      botStatus,
+      userActivity,
+    ] = await Promise.all([
+      AppDataSource.getRepository(BotConfig).find({ where: { guildId } }),
+      AppDataSource.getRepository(BaitChannelConfig).find({
+        where: { guildId },
+      }),
+      AppDataSource.getRepository(BaitChannelLog).find({ where: { guildId } }),
+      AppDataSource.getRepository(SavedRole).find({ where: { guildId } }),
+      AppDataSource.getRepository(AnnouncementConfig).find({
+        where: { guildId },
+      }),
+      AppDataSource.getRepository(Application).find({ where: { guildId } }),
+      AppDataSource.getRepository(ApplicationConfig).find({
+        where: { guildId },
+      }),
+      AppDataSource.getRepository(Position).find({ where: { guildId } }),
+      AppDataSource.getRepository(ArchivedApplication).find({
+        where: { guildId },
+      }),
+      AppDataSource.getRepository(ArchivedApplicationConfig).find({
+        where: { guildId },
+      }),
+      AppDataSource.getRepository(Ticket).find({ where: { guildId } }),
+      AppDataSource.getRepository(TicketConfig).find({ where: { guildId } }),
+      AppDataSource.getRepository(ArchivedTicket).find({ where: { guildId } }),
+      AppDataSource.getRepository(ArchivedTicketConfig).find({
+        where: { guildId },
+      }),
+      AppDataSource.getRepository(CustomTicketType).find({
+        where: { guildId },
+      }),
+      AppDataSource.getRepository(UserTicketRestriction).find({
+        where: { guildId },
+      }),
+      AppDataSource.getRepository(RulesConfig).find({ where: { guildId } }),
+      AppDataSource.getRepository(ReactionRoleMenu).find({
+        where: { guildId },
+        relations: ['options'],
+      }),
+      AppDataSource.getRepository(PendingBan).find({ where: { guildId } }),
+      AppDataSource.getRepository(AnnouncementLog).find({ where: { guildId } }),
+      AppDataSource.getRepository(MemoryConfig).find({ where: { guildId } }),
+      AppDataSource.getRepository(MemoryItem).find({ where: { guildId } }),
+      AppDataSource.getRepository(MemoryTag).find({ where: { guildId } }),
+      AppDataSource.getRepository(BotStatus).find(),
+      AppDataSource.getRepository(UserActivity).find({ where: { guildId } }),
+    ]);
 
-    // Bot Configuration
-    const botConfigRepo = AppDataSource.getRepository(BotConfig);
-    exportData.botConfig = await botConfigRepo.find({ where: { guildId } });
-
-    // Bait Channel
-    const baitChannelConfigRepo = AppDataSource.getRepository(BaitChannelConfig);
-    const baitChannelLogRepo = AppDataSource.getRepository(BaitChannelLog);
-    exportData.baitChannelConfig = await baitChannelConfigRepo.find({
-      where: { guildId },
-    });
-    exportData.baitChannelLogs = await baitChannelLogRepo.find({
-      where: { guildId },
-    });
-
-    // Saved Roles
-    const savedRoleRepo = AppDataSource.getRepository(SavedRole);
-    exportData.savedRoles = await savedRoleRepo.find({ where: { guildId } });
-
-    // Announcements
-    const announcementConfigRepo = AppDataSource.getRepository(AnnouncementConfig);
-    exportData.announcementConfig = await announcementConfigRepo.find({
-      where: { guildId },
-    });
-
-    // Applications
-    const applicationRepo = AppDataSource.getRepository(Application);
-    const applicationConfigRepo = AppDataSource.getRepository(ApplicationConfig);
-    const positionRepo = AppDataSource.getRepository(Position);
-    const archivedApplicationRepo = AppDataSource.getRepository(ArchivedApplication);
-    const archivedApplicationConfigRepo = AppDataSource.getRepository(ArchivedApplicationConfig);
-
-    exportData.applications = await applicationRepo.find({
-      where: { guildId },
-    });
-    exportData.applicationConfig = await applicationConfigRepo.find({
-      where: { guildId },
-    });
-    exportData.positions = await positionRepo.find({ where: { guildId } });
-    exportData.archivedApplications = await archivedApplicationRepo.find({
-      where: { guildId },
-    });
-    exportData.archivedApplicationConfig = await archivedApplicationConfigRepo.find({
-      where: { guildId },
-    });
-
-    // Tickets
-    const ticketRepo = AppDataSource.getRepository(Ticket);
-    const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
-    const archivedTicketRepo = AppDataSource.getRepository(ArchivedTicket);
-    const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
-
-    exportData.tickets = await ticketRepo.find({ where: { guildId } });
-    exportData.ticketConfig = await ticketConfigRepo.find({
-      where: { guildId },
-    });
-    exportData.archivedTickets = await archivedTicketRepo.find({
-      where: { guildId },
-    });
-    exportData.archivedTicketConfig = await archivedTicketConfigRepo.find({
-      where: { guildId },
-    });
-
-    // Custom Ticket Types & User Restrictions
-    const customTicketTypeRepo = AppDataSource.getRepository(CustomTicketType);
-    const userTicketRestrictionRepo = AppDataSource.getRepository(UserTicketRestriction);
-    exportData.customTicketTypes = await customTicketTypeRepo.find({
-      where: { guildId },
-    });
-    exportData.userTicketRestrictions = await userTicketRestrictionRepo.find({
-      where: { guildId },
-    });
-
-    // Rules
-    const rulesConfigRepo = AppDataSource.getRepository(RulesConfig);
-    exportData.rulesConfig = await rulesConfigRepo.find({ where: { guildId } });
-
-    // Reaction Roles (options loaded via menu relation, as options don't have guildId)
-    const reactionRoleMenuRepo = AppDataSource.getRepository(ReactionRoleMenu);
-    const menus = await reactionRoleMenuRepo.find({
-      where: { guildId },
-      relations: ['options'],
-    });
-    exportData.reactionRoleMenus = menus;
-    exportData.reactionRoleOptions = menus.flatMap(m => m.options || []);
-
-    // Pending Bans
-    const pendingBanRepo = AppDataSource.getRepository(PendingBan);
-    exportData.pendingBans = await pendingBanRepo.find({ where: { guildId } });
-
-    // Announcement Logs
-    const announcementLogRepo = AppDataSource.getRepository(AnnouncementLog);
-    exportData.announcementLogs = await announcementLogRepo.find({
-      where: { guildId },
-    });
-
-    // Memory System
-    const memoryConfigRepo = AppDataSource.getRepository(MemoryConfig);
-    const memoryItemRepo = AppDataSource.getRepository(MemoryItem);
-    const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
-    exportData.memoryConfig = await memoryConfigRepo.find({
-      where: { guildId },
-    });
-    exportData.memoryItems = await memoryItemRepo.find({ where: { guildId } });
-    exportData.memoryTags = await memoryTagRepo.find({ where: { guildId } });
-
-    // Bot Status (singleton — not guild-scoped, included for completeness)
-    const botStatusRepo = AppDataSource.getRepository(BotStatus);
-    exportData.botStatus = await botStatusRepo.find();
-
-    // User Activity
-    const userActivityRepo = AppDataSource.getRepository(UserActivity);
-    exportData.userActivity = await userActivityRepo.find({
-      where: { guildId },
-    });
+    const exportData: Record<string, unknown[]> = {
+      botConfig,
+      baitChannelConfig,
+      baitChannelLogs,
+      savedRoles,
+      announcementConfig,
+      applications,
+      applicationConfig,
+      positions,
+      archivedApplications,
+      archivedApplicationConfig,
+      tickets,
+      ticketConfig,
+      archivedTickets,
+      archivedTicketConfig,
+      customTicketTypes,
+      userTicketRestrictions,
+      rulesConfig,
+      reactionRoleMenus,
+      reactionRoleOptions: reactionRoleMenus.flatMap(m => m.options || []),
+      pendingBans,
+      announcementLogs,
+      memoryConfig,
+      memoryItems,
+      memoryTags,
+      botStatus,
+      userActivity,
+    };
 
     // Calculate total records
     const totalRecords = Object.values(exportData).reduce((sum, arr) => sum + arr.length, 0);
@@ -236,9 +221,7 @@ export const dataExportHandler = async (
 
     // Create temporary directory if it doesn't exist
     const tempDir = path.join(process.cwd(), 'temp');
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-    }
+    await fs.promises.mkdir(tempDir, { recursive: true });
 
     // Write to file
     const filename = `guild-${guildId}-export-${Date.now()}.json`;

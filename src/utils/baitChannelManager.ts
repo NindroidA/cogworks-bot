@@ -1199,10 +1199,14 @@ export class BaitChannelManager {
     this.configCache.delete(guildId);
   }
 
-  // Track user activity for better detection
+  // Track user activity for better detection (only when bait channel is enabled)
   async trackMessage(message: Message): Promise<void> {
     try {
       if (!message.guild || message.author.bot) return;
+
+      // Skip activity tracking if bait channel isn't configured/enabled for this guild
+      const config = await this.getConfig(message.guild.id);
+      if (!config || !config.enabled) return;
 
       let activity = await this.activityRepo.findOne({
         where: { guildId: message.guild.id, userId: message.author.id },

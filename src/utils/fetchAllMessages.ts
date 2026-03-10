@@ -77,7 +77,7 @@ export async function fetchMessagesAndSaveToFile(
 
   // Write transcript file
   const fullFile = header + fileContent;
-  fs.writeFileSync(transcriptPath, fullFile);
+  await fs.promises.writeFile(transcriptPath, fullFile);
   console.log(lang.console.transcriptSaved);
 
   // ========================================================================
@@ -105,7 +105,7 @@ export async function fetchMessagesAndSaveToFile(
   if (attachmentCount > 0) {
     const zipPath = path.resolve(`${outputPath}attachments_${channel.id}.zip`);
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-    fs.writeFileSync(zipPath, zipBuffer);
+    await fs.promises.writeFile(zipPath, zipBuffer);
     console.log(`${lang.console.attachmentsSaved} (${attachmentCount} images)`);
   }
 }

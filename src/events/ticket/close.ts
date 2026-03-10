@@ -75,10 +75,7 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
   }
 
   // ensure the transcript directory exists
-  if (!fs.existsSync(transcriptPath)) {
-    fs.mkdirSync(transcriptPath, { recursive: true });
-    enhancedLogger.info(`Created transcript directory: ${transcriptPath}`, LogCategory.SYSTEM);
-  }
+  await fs.promises.mkdir(transcriptPath, { recursive: true });
 
   // make the transcript file
   try {
