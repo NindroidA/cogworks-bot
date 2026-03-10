@@ -1,6 +1,6 @@
 # Cogworks Bot Commands
 
-**Last Updated:** `March 8, 2026` (v2.12.0)
+**Last Updated:** `March 9, 2026` (v2.12.10)
 
 Complete command reference for all bot systems.
 
@@ -520,9 +520,15 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
   - Custom ticket types and fields
   - User ticket restrictions
   - Application configuration and active applications
-  - Announcement settings
+  - Application positions
+  - Announcement configuration and logs
   - Bait channel configuration and logs
+  - Pending bans
   - Saved roles (admin/staff)
+  - Rules configuration
+  - Reaction role menus and options
+  - Memory configuration, items, and tags
+  - Bot status
   - Archived tickets and applications
 
 **Data Privacy:**

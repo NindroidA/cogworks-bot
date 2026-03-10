@@ -1,6 +1,6 @@
 # Terms of Service for Cogworks Bot
 
-**Last Updated:** `January 5, 2026`
+**Last Updated:** `March 9, 2026`
 
 ## 1. Acceptance of Terms
 
@@ -18,13 +18,22 @@ Cogworks Bot provides the following features and services:
   - User restrictions for per-type access control
 - **Announcement System**: Server announcements with rich embeds and previews
 - **Application System**: Custom application forms and processing
+  - Preset templates and custom positions with configurable fields
+  - Per-position emoji and optional age gate
 - **Role Management**: Permission-based access control and role configuration
+- **Memory System**: Forum-based tracking for bugs, features, suggestions, reminders, and notes
+  - Custom category and status tags with Discord forum tag sync
+- **Rules Acknowledgment**: React-to-accept-rules with automatic role assignment
+- **Reaction Role Menus**: Self-service role assignment via emoji reactions
+  - Normal, unique, and lock modes
+- **Outage Status System**: Bot operational status with health check integration
+  - Manual override, automated health detection, status channel posting
 - **Bait Channel Anti-Bot System**: Automated bot detection and removal
   - Smart detection with suspicion scoring
   - Configurable actions (ban, kick, log-only)
   - Whitelist management for trusted users and roles
-- **Archive Migration**: Transcript storage and database management
-- **API Integration**: NindroidSystems service connectivity
+  - Automatic message purge on ban
+- **API Integration**: Nindroid Systems service connectivity
 
 The Bot is provided "as-is" and features may be added, modified, or removed at any time.
 

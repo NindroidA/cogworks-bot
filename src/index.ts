@@ -39,6 +39,7 @@ import {
   healthServer,
   LogCategory,
   lang,
+  rateLimiter,
 } from './utils';
 import { APIConnector } from './utils/apiConnector';
 import { BaitChannelManager } from './utils/baitChannelManager';
@@ -49,7 +50,8 @@ import { StatusManager } from './utils/status/StatusManager';
 dotenv.config();
 
 // Setup global error handlers for unhandled rejections and exceptions
-setupGlobalErrorHandlers();
+// gracefulShutdown is hoisted — safe to reference before its textual position
+setupGlobalErrorHandlers(gracefulShutdown);
 
 const tl = lang.main;
 
@@ -253,6 +255,8 @@ async function gracefulShutdown(signal: string) {
   stopFieldSessionCleanup();
   stopReactionRoleCooldownCleanup();
   stopRulesCooldownCleanup();
+  healthMonitor.stopPeriodicChecks();
+  rateLimiter.destroy();
   if (healthMonitorInterval) clearInterval(healthMonitorInterval);
 
   // stop health server

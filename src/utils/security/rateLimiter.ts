@@ -31,6 +31,15 @@ class RateLimiter {
   private limits: Map<string, RateLimitEntry> = new Map();
   private cleanupInterval: NodeJS.Timeout;
   private devModeLogged: boolean = false; // Only log dev mode bypass once
+  private _isDevMode: boolean | null = null;
+
+  /** Lazily cached dev mode check — reads env once, testable */
+  private get isDevMode(): boolean {
+    if (this._isDevMode === null) {
+      this._isDevMode = (process.env.RELEASE || 'prod').toLowerCase().trim() === 'dev';
+    }
+    return this._isDevMode;
+  }
 
   constructor() {
     // Clean up expired entries every 5 minutes
@@ -54,8 +63,7 @@ class RateLimiter {
     config: RateLimitConfig,
   ): { allowed: boolean; message?: string; resetIn?: number } {
     // Check if we're in dev mode - bypass rate limits
-    const RELEASE = (process.env.RELEASE || 'prod').toLowerCase().trim();
-    if (RELEASE === 'dev') {
+    if (this.isDevMode) {
       // Only log once per session to avoid spam
       if (!this.devModeLogged) {
         logger('⚠️ Rate limiter running in dev mode - all limits bypassed', 'INFO');
@@ -191,6 +199,7 @@ class RateLimiter {
    */
   public destroy(): void {
     clearInterval(this.cleanupInterval);
+    this._isDevMode = null; // Reset cached dev mode for next check cycle
   }
 
   /**

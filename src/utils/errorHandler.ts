@@ -314,7 +314,9 @@ export function withErrorHandling<T extends Array<unknown>>(
 /**
  * Handle unhandled rejections
  */
-export function setupGlobalErrorHandlers(): void {
+export function setupGlobalErrorHandlers(
+  onFatalShutdown?: (signal: string) => Promise<void>,
+): void {
   process.on('unhandledRejection', (reason, promise) => {
     logger(`${E.alert} Unhandled Promise Rejection!`, 'ERROR');
     logError({
@@ -338,10 +340,16 @@ export function setupGlobalErrorHandlers(): void {
       context: {},
     });
 
-    // Give time to log before exiting
-    setTimeout(() => {
-      process.exit(1);
-    }, 1000);
+    // Use graceful shutdown if available, otherwise hard exit
+    if (onFatalShutdown) {
+      onFatalShutdown('uncaughtException').catch(() => {
+        process.exit(1);
+      });
+    } else {
+      setTimeout(() => {
+        process.exit(1);
+      }, 1000);
+    }
   });
 }
 

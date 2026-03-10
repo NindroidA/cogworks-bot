@@ -34,7 +34,7 @@ export const AppDataSource = new DataSource({
   username: process.env.MYSQL_DB_USERNAME,
   password: process.env.MYSQL_DB_PASSWORD,
   database: process.env.MYSQL_DB_DATABASE,
-  synchronize: true,
+  synchronize: (process.env.RELEASE || 'prod').toLowerCase().trim() === 'dev',
   entities: [
     TicketConfig,
     Ticket,

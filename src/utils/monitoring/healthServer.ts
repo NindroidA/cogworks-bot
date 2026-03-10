@@ -291,21 +291,18 @@ class HealthServer {
    * Handle liveness probe request.
    * Simple check that the process is running and responsive.
    */
-  private async handleLivenessCheck(res: ServerResponse): Promise<void> {
-    const healthStatus = await healthMonitor.getHealthStatus();
+  private handleLivenessCheck(res: ServerResponse): void {
+    // Lightweight — only checks process responsiveness, no DB query
+    const uptime = healthMonitor.getUptime();
 
     const response: LivenessResponse = {
       alive: true,
       message: 'Bot process is running',
       timestamp: new Date().toISOString(),
-      uptime: healthStatus.uptime,
+      uptime,
     };
 
     this.sendResponse(res, 200, response);
-
-    enhancedLogger.debug('Liveness check requested', LogCategory.SYSTEM, {
-      uptime: healthStatus.uptime,
-    });
   }
 
   /**

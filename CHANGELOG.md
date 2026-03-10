@@ -5,6 +5,90 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.12.10] - 2026-03-09
+
+### Fixed
+- **Production Schema Safety**: Disabled TypeORM `synchronize` in production — now dev-only (`synchronize: RELEASE === 'dev'`)
+- **Fatal Shutdown Cleanup**: `uncaughtException` handler now calls `gracefulShutdown` instead of raw `process.exit(1)`, ensuring proper cleanup
+- **Commands Per Minute Metric**: Fixed `commandsPerMinute` to count actual command executions using rolling timestamp array (was counting distinct command names)
+- **Lightweight Liveness Probe**: `/health/live` now checks process uptime only — no longer queries the database on every probe
+
+### Changed
+- **Cache TTL**: Added 30-minute TTL eviction to `menuCache` (reaction roles) and `rulesCache` (rules reactions) to prevent unbounded memory growth
+- **Shutdown Hygiene**: `gracefulShutdown` now stops `healthMonitor` periodic check intervals and calls `rateLimiter.destroy()`
+- **Tracked Intervals**: `healthMonitor.startPeriodicChecks()` now stores interval handles in `periodicCheckIntervals[]` for proper cleanup via `stopPeriodicChecks()`
+- **Cached Dev Mode**: `rateLimiter` now lazily caches `process.env.RELEASE` on first access instead of reading it on every `check()` call
+
+## [2.12.9] - 2026-03-09
+
+### Changed
+- **Bait Channel Gate**: `trackMessage()` now checks bait channel config before tracking, avoiding unnecessary DB lookups
+- **Async File I/O**: Replaced `fs.writeFileSync` with `fs.promises.writeFile` in ticket/application transcript and zip writes
+- **Async Directory Creation**: Replaced sync `fs.existsSync`/`fs.mkdirSync` with `fs.promises.mkdir({ recursive: true })` in ticket/application close and data export
+- **Lazy Config Queries**: Deferred config queries in `handleTicketInteraction` and `handleApplicationInteraction` via lazy-loaded helpers
+- **Reused Query Results**: Single `CustomTicketType` fetch reused for description, display name, and ping check in ticket creation
+- **Parallel Startup**: Guild command registration now uses `Promise.allSettled` for parallel execution
+- **Parallel Data Export**: Data export queries run with `Promise.all` for 25 concurrent queries
+
+## [2.12.8] - 2026-03-09
+
+### Fixed
+- **[CRITICAL] Ticket User-Restrict Permission**: Added `requireAdmin()` check — was accessible to all guild members
+- **[CRITICAL] Ticket Settings Permission**: Added `requireAdmin()` check — was accessible to all guild members
+- **[CRITICAL] GDPR Data Deletion**: Added missing entities to `deleteAllGuildData()`: CustomTicketType, UserTicketRestriction, PendingBan, AnnouncementLog, MemoryConfig, MemoryItem, MemoryTag
+- **[CRITICAL] GDPR Data Export**: Added missing entities to data export: CustomTicketType, UserTicketRestriction, ReactionRoleMenu, ReactionRoleOption, RulesConfig, PendingBan, AnnouncementLog, MemoryConfig, MemoryItem, MemoryTag, BotStatus
+- **Ticket Update After Creation**: Added `await` to fire-and-forget DB write that could leave ticket in `created` state
+- **Application Update After Creation**: Added `await` to fire-and-forget DB write (same pattern)
+- **PendingBan Delete Scope**: Added `guildId` to PendingBan delete query (was missing guild scope)
+- **Guild-Scoped Updates**: Added `guildId` to ticket/application update WHERE clauses in ticketInteraction, applicationInteraction, ticket/close, application/close, ticket/adminOnly
+
+### Changed
+- **Export Temp Cleanup**: Data export now cleans up temp file on DM failure
+
+## [2.12.7] - 2026-03-09
+
+### Changed
+- **Resource Management**: Improved interval and timer cleanup across monitoring, caching, and security subsystems
+- **Cache Optimization**: Added size limits and eviction policies to in-memory caches
+- **Interval Cleanup**: All periodic intervals now tracked and properly cleared on shutdown
+
+## [2.12.6] - 2026-03-09
+
+### Changed
+- **Logger Migration**: Migrated `apiConnector` from basic `logger()` to `enhancedLogger` with proper categories
+- **Type Safety**: Improved type annotations across utility modules
+- **Dead Code Cleanup**: Removed unused imports, variables, and unreachable code paths
+
+## [2.12.5] - 2026-03-09
+
+### Fixed
+- **Critical Guild Scope Fix**: Added missing `guildId` filters to archived entity queries preventing cross-guild data visibility
+- **Error Handling**: Improved error handling in event handlers and interaction flows
+- **Async File Operations**: Fixed blocking file I/O in hot paths
+
+## [2.12.4] - 2026-03-08
+
+### Added
+- **Memory Capture Error Handling**: Improved error messages for invalid message links and missing permissions
+- **Email Import Rate Limiting**: Added per-user rate limiting to email import handler
+- **Bait Channel Threshold Config**: Configurable detection thresholds via environment variables
+- **New Unit Tests**: 82 new event handler tests (ticketInteraction, applicationInteraction)
+
+### Changed
+- **API Connector Logger**: Migrated from basic `logger()` to `enhancedLogger` with proper categories
+- **License**: Changed from MIT to PolyForm Noncommercial 1.0.0
+
+## [2.12.1] - 2026-03-08
+
+### Added
+- **Custom Announcement Messages**: Announcement templates now support custom message content
+- **Modal Timeout Feedback**: `notifyModalTimeout()` utility for clear user feedback on modal timeouts
+- **Memory Quick-Update Commands**: `/memory update-status` and `/memory update-tags` for quick updates from any channel
+
+### Fixed
+- **Timestamp Accuracy**: Fixed announcement timestamps to use server time correctly
+- **Language Fixes**: Corrected various lang string issues
+
 ## [2.12.0] - 2026-03-08
 
 ### Added

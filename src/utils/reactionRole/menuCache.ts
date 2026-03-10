@@ -3,8 +3,11 @@ import { ReactionRoleMenu, type ReactionRoleOption } from '../../typeorm/entitie
 
 const menuRepo = AppDataSource.getRepository(ReactionRoleMenu);
 
-// In-memory cache: Map<messageId, ReactionRoleMenu>
-const menuCache = new Map<string, ReactionRoleMenu>();
+// TTL for cache entries (30 minutes)
+const CACHE_TTL_MS = 30 * 60 * 1000;
+
+// In-memory cache: Map<messageId, { menu, cachedAt }>
+const menuCache = new Map<string, { menu: ReactionRoleMenu; cachedAt: number }>();
 
 // Pre-built emoji-to-option lookup: Map<messageId, Map<emoji, ReactionRoleOption>>
 const emojiIndex = new Map<string, Map<string, ReactionRoleOption>>();
@@ -25,7 +28,13 @@ export async function getCachedMenu(
 ): Promise<ReactionRoleMenu | null> {
   const cached = menuCache.get(messageId);
   if (cached) {
-    if (cached.guildId === guildId) return cached;
+    // Check TTL — evict stale entries
+    if (Date.now() - cached.cachedAt > CACHE_TTL_MS) {
+      menuCache.delete(messageId);
+      emojiIndex.delete(messageId);
+    } else if (cached.menu.guildId === guildId) {
+      return cached.menu;
+    }
     // Cache hit but wrong guild — ignore and fall through to DB
   }
 
@@ -35,7 +44,7 @@ export async function getCachedMenu(
   });
 
   if (menu) {
-    menuCache.set(messageId, menu);
+    menuCache.set(messageId, { menu, cachedAt: Date.now() });
     emojiIndex.set(messageId, buildEmojiIndex(menu));
   }
 
@@ -61,8 +70,8 @@ export function invalidateMenuCache(messageId: string): void {
 
 /** Invalidate all cache entries for a guild (on guild leave) */
 export function invalidateGuildMenuCache(guildId: string): void {
-  for (const [messageId, menu] of menuCache) {
-    if (menu.guildId === guildId) {
+  for (const [messageId, entry] of menuCache) {
+    if (entry.menu.guildId === guildId) {
       menuCache.delete(messageId);
       emojiIndex.delete(messageId);
     }
