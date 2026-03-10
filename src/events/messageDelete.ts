@@ -31,90 +31,108 @@ export default {
       await baitChannelManager.handleMessageDelete(messageId, guildId);
     }
 
-    // Check all config entities for tracked bot messages
+    // Check all config entities for tracked bot messages (10s timeout per check)
+    const withTimeout = <T>(promise: Promise<T>): Promise<T> =>
+      Promise.race([
+        promise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Config cleanup timed out')), 10_000),
+        ),
+      ]);
+
     const results = await Promise.allSettled([
       // TicketConfig — messageId
-      (async () => {
-        const repo = AppDataSource.getRepository(TicketConfig);
-        const config = await repo.findOneBy({ guildId, messageId });
-        if (!config) return;
+      withTimeout(
+        (async () => {
+          const repo = AppDataSource.getRepository(TicketConfig);
+          const config = await repo.findOneBy({ guildId, messageId });
+          if (!config) return;
 
-        config.messageId = '';
-        await repo.save(config);
-        enhancedLogger.info(
-          'Cleared TicketConfig messageId for deleted message',
-          LogCategory.SYSTEM,
-          { guildId, messageId },
-        );
-      })(),
-
-      // ApplicationConfig — messageId
-      (async () => {
-        const repo = AppDataSource.getRepository(ApplicationConfig);
-        const config = await repo.findOneBy({ guildId, messageId });
-        if (!config) return;
-
-        config.messageId = '';
-        await repo.save(config);
-        enhancedLogger.info(
-          'Cleared ApplicationConfig messageId for deleted message',
-          LogCategory.SYSTEM,
-          { guildId, messageId },
-        );
-      })(),
-
-      // BaitChannelConfig — channelMessageId or logChannelMessageId
-      (async () => {
-        const repo = AppDataSource.getRepository(BaitChannelConfig);
-        const config = await repo.findOneBy({ guildId });
-        if (!config) return;
-
-        let changed = false;
-        if (config.channelMessageId === messageId) {
-          config.channelMessageId = '' as typeof config.channelMessageId;
-          changed = true;
-        }
-        if (config.logChannelMessageId === messageId) {
-          config.logChannelMessageId = '' as typeof config.logChannelMessageId;
-          changed = true;
-        }
-        if (changed) {
+          config.messageId = '';
           await repo.save(config);
           enhancedLogger.info(
-            'Cleared BaitChannelConfig message references for deleted message',
+            'Cleared TicketConfig messageId for deleted message',
             LogCategory.SYSTEM,
             { guildId, messageId },
           );
-        }
-      })(),
+        })(),
+      ),
+
+      // ApplicationConfig — messageId
+      withTimeout(
+        (async () => {
+          const repo = AppDataSource.getRepository(ApplicationConfig);
+          const config = await repo.findOneBy({ guildId, messageId });
+          if (!config) return;
+
+          config.messageId = '';
+          await repo.save(config);
+          enhancedLogger.info(
+            'Cleared ApplicationConfig messageId for deleted message',
+            LogCategory.SYSTEM,
+            { guildId, messageId },
+          );
+        })(),
+      ),
+
+      // BaitChannelConfig — channelMessageId or logChannelMessageId
+      withTimeout(
+        (async () => {
+          const repo = AppDataSource.getRepository(BaitChannelConfig);
+          const config = await repo.findOneBy({ guildId });
+          if (!config) return;
+
+          let changed = false;
+          if (config.channelMessageId === messageId) {
+            config.channelMessageId = '' as typeof config.channelMessageId;
+            changed = true;
+          }
+          if (config.logChannelMessageId === messageId) {
+            config.logChannelMessageId = '' as typeof config.logChannelMessageId;
+            changed = true;
+          }
+          if (changed) {
+            await repo.save(config);
+            enhancedLogger.info(
+              'Cleared BaitChannelConfig message references for deleted message',
+              LogCategory.SYSTEM,
+              { guildId, messageId },
+            );
+          }
+        })(),
+      ),
 
       // RulesConfig — messageId (delete entire record)
-      (async () => {
-        const repo = AppDataSource.getRepository(RulesConfig);
-        const config = await repo.findOneBy({ guildId, messageId });
-        if (!config) return;
+      withTimeout(
+        (async () => {
+          const repo = AppDataSource.getRepository(RulesConfig);
+          const config = await repo.findOneBy({ guildId, messageId });
+          if (!config) return;
 
-        await repo.remove(config);
-        invalidateRulesCache(guildId);
-        enhancedLogger.info('Deleted RulesConfig for deleted message', LogCategory.SYSTEM, {
-          guildId,
-          messageId,
-        });
-      })(),
+          await repo.remove(config);
+          invalidateRulesCache(guildId);
+          enhancedLogger.info('Deleted RulesConfig for deleted message', LogCategory.SYSTEM, {
+            guildId,
+            messageId,
+          });
+        })(),
+      ),
 
       // ReactionRoleMenu — messageId (delete menu + CASCADE options)
-      (async () => {
-        const repo = AppDataSource.getRepository(ReactionRoleMenu);
-        const menu = await repo.findOneBy({ guildId, messageId });
-        if (!menu) return;
+      withTimeout(
+        (async () => {
+          const repo = AppDataSource.getRepository(ReactionRoleMenu);
+          const menu = await repo.findOneBy({ guildId, messageId });
+          if (!menu) return;
 
-        invalidateMenuCache(messageId);
-        await repo.remove(menu);
-        enhancedLogger.info('Deleted ReactionRoleMenu for deleted message', LogCategory.SYSTEM, {
-          guildId,
-          messageId,
-        });
-      })(),
+          invalidateMenuCache(messageId);
+          await repo.remove(menu);
+          enhancedLogger.info('Deleted ReactionRoleMenu for deleted message', LogCategory.SYSTEM, {
+            guildId,
+            messageId,
+          });
+        })(),
+      ),
     ]);
 
     // Log any failures with entity name for identification

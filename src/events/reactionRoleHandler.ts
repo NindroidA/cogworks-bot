@@ -5,31 +5,16 @@ import type {
   PartialUser,
   User,
 } from 'discord.js';
-import { enhancedLogger, getCachedMenu, LogCategory, lang } from '../utils';
+import { enhancedLogger, getCachedMenu, getOptionByEmoji, LogCategory, lang } from '../utils';
+import { ReactionCooldown } from '../utils/reactionCooldown';
 
 const tl = lang.reactionRole.reaction;
 
-// Per-user per-message cooldown (2 seconds) to prevent rapid reaction spam
-const reactionCooldowns = new Map<string, number>();
-const COOLDOWN_MS = 2000;
+const cooldown = new ReactionCooldown();
 
-// Clean up expired cooldown entries every 60 seconds to prevent unbounded growth
-setInterval(() => {
-  const cutoff = Date.now() - COOLDOWN_MS;
-  for (const [key, timestamp] of reactionCooldowns.entries()) {
-    if (timestamp < cutoff) {
-      reactionCooldowns.delete(key);
-    }
-  }
-}, 60 * 1000);
-
-function isOnCooldown(userId: string, messageId: string): boolean {
-  const key = `${userId}:${messageId}`;
-  const lastTime = reactionCooldowns.get(key);
-  const now = Date.now();
-  if (lastTime && now - lastTime < COOLDOWN_MS) return true;
-  reactionCooldowns.set(key, now);
-  return false;
+/** Stop the reaction role cooldown cleanup interval (call on shutdown) */
+export function stopReactionRoleCooldownCleanup(): void {
+  cooldown.stop();
 }
 
 /**
@@ -42,7 +27,7 @@ export async function handleReactionRoleAdd(
   _client: Client,
 ): Promise<void> {
   if (user.bot) return;
-  if (isOnCooldown(user.id, reaction.message.id)) return;
+  if (cooldown.isOnCooldown(user.id, reaction.message.id)) return;
 
   try {
     // Fetch partials
@@ -68,14 +53,12 @@ export async function handleReactionRoleAdd(
     const menu = await getCachedMenu(message.id, guildId);
     if (!menu) return;
 
-    // Find matching emoji option
+    // Find matching emoji option (O(1) via pre-built index)
     const reactionEmoji = reaction.emoji.id
       ? `<:${reaction.emoji.name}:${reaction.emoji.id}>`
       : reaction.emoji.name || '';
 
-    const option = menu.options.find(
-      o => o.emoji === reactionEmoji || o.emoji === reaction.emoji.name,
-    );
+    const option = getOptionByEmoji(message.id, reactionEmoji, reaction.emoji.name);
     if (!option) return;
 
     const member = await message.guild.members.fetch(user.id);
@@ -146,7 +129,7 @@ export async function handleReactionRoleRemove(
   _client: Client,
 ): Promise<void> {
   if (user.bot) return;
-  if (isOnCooldown(user.id, reaction.message.id)) return;
+  if (cooldown.isOnCooldown(user.id, reaction.message.id)) return;
 
   try {
     // Fetch partials
@@ -182,14 +165,12 @@ export async function handleReactionRoleRemove(
       return;
     }
 
-    // Find matching emoji option
+    // Find matching emoji option (O(1) via pre-built index)
     const reactionEmoji = reaction.emoji.id
       ? `<:${reaction.emoji.name}:${reaction.emoji.id}>`
       : reaction.emoji.name || '';
 
-    const option = menu.options.find(
-      o => o.emoji === reactionEmoji || o.emoji === reaction.emoji.name,
-    );
+    const option = getOptionByEmoji(message.id, reactionEmoji, reaction.emoji.name);
     if (!option) return;
 
     const member = await message.guild.members.fetch(user.id);

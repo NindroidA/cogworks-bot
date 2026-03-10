@@ -49,9 +49,17 @@ interface SuspicionAnalysis {
   reasons: string[];
 }
 
+// Config cache TTL: 5 minutes
+const CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
+
+interface CachedConfig {
+  config: BaitChannelConfig;
+  cachedAt: number;
+}
+
 export class BaitChannelManager {
   private pendingBans: Map<string, PendingBan> = new Map();
-  private configCache: Map<string, BaitChannelConfig> = new Map();
+  private configCache: Map<string, CachedConfig> = new Map();
 
   constructor(
     private client: Client,
@@ -1151,15 +1159,21 @@ export class BaitChannelManager {
 
   private async getConfig(guildId: string): Promise<BaitChannelConfig | null> {
     try {
-      // Check cache first
-      if (this.configCache.has(guildId)) {
-        return this.configCache.get(guildId)!;
+      // Check cache first (with TTL)
+      const cached = this.configCache.get(guildId);
+      if (cached && Date.now() - cached.cachedAt < CONFIG_CACHE_TTL_MS) {
+        return cached.config;
+      }
+
+      // Evict stale entry if expired
+      if (cached) {
+        this.configCache.delete(guildId);
       }
 
       // Fetch from database
       const config = await this.configRepo.findOne({ where: { guildId } });
       if (config) {
-        this.configCache.set(guildId, config);
+        this.configCache.set(guildId, { config, cachedAt: Date.now() });
       }
 
       return config;

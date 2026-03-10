@@ -1,2 +1,11 @@
-export { buildMenuEmbed, updateMenuMessage, validateRoleForMenu } from './menuBuilder';
-export { getCachedMenu, invalidateGuildMenuCache, invalidateMenuCache } from './menuCache';
+export {
+  buildMenuEmbed,
+  updateMenuMessage,
+  validateRoleForMenu,
+} from './menuBuilder';
+export {
+  getCachedMenu,
+  getOptionByEmoji,
+  invalidateGuildMenuCache,
+  invalidateMenuCache,
+} from './menuCache';

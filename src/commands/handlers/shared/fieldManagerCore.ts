@@ -87,7 +87,7 @@ const fieldDraftCache = new Map<
 >();
 
 // Clean up old drafts every minute
-setInterval(() => {
+const fieldDraftCleanupInterval = setInterval(() => {
   const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
   for (const [key, value] of fieldDraftCache.entries()) {
     if (value.timestamp < fiveMinutesAgo) {
@@ -95,6 +95,11 @@ setInterval(() => {
     }
   }
 }, 60 * 1000);
+
+/** Stop the field draft cleanup interval (call on shutdown) */
+export function stopFieldDraftCleanup(): void {
+  clearInterval(fieldDraftCleanupInterval);
+}
 
 /**
  * Show the main field management interface

@@ -3,6 +3,8 @@ import dotenv from 'dotenv';
 import 'reflect-metadata';
 import { commands } from './commands/commandList';
 import { handleSlashCommand } from './commands/commands';
+import { stopFieldSessionCleanup } from './commands/handlers/application/applicationFields';
+import { stopFieldDraftCleanup } from './commands/handlers/shared/fieldManagerCore';
 import { applicationFieldsInteraction } from './events/applicationFieldsInteraction';
 import { handleApplicationInteraction } from './events/applicationInteraction';
 import { handleAutocomplete } from './events/autocomplete';
@@ -11,8 +13,16 @@ import guildCreateEvent from './events/guildCreate';
 import guildDeleteEvent from './events/guildDelete';
 import messageCreateEvent from './events/messageCreate';
 import messageDeleteEvent from './events/messageDelete';
-import { handleReactionRoleAdd, handleReactionRoleRemove } from './events/reactionRoleHandler';
-import { handleRulesReactionAdd, handleRulesReactionRemove } from './events/rulesReaction';
+import {
+  handleReactionRoleAdd,
+  handleReactionRoleRemove,
+  stopReactionRoleCooldownCleanup,
+} from './events/reactionRoleHandler';
+import {
+  handleRulesReactionAdd,
+  handleRulesReactionRemove,
+  stopRulesCooldownCleanup,
+} from './events/rulesReaction';
 import { handleTicketInteraction } from './events/ticketInteraction';
 import { typeFieldsInteraction } from './events/typeFieldsInteraction';
 import { AppDataSource } from './typeorm';
@@ -99,6 +109,9 @@ const apiConnector = new APIConnector(
   process.env.API_URL || 'http://localhost:3001', // default to localhost and port 3001 if not set
   TOKEN, // bot token for authentication
 );
+
+// Interval ref for health monitor (set in clientReady, cleared on shutdown)
+let healthMonitorInterval: ReturnType<typeof setInterval> | null = null;
 
 // listen for interactions
 client.on('interactionCreate', async interaction => {
@@ -217,7 +230,7 @@ client.once('clientReady', async () => {
   }
 
   // start periodic health status logging (every 5 minutes)
-  setInterval(async () => {
+  healthMonitorInterval = setInterval(async () => {
     await healthMonitor.logHealthStatus();
   }, 300000);
 
@@ -234,6 +247,13 @@ client.once('clientReady', async () => {
 async function gracefulShutdown(signal: string) {
   console.log(`${E.shutdown} ${tl.shuttingDown}`);
   enhancedLogger.info(`Received ${signal}, shutting down gracefully`, LogCategory.SYSTEM);
+
+  // stop cleanup intervals
+  stopFieldDraftCleanup();
+  stopFieldSessionCleanup();
+  stopReactionRoleCooldownCleanup();
+  stopRulesCooldownCleanup();
+  if (healthMonitorInterval) clearInterval(healthMonitorInterval);
 
   // stop health server
   await healthServer.stop();

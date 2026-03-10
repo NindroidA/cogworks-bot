@@ -8,6 +8,7 @@ import type {
 import { AppDataSource } from '../typeorm';
 import { RulesConfig } from '../typeorm/entities/rules';
 import { enhancedLogger, LogCategory, lang } from '../utils';
+import { ReactionCooldown } from '../utils/reactionCooldown';
 
 const rulesConfigRepo = AppDataSource.getRepository(RulesConfig);
 const tl = lang.rules.reaction;
@@ -15,27 +16,11 @@ const tl = lang.rules.reaction;
 // In-memory cache: Map<messageId, RulesConfig>
 const rulesCache = new Map<string, RulesConfig>();
 
-// Per-user per-message cooldown (2 seconds) to prevent rapid reaction spam
-const reactionCooldowns = new Map<string, number>();
-const COOLDOWN_MS = 2000;
+const cooldown = new ReactionCooldown();
 
-// Clean up expired cooldown entries every 60 seconds to prevent unbounded growth
-setInterval(() => {
-  const cutoff = Date.now() - COOLDOWN_MS;
-  for (const [key, timestamp] of reactionCooldowns.entries()) {
-    if (timestamp < cutoff) {
-      reactionCooldowns.delete(key);
-    }
-  }
-}, 60 * 1000);
-
-function isOnCooldown(userId: string, messageId: string): boolean {
-  const key = `${userId}:${messageId}`;
-  const lastTime = reactionCooldowns.get(key);
-  const now = Date.now();
-  if (lastTime && now - lastTime < COOLDOWN_MS) return true;
-  reactionCooldowns.set(key, now);
-  return false;
+/** Stop the rules cooldown cleanup interval (call on shutdown) */
+export function stopRulesCooldownCleanup(): void {
+  cooldown.stop();
 }
 
 /** Clear cache for a guild (called on setup/remove/guild leave) */
@@ -72,7 +57,7 @@ export async function handleRulesReactionAdd(
 ): Promise<void> {
   // Ignore bot reactions
   if (user.bot) return;
-  if (isOnCooldown(user.id, reaction.message.id)) return;
+  if (cooldown.isOnCooldown(user.id, reaction.message.id)) return;
 
   try {
     // Fetch partials if needed
@@ -139,7 +124,7 @@ export async function handleRulesReactionRemove(
 ): Promise<void> {
   // Ignore bot reactions
   if (user.bot) return;
-  if (isOnCooldown(user.id, reaction.message.id)) return;
+  if (cooldown.isOnCooldown(user.id, reaction.message.id)) return;
 
   try {
     // Fetch partials if needed

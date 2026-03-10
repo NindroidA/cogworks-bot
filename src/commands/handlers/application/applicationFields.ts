@@ -46,7 +46,7 @@ function completeSession(userId: string, guildId: string, entityId?: string): vo
 }
 
 // Clean up expired/completed sessions every minute
-setInterval(() => {
+const fieldSessionCleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [key, timestamp] of fieldSessionMap.entries()) {
     if (
@@ -57,6 +57,11 @@ setInterval(() => {
     }
   }
 }, 60 * 1000);
+
+/** Stop the field session cleanup interval (call on shutdown) */
+export function stopFieldSessionCleanup(): void {
+  clearInterval(fieldSessionCleanupInterval);
+}
 
 const positionRepo = AppDataSource.getRepository(Position);
 
