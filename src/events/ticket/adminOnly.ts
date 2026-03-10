@@ -101,5 +101,5 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
   (await msg)?.edit({ components: [closeButton] });
 
   // update the ticket status
-  await ticketRepo.update({ id: ticket.id }, { status: 'adminOnly' });
+  await ticketRepo.update({ id: ticket.id, guildId }, { status: 'adminOnly' });
 };

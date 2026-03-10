@@ -12,7 +12,13 @@ import {
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { UserTicketRestriction } from '../../../typeorm/entities/ticket/UserTicketRestriction';
-import { enhancedLogger, handleInteractionError, LogCategory, lang } from '../../../utils';
+import {
+  enhancedLogger,
+  handleInteractionError,
+  LogCategory,
+  lang,
+  requireAdmin,
+} from '../../../utils';
 
 const tl = lang.ticket.customTypes.userRestrict;
 
@@ -33,6 +39,16 @@ export async function userRestrictHandler(interaction: ChatInputCommandInteracti
       return;
     }
 
+    // Permission check: only admins can restrict users
+    const adminCheck = requireAdmin(interaction);
+    if (!adminCheck.allowed) {
+      await interaction.reply({
+        content: adminCheck.message,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     const guildId = interaction.guild.id;
     const targetUser = interaction.options.getUser('user', true);
     const typeId = interaction.options.getString('type');
@@ -40,7 +56,12 @@ export async function userRestrictHandler(interaction: ChatInputCommandInteracti
     enhancedLogger.debug(
       `Command: /ticket user-restrict user=${targetUser.id} type=${typeId || 'all'}`,
       LogCategory.COMMAND_EXECUTION,
-      { userId: interaction.user.id, guildId, targetUserId: targetUser.id, typeId },
+      {
+        userId: interaction.user.id,
+        guildId,
+        targetUserId: targetUser.id,
+        typeId,
+      },
     );
 
     const typeRepo = AppDataSource.getRepository(CustomTicketType);
@@ -150,7 +171,10 @@ async function handleSingleTypeToggle(
   // Set up collector for this specific interaction
   const filter = (i: ButtonInteraction) => {
     if (i.user.id !== interaction.user.id) {
-      i.reply({ content: tl.notYourInteraction, flags: [MessageFlags.Ephemeral] });
+      i.reply({
+        content: tl.notYourInteraction,
+        flags: [MessageFlags.Ephemeral],
+      });
       return false;
     }
     return i.customId.startsWith('restrict_confirm_') || i.customId.startsWith('restrict_cancel_');
@@ -179,7 +203,12 @@ async function handleSingleTypeToggle(
           enhancedLogger.info(
             `Ticket restriction removed: ${targetUser.tag} can now create ${typeId}`,
             LogCategory.COMMAND_EXECUTION,
-            { guildId, userId: targetUser.id, typeId, removedBy: interaction.user.id },
+            {
+              guildId,
+              userId: targetUser.id,
+              typeId,
+              removedBy: interaction.user.id,
+            },
           );
         } else {
           // Add restriction
@@ -201,7 +230,12 @@ async function handleSingleTypeToggle(
           enhancedLogger.info(
             `Ticket restriction added: ${targetUser.tag} restricted from ${typeId}`,
             LogCategory.COMMAND_EXECUTION,
-            { guildId, userId: targetUser.id, typeId, restrictedBy: interaction.user.id },
+            {
+              guildId,
+              userId: targetUser.id,
+              typeId,
+              restrictedBy: interaction.user.id,
+            },
           );
         }
       } catch {
@@ -270,7 +304,10 @@ async function showRestrictionsConfigurator(
   // Set up collector
   const filter = (i: ButtonInteraction) => {
     if (i.user.id !== interaction.user.id) {
-      i.reply({ content: tl.notYourInteraction, flags: [MessageFlags.Ephemeral] });
+      i.reply({
+        content: tl.notYourInteraction,
+        flags: [MessageFlags.Ephemeral],
+      });
       return false;
     }
     return i.customId.startsWith('ur_toggle_') || i.customId === 'ur_done';
@@ -302,13 +339,22 @@ async function showRestrictionsConfigurator(
     try {
       if (restrictedTypeIds.has(typeId)) {
         // Remove restriction
-        await restrictionRepo.delete({ guildId, userId: targetUser.id, typeId });
+        await restrictionRepo.delete({
+          guildId,
+          userId: targetUser.id,
+          typeId,
+        });
         restrictedTypeIds.delete(typeId);
 
         enhancedLogger.info(
           `Ticket restriction removed: ${targetUser.tag} can now create ${typeId}`,
           LogCategory.COMMAND_EXECUTION,
-          { guildId, userId: targetUser.id, typeId, removedBy: interaction.user.id },
+          {
+            guildId,
+            userId: targetUser.id,
+            typeId,
+            removedBy: interaction.user.id,
+          },
         );
       } else {
         // Add restriction
@@ -324,7 +370,12 @@ async function showRestrictionsConfigurator(
         enhancedLogger.info(
           `Ticket restriction added: ${targetUser.tag} restricted from ${typeId}`,
           LogCategory.COMMAND_EXECUTION,
-          { guildId, userId: targetUser.id, typeId, restrictedBy: interaction.user.id },
+          {
+            guildId,
+            userId: targetUser.id,
+            typeId,
+            restrictedBy: interaction.user.id,
+          },
         );
       }
 

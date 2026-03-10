@@ -12,6 +12,7 @@ import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 // Import all entities
 import { AnnouncementConfig } from '../../typeorm/entities/announcement/AnnouncementConfig';
+import { AnnouncementLog } from '../../typeorm/entities/announcement/AnnouncementLog';
 import { Application } from '../../typeorm/entities/application/Application';
 import { ApplicationConfig } from '../../typeorm/entities/application/ApplicationConfig';
 import { ArchivedApplication } from '../../typeorm/entities/application/ArchivedApplication';
@@ -20,11 +21,20 @@ import { Position } from '../../typeorm/entities/application/Position';
 import { BaitChannelConfig } from '../../typeorm/entities/BaitChannelConfig';
 import { BaitChannelLog } from '../../typeorm/entities/BaitChannelLog';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
+import { MemoryConfig } from '../../typeorm/entities/memory/MemoryConfig';
+import { MemoryItem } from '../../typeorm/entities/memory/MemoryItem';
+import { MemoryTag } from '../../typeorm/entities/memory/MemoryTag';
+import { PendingBan } from '../../typeorm/entities/PendingBan';
+import { ReactionRoleMenu } from '../../typeorm/entities/reactionRole/ReactionRoleMenu';
+import { RulesConfig } from '../../typeorm/entities/rules/RulesConfig';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
+import { BotStatus } from '../../typeorm/entities/status/BotStatus';
 import { ArchivedTicket } from '../../typeorm/entities/ticket/ArchivedTicket';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
+import { CustomTicketType } from '../../typeorm/entities/ticket/CustomTicketType';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
+import { UserTicketRestriction } from '../../typeorm/entities/ticket/UserTicketRestriction';
 import { UserActivity } from '../../typeorm/entities/UserActivity';
 import {
   createRateLimitKey,
@@ -147,6 +157,53 @@ export const dataExportHandler = async (
       where: { guildId },
     });
 
+    // Custom Ticket Types & User Restrictions
+    const customTicketTypeRepo = AppDataSource.getRepository(CustomTicketType);
+    const userTicketRestrictionRepo = AppDataSource.getRepository(UserTicketRestriction);
+    exportData.customTicketTypes = await customTicketTypeRepo.find({
+      where: { guildId },
+    });
+    exportData.userTicketRestrictions = await userTicketRestrictionRepo.find({
+      where: { guildId },
+    });
+
+    // Rules
+    const rulesConfigRepo = AppDataSource.getRepository(RulesConfig);
+    exportData.rulesConfig = await rulesConfigRepo.find({ where: { guildId } });
+
+    // Reaction Roles (options loaded via menu relation, as options don't have guildId)
+    const reactionRoleMenuRepo = AppDataSource.getRepository(ReactionRoleMenu);
+    const menus = await reactionRoleMenuRepo.find({
+      where: { guildId },
+      relations: ['options'],
+    });
+    exportData.reactionRoleMenus = menus;
+    exportData.reactionRoleOptions = menus.flatMap(m => m.options || []);
+
+    // Pending Bans
+    const pendingBanRepo = AppDataSource.getRepository(PendingBan);
+    exportData.pendingBans = await pendingBanRepo.find({ where: { guildId } });
+
+    // Announcement Logs
+    const announcementLogRepo = AppDataSource.getRepository(AnnouncementLog);
+    exportData.announcementLogs = await announcementLogRepo.find({
+      where: { guildId },
+    });
+
+    // Memory System
+    const memoryConfigRepo = AppDataSource.getRepository(MemoryConfig);
+    const memoryItemRepo = AppDataSource.getRepository(MemoryItem);
+    const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
+    exportData.memoryConfig = await memoryConfigRepo.find({
+      where: { guildId },
+    });
+    exportData.memoryItems = await memoryItemRepo.find({ where: { guildId } });
+    exportData.memoryTags = await memoryTagRepo.find({ where: { guildId } });
+
+    // Bot Status (singleton — not guild-scoped, included for completeness)
+    const botStatusRepo = AppDataSource.getRepository(BotStatus);
+    exportData.botStatus = await botStatusRepo.find();
+
     // User Activity
     const userActivityRepo = AppDataSource.getRepository(UserActivity);
     exportData.userActivity = await userActivityRepo.find({
@@ -233,6 +290,9 @@ export const dataExportHandler = async (
         content: tl.dmSuccess,
       });
     } catch (dmError) {
+      // Clean up temp file on DM failure
+      await fs.promises.unlink(filepath).catch(() => null);
+
       logger(LANGF(tl.dmFailedLog, interaction.user.tag, (dmError as Error).message), 'WARN');
 
       // Fallback: offer file in channel
