@@ -3,6 +3,7 @@ import { AppDataSource } from '../../typeorm';
 import { AuditLog } from '../../typeorm/entities/AuditLog';
 import { AnnouncementLog } from '../../typeorm/entities/announcement/AnnouncementLog';
 import { BaitChannelLog } from '../../typeorm/entities/BaitChannelLog';
+import { JoinEvent } from '../../typeorm/entities/bait/JoinEvent';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
@@ -10,6 +11,7 @@ import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 const BAIT_LOG_RETENTION_DAYS = 90;
 const ANNOUNCEMENT_LOG_RETENTION_DAYS = 365;
 const AUDIT_LOG_RETENTION_DAYS = 90;
+const JOIN_EVENT_RETENTION_DAYS = 7;
 
 // Run cleanup once per day (24 hours)
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -87,6 +89,29 @@ async function runLogCleanup(): Promise<void> {
       category: ErrorCategory.DATABASE,
       severity: ErrorSeverity.LOW,
       message: 'Failed to clean up audit logs',
+      error,
+      context: {},
+    });
+  }
+
+  try {
+    const joinEventCutoff = new Date(Date.now() - JOIN_EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const joinEventRepo = AppDataSource.getRepository(JoinEvent);
+    const joinEventResult = await joinEventRepo.delete({
+      joinedAt: LessThan(joinEventCutoff),
+    });
+
+    if (joinEventResult.affected && joinEventResult.affected > 0) {
+      enhancedLogger.info(
+        `Log cleanup: removed ${joinEventResult.affected} join events older than ${JOIN_EVENT_RETENTION_DAYS} days`,
+        LogCategory.DATABASE,
+      );
+    }
+  } catch (error) {
+    logError({
+      category: ErrorCategory.DATABASE,
+      severity: ErrorSeverity.LOW,
+      message: 'Failed to clean up join events',
       error,
       context: {},
     });

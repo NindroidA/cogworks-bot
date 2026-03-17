@@ -22,7 +22,9 @@
       "minMessages": "Minimum message count (default: 0)",
       "requireVerification": "Require verification role",
       "disableAdminWhitelist": "Disable automatic admin whitelist (for testing)",
-      "threshold": "Instant action score threshold (default: 90, range: 50-100)"
+      "threshold": "Instant action score threshold (default: 90, range: 50-100)",
+      "joinVelocityThreshold": "Joins within window to trigger burst detection (2-100)",
+      "joinVelocityWindow": "Sliding window size in minutes for join velocity (1-30)"
     },
     "whitelist": {
       "descrp": "Manage whitelist",
@@ -104,6 +106,8 @@
     "minMessages": "Min Messages",
     "requireVerification": "Require Verification",
     "threshold": "Action Threshold",
+    "joinVelocityThreshold": "Join Velocity Threshold",
+    "joinVelocityWindow": "Join Velocity Window",
     "days": "{0} days",
     "minutes": "{0} min",
     "yes": "Yes",
@@ -115,7 +119,9 @@
       "noRoles": "No server roles assigned",
       "discordInvite": "Contains Discord invite link(s)",
       "phishingUrl": "Contains suspected phishing URL(s)",
-      "attachmentOnly": "Attachment-only message (no text)"
+      "attachmentOnly": "Attachment-only message (no text)",
+      "joinBurst": "Join burst detected",
+      "coordinatedRaid": "Possible Coordinated Raid"
     }
   },
   "error": {

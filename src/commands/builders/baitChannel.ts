@@ -86,6 +86,20 @@ export const baitChannelCommand = new SlashCommandBuilder()
           .setDescription(tl.detection.threshold)
           .setMinValue(50)
           .setMaxValue(100),
+      )
+      .addIntegerOption(option =>
+        option
+          .setName('join_velocity_threshold')
+          .setDescription(tl.detection.joinVelocityThreshold)
+          .setMinValue(2)
+          .setMaxValue(100),
+      )
+      .addIntegerOption(option =>
+        option
+          .setName('join_velocity_window')
+          .setDescription(tl.detection.joinVelocityWindow)
+          .setMinValue(1)
+          .setMaxValue(30),
       ),
   )
   .addSubcommand(subcommand =>

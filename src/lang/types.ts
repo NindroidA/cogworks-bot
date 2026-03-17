@@ -865,6 +865,8 @@ export interface LangBaitChannel {
       requireVerification: string;
       disableAdminWhitelist: string;
       threshold: string;
+      joinVelocityThreshold: string;
+      joinVelocityWindow: string;
     };
     whitelist: {
       descrp: string;
@@ -946,6 +948,8 @@ export interface LangBaitChannel {
     minMessages: string;
     requireVerification: string;
     threshold: string;
+    joinVelocityThreshold: string;
+    joinVelocityWindow: string;
     days: string;
     minutes: string;
     yes: string;
@@ -958,6 +962,8 @@ export interface LangBaitChannel {
       discordInvite: string;
       phishingUrl: string;
       attachmentOnly: string;
+      joinBurst: string;
+      coordinatedRaid: string;
     };
   };
   error: {
