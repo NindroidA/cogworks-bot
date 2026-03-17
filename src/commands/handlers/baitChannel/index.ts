@@ -11,6 +11,7 @@ import {
   requireAdmin,
 } from '../../../utils';
 import { detectionHandler } from './detection';
+import { handleKeywords } from './keywords';
 import { setupHandler } from './setup';
 import { statsHandler } from './stats';
 import { statusHandler } from './status';
@@ -77,6 +78,10 @@ export const baitChannelHandler = async (
 
       case 'toggle':
         await toggleHandler(client, interaction);
+        break;
+
+      case 'keywords':
+        await handleKeywords(client, interaction);
         break;
 
       default:

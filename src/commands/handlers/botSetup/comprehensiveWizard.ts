@@ -1640,6 +1640,23 @@ async function saveBaitChannelConfiguration(state: ComprehensiveWizardState, cli
       await baitChannel.send({ embeds: [setupEmbed] });
     }
 
+    // Seed default keywords if none exist
+    try {
+      const { seedDefaultKeywords } = await import('../baitChannel/keywords');
+      const seeded = await seedDefaultKeywords(state.guildId);
+      if (seeded > 0) {
+        enhancedLogger.info(
+          `Seeded ${seeded} default keywords for guild ${state.guildId}`,
+          LogCategory.COMMAND_EXECUTION,
+        );
+      }
+    } catch {
+      enhancedLogger.warn(
+        'Failed to seed default keywords during bot setup wizard',
+        LogCategory.COMMAND_EXECUTION,
+      );
+    }
+
     // Clear the bait channel manager's config cache so it picks up the new config
     const { baitChannelManager } = client as ExtendedClient;
     if (baitChannelManager) {

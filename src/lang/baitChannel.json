@@ -43,6 +43,12 @@
     "toggle": {
       "descrp": "Enable or disable the bait channel",
       "enabled": "Enable or disable"
+    },
+    "keywords": {
+      "descrp": "Manage detection keywords and weights",
+      "action": "Add, remove, list, or reset keywords",
+      "keyword": "The keyword to add or remove",
+      "weight": "Keyword weight 1-10 (default: 5, higher = more suspicious)"
     }
   },
   "status": {
@@ -118,12 +124,38 @@
       "attachmentOnly": "Attachment-only message (no text)"
     }
   },
+  "keywords": {
+    "add": {
+      "title": "Keyword Added",
+      "success": "Keyword added: `{keyword}` (weight: {weight})",
+      "duplicate": "Keyword `{keyword}` already exists. Use `/baitchannel keywords list` to see existing keywords.",
+      "limitReached": "Maximum 50 keywords reached. Remove some before adding more.",
+      "invalidLength": "Keyword must be 1-100 characters.",
+      "missingKeyword": "Please provide a keyword to add."
+    },
+    "remove": {
+      "success": "Keyword removed: `{keyword}`",
+      "notFound": "Keyword not found.",
+      "missingKeyword": "Please provide a keyword to remove."
+    },
+    "list": {
+      "title": "Bait Channel Keywords",
+      "empty": "No keywords configured. Use `/baitchannel keywords add` to add keywords.",
+      "footer": "{count}/50 keywords configured"
+    },
+    "reset": {
+      "confirm": "Are you sure you want to reset all keywords to defaults? This will delete all custom keywords.",
+      "success": "Keywords reset to defaults. {count} keywords seeded.",
+      "cancelled": "Keyword reset cancelled."
+    }
+  },
   "error": {
     "fetchStatus": "Failed to fetch bait channel status",
     "toggle": "Failed to toggle bait channel",
     "setup": "Failed to setup bait channel",
     "fetchStats": "Failed to fetch bait channel statistics",
     "updateWhitelist": "Failed to update whitelist",
-    "updateDetection": "Failed to update detection settings"
+    "updateDetection": "Failed to update detection settings",
+    "keywords": "Failed to manage keywords"
   }
 }

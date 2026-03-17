@@ -122,4 +122,31 @@ export const baitChannelCommand = new SlashCommandBuilder()
       .addBooleanOption(option =>
         option.setName('enabled').setDescription(tl.toggle.enabled).setRequired(true),
       ),
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('keywords')
+      .setDescription(tl.keywords.descrp)
+      .addStringOption(option =>
+        option
+          .setName('action')
+          .setDescription(tl.keywords.action)
+          .addChoices(
+            { name: 'Add keyword', value: 'add' },
+            { name: 'Remove keyword', value: 'remove' },
+            { name: 'List keywords', value: 'list' },
+            { name: 'Reset to defaults', value: 'reset' },
+          )
+          .setRequired(true),
+      )
+      .addStringOption(option =>
+        option
+          .setName('keyword')
+          .setDescription(tl.keywords.keyword)
+          .setMaxLength(100)
+          .setAutocomplete(true),
+      )
+      .addIntegerOption(option =>
+        option.setName('weight').setDescription(tl.keywords.weight).setMinValue(1).setMaxValue(10),
+      ),
   );

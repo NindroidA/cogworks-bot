@@ -886,6 +886,12 @@ export interface LangBaitChannel {
       descrp: string;
       enabled: string;
     };
+    keywords: {
+      descrp: string;
+      action: string;
+      keyword: string;
+      weight: string;
+    };
   };
   status: {
     title: string;
@@ -960,6 +966,31 @@ export interface LangBaitChannel {
       attachmentOnly: string;
     };
   };
+  keywords: {
+    add: {
+      title: string;
+      success: string;
+      duplicate: string;
+      limitReached: string;
+      invalidLength: string;
+      missingKeyword: string;
+    };
+    remove: {
+      success: string;
+      notFound: string;
+      missingKeyword: string;
+    };
+    list: {
+      title: string;
+      empty: string;
+      footer: string;
+    };
+    reset: {
+      confirm: string;
+      success: string;
+      cancelled: string;
+    };
+  };
   error: {
     fetchStatus: string;
     toggle: string;
@@ -967,6 +998,7 @@ export interface LangBaitChannel {
     fetchStats: string;
     updateWhitelist: string;
     updateDetection: string;
+    keywords: string;
   };
 }
 
