@@ -72,6 +72,23 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
 
     await safeDbOperation(() => configRepo.save(config!), 'Save bait channel config');
 
+    // Seed default keywords if this is a first-time setup (no keywords exist yet)
+    try {
+      const { seedDefaultKeywords } = await import('./keywords');
+      const seeded = await seedDefaultKeywords(interaction.guildId!);
+      if (seeded > 0) {
+        enhancedLogger.info(
+          `Seeded ${seeded} default keywords for guild ${interaction.guildId}`,
+          LogCategory.COMMAND_EXECUTION,
+        );
+      }
+    } catch {
+      enhancedLogger.warn(
+        'Failed to seed default keywords during bait channel setup',
+        LogCategory.COMMAND_EXECUTION,
+      );
+    }
+
     // Send or update warning message in the BAIT CHANNEL (visible to everyone)
     if (channel instanceof TextChannel) {
       try {

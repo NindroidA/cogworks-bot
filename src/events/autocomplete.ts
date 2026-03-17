@@ -1,5 +1,6 @@
 import type { AutocompleteInteraction, Client } from 'discord.js';
 import { applicationPositionAutocomplete } from '../commands/handlers/application/applicationPosition';
+import { handleKeywordAutocomplete } from '../commands/handlers/baitChannel/keywords';
 import { memoryAutocomplete } from '../commands/handlers/memory';
 import { reactionRoleMenuAutocomplete } from '../commands/handlers/reactionRole';
 import {
@@ -69,6 +70,13 @@ export const handleAutocomplete = async (_client: Client, interaction: Autocompl
       }
       case 'reactionrole': {
         await reactionRoleMenuAutocomplete(interaction);
+        break;
+      }
+      case 'baitchannel': {
+        const subcommand = interaction.options.getSubcommand();
+        if (subcommand === 'keywords') {
+          await handleKeywordAutocomplete(interaction);
+        }
         break;
       }
     }

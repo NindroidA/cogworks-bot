@@ -14,6 +14,7 @@ import { Between, LessThan, type Repository } from 'typeorm';
 import { AppDataSource } from '../typeorm';
 import type { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
 import type { BaitChannelLog } from '../typeorm/entities/BaitChannelLog';
+import type { BaitKeyword } from '../typeorm/entities/bait/BaitKeyword';
 import { JoinEvent } from '../typeorm/entities/bait/JoinEvent';
 import type { PendingBan as PendingBanEntity } from '../typeorm/entities/PendingBan';
 import type { UserActivity } from '../typeorm/entities/UserActivity';
@@ -88,6 +89,7 @@ interface RepeatOffenderResult {
 export class BaitChannelManager {
   private pendingBans: Map<string, PendingBan> = new Map();
   private configCache: Map<string, CachedConfig> = new Map();
+  private keywordCache: Map<string, { keywords: BaitKeyword[]; cachedAt: number }> = new Map();
   private activityBuffer: Map<string, BufferedActivity> = new Map();
   private activityFlushInterval: ReturnType<typeof setInterval> | null = null;
   private joinVelocityTracker: JoinVelocityTracker | null = null;
@@ -98,6 +100,7 @@ export class BaitChannelManager {
     private logRepo: Repository<BaitChannelLog>,
     private activityRepo: Repository<UserActivity>,
     private pendingBanRepo?: Repository<PendingBanEntity>,
+    private keywordRepo?: Repository<BaitKeyword>,
   ) {}
 
   setJoinVelocityTracker(tracker: JoinVelocityTracker): void {
@@ -458,31 +461,23 @@ export class BaitChannelManager {
       reasons.push(`Excessive mentions (${mentions})`);
     }
 
-    // Check for common spam keywords
-    const spamKeywords = [
-      'free nitro',
-      'discord nitro',
-      'boost',
-      'giveaway',
-      'win',
-      'click here',
-      'check dm',
-      'dm me',
-      '@everyone',
-      '@here',
-      'http',
-      'www',
-      '.gg/',
-      'steam',
-      'csgo',
-      'tf2',
-    ];
+    // Check for configurable spam keywords (per-guild, weighted)
+    const keywords = await this.getKeywords(message.guild!.id);
+    const matchedKeywords: { keyword: string; weight: number }[] = [];
+    let totalKeywordScore = 0;
 
-    const foundKeywords = spamKeywords.filter(keyword => content.includes(keyword));
-    if (foundKeywords.length > 0) {
+    for (const kw of keywords) {
+      if (content.includes(kw.keyword.toLowerCase())) {
+        matchedKeywords.push({ keyword: kw.keyword, weight: kw.weight });
+        totalKeywordScore += kw.weight * 2;
+      }
+    }
+
+    if (matchedKeywords.length > 0) {
       flags.suspiciousContent = true;
-      score += Math.min(25, foundKeywords.length * 8);
-      reasons.push(`Suspicious keywords: ${foundKeywords.join(', ')}`);
+      score += Math.min(25, totalKeywordScore);
+      const kwList = matchedKeywords.map(k => `${k.keyword} (w:${k.weight})`).join(', ');
+      reasons.push(`Suspicious keywords: ${kwList}`);
     }
 
     // Check join velocity (burst detection)
@@ -1510,6 +1505,34 @@ export class BaitChannelManager {
       });
       return null;
     }
+  }
+
+  private async getKeywords(guildId: string): Promise<BaitKeyword[]> {
+    const cached = this.keywordCache.get(guildId);
+    if (cached && Date.now() - cached.cachedAt < CONFIG_CACHE_TTL_MS) {
+      return cached.keywords;
+    }
+
+    if (!this.keywordRepo) return [];
+
+    try {
+      const keywords = await this.keywordRepo.find({ where: { guildId } });
+      this.keywordCache.set(guildId, { keywords, cachedAt: Date.now() });
+      return keywords;
+    } catch (error) {
+      logError({
+        category: ErrorCategory.DATABASE,
+        severity: ErrorSeverity.MEDIUM,
+        message: 'Failed to fetch bait channel keywords',
+        error,
+        context: { guildId },
+      });
+      return [];
+    }
+  }
+
+  public clearKeywordCache(guildId: string): void {
+    this.keywordCache.delete(guildId);
   }
 
   public clearConfigCache(guildId: string): void {

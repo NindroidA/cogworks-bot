@@ -13,6 +13,7 @@ import {
 import { detectionHandler } from './detection';
 import { dmNotifyHandler } from './dmNotify';
 import { escalationHandler } from './escalation';
+import { handleKeywords } from './keywords';
 import { setupHandler } from './setup';
 import { statsHandler } from './stats';
 import { statusHandler } from './status';
@@ -92,6 +93,10 @@ export const baitChannelHandler = async (
       case 'dm-appeal-info':
       case 'dm-clear-appeal':
         await dmNotifyHandler(client, interaction);
+        break;
+
+      case 'keywords':
+        await handleKeywords(client, interaction);
         break;
 
       default:

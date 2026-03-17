@@ -210,6 +210,7 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     const { MemoryConfig } = await import('../../typeorm/entities/memory/MemoryConfig');
     const { MemoryItem } = await import('../../typeorm/entities/memory/MemoryItem');
     const { MemoryTag } = await import('../../typeorm/entities/memory/MemoryTag');
+    const { BaitKeyword } = await import('../../typeorm/entities/bait/BaitKeyword');
 
     const details: Record<string, number> = {};
     let total = 0;
@@ -234,6 +235,7 @@ export async function deleteAllGuildData(guildId: string): Promise<{
         repo: AppDataSource.getRepository(AnnouncementLog),
       },
       { name: 'AuditLog', repo: AppDataSource.getRepository(AuditLog) },
+      { name: 'BaitKeyword', repo: AppDataSource.getRepository(BaitKeyword) },
       // Original entities
       { name: 'BotConfig', repo: AppDataSource.getRepository(BotConfig) },
       { name: 'TicketConfig', repo: AppDataSource.getRepository(TicketConfig) },

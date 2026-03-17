@@ -1,6 +1,7 @@
 import type { Client } from 'discord.js';
 import { registerAnnouncementHandlers } from './handlers/announcementHandlers';
 import { registerApplicationHandlers } from './handlers/applicationHandlers';
+import { registerBaitChannelHandlers } from './handlers/baitChannelHandlers';
 import { registerConfigHandlers } from './handlers/configHandlers';
 import { registerGuildHandlers } from './handlers/guildHandlers';
 import { registerMemoryHandlers } from './handlers/memoryHandlers';
@@ -28,6 +29,7 @@ export function registerHandlers(client: Client): Map<string, RouteHandler> {
   registerRulesHandlers(client, routes);
   registerReactionRoleHandlers(client, routes);
   registerConfigHandlers(client, routes);
+  registerBaitChannelHandlers(client, routes);
 
   return routes;
 }

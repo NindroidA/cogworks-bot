@@ -22,6 +22,7 @@ import { Position } from '../../typeorm/entities/application/Position';
 import { BaitChannelConfig } from '../../typeorm/entities/BaitChannelConfig';
 import { BaitChannelLog } from '../../typeorm/entities/BaitChannelLog';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
+import { BaitKeyword } from '../../typeorm/entities/bait/BaitKeyword';
 import { MemoryConfig } from '../../typeorm/entities/memory/MemoryConfig';
 import { MemoryItem } from '../../typeorm/entities/memory/MemoryItem';
 import { MemoryTag } from '../../typeorm/entities/memory/MemoryTag';
@@ -125,6 +126,7 @@ export const dataExportHandler = async (
       botStatus,
       userActivity,
       auditLogs,
+      baitKeywords,
     ] = await Promise.all([
       AppDataSource.getRepository(BotConfig).find({ where: { guildId } }),
       AppDataSource.getRepository(BaitChannelConfig).find({
@@ -171,6 +173,7 @@ export const dataExportHandler = async (
       AppDataSource.getRepository(BotStatus).find(),
       AppDataSource.getRepository(UserActivity).find({ where: { guildId } }),
       AppDataSource.getRepository(AuditLog).find({ where: { guildId } }),
+      AppDataSource.getRepository(BaitKeyword).find({ where: { guildId } }),
     ]);
 
     const exportData: Record<string, unknown[]> = {
@@ -201,6 +204,7 @@ export const dataExportHandler = async (
       botStatus,
       userActivity,
       auditLogs,
+      baitKeywords,
     };
 
     // Calculate total records

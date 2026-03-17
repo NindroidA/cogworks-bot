@@ -27,6 +27,7 @@ import { AppDataSource } from './typeorm';
 import { BaitChannelConfig } from './typeorm/entities/BaitChannelConfig';
 import { BaitChannelLog } from './typeorm/entities/BaitChannelLog';
 import { BotConfig } from './typeorm/entities/BotConfig';
+import { BaitKeyword } from './typeorm/entities/bait/BaitKeyword';
 import { PendingBan } from './typeorm/entities/PendingBan';
 import { UserActivity } from './typeorm/entities/UserActivity';
 import type { ExtendedClient } from './types/ExtendedClient';
@@ -194,6 +195,7 @@ client.once('clientReady', async () => {
     AppDataSource.getRepository(BaitChannelLog),
     AppDataSource.getRepository(UserActivity),
     AppDataSource.getRepository(PendingBan),
+    AppDataSource.getRepository(BaitKeyword),
   );
   await baitChannelManager.initialize();
   baitChannelManager.startActivityFlush();
