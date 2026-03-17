@@ -1,0 +1,14 @@
+import type { Client } from 'discord.js';
+import type { BaitChannelManager } from '../utils/baitChannelManager';
+import type { StatusManager } from '../utils/status/StatusManager';
+
+/**
+ * Extended Discord.js Client with attached managers.
+ * Used to avoid verbose type assertions throughout the codebase.
+ *
+ * Managers are attached in src/index.ts during the `clientReady` event.
+ */
+export interface ExtendedClient extends Client {
+  baitChannelManager: BaitChannelManager;
+  statusManager: StatusManager;
+}

@@ -1,10 +1,11 @@
 import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import {
   createRateLimitKey,
+  enhancedLogger,
   handleInteractionError,
   LANGF,
+  LogCategory,
   lang,
-  logger,
   RateLimits,
   rateLimiter,
   requireAdmin,
@@ -46,7 +47,10 @@ export const baitChannelHandler = async (
         ),
         flags: [MessageFlags.Ephemeral],
       });
-      logger(`Rate limit exceeded for bait channel command in guild ${guildId}`, 'WARN');
+      enhancedLogger.warn(
+        `Rate limit exceeded for bait channel command in guild ${guildId}`,
+        LogCategory.SECURITY,
+      );
       return;
     }
 

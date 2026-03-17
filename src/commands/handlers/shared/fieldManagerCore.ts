@@ -15,7 +15,10 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import type { CustomInputField } from '../../../typeorm/entities/shared/CustomInputField';
-import { enhancedLogger, handleInteractionError, LogCategory } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
+
+const btn = lang.general.buttons;
+const fm = lang.general.fieldManager;
 
 /**
  * Interface for entities that support custom input fields.
@@ -139,7 +142,7 @@ export async function showFieldManager<T extends FieldBearingEntity>(
   buttons.addComponents(
     new ButtonBuilder()
       .setCustomId(`${prefix}done_${entityId}`)
-      .setLabel('Done')
+      .setLabel(btn.done)
       .setStyle(ButtonStyle.Secondary)
       .setEmoji('✅'),
   );
@@ -148,7 +151,7 @@ export async function showFieldManager<T extends FieldBearingEntity>(
     buttons.addComponents(
       new ButtonBuilder()
         .setCustomId(`${prefix}add_${entityId}`)
-        .setLabel('Add Field')
+        .setLabel(btn.addField)
         .setStyle(ButtonStyle.Success)
         .setEmoji('➕'),
     );
@@ -158,12 +161,12 @@ export async function showFieldManager<T extends FieldBearingEntity>(
     buttons.addComponents(
       new ButtonBuilder()
         .setCustomId(`${prefix}delete_${entityId}`)
-        .setLabel('Delete Field')
+        .setLabel(btn.deleteField)
         .setStyle(ButtonStyle.Danger)
         .setEmoji('🗑️'),
       new ButtonBuilder()
         .setCustomId(`${prefix}preview_${entityId}`)
-        .setLabel('Preview')
+        .setLabel(btn.preview)
         .setStyle(ButtonStyle.Secondary)
         .setEmoji('👁️'),
     );
@@ -174,7 +177,7 @@ export async function showFieldManager<T extends FieldBearingEntity>(
     buttons.addComponents(
       new ButtonBuilder()
         .setCustomId(`${prefix}reorder_${entityId}`)
-        .setLabel('Reorder')
+        .setLabel(btn.reorder)
         .setStyle(ButtonStyle.Secondary)
         .setEmoji('🔀'),
     );
@@ -208,12 +211,12 @@ export async function showAddFieldModal<T extends FieldBearingEntity>(
 
   const modal = new ModalBuilder()
     .setCustomId(`${config.prefix}add_modal_${entityId}`)
-    .setTitle('Add Custom Field');
+    .setTitle(fm.modalTitle);
 
   const fieldId = new TextInputBuilder()
     .setCustomId('field_id')
-    .setLabel('Field ID (lowercase, underscores)')
-    .setPlaceholder('e.g., player_name, incident_date')
+    .setLabel(fm.fieldIdLabel)
+    .setPlaceholder(fm.fieldIdPlaceholder)
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setMaxLength(50);
@@ -221,8 +224,8 @@ export async function showAddFieldModal<T extends FieldBearingEntity>(
 
   const fieldLabel = new TextInputBuilder()
     .setCustomId('field_label')
-    .setLabel('Field Label (shown to user)')
-    .setPlaceholder('e.g., Player Name, Incident Date')
+    .setLabel(fm.fieldLabelLabel)
+    .setPlaceholder(fm.fieldLabelPlaceholder)
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setMaxLength(45);
@@ -230,8 +233,8 @@ export async function showAddFieldModal<T extends FieldBearingEntity>(
 
   const fieldStyle = new TextInputBuilder()
     .setCustomId('field_style')
-    .setLabel('Field Style (short or paragraph)')
-    .setPlaceholder('short')
+    .setLabel(fm.fieldStyleLabel)
+    .setPlaceholder(fm.fieldStylePlaceholder)
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setMaxLength(10);
@@ -239,8 +242,8 @@ export async function showAddFieldModal<T extends FieldBearingEntity>(
 
   const fieldRequired = new TextInputBuilder()
     .setCustomId('field_required')
-    .setLabel('Required? (yes or no)')
-    .setPlaceholder('yes')
+    .setLabel(fm.fieldRequiredLabel)
+    .setPlaceholder(fm.fieldRequiredPlaceholder)
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setMaxLength(3);
@@ -248,8 +251,8 @@ export async function showAddFieldModal<T extends FieldBearingEntity>(
 
   const fieldPlaceholder = new TextInputBuilder()
     .setCustomId('field_placeholder')
-    .setLabel('Placeholder Text (optional)')
-    .setPlaceholder('Optional hint text...')
+    .setLabel(fm.fieldPlaceholderLabel)
+    .setPlaceholder(fm.fieldPlaceholderPlaceholder)
     .setStyle(TextInputStyle.Short)
     .setRequired(false)
     .setMaxLength(100);
@@ -409,7 +412,7 @@ export async function showFieldSelectMenu<T extends FieldBearingEntity>(
 
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId(`${prefix}${action}_select_${entityId}`)
-    .setPlaceholder(`Select a field to ${action}`)
+    .setPlaceholder(LANGF(fm.selectFieldPlaceholder, action))
     .addOptions(
       fields.map((field, index) =>
         new StringSelectMenuOptionBuilder()
@@ -424,12 +427,12 @@ export async function showFieldSelectMenu<T extends FieldBearingEntity>(
   const cancelButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`${prefix}cancel_${entityId}`)
-      .setLabel('Cancel')
+      .setLabel(btn.cancel)
       .setStyle(ButtonStyle.Secondary),
   );
 
   await interaction.update({
-    content: action === 'delete' ? '🗑️ Select a field to delete:' : '📝 Select a field to edit:',
+    content: action === 'delete' ? `🗑️ ${fm.selectFieldToDelete}` : `📝 ${fm.selectFieldToEdit}`,
     embeds: [],
     components: [row, cancelButton],
   });
@@ -448,17 +451,17 @@ export async function showReorderInterface<T extends FieldBearingEntity>(
   const { prefix } = config;
 
   const embed = new EmbedBuilder()
-    .setTitle(`🔀 Reorder Fields: ${config.getDisplayTitle(entity).replace(/^🔧\s*/, '')}`)
+    .setTitle(`🔀 ${LANGF(fm.reorderTitle, config.getDisplayTitle(entity).replace(/^🔧\s*/, ''))}`)
     .setColor(config.getEmbedColor(entity))
     .setDescription(
-      '**Current Order:**\n' +
+      `**${fm.currentOrder}**\n` +
         fields
           .map(
             (f, i) =>
               `${i + 1}. **${f.label}** (${f.style}${f.required ? ', required' : ', optional'})`,
           )
           .join('\n') +
-        '\n\n*Use the buttons below to move fields up or down.*',
+        `\n\n*${fm.reorderHint}*`,
     );
 
   const components: ActionRowBuilder<ButtonBuilder>[] = [];
@@ -495,7 +498,7 @@ export async function showReorderInterface<T extends FieldBearingEntity>(
       row.addComponents(
         new ButtonBuilder()
           .setCustomId(`${prefix}reorder_done_${entityId}`)
-          .setLabel('Done')
+          .setLabel(btn.done)
           .setStyle(ButtonStyle.Success)
           .setEmoji('✅'),
       );
@@ -525,7 +528,7 @@ export async function showModalPreview<T extends FieldBearingEntity>(
 
   if (fields.length === 0) {
     await interaction.reply({
-      content: '❌ No fields to preview! Add at least one field first.',
+      content: `❌ ${fm.noFieldsToPreview}`,
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -603,7 +606,7 @@ export async function handleMoveField<T extends FieldBearingEntity>(
 
   if (fieldIndex < 0 || fieldIndex >= fields.length) {
     await interaction.followUp({
-      content: '❌ Invalid field index!',
+      content: `❌ ${fm.invalidFieldIndex}`,
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -613,7 +616,7 @@ export async function handleMoveField<T extends FieldBearingEntity>(
 
   if (newIndex < 0 || newIndex >= fields.length) {
     await interaction.followUp({
-      content: `❌ Cannot move field ${direction}!`,
+      content: `❌ ${LANGF(fm.cannotMoveField, direction)}`,
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -773,7 +776,7 @@ export async function handleFieldSelectMenu<T extends FieldBearingEntity>(
   } catch {
     await interaction
       .reply({
-        content: '❌ An error occurred processing your selection',
+        content: `❌ ${fm.selectionError}`,
         flags: [MessageFlags.Ephemeral],
       })
       .catch(() => {

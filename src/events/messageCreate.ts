@@ -1,6 +1,6 @@
 import type { Client, Message } from 'discord.js';
+import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';
-import type { BaitChannelManager } from '../utils/baitChannelManager';
 
 export default {
   name: 'messageCreate',
@@ -8,7 +8,7 @@ export default {
     if (!message.guild) return;
 
     // Get bait channel manager from client
-    const { baitChannelManager } = client as { baitChannelManager?: BaitChannelManager };
+    const { baitChannelManager } = client as ExtendedClient;
     if (!baitChannelManager) {
       enhancedLogger.debug('BaitChannelManager not available on client', LogCategory.SYSTEM);
       return;

@@ -1,5 +1,5 @@
 import type { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
-import type { StatusManager } from '../../../utils/status/StatusManager';
+import type { ExtendedClient } from '../../../types/ExtendedClient';
 import { statusClearHandler } from './clear';
 import { statusSetHandler } from './set';
 import { statusViewHandler } from './view';
@@ -8,7 +8,7 @@ export const statusHandler = async (
   client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ) => {
-  const statusManager = (client as typeof client & { statusManager: StatusManager }).statusManager;
+  const statusManager = (client as ExtendedClient).statusManager;
   const subcommand = interaction.options.getSubcommand();
 
   switch (subcommand) {

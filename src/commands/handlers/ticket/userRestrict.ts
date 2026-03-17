@@ -158,7 +158,7 @@ async function handleSingleTypeToggle(
       .setStyle(isCurrentlyRestricted ? ButtonStyle.Success : ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId(`restrict_cancel_${targetUser.id}_${typeId}`)
-      .setLabel('Cancel')
+      .setLabel(lang.general.buttons.cancel)
       .setStyle(ButtonStyle.Secondary),
   );
 
@@ -484,7 +484,10 @@ function buildConfiguratorEmbed(
 
   // Add Done button in a new row
   const doneRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('ur_done').setLabel('Done').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('ur_done')
+      .setLabel(lang.general.buttons.done)
+      .setStyle(ButtonStyle.Primary),
   );
   components.push(doneRow);
 

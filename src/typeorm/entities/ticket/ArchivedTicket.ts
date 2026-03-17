@@ -2,6 +2,7 @@ import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ name: 'archived_tickets' })
 @Index(['guildId'])
+@Index(['guildId', 'createdBy'])
 export class ArchivedTicket {
   @PrimaryGeneratedColumn()
   id: number;

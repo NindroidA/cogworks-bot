@@ -15,6 +15,8 @@ import type { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
 import type { BaitChannelLog } from '../typeorm/entities/BaitChannelLog';
 import type { PendingBan as PendingBanEntity } from '../typeorm/entities/PendingBan';
 import type { UserActivity } from '../typeorm/entities/UserActivity';
+import { analyzeUrls } from './baitChannel/urlAnalyzer';
+import { analyzeUsername } from './baitChannel/usernameAnalyzer';
 import { Colors } from './colors';
 import { ErrorCategory, ErrorSeverity, logError } from './errorHandler';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
@@ -45,6 +47,14 @@ interface SuspicionAnalysis {
     suspiciousContent: boolean;
     linkSpam: boolean;
     mentionSpam: boolean;
+    defaultAvatar: boolean;
+    emptyProfile: boolean;
+    suspiciousUsername: boolean;
+    noRoles: boolean;
+    discordInvite: boolean;
+    phishingUrl: boolean;
+    attachmentOnly: boolean;
+    joinBurst: boolean;
   };
   reasons: string[];
 }
@@ -52,14 +62,26 @@ interface SuspicionAnalysis {
 // Config cache TTL: 5 minutes
 const CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
 
+// Activity buffer flush interval: 30 seconds
+const ACTIVITY_FLUSH_INTERVAL_MS = 30_000;
+
 interface CachedConfig {
   config: BaitChannelConfig;
   cachedAt: number;
 }
 
+interface BufferedActivity {
+  messageCount: number;
+  firstMessageAt: Date;
+  lastMessageAt: Date;
+  joinedAt: Date;
+}
+
 export class BaitChannelManager {
   private pendingBans: Map<string, PendingBan> = new Map();
   private configCache: Map<string, CachedConfig> = new Map();
+  private activityBuffer: Map<string, BufferedActivity> = new Map();
+  private activityFlushInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private client: Client,
@@ -280,6 +302,14 @@ export class BaitChannelManager {
       suspiciousContent: false,
       linkSpam: false,
       mentionSpam: false,
+      defaultAvatar: false,
+      emptyProfile: false,
+      suspiciousUsername: false,
+      noRoles: false,
+      discordInvite: false,
+      phishingUrl: false,
+      attachmentOnly: false,
+      joinBurst: false,
     };
     const reasons: string[] = [];
 
@@ -331,16 +361,80 @@ export class BaitChannelManager {
       }
     }
 
+    // Check for default avatar (no custom profile picture)
+    if (member.user.avatar === null) {
+      flags.defaultAvatar = true;
+      score += 10;
+      reasons.push('Default avatar (no custom avatar set)');
+    }
+
+    // Check for no roles (only @everyone)
+    if (member.roles.cache.size <= 1) {
+      flags.noRoles = true;
+      score += 10;
+      reasons.push('No server roles assigned');
+    }
+
+    // Check for empty profile (no banner and default avatar) — requires API fetch
+    try {
+      const fetchedUser = await member.user.fetch(true);
+      // No banner + default avatar = very likely a throwaway account
+      if (fetchedUser.banner === null && fetchedUser.avatar === null) {
+        flags.emptyProfile = true;
+        score += 5;
+        reasons.push('Empty profile (no banner, no avatar)');
+      }
+    } catch {
+      // API fetch failed (rate limit, network) — skip this flag, never penalize
+      enhancedLogger.debug(
+        `Skipped emptyProfile check for ${member.user.tag} (fetch failed)`,
+        LogCategory.SECURITY,
+      );
+    }
+
+    // Check for suspicious username patterns
+    const usernameResult = analyzeUsername(member.user.username);
+    if (usernameResult.isSuspicious) {
+      flags.suspiciousUsername = true;
+      score += 8;
+      reasons.push(`Suspicious username patterns: ${usernameResult.patterns.join(', ')}`);
+    }
+
     // Content analysis
     const content = message.content.toLowerCase();
 
-    // Check for links (common in spam)
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const links = content.match(urlRegex) || [];
-    if (links.length > 0) {
+    // URL analysis — categorize links by threat level
+    const urlAnalysis = analyzeUrls(message.content);
+
+    if (urlAnalysis.phishingLinks.length > 0) {
+      flags.phishingUrl = true;
+      score += Math.min(25, urlAnalysis.phishingLinks.length * 20);
+      reasons.push(`Phishing URL detected: ${urlAnalysis.phishingLinks.join(', ')}`);
+    }
+
+    if (urlAnalysis.inviteLinks.length > 0) {
+      flags.discordInvite = true;
+      score += 15;
+      reasons.push(`Contains Discord invite link(s)`);
+    }
+
+    if (urlAnalysis.shortenedLinks.length > 0) {
       flags.linkSpam = true;
-      score += Math.min(20, links.length * 10);
-      reasons.push(`Contains ${links.length} link(s)`);
+      score += Math.min(20, urlAnalysis.shortenedLinks.length * 12);
+      reasons.push(`Contains ${urlAnalysis.shortenedLinks.length} shortened URL(s)`);
+    }
+
+    if (urlAnalysis.regularLinks.length > 0) {
+      flags.linkSpam = true;
+      score += Math.min(20, urlAnalysis.regularLinks.length * 10);
+      reasons.push(`Contains ${urlAnalysis.regularLinks.length} link(s)`);
+    }
+
+    // Check for attachment-only messages (no/minimal text)
+    if (message.attachments.size > 0 && message.content.trim().length < 10) {
+      flags.attachmentOnly = true;
+      score += 5;
+      reasons.push('Attachment-only message (minimal text)');
     }
 
     // Check for excessive mentions
@@ -1199,45 +1293,92 @@ export class BaitChannelManager {
     this.configCache.delete(guildId);
   }
 
-  // Track user activity for better detection (only when bait channel is enabled)
+  // Track user activity in-memory, flushed to DB periodically
   async trackMessage(message: Message): Promise<void> {
-    try {
-      if (!message.guild || message.author.bot) return;
+    if (!message.guild || message.author.bot) return;
 
-      // Skip activity tracking if bait channel isn't configured/enabled for this guild
-      const config = await this.getConfig(message.guild.id);
-      if (!config || !config.enabled) return;
+    // Skip activity tracking if bait channel isn't configured/enabled for this guild
+    const config = await this.getConfig(message.guild.id);
+    if (!config || !config.enabled) return;
 
-      let activity = await this.activityRepo.findOne({
-        where: { guildId: message.guild.id, userId: message.author.id },
+    const key = `${message.guild.id}:${message.author.id}`;
+    const existing = this.activityBuffer.get(key);
+    const now = new Date();
+
+    if (existing) {
+      existing.messageCount++;
+      existing.lastMessageAt = now;
+    } else {
+      this.activityBuffer.set(key, {
+        messageCount: 1,
+        firstMessageAt: now,
+        lastMessageAt: now,
+        joinedAt: message.member?.joinedAt || now,
       });
+    }
+  }
 
-      if (!activity) {
-        activity = this.activityRepo.create({
-          guildId: message.guild.id,
-          userId: message.author.id,
-          messageCount: 1,
-          firstMessageAt: new Date(),
-          lastMessageAt: new Date(),
-          joinedAt: message.member?.joinedAt || new Date(),
+  // Flush buffered activity counts to the database
+  async flushActivityBuffer(): Promise<void> {
+    if (this.activityBuffer.size === 0) return;
+
+    // Swap out the buffer so new messages accumulate in a fresh map
+    const toFlush = this.activityBuffer;
+    this.activityBuffer = new Map();
+
+    for (const [key, buffered] of toFlush) {
+      try {
+        const [guildId, userId] = key.split(':');
+        let activity = await this.activityRepo.findOne({
+          where: { guildId, userId },
         });
-      } else {
-        activity.messageCount++;
-        activity.lastMessageAt = new Date();
-      }
 
-      await this.activityRepo.save(activity);
-    } catch (error) {
-      logError({
-        category: ErrorCategory.DATABASE,
-        severity: ErrorSeverity.LOW,
-        message: 'Failed to track user activity',
-        error,
-        context: {
-          guildId: message.guild?.id,
-          userId: message.author.id,
-        },
+        if (!activity) {
+          activity = this.activityRepo.create({
+            guildId,
+            userId,
+            messageCount: buffered.messageCount,
+            firstMessageAt: buffered.firstMessageAt,
+            lastMessageAt: buffered.lastMessageAt,
+            joinedAt: buffered.joinedAt,
+          });
+        } else {
+          activity.messageCount += buffered.messageCount;
+          activity.lastMessageAt = buffered.lastMessageAt;
+        }
+
+        await this.activityRepo.save(activity);
+      } catch (error) {
+        logError({
+          category: ErrorCategory.DATABASE,
+          severity: ErrorSeverity.LOW,
+          message: 'Failed to flush user activity buffer',
+          error,
+          context: { key },
+        });
+      }
+    }
+  }
+
+  startActivityFlush(): void {
+    if (this.activityFlushInterval) return;
+    this.activityFlushInterval = setInterval(() => {
+      this.flushActivityBuffer().catch(error => {
+        logError({
+          category: ErrorCategory.DATABASE,
+          severity: ErrorSeverity.LOW,
+          message: 'Activity buffer flush interval failed',
+          error,
+          context: {},
+        });
       });
+    }, ACTIVITY_FLUSH_INTERVAL_MS);
+  }
+
+  stopActivityFlush(): void {
+    if (this.activityFlushInterval) {
+      clearInterval(this.activityFlushInterval);
+      this.activityFlushInterval = null;
     }
   }
 }

@@ -107,7 +107,16 @@
     "days": "{0} days",
     "minutes": "{0} min",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "reasons": {
+      "defaultAvatar": "Default avatar (no custom avatar set)",
+      "emptyProfile": "Empty profile (no banner, no avatar)",
+      "suspiciousUsername": "Suspicious username patterns detected",
+      "noRoles": "No server roles assigned",
+      "discordInvite": "Contains Discord invite link(s)",
+      "phishingUrl": "Contains suspected phishing URL(s)",
+      "attachmentOnly": "Attachment-only message (no text)"
+    }
   },
   "error": {
     "fetchStatus": "Failed to fetch bait channel status",

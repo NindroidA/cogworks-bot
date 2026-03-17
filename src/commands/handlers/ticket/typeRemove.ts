@@ -61,11 +61,11 @@ export async function typeRemoveHandler(interaction: ChatInputCommandInteraction
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId('confirm_delete')
-        .setLabel('Delete')
+        .setLabel(lang.general.buttons.delete)
         .setStyle(ButtonStyle.Danger),
       new ButtonBuilder()
         .setCustomId('cancel_delete')
-        .setLabel('Cancel')
+        .setLabel(lang.general.buttons.cancel)
         .setStyle(ButtonStyle.Secondary),
     );
 

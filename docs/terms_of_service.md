@@ -1,6 +1,6 @@
 # Terms of Service for Cogworks Bot
 
-**Last Updated:** `March 9, 2026`
+**Last Updated:** `March 15, 2026`
 
 ## 1. Acceptance of Terms
 
@@ -34,6 +34,7 @@ Cogworks Bot provides the following features and services:
   - Whitelist management for trusted users and roles
   - Automatic message purge on ban
 - **API Integration**: Nindroid Systems service connectivity
+- **Web Dashboard**: Remote bot management via internal API with audit logging
 
 The Bot is provided "as-is" and features may be added, modified, or removed at any time.
 
@@ -256,7 +257,7 @@ If any provision of these Terms is found to be invalid or unenforceable, the rem
 
 For questions, concerns, or issues regarding these Terms of Service, please contact:
 
-- **Discord**: (Nindroid's Development Server will be added here later)
+- **Discord**: https://discord.gg/nkwMUaVSYH
 - **GitHub**: https://github.com/NindroidA/cogworks-bot
 - **Issues**: Submit via GitHub Issues for technical problems
 

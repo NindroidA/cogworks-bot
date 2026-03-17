@@ -30,8 +30,9 @@ import {
   createErrorEmbed,
   createInfoEmbed,
   createRateLimitKey,
+  enhancedLogger,
+  LogCategory,
   lang,
-  logger,
   RateLimits,
   rateLimiter,
   requireAdmin,
@@ -58,9 +59,9 @@ export async function botSetupHandler(
       embeds: [createErrorEmbed(permissionCheck.message || 'Insufficient permissions')],
       flags: [MessageFlags.Ephemeral],
     });
-    logger(
+    enhancedLogger.warn(
       `Unauthorized bot setup attempt by user ${interaction.user.id} in guild ${interaction.guild.id}`,
-      'WARN',
+      LogCategory.COMMAND_EXECUTION,
     );
     return;
   }
@@ -77,7 +78,10 @@ export async function botSetupHandler(
       ],
       flags: [MessageFlags.Ephemeral],
     });
-    logger(lang.botSetup.logs.rateLimit.replace('{guildId}', interaction.guild.id), 'WARN');
+    enhancedLogger.warn(
+      lang.botSetup.logs.rateLimit.replace('{guildId}', interaction.guild.id),
+      LogCategory.SECURITY,
+    );
     return;
   }
 

@@ -5,12 +5,11 @@ import { commands } from './commands/commandList';
 import { handleSlashCommand } from './commands/commands';
 import { stopFieldSessionCleanup } from './commands/handlers/application/applicationFields';
 import { stopFieldDraftCleanup } from './commands/handlers/shared/fieldManagerCore';
-import { applicationFieldsInteraction } from './events/applicationFieldsInteraction';
-import { handleApplicationInteraction } from './events/applicationInteraction';
 import { handleAutocomplete } from './events/autocomplete';
 import channelDeleteEvent from './events/channelDelete';
 import guildCreateEvent from './events/guildCreate';
 import guildDeleteEvent from './events/guildDelete';
+import { routeInteraction } from './events/interactionRouter';
 import messageCreateEvent from './events/messageCreate';
 import messageDeleteEvent from './events/messageDelete';
 import {
@@ -23,26 +22,27 @@ import {
   handleRulesReactionRemove,
   stopRulesCooldownCleanup,
 } from './events/rulesReaction';
-import { handleTicketInteraction } from './events/ticketInteraction';
-import { typeFieldsInteraction } from './events/typeFieldsInteraction';
 import { AppDataSource } from './typeorm';
 import { BaitChannelConfig } from './typeorm/entities/BaitChannelConfig';
 import { BaitChannelLog } from './typeorm/entities/BaitChannelLog';
 import { BotConfig } from './typeorm/entities/BotConfig';
 import { PendingBan } from './typeorm/entities/PendingBan';
 import { UserActivity } from './typeorm/entities/UserActivity';
+import type { ExtendedClient } from './types/ExtendedClient';
 import {
   E,
   enhancedLogger,
   ensureDefaultTicketTypes,
   healthMonitor,
   healthServer,
+  internalApiServer,
   LogCategory,
   lang,
   rateLimiter,
 } from './utils';
 import { APIConnector } from './utils/apiConnector';
 import { BaitChannelManager } from './utils/baitChannelManager';
+import { startLogCleanup, stopLogCleanup } from './utils/database/logCleanup';
 import { setupGlobalErrorHandlers } from './utils/errorHandler';
 import { setDescription, setStatus } from './utils/profileFunctions';
 import { StatusManager } from './utils/status/StatusManager';
@@ -96,7 +96,6 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildPresences,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMessageReactions,
   ],
@@ -126,17 +125,13 @@ client.on('interactionCreate', async interaction => {
     interaction.isStringSelectMenu() ||
     interaction.isModalSubmit()
   ) {
-    client.emit('buttonInteraction', client, interaction);
+    await routeInteraction(client, interaction);
   }
 });
 
 // register event handlers
 client.on('chatInputCommand', handleSlashCommand); // handle when slash commands are sent
 client.on('autocomplete', handleAutocomplete); // handle autocomplete interactions
-client.on('buttonInteraction', handleTicketInteraction); // handle ticket interaction button presses
-client.on('buttonInteraction', handleApplicationInteraction); // handle application interaction button presses
-client.on('buttonInteraction', typeFieldsInteraction); // handle type-fields interaction (buttons/selects/modals)
-client.on('buttonInteraction', applicationFieldsInteraction); // handle application field interactions (buttons/selects/modals)
 
 // register reaction events (rules acknowledgment + reaction roles)
 client.on('messageReactionAdd', (reaction, user) => handleRulesReactionAdd(reaction, user, client));
@@ -196,16 +191,16 @@ client.once('clientReady', async () => {
     AppDataSource.getRepository(PendingBan),
   );
   await baitChannelManager.initialize();
+  baitChannelManager.startActivityFlush();
 
   // attach to client for access in events and commands
-  (client as typeof client & { baitChannelManager: BaitChannelManager }).baitChannelManager =
-    baitChannelManager;
+  (client as ExtendedClient).baitChannelManager = baitChannelManager;
   console.log(`${E.target} ${tl.baitChannelInit}`);
   enhancedLogger.info('Bait channel manager initialized', LogCategory.SYSTEM);
 
   // initialize status manager
   const statusManager = new StatusManager(client, IS_DEV);
-  (client as typeof client & { statusManager: StatusManager }).statusManager = statusManager;
+  (client as ExtendedClient).statusManager = statusManager;
   await statusManager.updatePresence(); // Set initial presence from DB
   healthMonitor.setStatusManager(statusManager);
   enhancedLogger.info('Status manager initialized', LogCategory.SYSTEM);
@@ -231,10 +226,20 @@ client.once('clientReady', async () => {
     enhancedLogger.info(tl.apiSkipDev, LogCategory.SYSTEM);
   }
 
+  // Initialize internal API server (for dashboard integration)
+  if (process.env.COGWORKS_INTERNAL_API_TOKEN) {
+    internalApiServer.initialize(client);
+    const INTERNAL_API_PORT = Number.parseInt(process.env.BOT_INTERNAL_PORT || '3002', 10);
+    internalApiServer.start(INTERNAL_API_PORT);
+  }
+
   // start periodic health status logging (every 5 minutes)
   healthMonitorInterval = setInterval(async () => {
     await healthMonitor.logHealthStatus();
   }, 300000);
+
+  // start daily log cleanup (bait channel logs: 90d, announcement logs: 365d)
+  startLogCleanup();
 
   enhancedLogger.info(
     'Periodic health monitoring started (5 minute intervals)',
@@ -255,11 +260,20 @@ async function gracefulShutdown(signal: string) {
   stopFieldSessionCleanup();
   stopReactionRoleCooldownCleanup();
   stopRulesCooldownCleanup();
+  stopLogCleanup();
   healthMonitor.stopPeriodicChecks();
   rateLimiter.destroy();
   if (healthMonitorInterval) clearInterval(healthMonitorInterval);
 
-  // stop health server
+  // stop bait channel activity flush and write remaining buffer to DB
+  const extClient = client as ExtendedClient;
+  if (extClient.baitChannelManager) {
+    extClient.baitChannelManager.stopActivityFlush();
+    await extClient.baitChannelManager.flushActivityBuffer();
+  }
+
+  // stop servers
+  await internalApiServer.stop();
   await healthServer.stop();
 
   if (!IS_DEV) {

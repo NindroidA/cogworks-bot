@@ -55,7 +55,25 @@ export class BaitChannelLog {
     suspiciousContent: boolean;
     linkSpam: boolean;
     mentionSpam: boolean;
+    defaultAvatar: boolean;
+    emptyProfile: boolean;
+    suspiciousUsername: boolean;
+    noRoles: boolean;
+    discordInvite: boolean;
+    phishingUrl: boolean;
+    attachmentOnly: boolean;
+    joinBurst: boolean;
   };
+
+  // Override tracking (Plan 06)
+  @Column({ default: false })
+  overridden: boolean;
+
+  @Column({ nullable: true })
+  overriddenBy: string;
+
+  @Column({ nullable: true })
+  overriddenAt: Date;
 
   @CreateDateColumn()
   createdAt: Date;

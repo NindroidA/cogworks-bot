@@ -9,8 +9,8 @@ import { ReactionRoleMenu } from '../typeorm/entities/reactionRole';
 import { RulesConfig } from '../typeorm/entities/rules';
 import { ArchivedTicketConfig } from '../typeorm/entities/ticket/ArchivedTicketConfig';
 import { TicketConfig } from '../typeorm/entities/ticket/TicketConfig';
+import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';
-import type { BaitChannelManager } from '../utils/baitChannelManager';
 import { invalidateGuildMenuCache } from '../utils/reactionRole/menuCache';
 import { invalidateRulesCache } from './rulesReaction';
 
@@ -134,9 +134,7 @@ export default {
         if (changed) {
           await repo.save(config);
           // Clear bait manager cache
-          const { baitChannelManager } = client as {
-            baitChannelManager?: BaitChannelManager;
-          };
+          const { baitChannelManager } = client as ExtendedClient;
           baitChannelManager?.clearConfigCache(guildId);
           enhancedLogger.info('Updated BaitChannelConfig for deleted channel', LogCategory.SYSTEM, {
             guildId,

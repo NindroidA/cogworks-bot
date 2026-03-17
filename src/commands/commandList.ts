@@ -12,6 +12,7 @@ import { applicationSetup } from './builders/applicationSetup';
 import { baitChannelCommand } from './builders/baitChannel';
 import { botSetup } from './builders/botSetup';
 import { coffee } from './builders/coffee';
+import { dashboard } from './builders/dashboard';
 import { dataExport } from './builders/dataExport';
 import { dev } from './builders/dev';
 import { memory } from './builders/memory';
@@ -21,6 +22,7 @@ import { ping } from './builders/ping';
 import { reactionRole } from './builders/reactionRole';
 import { role } from './builders/role';
 import { rulesSetup } from './builders/rulesSetup';
+import { server } from './builders/server';
 import { status } from './builders/status';
 import { ticket } from './builders/ticket';
 import { ticketSetup } from './builders/ticketSetup';
@@ -45,6 +47,8 @@ const baseCommands = [
   memory, // memory/todo tracking system
   rulesSetup, // rules acknowledgment system
   reactionRole, // reaction role menu system
+  server, // development server invite link
+  dashboard, // web dashboard link
   status, // outage status system (owner-only)
 ];
 

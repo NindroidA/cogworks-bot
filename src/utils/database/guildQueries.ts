@@ -206,6 +206,7 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     );
     const { PendingBan } = await import('../../typeorm/entities/PendingBan');
     const { AnnouncementLog } = await import('../../typeorm/entities/announcement/AnnouncementLog');
+    const { AuditLog } = await import('../../typeorm/entities/AuditLog');
     const { MemoryConfig } = await import('../../typeorm/entities/memory/MemoryConfig');
     const { MemoryItem } = await import('../../typeorm/entities/memory/MemoryItem');
     const { MemoryTag } = await import('../../typeorm/entities/memory/MemoryTag');
@@ -232,6 +233,7 @@ export async function deleteAllGuildData(guildId: string): Promise<{
         name: 'AnnouncementLog',
         repo: AppDataSource.getRepository(AnnouncementLog),
       },
+      { name: 'AuditLog', repo: AppDataSource.getRepository(AuditLog) },
       // Original entities
       { name: 'BotConfig', repo: AppDataSource.getRepository(BotConfig) },
       { name: 'TicketConfig', repo: AppDataSource.getRepository(TicketConfig) },

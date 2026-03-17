@@ -10,7 +10,7 @@ import {
   PermissionsBitField,
 } from 'discord.js';
 import { lang } from '../../lang';
-import { logger } from '../logger';
+import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
 /**
  * Permission check result
@@ -303,9 +303,9 @@ export function requireAdmin(interaction: ChatInputCommandInteraction): Permissi
   const adminCheck = hasAdminPermission(member);
 
   if (!adminCheck.allowed) {
-    logger(
+    enhancedLogger.warn(
       `User ${interaction.user.tag} attempted to use admin command ${interaction.commandName} without permission`,
-      'WARN',
+      LogCategory.SECURITY,
     );
   }
 
@@ -328,9 +328,9 @@ export function requireOwner(interaction: ChatInputCommandInteraction): Permissi
   const ownerCheck = isGuildOwner(member);
 
   if (!ownerCheck.allowed) {
-    logger(
+    enhancedLogger.warn(
       `User ${interaction.user.tag} attempted to use owner command ${interaction.commandName} without permission`,
-      'WARN',
+      LogCategory.SECURITY,
     );
   }
 

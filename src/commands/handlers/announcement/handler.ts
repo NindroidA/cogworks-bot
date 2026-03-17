@@ -22,9 +22,10 @@ import { AnnouncementConfig } from '../../../typeorm/entities/announcement/Annou
 import { AnnouncementLog } from '../../../typeorm/entities/announcement/AnnouncementLog';
 import {
   createRateLimitKey,
+  enhancedLogger,
   LANGF,
+  LogCategory,
   lang,
-  logger,
   parseTimeInput,
   RateLimits,
   rateLimiter,
@@ -55,9 +56,9 @@ export const announcementHandler = async (
         content: permissionCheck.message,
         flags: [MessageFlags.Ephemeral],
       });
-      logger(
+      enhancedLogger.warn(
         `Unauthorized announcement attempt by user ${interaction.user.id} in guild ${guildId}`,
-        'WARN',
+        LogCategory.COMMAND_EXECUTION,
       );
       return;
     }
@@ -71,9 +72,9 @@ export const announcementHandler = async (
         content: LANGF(tlErr.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
         flags: [MessageFlags.Ephemeral],
       });
-      logger(
+      enhancedLogger.warn(
         `Rate limit exceeded for announcement creation by user ${interaction.user.id}`,
-        'WARN',
+        LogCategory.COMMAND_EXECUTION,
       );
       return;
     }
@@ -139,7 +140,7 @@ export const announcementHandler = async (
     // Show preview with Send/Cancel buttons
     await showPreview(interaction, targetChannel, messageData, announcementData, config);
   } catch (error) {
-    logger(tl.error + error, 'ERROR');
+    enhancedLogger.error(tl.error + error, undefined, LogCategory.COMMAND_EXECUTION);
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({
         content: tl.fail,
@@ -274,11 +275,11 @@ async function showPreview(
   const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId('announcement_send')
-      .setLabel('📢 Send Announcement')
+      .setLabel(`📢 ${lang.announcement.templates.sendButton}`)
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId('announcement_cancel')
-      .setLabel('Cancel')
+      .setLabel(lang.general.buttons.cancel)
       .setStyle(ButtonStyle.Secondary),
   );
 
@@ -329,9 +330,15 @@ async function showPreview(
     if (targetChannel instanceof NewsChannel) {
       try {
         await sentMessage.crosspost();
-        logger(`${lang.announcement.publish.success} ${targetChannel.name}`);
+        enhancedLogger.info(
+          `${lang.announcement.publish.success} ${targetChannel.name}`,
+          LogCategory.COMMAND_EXECUTION,
+        );
       } catch (publishError) {
-        logger(lang.announcement.publish.fail + publishError, 'WARN');
+        enhancedLogger.warn(
+          lang.announcement.publish.fail + publishError,
+          LogCategory.COMMAND_EXECUTION,
+        );
       }
     }
 
@@ -354,11 +361,15 @@ async function showPreview(
       components: [],
     });
 
-    logger(
+    enhancedLogger.info(
       `User ${interaction.user.username} sent ${announcementData.announcementType} announcement`,
+      LogCategory.COMMAND_EXECUTION,
     );
   } catch (error) {
     // Timeout or error
-    logger(`Announcement preview timed out or error occurred: ${error}`, 'WARN');
+    enhancedLogger.warn(
+      `Announcement preview timed out or error occurred: ${error}`,
+      LogCategory.COMMAND_EXECUTION,
+    );
   }
 }

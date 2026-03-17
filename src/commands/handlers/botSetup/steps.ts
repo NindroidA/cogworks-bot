@@ -137,15 +137,12 @@ export function buildSuccessEmbed(
     rolesAdded?: number;
   },
 ) {
-  const embed = createSuccessEmbed(
-    '✅ Setup Complete!',
-    '**Your bot has been configured successfully!**\n\n' +
-      'The following settings have been saved:',
-  );
+  const sm = lang.botSetup.summary;
+  const embed = createSuccessEmbed(`✅ ${sm.title}`, `**${sm.description}**`);
 
   if (config.enableGlobalStaffRole && config.globalStaffRole) {
     embed.addFields({
-      name: '👥 Global Staff Role',
+      name: `👥 ${sm.globalStaffRole}`,
       value: `${config.globalStaffRole}`,
       inline: false,
     });
@@ -155,28 +152,24 @@ export function buildSuccessEmbed(
     let systemsSummary = '';
 
     if (additionalSystems.ticketConfigured) {
-      systemsSummary += '✅ Ticket System Configured\n';
+      systemsSummary += `✅ ${sm.ticketSystem}\n`;
     }
-
     if (additionalSystems.applicationConfigured) {
-      systemsSummary += '✅ Application System Configured\n';
+      systemsSummary += `✅ ${sm.applicationSystem}\n`;
     }
-
     if (additionalSystems.announcementConfigured) {
-      systemsSummary += '✅ Announcement System Configured\n';
+      systemsSummary += `✅ ${sm.announcementSystem}\n`;
     }
-
     if (additionalSystems.baitChannelConfigured) {
-      systemsSummary += '✅ Bait Channel (Anti-Bot) Configured\n';
+      systemsSummary += `✅ ${sm.baitChannelSystem}\n`;
     }
-
     if (additionalSystems.rolesAdded && additionalSystems.rolesAdded > 0) {
-      systemsSummary += `✅ ${additionalSystems.rolesAdded} Role(s) Added\n`;
+      systemsSummary += `✅ ${sm.rolesAdded.replace('{count}', additionalSystems.rolesAdded.toString())}\n`;
     }
 
     if (systemsSummary) {
       embed.addFields({
-        name: '🎯 Systems Configured',
+        name: `🎯 ${sm.systemsConfigured}`,
         value: systemsSummary,
         inline: false,
       });
@@ -184,17 +177,12 @@ export function buildSuccessEmbed(
   }
 
   embed.addFields({
-    name: "🚀 What's Next?",
-    value:
-      '• Start using your configured systems\n' +
-      '• Customize further with individual commands\n' +
-      '• Run `/bot-setup` again anytime to update settings',
+    name: `🚀 ${sm.whatsNext}`,
+    value: sm.whatsNextValue,
     inline: false,
   });
 
-  embed.setFooter({
-    text: '💡 Need help? Check our documentation or contact support',
-  });
+  embed.setFooter({ text: `💡 ${sm.footer}` });
 
   return embed;
 }
@@ -203,26 +191,22 @@ export function buildSuccessEmbed(
  * Update mode: Show current config and options
  */
 export function buildUpdateEmbed(config: BotConfig) {
-  const embed = createInfoEmbed(
-    '🔧 Update Bot Configuration',
-    '**Your current configuration:**\n\n' + 'What would you like to modify?',
-  );
+  const up = lang.botSetup.update;
+  const embed = createInfoEmbed(up.title, `${up.currentConfig}\n\n${up.question}`);
 
   if (config.enableGlobalStaffRole && config.globalStaffRole) {
     embed.addFields({
-      name: '👥 Current Staff Role',
-      value: `${config.globalStaffRole}\n✅ Enabled`,
+      name: up.staffRoleConfigured.replace('{role}', ''),
+      value: `${config.globalStaffRole}\n✅`,
       inline: false,
     });
   } else {
     embed.addFields({
-      name: '👥 Current Staff Role',
-      value: '❌ Not configured',
+      name: up.staffRoleNotConfigured,
+      value: '❌',
       inline: false,
     });
   }
-
-  embed.setFooter({ text: '💡 Select an option below to reconfigure' });
 
   return embed;
 }

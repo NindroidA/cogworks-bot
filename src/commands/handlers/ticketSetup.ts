@@ -84,7 +84,7 @@ export const ticketSetupHandler = async (
         new ButtonBuilder()
           .setCustomId('create_ticket')
           .setEmoji('🎫')
-          .setLabel('Create Ticket')
+          .setLabel(lang.general.buttons.createTicket)
           .setStyle(ButtonStyle.Primary),
       );
 

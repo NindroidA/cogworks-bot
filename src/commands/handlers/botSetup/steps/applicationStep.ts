@@ -10,21 +10,14 @@ import {
   ChannelType,
   EmbedBuilder,
 } from 'discord.js';
+import { lang } from '../../../../utils';
+
+const tl = lang.botSetup.application;
+const btn = lang.botSetup.buttons;
 
 export const applicationStep = {
   buildEmbed: () => {
-    return new EmbedBuilder()
-      .setTitle('📝 Application System Setup')
-      .setDescription(
-        '**Would you like to configure the application system?**\n\n' +
-          'The application system allows users to apply for positions in your server.\n\n' +
-          '**This includes:**\n' +
-          '• Main application channel (where users can apply)\n' +
-          '• Application category (where active applications are reviewed)\n' +
-          '• Archive forum (where closed applications are stored)\n\n' +
-          '**You can skip this and set it up later with `/application-setup`**',
-      )
-      .setColor('#57F287');
+    return new EmbedBuilder().setTitle(tl.title).setDescription(tl.description).setColor('#57F287');
   },
 
   buildComponents: () => {
@@ -32,16 +25,16 @@ export const applicationStep = {
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId('application_enable')
-          .setLabel('Configure Application System')
+          .setLabel(btn.configureApplication)
           .setStyle(ButtonStyle.Success)
           .setEmoji('📝'),
         new ButtonBuilder()
           .setCustomId('application_skip')
-          .setLabel('Skip')
+          .setLabel(btn.skip)
           .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
           .setCustomId('setup_cancel')
-          .setLabel('Cancel Setup')
+          .setLabel(btn.cancelSetup)
           .setStyle(ButtonStyle.Danger),
       ),
     ];
@@ -49,11 +42,8 @@ export const applicationStep = {
 
   buildChannelSelectEmbed: () => {
     return new EmbedBuilder()
-      .setTitle('📝 Select Application Channel')
-      .setDescription(
-        'Select the text channel where users will submit applications.\n\n' +
-          'This channel will have an "Apply" button message.',
-      )
+      .setTitle(tl.channelSelectTitle)
+      .setDescription(tl.channelSelectDescription)
       .setColor('#57F287');
   },
 
@@ -61,18 +51,15 @@ export const applicationStep = {
     return new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder()
         .setCustomId(`application_channel_select_${Date.now()}`)
-        .setPlaceholder('Select application channel')
+        .setPlaceholder(tl.channelSelectPlaceholder)
         .setChannelTypes(ChannelType.GuildText),
     );
   },
 
   buildCategorySelectEmbed: () => {
     return new EmbedBuilder()
-      .setTitle('📂 Select Application Category')
-      .setDescription(
-        'Select the category where active applications will be reviewed.\n\n' +
-          'Each application will be a private channel in this category.',
-      )
+      .setTitle(tl.categorySelectTitle)
+      .setDescription(tl.categorySelectDescription)
       .setColor('#57F287');
   },
 
@@ -80,18 +67,15 @@ export const applicationStep = {
     return new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder()
         .setCustomId(`application_category_select_${Date.now()}`)
-        .setPlaceholder('Select application category')
+        .setPlaceholder(tl.categorySelectPlaceholder)
         .setChannelTypes(ChannelType.GuildCategory),
     );
   },
 
   buildArchiveSelectEmbed: () => {
     return new EmbedBuilder()
-      .setTitle('🗃️ Select Archive Forum')
-      .setDescription(
-        'Select the forum channel where closed applications will be archived.\n\n' +
-          'Each closed application will create a thread in this forum.',
-      )
+      .setTitle(tl.archiveSelectTitle)
+      .setDescription(tl.archiveSelectDescription)
       .setColor('#57F287');
   },
 
@@ -99,7 +83,7 @@ export const applicationStep = {
     return new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder()
         .setCustomId(`application_archive_select_${Date.now()}`)
-        .setPlaceholder('Select archive forum')
+        .setPlaceholder(tl.archiveSelectPlaceholder)
         .setChannelTypes(ChannelType.GuildForum),
     );
   },

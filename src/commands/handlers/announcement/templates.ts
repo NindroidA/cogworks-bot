@@ -6,6 +6,8 @@
 import { type ColorResolvable, EmbedBuilder } from 'discord.js';
 import { lang } from '../../../utils';
 
+const tpl = lang.announcement.templates;
+
 // Template parameter types
 export type TemplateParams =
   | { duration: 'short' | 'long'; customMessage?: string }
@@ -28,11 +30,6 @@ interface AnnouncementTemplate {
   name: string;
   description: string;
   color: ColorResolvable;
-  /**
-   * Build the embed for this template
-   * @param params - Template-specific parameters
-   * @param mentionRole - Role to mention (if any)
-   */
   buildEmbed: (
     params: TemplateParams,
     mentionRole?: string,
@@ -42,39 +39,30 @@ interface AnnouncementTemplate {
   };
 }
 
-/**
- * Pre-built announcement templates
- */
 const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
   maintenance: {
     id: 'maintenance',
     name: 'Maintenance (Immediate)',
     description: 'Announce immediate server maintenance',
-    color: 0xffa500, // Orange
+    color: 0xffa500,
     buildEmbed: (params: TemplateParams, mentionRole?: string) => {
-      const p = params as {
-        duration: 'short' | 'long';
-        customMessage?: string;
-      };
+      const p = params as { duration: 'short' | 'long'; customMessage?: string };
       const tl = lang.announcement.maintenance;
       const isShort = p.duration === 'short';
-      const durationText = isShort ? '5-10 minutes' : 'up to 1 hour or more';
+      const durationText = isShort ? tpl.durationShort : tpl.durationLong;
       const defaultMessage = isShort ? tl.duration.short.msg : tl.duration.long.msg;
 
       const embed = new EmbedBuilder()
-        .setTitle('🔧 Server Maintenance')
+        .setTitle(`🔧 ${tpl.maintenanceTitle}`)
         .setDescription(p.customMessage || defaultMessage)
         .setColor(0xffa500)
         .addFields(
-          { name: '⏱️ Expected Duration', value: durationText, inline: true },
-          { name: '📅 Starting', value: 'In about 5 minutes', inline: true },
+          { name: `⏱️ ${tpl.expectedDuration}`, value: durationText, inline: true },
+          { name: `📅 ${tpl.starting}`, value: tpl.startingValue, inline: true },
         )
-        .setFooter({ text: 'Times shown are in your local timezone' });
+        .setFooter({ text: tpl.timezoneFooter });
 
-      return {
-        embeds: [embed],
-        content: mentionRole,
-      };
+      return { embeds: [embed], content: mentionRole };
     },
   },
 
@@ -84,42 +72,22 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
     description: 'Announce scheduled server maintenance',
     color: 0xffa500,
     buildEmbed: (params: TemplateParams, mentionRole?: string) => {
-      const p = params as {
-        duration: 'short' | 'long';
-        timestamp: number;
-        customMessage?: string;
-      };
+      const p = params as { duration: 'short' | 'long'; timestamp: number; customMessage?: string };
       const isShort = p.duration === 'short';
-      const durationText = isShort ? '5-10 minutes' : 'up to 1 hour';
-      const defaultMessage =
-        'The Minecraft server will be going down for server-side maintenance and updates. ' +
-        'We will update this channel if anything goes awry.';
+      const durationText = isShort ? tpl.durationShort : tpl.durationLong;
 
       const embed = new EmbedBuilder()
-        .setTitle('🔧 Scheduled Server Maintenance')
-        .setDescription(p.customMessage || defaultMessage)
+        .setTitle(`🔧 ${tpl.scheduledMaintenanceTitle}`)
+        .setDescription(p.customMessage || tpl.scheduledDefaultMsg)
         .setColor(0xffa500)
         .addFields(
-          { name: '⏱️ Expected Duration', value: durationText, inline: true },
-          {
-            name: '📅 Scheduled Time',
-            value: `<t:${p.timestamp}:F>`,
-            inline: false,
-          },
-          {
-            name: '🕐 Relative Time',
-            value: `<t:${p.timestamp}:R>`,
-            inline: false,
-          },
+          { name: `⏱️ ${tpl.expectedDuration}`, value: durationText, inline: true },
+          { name: `📅 ${tpl.scheduledTime}`, value: `<t:${p.timestamp}:F>`, inline: false },
+          { name: `🕐 ${tpl.relativeTime}`, value: `<t:${p.timestamp}:R>`, inline: false },
         )
-        .setFooter({
-          text: 'Times shown are in your local timezone',
-        });
+        .setFooter({ text: tpl.timezoneFooter });
 
-      return {
-        embeds: [embed],
-        content: mentionRole,
-      };
+      return { embeds: [embed], content: mentionRole };
     },
   },
 
@@ -127,29 +95,26 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
     id: 'backOnline',
     name: 'Back Online',
     description: 'Announce server is back online',
-    color: 0x00ff00, // Green
+    color: 0x00ff00,
     buildEmbed: (params: TemplateParams, mentionRole?: string) => {
       const p = params as { customMessage?: string };
       const tl = lang.announcement['back-online'];
 
       const embed = new EmbedBuilder()
-        .setTitle('✅ Server is Back Online!')
+        .setTitle(`✅ ${tpl.backOnlineTitle}`)
         .setDescription(p.customMessage || tl.success)
         .setColor(0x00ff00)
         .addFields(
-          { name: '🎮 Status', value: 'Online and ready', inline: true },
+          { name: `🎮 ${tpl.status}`, value: tpl.statusOnline, inline: true },
           {
-            name: '⏰ Downtime Complete',
+            name: `⏰ ${tpl.downtimeComplete}`,
             value: `<t:${Math.floor(Date.now() / 1000)}:R>`,
             inline: true,
           },
         )
-        .setFooter({ text: 'Times shown are in your local timezone' });
+        .setFooter({ text: tpl.timezoneFooter });
 
-      return {
-        embeds: [embed],
-        content: mentionRole,
-      };
+      return { embeds: [embed], content: mentionRole };
     },
   },
 
@@ -157,39 +122,24 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
     id: 'updateScheduled',
     name: 'Update (Scheduled)',
     description: 'Announce scheduled server update',
-    color: 0x5865f2, // Discord Blurple
+    color: 0x5865f2,
     buildEmbed: (params: TemplateParams, mentionRole?: string) => {
-      const p = params as {
-        version: string;
-        timestamp: number;
-        customMessage?: string;
-      };
+      const p = params as { version: string; timestamp: number; customMessage?: string };
       const tl = lang.announcement['update-scheduled'];
       const defaultMessage = `The server will be updating to **${p.version}** later today. ${tl.msg}`;
 
       const embed = new EmbedBuilder()
-        .setTitle('📦 Scheduled Server Update')
+        .setTitle(`📦 ${tpl.updateScheduledTitle}`)
         .setDescription(p.customMessage || defaultMessage)
         .setColor(0x5865f2)
         .addFields(
-          { name: '📌 Version', value: p.version, inline: true },
-          {
-            name: '📅 Scheduled Time',
-            value: `<t:${p.timestamp}:F>`,
-            inline: false,
-          },
-          {
-            name: '🕐 Relative Time',
-            value: `<t:${p.timestamp}:R>`,
-            inline: false,
-          },
+          { name: `📌 ${tpl.version}`, value: p.version, inline: true },
+          { name: `📅 ${tpl.scheduledTime}`, value: `<t:${p.timestamp}:F>`, inline: false },
+          { name: `🕐 ${tpl.relativeTime}`, value: `<t:${p.timestamp}:R>`, inline: false },
         )
-        .setFooter({ text: 'Times shown are in your local timezone' });
+        .setFooter({ text: tpl.timezoneFooter });
 
-      return {
-        embeds: [embed],
-        content: mentionRole,
-      };
+      return { embeds: [embed], content: mentionRole };
     },
   },
 
@@ -204,24 +154,21 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
       const defaultMessage = `The server has been successfully updated to **version ${p.version}**!\n\n${tl.msg}`;
 
       const embed = new EmbedBuilder()
-        .setTitle('✅ Server Update Complete!')
+        .setTitle(`✅ ${tpl.updateCompleteTitle}`)
         .setDescription(p.customMessage || defaultMessage)
         .setColor(0x00ff00)
         .addFields(
-          { name: '📌 New Version', value: p.version, inline: true },
-          { name: '🎮 Status', value: 'Online and ready', inline: true },
+          { name: `📌 ${tpl.newVersion}`, value: p.version, inline: true },
+          { name: `🎮 ${tpl.status}`, value: tpl.statusOnline, inline: true },
           {
-            name: '⏰ Updated',
+            name: `⏰ ${tpl.updated}`,
             value: `<t:${Math.floor(Date.now() / 1000)}:R>`,
             inline: false,
           },
         )
-        .setFooter({ text: 'Times shown are in your local timezone' });
+        .setFooter({ text: tpl.timezoneFooter });
 
-      return {
-        embeds: [embed],
-        content: mentionRole,
-      };
+      return { embeds: [embed], content: mentionRole };
     },
   },
 
@@ -246,7 +193,6 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
 
       if (p.title) embed.setTitle(p.title);
       if (p.color) {
-        // Parse color (hex string or number)
         const colorValue = p.color.startsWith('#')
           ? parseInt(p.color.slice(1), 16)
           : parseInt(p.color, 16);
@@ -254,29 +200,18 @@ const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
       } else {
         embed.setColor(0x5865f2);
       }
-      if (p.fields && p.fields.length > 0) {
-        embed.addFields(p.fields);
-      }
+      if (p.fields && p.fields.length > 0) embed.addFields(p.fields);
       if (p.footer) embed.setFooter({ text: p.footer });
 
-      return {
-        embeds: [embed],
-        content: mentionRole,
-      };
+      return { embeds: [embed], content: mentionRole };
     },
   },
 };
 
-/**
- * Get a template by ID
- */
 export function getTemplate(templateId: string): AnnouncementTemplate | null {
   return BUILT_IN_TEMPLATES[templateId] || null;
 }
 
-/**
- * Validate template parameters
- */
 export function validateTemplateParams(
   templateId: string,
   params: TemplateParams,
@@ -295,44 +230,27 @@ export function validateTemplateParams(
       }
       break;
     }
-
     case 'updateScheduled': {
       const p = params as { version?: string; timestamp?: number };
-      if (!p.version) {
-        errors.push('Version is required');
-      }
-      if (!p.timestamp) {
-        errors.push('Timestamp is required');
-      }
+      if (!p.version) errors.push('Version is required');
+      if (!p.timestamp) errors.push('Timestamp is required');
       break;
     }
-
     case 'updateComplete': {
       const p = params as { version?: string };
-      if (!p.version) {
-        errors.push('Version is required');
-      }
+      if (!p.version) errors.push('Version is required');
       break;
     }
-
     case 'custom': {
       const p = params as { description?: string };
-      if (!p.description) {
-        errors.push('Description is required');
-      }
+      if (!p.description) errors.push('Description is required');
       break;
     }
-
     case 'backOnline':
-      // No required params
       break;
-
     default:
       errors.push(`Unknown template: ${templateId}`);
   }
 
-  return {
-    valid: errors.length === 0,
-    errors,
-  };
+  return { valid: errors.length === 0, errors };
 }

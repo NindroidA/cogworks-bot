@@ -26,9 +26,11 @@ import {
   LANGF,
   LogCategory,
   lang,
+  maskEmail,
   RateLimits,
   rateLimiter,
   requireAdmin,
+  validateSafeUrl,
 } from '../../../utils';
 
 const tl = lang.ticket.customTypes.emailImport;
@@ -170,7 +172,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(senderEmail)) {
       enhancedLogger.warn(
-        `Email-import validation failed: invalid email '${senderEmail}'`,
+        `Email-import validation failed: invalid email '${maskEmail(senderEmail)}'`,
         LogCategory.COMMAND_EXECUTION,
         { userId: interaction.user.id, guildId },
       );
@@ -215,23 +217,15 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
           return;
         }
 
-        try {
-          const parsed = new URL(url);
-          if (!['http:', 'https:'].includes(parsed.protocol)) {
-            await interaction.reply({
-              content: LANGF(tl.invalidUrl, url),
-              flags: [MessageFlags.Ephemeral],
-            });
-            return;
-          }
-          attachmentUrls.push(url);
-        } catch {
+        const urlError = validateSafeUrl(url);
+        if (urlError) {
           await interaction.reply({
             content: LANGF(tl.invalidUrl, url),
             flags: [MessageFlags.Ephemeral],
           });
           return;
         }
+        attachmentUrls.push(url);
       }
     }
 
@@ -370,11 +364,11 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
       const buttonRow = new ActionRowBuilder<ButtonBuilder>().setComponents(
         new ButtonBuilder()
           .setCustomId('admin_only_ticket')
-          .setLabel('Admin Only')
+          .setLabel(lang.general.buttons.adminOnly)
           .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
           .setCustomId('close_ticket')
-          .setLabel('Close Ticket')
+          .setLabel(lang.general.buttons.closeTicket)
           .setStyle(ButtonStyle.Danger),
       );
 
@@ -401,13 +395,13 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
       await ticketRepo.save(ticket);
 
       enhancedLogger.info(
-        `Email ticket imported: #${ticket.id} from ${senderEmail}`,
+        `Email ticket imported: #${ticket.id} from ${maskEmail(senderEmail)}`,
         LogCategory.COMMAND_EXECUTION,
         {
           userId: interaction.user.id,
           guildId,
           ticketId: ticket.id,
-          senderEmail,
+          senderEmail: maskEmail(senderEmail),
           channelId: ticketChannel.id,
         },
       );

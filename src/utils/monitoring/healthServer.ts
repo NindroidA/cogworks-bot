@@ -42,6 +42,7 @@ interface HealthResponse {
   };
   metrics?: {
     guilds: number;
+    configuredGuilds: number;
     commands: {
       total: number;
       commandsPerMinute: number;
@@ -134,9 +135,10 @@ class HealthServer {
       this.handleRequest(req, res);
     });
 
-    this.server.listen(port, () => {
-      enhancedLogger.info(`Health server listening on port ${port}`, LogCategory.SYSTEM, {
+    this.server.listen(port, '127.0.0.1', () => {
+      enhancedLogger.info(`Health server listening on 127.0.0.1:${port}`, LogCategory.SYSTEM, {
         port,
+        host: '127.0.0.1',
         endpoints: ['/health', '/health/ready', '/health/live'],
       });
     });
@@ -220,6 +222,7 @@ class HealthServer {
         },
         metrics: {
           guilds: healthStatus.activeGuilds,
+          configuredGuilds: healthStatus.configuredGuilds,
           commands: {
             total: healthStatus.totalCommands,
             commandsPerMinute: healthStatus.commandsPerMinute,

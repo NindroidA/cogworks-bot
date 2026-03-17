@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-03-10
+
+### Added
+- **Multi-Channel Memory System**: Support up to 3 memory forum channels per guild
+  - `/memory-setup add-channel` — Add an additional memory forum channel
+  - `/memory-setup remove-channel` — Remove a memory channel
+  - `/memory-setup view` — View all configured memory channels
+  - Per-channel tags (categories and statuses scoped to each channel)
+  - Channel picker when guild has multiple memory channels
+- **`/server` Command**: Shows Cogworks development Discord server invite link
+- **Bot Internal API**: HTTP server (port 3002) for dashboard-triggered operations
+  - Ticket close/assign, application approve/deny/archive
+  - Announcement send, memory create, rules setup, reaction role create/rebuild
+  - Bearer token auth with timing-safe comparison
+- **Dashboard**:
+  - Dashboard URL to the bot's profile description
+  - `/dashboard` - Opens the Cogworks web dashboard with Discord OAuth authentication
+- **Dashboard Integration Endpoints**:
+  - `GET /internal/guilds` — Live guild list from Discord.js gateway cache
+  - `GET /internal/guilds/:guildId/members/:userId/permissions` — Permission verification
+  - `GET /internal/guilds/:guildId/channels` — Guild channel list from cache
+  - `GET /internal/guilds/:guildId/roles` — Guild role list with colors and member counts
+  - `GET /internal/guilds/:guildId/members/search?query=&limit=` — Member search
+  - `GET /internal/guilds/:guildId/audit-log?limit=N` — Recent audit log entries
+  - `GET /internal/health` — Health status on internal API port
+  - `POST /internal/guilds/:guildId/config/refresh` — Cache invalidation for baitChannel, reactionRole, rules
+- **Guild Lifecycle Webhooks**: Join/leave notifications to ninsys-api (fire-and-forget)
+- **Audit Logging**: `AuditLog` entity for dashboard-triggered actions with 90-day TTL cleanup
+  - Included in `/data-export` for GDPR compliance
+- **Thread Locking**: Memory items lock thread on completion
+- **Useful Links**: Cogworks Home, Dashboard, and my dev Discord server links now in the README
+
+### Fixed
+- **Memory Close/Complete**: Fixed "internal error" — reply now sent before thread archive
+- **Memory Close Reply**: Now visible (non-ephemeral) as archive notice in thread
+- **Bot Setup Wizard Duplicate Messages**: Wizard now cleans up old messages before sending new ones on re-setup
+- **Bot Setup Application Message**: Wizard now sends proper formatted message with positions (was sending plain text placeholder)
+- **Internal API Query Param Routing**: Fixed route matching for endpoints with query parameters (e.g., `?limit=5`)
+
+### Changed
+- **`MemoryConfig`**: No longer has unique constraint on `guildId` (supports multiple channels)
+- **`MemoryTag` and `MemoryItem`**: Now reference `memoryConfigId` for per-channel scoping
+- **TypeORM Migrations**: Production uses `migrationsRun: true` instead of `synchronize: true`
+- **Internal API Security**: Snowflake validation on all Discord ID inputs, hex color validation on announcements
+- **Internal API Performance**: Pre-compiled route regex patterns (no per-request compilation)
+- **Guild Webhook Safety**: URL validation blocks private/internal IPs in production
+- **Privacy Policy & Terms of Service**: Updated with dashboard, audit logging, guild webhook disclosures, Discord server link
+- **Lang System Completion**: Migrated all hardcoded user-facing strings to centralized `lang` module
+  - Field manager UI (modal labels, button labels, placeholders, error messages)
+  - Application edit modal labels, memory tag selection fields
+  - Scattered button labels across ticket, memory, and announcement handlers
+  - Added `fieldManager`, `tagSelection`, and new shared button entries to lang files
+- **Logger Migration**: All command and event handlers migrated from basic `logger()` to structured `enhancedLogger` with `LogCategory` tagging (11 files, ~40 calls)
+- **Deployment**: Migrated from PM2 to Docker containers
+
+### Removed
+- **`ServerConfig` Entity**: Unused entity removed (was never queried)
+- **`formatBytes()` Utility**: Unused export removed
+
 ## [2.12.10] - 2026-03-09
 
 ### Fixed

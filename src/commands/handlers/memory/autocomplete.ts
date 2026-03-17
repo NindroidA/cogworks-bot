@@ -6,10 +6,6 @@ import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 const memoryItemRepo = AppDataSource.getRepository(MemoryItem);
 const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
 
-/**
- * Autocomplete handler for /memory update-status and /memory update-tags.
- * Provides thread selection (by title) and status tag selection.
- */
 export async function memoryAutocomplete(interaction: AutocompleteInteraction) {
   const focused = interaction.options.getFocused(true);
   const guildId = interaction.guildId || '';
@@ -34,7 +30,15 @@ export async function memoryAutocomplete(interaction: AutocompleteInteraction) {
       where: { guildId, tagType: 'status' },
     });
 
-    const filtered = query ? tags.filter(t => t.name.toLowerCase().includes(query)) : tags;
+    // Deduplicate by name (tags across configs may share names)
+    const seen = new Set<string>();
+    const unique = tags.filter(t => {
+      if (seen.has(t.name)) return false;
+      seen.add(t.name);
+      return true;
+    });
+
+    const filtered = query ? unique.filter(t => t.name.toLowerCase().includes(query)) : unique;
 
     await interaction.respond(
       filtered.map(tag => ({

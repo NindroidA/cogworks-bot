@@ -6,8 +6,8 @@ import {
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
+import type { ExtendedClient } from '../../../types/ExtendedClient';
 import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
-import type { BaitChannelManager } from '../../../utils/baitChannelManager';
 
 const tl = lang.baitChannel;
 
@@ -118,7 +118,7 @@ export const whitelistHandler = async (
     if (changed) {
       await safeDbOperation(() => configRepo.save(config), 'Save bait channel config');
 
-      const { baitChannelManager } = client as { baitChannelManager?: BaitChannelManager };
+      const { baitChannelManager } = client as ExtendedClient;
       if (baitChannelManager) {
         baitChannelManager.clearConfigCache(interaction.guildId!);
       }

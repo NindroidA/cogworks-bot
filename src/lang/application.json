@@ -92,7 +92,11 @@
     "edit": {
       "title": "Edit Position",
       "success": "Position updated successfully!",
-      "notFound": "Position not found."
+      "notFound": "Position not found.",
+      "titleLabel": "Position Title",
+      "descriptionLabel": "Description",
+      "emojiLabel": "Emoji (e.g., 🤝)",
+      "ageGateLabel": "Age Verification? (yes / no)"
     },
     "fields": {
       "title": "Configure Fields",

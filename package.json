@@ -1,6 +1,6 @@
 {
   "name": "cogworks-bot",
-  "version": "2.12.10",
+  "version": "3.0.0",
   "description": "A modular Discord server management bot built with TypeScript and Discord.js",
   "main": "index.js",
   "scripts": {
@@ -21,7 +21,11 @@
     "format": "biome format ./src",
     "format:fix": "biome format --write ./src",
     "check": "biome check ./src",
-    "check:fix": "biome check --write ./src"
+    "check:fix": "biome check --write ./src",
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/typeorm/index.ts",
+    "migration:create": "typeorm-ts-node-commonjs migration:create",
+    "migration:run": "typeorm-ts-node-commonjs migration:run -d src/typeorm/index.ts",
+    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/typeorm/index.ts"
   },
   "keywords": [],
   "author": "",

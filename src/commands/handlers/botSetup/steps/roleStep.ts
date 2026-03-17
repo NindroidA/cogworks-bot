@@ -10,20 +10,14 @@ import {
   RoleSelectMenuBuilder,
   StringSelectMenuBuilder,
 } from 'discord.js';
+import { lang } from '../../../../utils';
+
+const tl = lang.botSetup.role;
+const btn = lang.botSetup.buttons;
 
 export const roleStep = {
   buildEmbed: () => {
-    return new EmbedBuilder()
-      .setTitle('👥 Role Management Setup')
-      .setDescription(
-        '**Would you like to configure staff and admin roles?**\n\n' +
-          'This allows you to save roles that can be used for permissions.\n\n' +
-          '**This includes:**\n' +
-          '• Staff roles (can manage tickets/applications)\n' +
-          '• Admin roles (full bot permissions)\n\n' +
-          '**You can skip this and add roles later with `/add-role`**',
-      )
-      .setColor('#FEE75C');
+    return new EmbedBuilder().setTitle(tl.title).setDescription(tl.description).setColor('#FEE75C');
   },
 
   buildComponents: () => {
@@ -31,16 +25,16 @@ export const roleStep = {
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId('role_enable')
-          .setLabel('Configure Roles')
+          .setLabel(btn.enableRoles)
           .setStyle(ButtonStyle.Success)
           .setEmoji('👥'),
         new ButtonBuilder()
           .setCustomId('role_skip')
-          .setLabel('Skip')
+          .setLabel(btn.skipRoles)
           .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
           .setCustomId('setup_cancel')
-          .setLabel('Cancel Setup')
+          .setLabel(btn.cancelSetup)
           .setStyle(ButtonStyle.Danger),
       ),
     ];
@@ -48,13 +42,8 @@ export const roleStep = {
 
   buildRoleTypeEmbed: () => {
     return new EmbedBuilder()
-      .setTitle('👥 Add Role')
-      .setDescription(
-        'What type of role would you like to add?\n\n' +
-          '**Staff Role:** Can manage tickets and applications\n' +
-          '**Admin Role:** Full bot permissions\n\n' +
-          'You can add multiple roles of each type.',
-      )
+      .setTitle(tl.typeSelectTitle)
+      .setDescription(tl.typeSelectDescription)
       .setColor('#FEE75C');
   },
 
@@ -62,18 +51,18 @@ export const roleStep = {
     return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId('role_type_select')
-        .setPlaceholder('Select role type')
+        .setPlaceholder(tl.typeSelectPlaceholder)
         .addOptions([
           {
-            label: 'Staff Role',
+            label: tl.staffRoleLabel,
             value: 'staff',
-            description: 'Can manage tickets and applications',
+            description: tl.staffRoleDescription,
             emoji: '👔',
           },
           {
-            label: 'Admin Role',
+            label: tl.adminRoleLabel,
             value: 'admin',
-            description: 'Full bot permissions',
+            description: tl.adminRoleDescription,
             emoji: '⭐',
           },
         ]),
@@ -85,11 +74,8 @@ export const roleStep = {
     const typeName = roleType === 'staff' ? 'Staff' : 'Admin';
 
     return new EmbedBuilder()
-      .setTitle(`${emoji} Select ${typeName} Role`)
-      .setDescription(
-        `Select the role to add as a ${typeName.toLowerCase()} role.\n\n` +
-          'You can optionally provide an alias for this role.',
-      )
+      .setTitle(tl.selectTitle.replace('{roleType}', `${emoji} ${typeName}`))
+      .setDescription(tl.selectDescription)
       .setColor('#FEE75C');
   },
 
@@ -97,36 +83,36 @@ export const roleStep = {
     return new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(
       new RoleSelectMenuBuilder()
         .setCustomId(`role_select_${Date.now()}`)
-        .setPlaceholder('Select a role'),
+        .setPlaceholder(tl.selectPlaceholder.replace('{roleType}', '')),
     );
   },
 
   buildAddMoreEmbed: (addedRoles: Array<{ type: string; role: string; alias?: string }>) => {
-    let description = '**Roles added so far:**\n\n';
+    let description = `**${tl.rolesSoFar}**\n\n`;
 
     const staffRoles = addedRoles.filter(r => r.type === 'staff');
     const adminRoles = addedRoles.filter(r => r.type === 'admin');
 
     if (staffRoles.length > 0) {
-      description += '**👔 Staff Roles:**\n';
-      staffRoles.forEach(r => {
+      description += `**👔 ${tl.staffRolesHeader}**\n`;
+      for (const r of staffRoles) {
         description += `• ${r.role}${r.alias ? ` (${r.alias})` : ''}\n`;
-      });
+      }
       description += '\n';
     }
 
     if (adminRoles.length > 0) {
-      description += '**⭐ Admin Roles:**\n';
-      adminRoles.forEach(r => {
+      description += `**⭐ ${tl.adminRolesHeader}**\n`;
+      for (const r of adminRoles) {
         description += `• ${r.role}${r.alias ? ` (${r.alias})` : ''}\n`;
-      });
+      }
       description += '\n';
     }
 
-    description += 'Would you like to add more roles?';
+    description += tl.addMoreQuestion;
 
     return new EmbedBuilder()
-      .setTitle('👥 Role Management')
+      .setTitle(tl.addMoreTitle)
       .setDescription(description)
       .setColor('#FEE75C');
   },
@@ -136,16 +122,16 @@ export const roleStep = {
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId('role_add_more')
-          .setLabel('Add Another Role')
+          .setLabel(btn.addMoreRoles)
           .setStyle(ButtonStyle.Primary)
           .setEmoji('➕'),
         new ButtonBuilder()
           .setCustomId('role_done')
-          .setLabel('Continue')
+          .setLabel(btn.doneAddingRoles)
           .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
           .setCustomId('setup_cancel')
-          .setLabel('Cancel Setup')
+          .setLabel(btn.cancelSetup)
           .setStyle(ButtonStyle.Danger),
       ),
     ];

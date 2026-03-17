@@ -7,7 +7,8 @@
 
 import { type Client, EmbedBuilder, type Guild, REST, Routes, type TextChannel } from 'discord.js';
 import { commands } from '../commands/commandList';
-import { Colors, lang, logger } from '../utils';
+import { Colors, enhancedLogger, LogCategory, lang } from '../utils';
+import { notifyGuildJoin } from '../utils/api/guildWebhook';
 
 const rest = new REST({ version: '10' }).setToken(
   process.env.RELEASE === 'dev' ? process.env.DEV_BOT_TOKEN! : process.env.BOT_TOKEN!,
@@ -21,9 +22,9 @@ export default {
   name: 'guildCreate',
   async execute(guild: Guild, client: Client) {
     try {
-      logger(
+      enhancedLogger.info(
         `Joined new guild: ${guild.name} (ID: ${guild.id}) - Members: ${guild.memberCount}`,
-        'INFO',
+        LogCategory.SYSTEM,
       );
 
       // Register commands for this guild immediately
@@ -31,11 +32,12 @@ export default {
         await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guild.id), {
           body: commands,
         });
-        logger(`Registered commands for new guild: ${guild.id}`, 'INFO');
+        enhancedLogger.info(`Registered commands for new guild: ${guild.id}`, LogCategory.SYSTEM);
       } catch (error) {
-        logger(
+        enhancedLogger.error(
           `Failed to register commands for guild ${guild.id}: ${(error as Error).message}`,
-          'ERROR',
+          undefined,
+          LogCategory.SYSTEM,
         );
       }
 
@@ -43,9 +45,9 @@ export default {
       const targetChannel = await findWelcomeChannel(guild);
 
       if (!targetChannel) {
-        logger(
+        enhancedLogger.warn(
           `Could not find a suitable channel in guild ${guild.name} to send welcome message`,
-          'WARN',
+          LogCategory.SYSTEM,
         );
         return;
       }
@@ -90,9 +92,18 @@ export default {
 
       // Send welcome message
       await targetChannel.send({ embeds: [welcomeEmbed] });
-      logger(`Sent welcome message in ${guild.name} (#${targetChannel.name})`, 'INFO');
+      enhancedLogger.info(
+        `Sent welcome message in ${guild.name} (#${targetChannel.name})`,
+        LogCategory.SYSTEM,
+      );
+      // Notify API (fire-and-forget)
+      notifyGuildJoin(guild.id, guild.name, guild.memberCount).catch(() => {});
     } catch (error) {
-      logger(`Error handling guild create for ${guild.name}: ${(error as Error).message}`, 'ERROR');
+      enhancedLogger.error(
+        `Error handling guild create for ${guild.name}: ${(error as Error).message}`,
+        undefined,
+        LogCategory.SYSTEM,
+      );
     }
   },
 };

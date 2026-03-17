@@ -11,6 +11,7 @@ import type { CacheType, ChatInputCommandInteraction, Client } from 'discord.js'
 import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 // Import all entities
+import { AuditLog } from '../../typeorm/entities/AuditLog';
 import { AnnouncementConfig } from '../../typeorm/entities/announcement/AnnouncementConfig';
 import { AnnouncementLog } from '../../typeorm/entities/announcement/AnnouncementLog';
 import { Application } from '../../typeorm/entities/application/Application';
@@ -38,9 +39,10 @@ import { UserTicketRestriction } from '../../typeorm/entities/ticket/UserTicketR
 import { UserActivity } from '../../typeorm/entities/UserActivity';
 import {
   createRateLimitKey,
+  enhancedLogger,
   LANGF,
+  LogCategory,
   lang,
-  logger,
   RateLimits,
   rateLimiter,
   requireAdmin,
@@ -90,7 +92,10 @@ export const dataExportHandler = async (
     // Defer reply as export may take time
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-    logger(LANGF(tl.starting, guildId, interaction.user.tag), 'INFO');
+    enhancedLogger.info(
+      LANGF(tl.starting, guildId, interaction.user.tag),
+      LogCategory.COMMAND_EXECUTION,
+    );
 
     // Collect all data in parallel for performance
     const [
@@ -119,6 +124,7 @@ export const dataExportHandler = async (
       memoryTags,
       botStatus,
       userActivity,
+      auditLogs,
     ] = await Promise.all([
       AppDataSource.getRepository(BotConfig).find({ where: { guildId } }),
       AppDataSource.getRepository(BaitChannelConfig).find({
@@ -164,6 +170,7 @@ export const dataExportHandler = async (
       AppDataSource.getRepository(MemoryTag).find({ where: { guildId } }),
       AppDataSource.getRepository(BotStatus).find(),
       AppDataSource.getRepository(UserActivity).find({ where: { guildId } }),
+      AppDataSource.getRepository(AuditLog).find({ where: { guildId } }),
     ]);
 
     const exportData: Record<string, unknown[]> = {
@@ -193,6 +200,7 @@ export const dataExportHandler = async (
       memoryTags,
       botStatus,
       userActivity,
+      auditLogs,
     };
 
     // Calculate total records
@@ -228,9 +236,9 @@ export const dataExportHandler = async (
     const filepath = path.join(tempDir, filename);
     await fs.promises.writeFile(filepath, JSON.stringify(fullExport, null, 2));
 
-    logger(
+    enhancedLogger.info(
       LANGF(tl.completed, totalRecords.toString(), Object.keys(exportData).length.toString()),
-      'INFO',
+      LogCategory.COMMAND_EXECUTION,
     );
 
     // Send file via DM
@@ -276,7 +284,10 @@ export const dataExportHandler = async (
       // Clean up temp file on DM failure
       await fs.promises.unlink(filepath).catch(() => null);
 
-      logger(LANGF(tl.dmFailedLog, interaction.user.tag, (dmError as Error).message), 'WARN');
+      enhancedLogger.warn(
+        LANGF(tl.dmFailedLog, interaction.user.tag, (dmError as Error).message),
+        LogCategory.COMMAND_EXECUTION,
+      );
 
       // Fallback: offer file in channel
       await interaction.editReply({
@@ -284,7 +295,11 @@ export const dataExportHandler = async (
       });
     }
   } catch (error) {
-    logger(`Error in data export: ${(error as Error).message}`, 'ERROR');
+    enhancedLogger.error(
+      `Error in data export: ${(error as Error).message}`,
+      undefined,
+      LogCategory.COMMAND_EXECUTION,
+    );
 
     const errorContent = lang.dataExport.error;
 

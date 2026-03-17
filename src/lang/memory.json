@@ -38,6 +38,7 @@
   "setup": {
     "cmdDescrp": "Set up or edit the memory system",
     "channelOption": "Existing forum channel to use (leave empty to create new)",
+    "channelNameOption": "Custom name for this memory channel",
     "title": "Memory System Setup",
     "description": "Configure the memory system for tracking bugs, features, suggestions, and notes.",
     "selectChannel": "Select an existing forum channel or let the bot create one",
@@ -51,11 +52,35 @@
     "forumTopic": "Track bugs, features, suggestions, reminders, and notes",
     "tagsCreated": "Default tags have been created",
     "error": "Failed to set up memory system",
-    "alreadyConfigured": "Memory system is already configured",
+    "alreadyConfigured": "Memory system is already configured. Use `/memory-setup add-channel` to add more channels.",
     "currentConfig": "Current Configuration",
     "forumChannel": "Forum Channel",
     "welcomeTitle": "Memory System",
-    "welcomeDescription": "This forum is used to track bugs, features, suggestions, reminders, and notes.\n\nUse `/memory add` to create new items or `/memory capture` to capture a message from another channel.\n\nUse tags to categorize and track the status of items."
+    "welcomeDescription": "This forum is used to track bugs, features, suggestions, reminders, and notes.\n\nUse `/memory add` to create new items or `/memory capture` to capture a message from another channel.\n\nUse tags to categorize and track the status of items.",
+    "addChannel": "Add Memory Channel",
+    "addChannelDescrp": "Add another memory channel to this server",
+    "removeChannel": "Remove Memory Channel",
+    "removeChannelDescrp": "Remove a memory channel from this server",
+    "maxChannelsReached": "Maximum of 3 memory channels reached.",
+    "channelAlreadyUsed": "This forum channel is already used as a memory channel.",
+    "channelAdded": "Memory channel added!",
+    "channelRemoved": "Memory channel removed.",
+    "selectChannelToRemove": "Select a memory channel to remove",
+    "removeConfirm": "Are you sure you want to remove this memory channel? All tags and items for this channel will be deleted.",
+    "removeLastWarning": "This is the last memory channel. Removing it will completely disable the memory system.",
+    "viewTitle": "Memory Channels",
+    "viewNoChannels": "No memory channels configured.",
+    "channelNameLabel": "Channel Name"
+  },
+  "channelPicker": {
+    "title": "Select Memory Channel",
+    "description": "This server has multiple memory channels. Select which one to use.",
+    "placeholder": "Select a memory channel..."
+  },
+  "tagSelection": {
+    "categoryField": "Category",
+    "statusField": "Status",
+    "notSelected": "*(not selected)*"
   },
   "add": {
     "modalTitle": "Add Memory Item",
@@ -129,6 +154,8 @@
       "emojiLabel": "Emoji (optional)",
       "emojiPlaceholder": "Enter an emoji",
       "typeLabel": "Tag Type",
+      "typePlaceholder": "category or status",
+      "typeInvalid": "Tag type must be \"category\" or \"status\"",
       "success": "Tag added!",
       "error": "Failed to add tag",
       "duplicate": "A tag with this name already exists"
@@ -169,6 +196,10 @@
       "onHold": "On Hold",
       "completed": "Completed"
     }
+  },
+  "closeNotice": {
+    "title": "Memory Closed",
+    "description": "This memory item has been marked as **Completed** by {0}."
   },
   "errors": {
     "notConfigured": "Memory system is not configured. Run /memory-setup first.",

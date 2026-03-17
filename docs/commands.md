@@ -1,6 +1,6 @@
 # Cogworks Bot Commands
 
-**Last Updated:** `March 9, 2026` (v2.12.10)
+**Last Updated:** `March 10, 2026` (v3.0.0)
 
 Complete command reference for all bot systems.
 
@@ -321,20 +321,35 @@ The system analyzes multiple factors to calculate a suspicion score:
 
 ## Memory System
 
-A forum-based tracking system for bugs, features, suggestions, reminders, and notes.
+A forum-based tracking system for bugs, features, suggestions, reminders, and notes. Supports up to 3 memory channels per server.
 
 ### Memory Setup
-**`/memory-setup [channel]`**
-- Configure the memory system for your server
+**`/memory-setup setup [channel] [channel-name]`**
+- Configure the initial memory channel for your server
 - `channel` - (Optional) Existing forum channel to use
+- `channel-name` - (Optional) Custom name for auto-created channel
 - If no channel provided, shows options to select existing forum or create new one
 - Creates default category tags (Bug, Feature, Suggestion, Reminder, Note)
 - Creates default status tags (Open, In Progress, On Hold, Completed)
 - Posts a pinned welcome thread in the forum
 
+**`/memory-setup add-channel [channel] [channel-name]`**
+- Add an additional memory forum channel (up to 3 per guild)
+- `channel` - Forum channel to add
+- `channel-name` - (Optional) Custom display name
+- Each channel gets its own independent set of tags
+
+**`/memory-setup remove-channel`**
+- Remove a memory channel (select from configured channels)
+- Removes the channel's tags and items from the database
+
+**`/memory-setup view`**
+- View all configured memory channels and their tag counts
+
 ### Memory Management
 **`/memory add`**
 - Create a new memory item manually
+- If multiple channels configured, shows channel picker first
 - Select category and status from dropdowns
 - Enter title and description in modal
 - Creates a forum thread with the item
@@ -349,7 +364,18 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 - Update the status of a memory item
 - **Must be run inside a memory thread**
 - Select new status from dropdown
-- Automatically closes thread when status is "Completed"
+- Automatically closes and locks thread when status is "Completed"
+
+**`/memory update-status thread:[thread] status:[status]`**
+- Quick status update from any channel (no need to be inside the thread)
+- `thread` - Memory thread to update (autocomplete)
+- `status` - New status to set (autocomplete)
+- Same behavior as `/memory update` but usable from anywhere
+
+**`/memory update-tags thread:[thread]`**
+- Quick tag update from any channel
+- `thread` - Memory thread to update (autocomplete)
+- Opens tag selection UI for the selected thread
 
 **`/memory delete`**
 - Delete a memory item
@@ -436,6 +462,11 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 - List all reaction role menus and their options
 - Shows warnings for deleted roles
 
+**`/reactionrole validate`**
+- Validate all reaction role menus in the server
+- Checks for deleted roles, missing messages, and permission issues
+- Reports any problems found
+
 ### Menu Modes
 
 | Mode | Behavior |
@@ -454,6 +485,17 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 **`/coffee`**
 - Show support links for Cogworks development
 - Links to Buy Me a Coffee page
+- Available to all users
+
+### Server (Development Discord)
+**`/server`**
+- Shows an invite link to the Cogworks development Discord server
+- Available to all users
+
+### Dashboard (Web Dashboard)
+**`/dashboard`**
+- Opens the Cogworks web dashboard for managing your server
+- Sign in with Discord for automatic authentication
 - Available to all users
 
 ## Outage Status System
@@ -529,6 +571,7 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
   - Reaction role menus and options
   - Memory configuration, items, and tags
   - Bot status
+  - Audit logs (dashboard actions)
   - Archived tickets and applications
 
 **Data Privacy:**
@@ -568,6 +611,7 @@ All commands are protected with rate limiting:
 
 | Level | Access |
 |-------|--------|
+| **Bot Owner** | Status commands (BOT_OWNER_ID env var) |
 | **Admin** | All commands + role management + setup + data export |
 | **Staff** | Ticket replies only |
 | **User**  | None (all commands are staff-only) |

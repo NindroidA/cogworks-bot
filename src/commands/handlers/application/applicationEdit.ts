@@ -54,7 +54,7 @@ export async function applicationEditHandler(
 
     const titleInput = new TextInputBuilder()
       .setCustomId('title')
-      .setLabel('Position Title')
+      .setLabel(pl.edit.titleLabel)
       .setValue(position.title)
       .setStyle(TextInputStyle.Short)
       .setRequired(true)
@@ -62,7 +62,7 @@ export async function applicationEditHandler(
 
     const descriptionInput = new TextInputBuilder()
       .setCustomId('description')
-      .setLabel('Description')
+      .setLabel(pl.edit.descriptionLabel)
       .setValue(position.description)
       .setStyle(TextInputStyle.Paragraph)
       .setRequired(false)
@@ -70,7 +70,7 @@ export async function applicationEditHandler(
 
     const emojiInput = new TextInputBuilder()
       .setCustomId('emoji')
-      .setLabel('Emoji (e.g., 🤝)')
+      .setLabel(pl.edit.emojiLabel)
       .setValue(position.emoji || '')
       .setStyle(TextInputStyle.Short)
       .setRequired(false)
@@ -78,7 +78,7 @@ export async function applicationEditHandler(
 
     const ageGateInput = new TextInputBuilder()
       .setCustomId('age_gate')
-      .setLabel('Age Verification? (yes / no)')
+      .setLabel(pl.edit.ageGateLabel)
       .setValue(position.ageGateEnabled ? 'yes' : 'no')
       .setStyle(TextInputStyle.Short)
       .setRequired(false)

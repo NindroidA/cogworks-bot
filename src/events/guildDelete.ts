@@ -9,6 +9,7 @@ import type { Client, Guild } from 'discord.js';
 import { AppDataSource } from '../typeorm';
 import { BotStatus } from '../typeorm/entities/status';
 import { enhancedLogger, invalidateGuildMenuCache, LogCategory } from '../utils';
+import { notifyGuildLeave } from '../utils/api/guildWebhook';
 import { deleteAllGuildData } from '../utils/database/guildQueries';
 import { invalidateRulesCache } from './rulesReaction';
 
@@ -63,6 +64,9 @@ export default {
       } catch {
         // BotStatus clearing is best-effort
       }
+
+      // Notify API (fire-and-forget)
+      notifyGuildLeave(guildId).catch(() => {});
 
       // Log final bot statistics
       enhancedLogger.info(

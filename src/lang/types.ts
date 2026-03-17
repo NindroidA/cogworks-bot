@@ -48,6 +48,36 @@ export interface LangGeneral {
     preview: string;
     yes: string;
     no: string;
+    continue: string;
+    addField: string;
+    deleteField: string;
+    reorder: string;
+    createTicket: string;
+    adminOnly: string;
+    closeTicket: string;
+  };
+  fieldManager: {
+    modalTitle: string;
+    fieldIdLabel: string;
+    fieldIdPlaceholder: string;
+    fieldLabelLabel: string;
+    fieldLabelPlaceholder: string;
+    fieldStyleLabel: string;
+    fieldStylePlaceholder: string;
+    fieldRequiredLabel: string;
+    fieldRequiredPlaceholder: string;
+    fieldPlaceholderLabel: string;
+    fieldPlaceholderPlaceholder: string;
+    selectFieldToDelete: string;
+    selectFieldToEdit: string;
+    selectFieldPlaceholder: string;
+    reorderTitle: string;
+    currentOrder: string;
+    reorderHint: string;
+    noFieldsToPreview: string;
+    invalidFieldIndex: string;
+    cannotMoveField: string;
+    selectionError: string;
   };
   ping: {
     cmdDescrp: string;
@@ -62,6 +92,19 @@ export interface LangGeneral {
     title: string;
     description: string;
     linkTitle: string;
+    footer: string;
+  };
+  server: {
+    cmdDescrp: string;
+    title: string;
+    description: string;
+    buttonLabel: string;
+  };
+  dashboard: {
+    cmdDescrp: string;
+    title: string;
+    description: string;
+    buttonLabel: string;
     footer: string;
   };
 }
@@ -234,6 +277,23 @@ export interface LangBotSetup {
     logChannelTitle: string;
     logChannelDescription: string;
     logChannelPlaceholder: string;
+    actionBan: string;
+    actionBanDescription: string;
+    actionKick: string;
+    actionKickDescription: string;
+    actionLogOnly: string;
+    actionLogOnlyDescription: string;
+    graceInstant: string;
+    graceInstantDescription: string;
+    grace5: string;
+    grace5Description: string;
+    grace10: string;
+    grace10Description: string;
+    grace30: string;
+    grace30Description: string;
+    grace60: string;
+    grace60Description: string;
+    logSkipButton: string;
     setupEmbedTitle: string;
     setupEmbedDescription: string;
     setupEmbedConfig: string;
@@ -256,6 +316,14 @@ export interface LangBotSetup {
     addMoreTitle: string;
     addMoreDescription: string;
     addMoreRoleItem: string;
+    staffRoleLabel: string;
+    staffRoleDescription: string;
+    adminRoleLabel: string;
+    adminRoleDescription: string;
+    addMoreQuestion: string;
+    rolesSoFar: string;
+    staffRolesHeader: string;
+    adminRolesHeader: string;
   };
   update: {
     title: string;
@@ -615,6 +683,10 @@ export interface LangApplication {
       title: string;
       success: string;
       notFound: string;
+      titleLabel: string;
+      descriptionLabel: string;
+      emojiLabel: string;
+      ageGateLabel: string;
     };
     fields: {
       title: string;
@@ -742,6 +814,30 @@ export interface LangAnnouncement {
   success: string;
   error: string;
   fail: string;
+  templates: {
+    maintenanceTitle: string;
+    scheduledMaintenanceTitle: string;
+    backOnlineTitle: string;
+    updateScheduledTitle: string;
+    updateCompleteTitle: string;
+    durationShort: string;
+    durationLong: string;
+    scheduledDefaultMsg: string;
+    expectedDuration: string;
+    starting: string;
+    startingValue: string;
+    scheduledTime: string;
+    relativeTime: string;
+    status: string;
+    statusOnline: string;
+    downtimeComplete: string;
+    version: string;
+    newVersion: string;
+    updated: string;
+    timezoneFooter: string;
+    sendButton: string;
+    cancelButton: string;
+  };
 }
 
 export interface LangBaitChannel {
@@ -854,6 +950,15 @@ export interface LangBaitChannel {
     minutes: string;
     yes: string;
     no: string;
+    reasons: {
+      defaultAvatar: string;
+      emptyProfile: string;
+      suspiciousUsername: string;
+      noRoles: string;
+      discordInvite: string;
+      phishingUrl: string;
+      attachmentOnly: string;
+    };
   };
   error: {
     fetchStatus: string;
@@ -933,6 +1038,7 @@ export interface LangMemory {
   setup: {
     cmdDescrp: string;
     channelOption: string;
+    channelNameOption: string;
     title: string;
     description: string;
     selectChannel: string;
@@ -951,6 +1057,30 @@ export interface LangMemory {
     forumChannel: string;
     welcomeTitle: string;
     welcomeDescription: string;
+    addChannel: string;
+    addChannelDescrp: string;
+    removeChannel: string;
+    removeChannelDescrp: string;
+    maxChannelsReached: string;
+    channelAlreadyUsed: string;
+    channelAdded: string;
+    channelRemoved: string;
+    selectChannelToRemove: string;
+    removeConfirm: string;
+    removeLastWarning: string;
+    viewTitle: string;
+    viewNoChannels: string;
+    channelNameLabel: string;
+  };
+  channelPicker: {
+    title: string;
+    description: string;
+    placeholder: string;
+  };
+  tagSelection: {
+    categoryField: string;
+    statusField: string;
+    notSelected: string;
   };
   add: {
     modalTitle: string;
@@ -1024,6 +1154,8 @@ export interface LangMemory {
       emojiLabel: string;
       emojiPlaceholder: string;
       typeLabel: string;
+      typePlaceholder: string;
+      typeInvalid: string;
       success: string;
       error: string;
       duplicate: string;
@@ -1064,6 +1196,10 @@ export interface LangMemory {
       onHold: string;
       completed: string;
     };
+  };
+  closeNotice: {
+    title: string;
+    description: string;
   };
   errors: {
     notConfigured: string;

@@ -29,12 +29,15 @@ import { AppDataSource } from '../../../typeorm';
 import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
+import { Position } from '../../../typeorm/entities/application/Position';
 import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
 import { BotConfig } from '../../../typeorm/entities/BotConfig';
 import { SavedRole } from '../../../typeorm/entities/SavedRole';
 import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
+import type { ExtendedClient } from '../../../types/ExtendedClient';
 import {
+  cleanupOldMessage,
   createButtonCollector,
   createErrorEmbed,
   createInfoEmbed,
@@ -43,7 +46,7 @@ import {
   lang,
   notifyModalTimeout,
 } from '../../../utils';
-import type { BaitChannelManager } from '../../../utils/baitChannelManager';
+import { buildApplicationMessage } from '../application/applicationPosition';
 import {
   announcementStep,
   applicationStep,
@@ -1147,15 +1150,15 @@ async function handleRoleSelection(
     // Show modal for alias
     const modal = new ModalBuilder()
       .setCustomId(`role_alias_modal_${roleType}_${selectedRole.id}`)
-      .setTitle('Role Alias (Optional)');
+      .setTitle(lang.botSetup.role.aliasModalTitle);
 
     const aliasInput = new TextInputBuilder()
       .setCustomId('alias_input')
-      .setLabel('Alias for this role (optional)')
+      .setLabel(lang.botSetup.role.aliasLabel)
       .setStyle(TextInputStyle.Short)
       .setRequired(false)
       .setMaxLength(100)
-      .setPlaceholder('e.g., Moderator, Helper, etc.');
+      .setPlaceholder(lang.botSetup.role.aliasPlaceholder);
 
     const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(aliasInput);
     modal.addComponents(actionRow);
@@ -1275,42 +1278,44 @@ async function handleFinalSummary(
   const alreadyConfigured = [];
   const newlyConfigured = [];
 
+  const sm = lang.botSetup.summary;
+
   // Check what was already configured
   if (state.existingConfigs?.botConfig?.enableGlobalStaffRole) {
-    alreadyConfigured.push('Global Staff Role');
+    alreadyConfigured.push(sm.globalStaffRole);
   } else if (state.config.enableGlobalStaffRole) {
-    newlyConfigured.push('Global Staff Role');
+    newlyConfigured.push(sm.globalStaffRole);
   }
 
   if (state.existingConfigs?.ticketConfig && state.existingConfigs?.archivedTicketConfig) {
-    alreadyConfigured.push('Ticket System');
+    alreadyConfigured.push(sm.ticketSystem);
   } else if (state.systemsConfigured.ticket) {
-    newlyConfigured.push('Ticket System');
+    newlyConfigured.push(sm.ticketSystem);
   }
 
   if (
     state.existingConfigs?.applicationConfig &&
     state.existingConfigs?.archivedApplicationConfig
   ) {
-    alreadyConfigured.push('Application System');
+    alreadyConfigured.push(sm.applicationSystem);
   } else if (state.systemsConfigured.application) {
-    newlyConfigured.push('Application System');
+    newlyConfigured.push(sm.applicationSystem);
   }
 
   if (state.existingConfigs?.announcementConfig) {
-    alreadyConfigured.push('Announcement System');
+    alreadyConfigured.push(sm.announcementSystem);
   } else if (state.systemsConfigured.announcement) {
-    newlyConfigured.push('Announcement System');
+    newlyConfigured.push(sm.announcementSystem);
   }
 
   if (state.existingConfigs?.baitChannelConfig) {
-    alreadyConfigured.push('Bait Channel (Anti-Bot)');
+    alreadyConfigured.push(sm.baitChannelSystem);
   } else if (state.systemsConfigured.baitchannel) {
-    newlyConfigured.push('Bait Channel (Anti-Bot)');
+    newlyConfigured.push(sm.baitChannelSystem);
   }
 
   if (state.roles.length > 0) {
-    newlyConfigured.push(`${state.roles.length} Role(s)`);
+    newlyConfigured.push(sm.rolesAdded.replace('{count}', state.roles.length.toString()));
   }
 
   const successEmbed = buildSuccessEmbed(state.config, {
@@ -1327,7 +1332,7 @@ async function handleFinalSummary(
   // Add field showing what was already configured if applicable
   if (alreadyConfigured.length > 0) {
     successEmbed.addFields({
-      name: '✅ Already Configured',
+      name: `✅ ${sm.alreadyConfigured}`,
       value: alreadyConfigured.map(s => `• ${s}`).join('\n'),
       inline: false,
     });
@@ -1336,7 +1341,7 @@ async function handleFinalSummary(
   // Add field showing what was newly configured
   if (newlyConfigured.length > 0) {
     successEmbed.addFields({
-      name: '🆕 Newly Configured',
+      name: `🆕 ${sm.newlyConfigured}`,
       value: newlyConfigured.map(s => `• ${s}`).join('\n'),
       inline: false,
     });
@@ -1385,6 +1390,15 @@ async function saveTicketConfiguration(state: ComprehensiveWizardState, client: 
     // Setup main ticket channel
     const channel = (await client.channels.fetch(state.ticketConfig.channelId!)) as TextChannel;
     if (channel) {
+      // Clean up old message if re-configuring
+      let ticketConfig = await ticketConfigRepo.findOne({
+        where: { guildId: state.guildId },
+      });
+      if (ticketConfig?.messageId) {
+        const guild = await client.guilds.fetch(state.guildId);
+        await cleanupOldMessage(guild, ticketConfig.channelId, ticketConfig.messageId);
+      }
+
       const createTicketButton = new ActionRowBuilder<ButtonBuilder>().setComponents(
         new ButtonBuilder()
           .setCustomId('create_ticket')
@@ -1396,10 +1410,6 @@ async function saveTicketConfiguration(state: ComprehensiveWizardState, client: 
       const msg = await channel.send({
         content: lang.ticketSetup.createTicket,
         components: [createTicketButton],
-      });
-
-      let ticketConfig = await ticketConfigRepo.findOne({
-        where: { guildId: state.guildId },
       });
       if (!ticketConfig) {
         ticketConfig = new TicketConfig();
@@ -1467,14 +1477,25 @@ async function saveApplicationConfiguration(state: ComprehensiveWizardState, cli
       state.applicationConfig.channelId!,
     )) as TextChannel;
     if (channel) {
-      const msg = await channel.send({
-        content: lang.botSetup.application.buttonMsg,
-        components: [],
-      });
-
+      // Clean up old message if re-configuring
       let appConfig = await applicationConfigRepo.findOne({
         where: { guildId: state.guildId },
       });
+      if (appConfig?.messageId) {
+        const guild = await client.guilds.fetch(state.guildId);
+        await cleanupOldMessage(guild, appConfig.channelId, appConfig.messageId);
+      }
+
+      // Build proper application message with positions (same as /application-setup)
+      const positionRepo = AppDataSource.getRepository(Position);
+      const activePositions = await positionRepo.find({
+        where: { guildId: state.guildId, isActive: true },
+        order: { displayOrder: 'ASC' },
+      });
+      const { content, components } = await buildApplicationMessage(activePositions);
+
+      const msg = await channel.send({ content, components });
+
       if (!appConfig) {
         appConfig = new ApplicationConfig();
         appConfig.guildId = state.guildId;
@@ -1620,9 +1641,7 @@ async function saveBaitChannelConfiguration(state: ComprehensiveWizardState, cli
     }
 
     // Clear the bait channel manager's config cache so it picks up the new config
-    const baitChannelManager = (
-      client as typeof client & { baitChannelManager?: BaitChannelManager }
-    ).baitChannelManager;
+    const { baitChannelManager } = client as ExtendedClient;
     if (baitChannelManager) {
       baitChannelManager.clearConfigCache(state.guildId);
       enhancedLogger.info(

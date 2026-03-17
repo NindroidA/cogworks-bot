@@ -76,12 +76,12 @@ export function buildTagSelectionComponents(
   const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`${config.prefix}_continue`)
-      .setLabel('Continue')
+      .setLabel(lang.general.buttons.continue)
       .setStyle(ButtonStyle.Primary)
       .setDisabled(!state.categoryId),
     new ButtonBuilder()
       .setCustomId(`${config.prefix}_cancel`)
-      .setLabel('Cancel')
+      .setLabel(lang.general.buttons.cancel)
       .setStyle(ButtonStyle.Secondary),
   );
 
@@ -97,13 +97,13 @@ export function buildTagSelectionEmbed(state: TagSelectionState, config: TagSele
     .setColor(Colors.brand.primary)
     .addFields(
       {
-        name: 'Category',
-        value: state.categoryName || '*(not selected)*',
+        name: tl.tagSelection.categoryField,
+        value: state.categoryName || tl.tagSelection.notSelected,
         inline: true,
       },
       {
-        name: 'Status',
-        value: state.statusName || '*(not selected)*',
+        name: tl.tagSelection.statusField,
+        value: state.statusName || tl.tagSelection.notSelected,
         inline: true,
       },
     );

@@ -7,8 +7,14 @@ import {
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
-import { handleInteractionError, lang, logger, safeDbOperation } from '../../../utils';
-import type { BaitChannelManager } from '../../../utils/baitChannelManager';
+import type { ExtendedClient } from '../../../types/ExtendedClient';
+import {
+  enhancedLogger,
+  handleInteractionError,
+  LogCategory,
+  lang,
+  safeDbOperation,
+} from '../../../utils';
 
 const tl = lang.baitChannel;
 
@@ -94,12 +100,15 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
           await configRepo.save(config);
         }
       } catch {
-        logger('Failed to send/update warning message to bait channel', 'WARN');
+        enhancedLogger.warn(
+          'Failed to send/update warning message to bait channel',
+          LogCategory.COMMAND_EXECUTION,
+        );
       }
     }
 
     // Clear cache
-    const { baitChannelManager } = client as { baitChannelManager?: BaitChannelManager };
+    const { baitChannelManager } = client as ExtendedClient;
     if (baitChannelManager) {
       baitChannelManager.clearConfigCache(interaction.guildId!);
     }
@@ -117,7 +126,10 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
       );
 
     if (logChannel) {
-      embed.addFields({ name: 'Log Channel', value: `✅ Set to <#${logChannel.id}>` });
+      embed.addFields({
+        name: 'Log Channel',
+        value: `✅ Set to <#${logChannel.id}>`,
+      });
     }
 
     embed.setFooter({ text: tl.setup.footer });

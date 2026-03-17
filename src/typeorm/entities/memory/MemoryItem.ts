@@ -10,12 +10,16 @@ import {
 @Entity({ name: 'memory_items' })
 @Index(['guildId'])
 @Index(['guildId', 'status'])
+@Index(['guildId', 'memoryConfigId'])
 export class MemoryItem {
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column({ type: 'varchar', length: 255 })
   guildId: string;
+
+  @Column({ type: 'int' })
+  memoryConfigId: number;
 
   @Column({ type: 'varchar', length: 255 })
   threadId: string;

@@ -11,7 +11,7 @@ import {
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { handleInteractionError, lang, logger } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LogCategory, lang } from '../../../utils';
 import { buildTypeConfirmationEmbed } from './typeAdd';
 
 const tl = lang.ticket.customTypes.typeEdit;
@@ -25,7 +25,7 @@ export async function typeEditHandler(interaction: ChatInputCommandInteraction):
     const user = interaction.user.username;
 
     if (!interaction.guild) {
-      logger('Type-edit failed: guild not found', 'WARN');
+      enhancedLogger.warn('Type-edit failed: guild not found', LogCategory.COMMAND_EXECUTION);
       await interaction.reply({
         content: lang.general.cmdGuildNotFound,
         flags: [MessageFlags.Ephemeral],
@@ -35,7 +35,10 @@ export async function typeEditHandler(interaction: ChatInputCommandInteraction):
 
     const guildId = interaction.guild.id;
     const typeId = interaction.options.getString('type', true);
-    logger(`User ${user} opening type-edit modal for '${typeId}'`);
+    enhancedLogger.info(
+      `User ${user} opening type-edit modal for '${typeId}'`,
+      LogCategory.COMMAND_EXECUTION,
+    );
 
     const typeRepo = AppDataSource.getRepository(CustomTicketType);
 
@@ -44,7 +47,10 @@ export async function typeEditHandler(interaction: ChatInputCommandInteraction):
     });
 
     if (!type) {
-      logger(`User ${user} type-edit failed: type '${typeId}' not found`, 'WARN');
+      enhancedLogger.warn(
+        `User ${user} type-edit failed: type '${typeId}' not found`,
+        LogCategory.COMMAND_EXECUTION,
+      );
       await interaction.reply({
         content: tl.notFound,
         flags: [MessageFlags.Ephemeral],
@@ -111,10 +117,13 @@ export async function typeEditModalHandler(
 ): Promise<void> {
   try {
     const user = interaction.user.username;
-    logger(`User ${user} submitted type-edit modal for '${typeId}'`);
+    enhancedLogger.info(
+      `User ${user} submitted type-edit modal for '${typeId}'`,
+      LogCategory.COMMAND_EXECUTION,
+    );
 
     if (!interaction.guild) {
-      logger('Type-edit modal failed: guild not found', 'WARN');
+      enhancedLogger.warn('Type-edit modal failed: guild not found', LogCategory.COMMAND_EXECUTION);
       await interaction.reply({
         content: lang.general.cmdGuildNotFound,
         flags: [MessageFlags.Ephemeral],
@@ -132,7 +141,10 @@ export async function typeEditModalHandler(
 
     // Validate hex color
     if (!/^#[0-9A-Fa-f]{6}$/.test(colorInput)) {
-      logger(`User ${user} type-edit validation failed: invalid color '${colorInput}'`, 'WARN');
+      enhancedLogger.warn(
+        `User ${user} type-edit validation failed: invalid color '${colorInput}'`,
+        LogCategory.COMMAND_EXECUTION,
+      );
       await interaction.reply({
         content: lang.ticket.customTypes.typeAdd.invalidColor,
         flags: [MessageFlags.Ephemeral],
@@ -147,7 +159,10 @@ export async function typeEditModalHandler(
     });
 
     if (!type) {
-      logger(`User ${user} type-edit modal failed: type '${typeId}' not found`, 'WARN');
+      enhancedLogger.warn(
+        `User ${user} type-edit modal failed: type '${typeId}' not found`,
+        LogCategory.COMMAND_EXECUTION,
+      );
       await interaction.reply({
         content: tl.notFound,
         flags: [MessageFlags.Ephemeral],
@@ -162,7 +177,10 @@ export async function typeEditModalHandler(
     type.description = description || null;
 
     await typeRepo.save(type);
-    logger(`User ${user} updated ticket type '${typeId}' (${displayName}) in guild ${guildId}`);
+    enhancedLogger.info(
+      `User ${user} updated ticket type '${typeId}' (${displayName}) in guild ${guildId}`,
+      LogCategory.COMMAND_EXECUTION,
+    );
 
     // Build confirmation embed with type details
     const embed = buildTypeConfirmationEmbed(type, false);

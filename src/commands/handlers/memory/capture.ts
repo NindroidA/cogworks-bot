@@ -13,7 +13,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
-import { MemoryConfig, MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
+import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
   createRateLimitKey,
   E,
@@ -26,6 +26,7 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
+import { resolveMemoryConfig } from './channelPicker';
 import {
   createDefaultSelectionState,
   runTagSelectionCollector,
@@ -33,7 +34,6 @@ import {
 } from './tagSelection';
 
 const tl = lang.memory;
-const memoryConfigRepo = AppDataSource.getRepository(MemoryConfig);
 const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
 const memoryItemRepo = AppDataSource.getRepository(MemoryItem);
 
@@ -152,14 +152,8 @@ export const memoryCaptureHandler = async (interaction: ChatInputCommandInteract
 
   const messageInput = interaction.options.getString('message');
 
-  const config = await memoryConfigRepo.findOneBy({ guildId });
-  if (!config) {
-    await interaction.reply({
-      content: `${E.error} ${tl.errors.notConfigured}`,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const config = await resolveMemoryConfig(interaction, guildId);
+  if (!config) return;
 
   if (!messageInput) {
     await interaction.reply({
@@ -182,10 +176,10 @@ export const memoryCaptureHandler = async (interaction: ChatInputCommandInteract
 
   // Get available tags
   const categoryTags = await memoryTagRepo.find({
-    where: { guildId, tagType: 'category' },
+    where: { guildId, memoryConfigId: config.id, tagType: 'category' },
   });
   const statusTags = await memoryTagRepo.find({
-    where: { guildId, tagType: 'status' },
+    where: { guildId, memoryConfigId: config.id, tagType: 'status' },
   });
 
   if (categoryTags.length === 0 || statusTags.length === 0) {
@@ -223,7 +217,7 @@ export const memoryCaptureHandler = async (interaction: ChatInputCommandInteract
       description: `**Capturing from ${sourceAuthor}:**\n> ${preview}`,
     },
     async i => {
-      await showCaptureModal(i, selectionState, guildId, config.forumChannelId);
+      await showCaptureModal(i, selectionState, guildId, config.forumChannelId, config.id);
     },
   );
 };
@@ -237,6 +231,7 @@ async function showCaptureModal(
   },
   guildId: string,
   forumChannelId: string,
+  memoryConfigId: number,
 ) {
   const modal = new ModalBuilder()
     .setCustomId(`memory_capture_modal_${selectionState.categoryId}_${selectionState.statusId}`)
@@ -272,7 +267,13 @@ async function showCaptureModal(
         i.customId.startsWith('memory_capture_modal_') && i.user.id === interaction.user.id,
     });
 
-    await handleCaptureModalSubmit(modalSubmit, selectionState, guildId, forumChannelId);
+    await handleCaptureModalSubmit(
+      modalSubmit,
+      selectionState,
+      guildId,
+      forumChannelId,
+      memoryConfigId,
+    );
   } catch {
     await notifyModalTimeout(interaction);
   }
@@ -287,6 +288,7 @@ async function handleCaptureModalSubmit(
   },
   guildId: string,
   forumChannelId: string,
+  memoryConfigId: number,
 ) {
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
@@ -338,6 +340,7 @@ async function handleCaptureModalSubmit(
 
     const memoryItem = memoryItemRepo.create({
       guildId,
+      memoryConfigId,
       threadId: thread.id,
       title,
       description: description || '',

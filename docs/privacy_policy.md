@@ -1,6 +1,6 @@
 # Privacy Policy for Cogworks Bot
 
-**Last Updated:** `March 9, 2026`
+**Last Updated:** `March 15, 2026`
 
 ## 1. Introduction
 
@@ -91,6 +91,7 @@ We use collected information for the following purposes:
 - **Reaction Role Menus**: Retained while Bot is active in server
 - **Bot Status**: Single record retained while Bot is active
 - **Bait Channel Logs**: Detection events retained for statistics and auditing
+- **Audit Logs**: Dashboard-triggered actions retained for 90 days, then auto-deleted
 - **Configuration Data**: Retained while Bot is active in server
 - **Error Logs**: Retained for debugging purposes (personally identifiable information removed)
 
@@ -100,7 +101,9 @@ We use collected information for the following purposes:
 
 We may share data with:
 
-- **Cogworks API**: For integration with Nindroid Systems Homepage
+- **Cogworks API**: For integration with Nindroid Systems Homepage and Dashboard
+  - Guild join/leave events (guild ID, name, member count) for dashboard sync
+  - Dashboard-triggered action audit logs
 - **Discord**: As required for Bot functionality via Discord's API
 
 ### 5.2 No Sale of Data
@@ -149,7 +152,7 @@ Continued use of the Bot after changes constitutes acceptance of the updated pol
 
 For questions, concerns, or data requests regarding this Privacy Policy, please contact:
 
-- **Discord**: (Nindroid's Development Server will be added here later)
+- **Discord**: https://discord.gg/nkwMUaVSYH
 - **GitHub**: https://github.com/NindroidA/cogworks-bot
 
 ## 11. Consent

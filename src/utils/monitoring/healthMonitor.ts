@@ -14,6 +14,7 @@
 
 import type { Client } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
+import { BotConfig } from '../../typeorm/entities/BotConfig';
 import type { StatusManager } from '../status/StatusManager';
 import { enhancedLogger, LogCategory } from './enhancedLogger';
 
@@ -76,6 +77,7 @@ export interface HealthStatus {
   uptime: number;
   uptimeFormatted: string;
   activeGuilds: number;
+  configuredGuilds: number;
   totalCommands: number;
   commandsPerMinute: number;
   memory: MemoryStats;
@@ -340,6 +342,16 @@ class HealthMonitor {
     );
     const commandsPerMinute = this.getCommandsPerMinute();
 
+    // Count configured guilds (guilds that have run bot-setup)
+    let configuredGuilds = 0;
+    try {
+      if (AppDataSource.isInitialized) {
+        configuredGuilds = await AppDataSource.getRepository(BotConfig).count();
+      }
+    } catch {
+      // Non-critical — default to 0 if query fails
+    }
+
     // Determine overall status
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
 
@@ -354,6 +366,7 @@ class HealthMonitor {
       uptime,
       uptimeFormatted: this.formatUptime(uptime),
       activeGuilds,
+      configuredGuilds,
       totalCommands,
       commandsPerMinute,
       memory,

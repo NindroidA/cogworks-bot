@@ -76,18 +76,14 @@ export async function handleReactionRoleAdd(
 
     // Mode-specific logic
     if (menu.mode === 'unique') {
-      // Remove all other roles from this menu that the user has
-      for (const opt of menu.options) {
-        if (opt.id === option.id) continue;
-        if (member.roles.cache.has(opt.roleId)) {
-          const otherRole = message.guild.roles.cache.get(opt.roleId);
-          if (otherRole) {
-            await member.roles.remove(otherRole);
-          }
-        }
-      }
+      // Batch role update: remove other menu roles and add the selected one in a single API call
+      const menuRoleIds = new Set(menu.options.map(opt => opt.roleId));
+      const newRoles = member.roles.cache.filter(r => !menuRoleIds.has(r.id));
+      newRoles.set(role.id, role);
+      await member.roles.set(newRoles);
 
-      // Remove user's other reactions on this message
+      // Remove user's other reactions on this message (concurrent)
+      const reactionRemovals: Promise<void>[] = [];
       for (const opt of menu.options) {
         if (opt.id === option.id) continue;
         const existingReaction = message.reactions.cache.find(r => {
@@ -95,14 +91,13 @@ export async function handleReactionRoleAdd(
           return emojiStr === opt.emoji || r.emoji.name === opt.emoji;
         });
         if (existingReaction) {
-          await existingReaction.users.remove(user.id);
+          reactionRemovals.push(existingReaction.users.remove(user.id).then(() => {}));
         }
       }
-    }
+      if (reactionRemovals.length > 0) {
+        await Promise.allSettled(reactionRemovals);
+      }
 
-    // Assign the role (works for normal, unique, and lock modes)
-    if (!member.roles.cache.has(role.id)) {
-      await member.roles.add(role);
       enhancedLogger.debug(tl.roleAssigned, LogCategory.SYSTEM, {
         guildId,
         userId: user.id,
@@ -110,6 +105,18 @@ export async function handleReactionRoleAdd(
         menuId: menu.id,
         mode: menu.mode,
       });
+    } else {
+      // Assign the role (works for normal and lock modes)
+      if (!member.roles.cache.has(role.id)) {
+        await member.roles.add(role);
+        enhancedLogger.debug(tl.roleAssigned, LogCategory.SYSTEM, {
+          guildId,
+          userId: user.id,
+          roleId: role.id,
+          menuId: menu.id,
+          mode: menu.mode,
+        });
+      }
     }
   } catch (error) {
     enhancedLogger.error(tl.assignError, error as Error, LogCategory.SYSTEM, {

@@ -3,6 +3,7 @@ import type { TicketStatus } from '../../../utils/types';
 
 @Entity({ name: 'tickets' })
 @Index(['guildId', 'status'])
+@Index(['guildId', 'createdBy'])
 export class Ticket {
   @PrimaryGeneratedColumn()
   id: number;

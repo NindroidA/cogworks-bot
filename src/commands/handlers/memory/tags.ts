@@ -15,7 +15,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
-import { MemoryConfig, MemoryTag, type MemoryTagType } from '../../../typeorm/entities/memory';
+import { MemoryTag, type MemoryTagType } from '../../../typeorm/entities/memory';
 import {
   Colors,
   createRateLimitKey,
@@ -29,9 +29,9 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
+import { resolveMemoryConfig } from './channelPicker';
 
 const tl = lang.memory;
-const memoryConfigRepo = AppDataSource.getRepository(MemoryConfig);
 const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
 
 export const memoryTagsHandler = async (interaction: ChatInputCommandInteraction) => {
@@ -62,27 +62,21 @@ export const memoryTagsHandler = async (interaction: ChatInputCommandInteraction
   }
 
   // Check if memory system is configured
-  const config = await memoryConfigRepo.findOneBy({ guildId });
-  if (!config) {
-    await interaction.reply({
-      content: `${E.error} ${tl.errors.notConfigured}`,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const config = await resolveMemoryConfig(interaction, guildId);
+  if (!config) return;
 
   switch (action) {
     case 'add':
-      await handleAddTag(interaction, guildId, config.forumChannelId);
+      await handleAddTag(interaction, guildId, config.forumChannelId, config.id);
       break;
     case 'edit':
-      await handleEditTag(interaction, guildId, config.forumChannelId);
+      await handleEditTag(interaction, guildId, config.forumChannelId, config.id);
       break;
     case 'remove':
-      await handleRemoveTag(interaction, guildId, config.forumChannelId);
+      await handleRemoveTag(interaction, guildId, config.forumChannelId, config.id);
       break;
     case 'list':
-      await handleListTags(interaction, guildId);
+      await handleListTags(interaction, guildId, config.id);
       break;
   }
 };
@@ -91,6 +85,7 @@ async function handleAddTag(
   interaction: ChatInputCommandInteraction,
   guildId: string,
   forumChannelId: string,
+  memoryConfigId: number,
 ) {
   const modal = new ModalBuilder()
     .setCustomId('memory_tag_add_modal')
@@ -115,7 +110,7 @@ async function handleAddTag(
   const typeInput = new TextInputBuilder()
     .setCustomId('tag_type')
     .setLabel(tl.tags.add.typeLabel)
-    .setPlaceholder('category or status')
+    .setPlaceholder(tl.tags.add.typePlaceholder)
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setMaxLength(10);
@@ -134,7 +129,7 @@ async function handleAddTag(
       filter: i => i.customId === 'memory_tag_add_modal' && i.user.id === interaction.user.id,
     });
 
-    await handleAddTagSubmit(modalSubmit, guildId, forumChannelId);
+    await handleAddTagSubmit(modalSubmit, guildId, forumChannelId, memoryConfigId);
   } catch {
     await notifyModalTimeout(interaction);
   }
@@ -144,6 +139,7 @@ async function handleAddTagSubmit(
   interaction: ModalSubmitInteraction,
   guildId: string,
   forumChannelId: string,
+  memoryConfigId: number,
 ) {
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
@@ -152,18 +148,21 @@ async function handleAddTagSubmit(
     const emoji = interaction.fields.getTextInputValue('tag_emoji') || null;
     const typeInput = interaction.fields.getTextInputValue('tag_type').toLowerCase();
 
-    // Validate tag type
     if (typeInput !== 'category' && typeInput !== 'status') {
       await interaction.editReply({
-        content: `${E.error} Tag type must be "category" or "status"`,
+        content: `${E.error} ${tl.tags.add.typeInvalid}`,
       });
       return;
     }
 
     const tagType: MemoryTagType = typeInput as MemoryTagType;
 
-    // Check for duplicate
-    const existing = await memoryTagRepo.findOneBy({ guildId, name });
+    // Check for duplicate within this config
+    const existing = await memoryTagRepo.findOneBy({
+      guildId,
+      memoryConfigId,
+      name,
+    });
     if (existing) {
       await interaction.editReply({
         content: `${E.error} ${tl.tags.add.duplicate}`,
@@ -171,7 +170,6 @@ async function handleAddTagSubmit(
       return;
     }
 
-    // Get forum channel and add tag
     const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
     if (!forum) {
       await interaction.editReply({
@@ -180,7 +178,6 @@ async function handleAddTagSubmit(
       return;
     }
 
-    // Add to Discord forum
     const newForumTag: GuildForumTagData = {
       name,
       emoji: emoji ? { id: null, name: emoji } : null,
@@ -194,14 +191,13 @@ async function handleAddTagSubmit(
 
     const updatedForum = await forum.setAvailableTags([...currentTags, newForumTag]);
 
-    // Find the new tag's Discord ID
     const discordTag = updatedForum.availableTags.find(
       t => t.name === name && !currentTags.find(ct => ct.id === t.id),
     );
 
-    // Save to database
     const newTag = memoryTagRepo.create({
       guildId,
+      memoryConfigId,
       name,
       emoji,
       tagType,
@@ -228,8 +224,9 @@ async function handleEditTag(
   interaction: ChatInputCommandInteraction,
   guildId: string,
   forumChannelId: string,
+  memoryConfigId: number,
 ) {
-  const tags = await memoryTagRepo.find({ where: { guildId } });
+  const tags = await memoryTagRepo.find({ where: { guildId, memoryConfigId } });
 
   if (tags.length === 0) {
     await interaction.reply({
@@ -365,7 +362,6 @@ async function handleEditTagSubmit(
       return;
     }
 
-    // Update Discord forum tag
     const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
     if (forum && tag.discordTagId) {
       const updatedTags = forum.availableTags.map(t => {
@@ -381,7 +377,6 @@ async function handleEditTagSubmit(
       await forum.setAvailableTags(updatedTags as GuildForumTagData[]);
     }
 
-    // Update database
     tag.name = name;
     tag.emoji = emoji;
     await memoryTagRepo.save(tag);
@@ -406,9 +401,10 @@ async function handleRemoveTag(
   interaction: ChatInputCommandInteraction,
   guildId: string,
   forumChannelId: string,
+  memoryConfigId: number,
 ) {
   const tags = await memoryTagRepo.find({
-    where: { guildId, isDefault: false },
+    where: { guildId, memoryConfigId, isDefault: false },
   });
 
   if (tags.length === 0) {
@@ -524,7 +520,6 @@ async function confirmRemoveTag(
       collector.stop('confirmed');
 
       try {
-        // Remove from Discord forum
         const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
         if (forum && tag.discordTagId) {
           const filteredTags = forum.availableTags
@@ -533,7 +528,6 @@ async function confirmRemoveTag(
           await forum.setAvailableTags(filteredTags);
         }
 
-        // Remove from database
         await memoryTagRepo.remove(tag);
 
         await i.update({
@@ -569,12 +563,16 @@ async function confirmRemoveTag(
   });
 }
 
-async function handleListTags(interaction: ChatInputCommandInteraction, guildId: string) {
+async function handleListTags(
+  interaction: ChatInputCommandInteraction,
+  guildId: string,
+  memoryConfigId: number,
+) {
   const categoryTags = await memoryTagRepo.find({
-    where: { guildId, tagType: 'category' },
+    where: { guildId, memoryConfigId, tagType: 'category' },
   });
   const statusTags = await memoryTagRepo.find({
-    where: { guildId, tagType: 'status' },
+    where: { guildId, memoryConfigId, tagType: 'status' },
   });
 
   if (categoryTags.length === 0 && statusTags.length === 0) {
@@ -591,7 +589,7 @@ async function handleListTags(interaction: ChatInputCommandInteraction, guildId:
 
   if (categoryTags.length > 0) {
     const categoryList = categoryTags
-      .map(t => `${t.emoji || '•'} ${t.name}${t.isDefault ? ` ${tl.tags.list.default}` : ''}`)
+      .map(t => `${t.emoji || '\u2022'} ${t.name}${t.isDefault ? ` ${tl.tags.list.default}` : ''}`)
       .join('\n');
     embed.addFields({
       name: tl.tags.categoryTags,
@@ -602,7 +600,7 @@ async function handleListTags(interaction: ChatInputCommandInteraction, guildId:
 
   if (statusTags.length > 0) {
     const statusList = statusTags
-      .map(t => `${t.emoji || '•'} ${t.name}${t.isDefault ? ` ${tl.tags.list.default}` : ''}`)
+      .map(t => `${t.emoji || '\u2022'} ${t.name}${t.isDefault ? ` ${tl.tags.list.default}` : ''}`)
       .join('\n');
     embed.addFields({
       name: tl.tags.statusTags,

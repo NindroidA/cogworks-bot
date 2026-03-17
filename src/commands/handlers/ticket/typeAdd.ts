@@ -12,7 +12,14 @@ import {
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { E, handleInteractionError, LANGF, lang, logger } from '../../../utils';
+import {
+  E,
+  enhancedLogger,
+  handleInteractionError,
+  LANGF,
+  LogCategory,
+  lang,
+} from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeAdd;
 
@@ -23,10 +30,10 @@ const tl = lang.ticket.customTypes.typeAdd;
 export async function typeAddHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     const user = interaction.user.username;
-    logger(`User ${user} opened ticket type-add modal`);
+    enhancedLogger.info(`User ${user} opened ticket type-add modal`, LogCategory.COMMAND_EXECUTION);
 
     if (!interaction.guild) {
-      logger('Type-add failed: guild not found', 'WARN');
+      enhancedLogger.warn('Type-add failed: guild not found', LogCategory.COMMAND_EXECUTION);
       await interaction.reply({
         content: lang.general.cmdGuildNotFound,
         flags: [MessageFlags.Ephemeral],
@@ -103,10 +110,13 @@ export async function typeAddHandler(interaction: ChatInputCommandInteraction): 
 export async function typeAddModalHandler(interaction: ModalSubmitInteraction): Promise<void> {
   try {
     const user = interaction.user.username;
-    logger(`User ${user} submitted ticket type-add modal`);
+    enhancedLogger.info(
+      `User ${user} submitted ticket type-add modal`,
+      LogCategory.COMMAND_EXECUTION,
+    );
 
     if (!interaction.guild) {
-      logger('Type-add modal failed: guild not found', 'WARN');
+      enhancedLogger.warn('Type-add modal failed: guild not found', LogCategory.COMMAND_EXECUTION);
       await interaction.reply({
         content: lang.general.cmdGuildNotFound,
         flags: [MessageFlags.Ephemeral],
@@ -125,7 +135,10 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
 
     // Validate type ID format (lowercase, numbers, underscores only)
     if (!/^[a-z0-9_]+$/.test(typeId)) {
-      logger(`User ${user} type-add validation failed: invalid typeId format '${typeId}'`, 'WARN');
+      enhancedLogger.warn(
+        `User ${user} type-add validation failed: invalid typeId format '${typeId}'`,
+        LogCategory.COMMAND_EXECUTION,
+      );
       await interaction.reply({
         content: tl.invalidTypeId,
         flags: [MessageFlags.Ephemeral],
@@ -135,7 +148,10 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
 
     // Validate hex color
     if (!/^#[0-9A-Fa-f]{6}$/.test(colorInput)) {
-      logger(`User ${user} type-add validation failed: invalid color '${colorInput}'`, 'WARN');
+      enhancedLogger.warn(
+        `User ${user} type-add validation failed: invalid color '${colorInput}'`,
+        LogCategory.COMMAND_EXECUTION,
+      );
       await interaction.reply({
         content: tl.invalidColor,
         flags: [MessageFlags.Ephemeral],
@@ -151,7 +167,10 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
     });
 
     if (existing) {
-      logger(`User ${user} type-add failed: duplicate typeId '${typeId}'`, 'WARN');
+      enhancedLogger.warn(
+        `User ${user} type-add failed: duplicate typeId '${typeId}'`,
+        LogCategory.COMMAND_EXECUTION,
+      );
       await interaction.reply({
         content: LANGF(tl.duplicate, typeId),
         flags: [MessageFlags.Ephemeral],
@@ -180,7 +199,10 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
     });
 
     await typeRepo.save(newType);
-    logger(`User ${user} created new ticket type '${typeId}' (${displayName}) in guild ${guildId}`);
+    enhancedLogger.info(
+      `User ${user} created new ticket type '${typeId}' (${displayName}) in guild ${guildId}`,
+      LogCategory.COMMAND_EXECUTION,
+    );
 
     // Build confirmation embed with type details
     const embed = buildTypeConfirmationEmbed(newType, true);

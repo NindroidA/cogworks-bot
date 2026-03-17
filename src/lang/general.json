@@ -55,7 +55,37 @@
     "edit": "Edit",
     "preview": "Preview",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "continue": "Continue",
+    "addField": "Add Field",
+    "deleteField": "Delete Field",
+    "reorder": "Reorder",
+    "createTicket": "Create Ticket",
+    "adminOnly": "Admin Only",
+    "closeTicket": "Close Ticket"
+  },
+  "fieldManager": {
+    "modalTitle": "Add Custom Field",
+    "fieldIdLabel": "Field ID (lowercase, underscores)",
+    "fieldIdPlaceholder": "e.g., player_name, incident_date",
+    "fieldLabelLabel": "Field Label (shown to user)",
+    "fieldLabelPlaceholder": "e.g., Player Name, Incident Date",
+    "fieldStyleLabel": "Field Style (short or paragraph)",
+    "fieldStylePlaceholder": "short",
+    "fieldRequiredLabel": "Required? (yes or no)",
+    "fieldRequiredPlaceholder": "yes",
+    "fieldPlaceholderLabel": "Placeholder Text (optional)",
+    "fieldPlaceholderPlaceholder": "Optional hint text...",
+    "selectFieldToDelete": "Select a field to delete:",
+    "selectFieldToEdit": "Select a field to edit:",
+    "selectFieldPlaceholder": "Select a field to {0}",
+    "reorderTitle": "Reorder Fields: {0}",
+    "currentOrder": "Current Order:",
+    "reorderHint": "Use the buttons below to move fields up or down.",
+    "noFieldsToPreview": "No fields to preview! Add at least one field first.",
+    "invalidFieldIndex": "Invalid field index!",
+    "cannotMoveField": "Cannot move field {0}!",
+    "selectionError": "An error occurred processing your selection"
   },
   "ping": {
     "cmdDescrp": "Check bot latency and status",
@@ -71,5 +101,18 @@
     "description": "If you enjoy using Cogworks, consider buying me a coffee! Your support helps keep the bot running and development active.",
     "linkTitle": "Buy Me a Coffee",
     "footer": "Thank you for your support!"
+  },
+  "server": {
+    "cmdDescrp": "Get the Cogworks development Discord server invite",
+    "title": "Cogworks Development Server",
+    "description": "Join the Cogworks development server for updates, support, feature requests, and bug reports.",
+    "buttonLabel": "Join Server"
+  },
+  "dashboard": {
+    "cmdDescrp": "Open the Cogworks web dashboard",
+    "title": "Cogworks Dashboard",
+    "description": "Manage your server from the web dashboard. Sign in with Discord to access tickets, applications, announcements, and more.",
+    "buttonLabel": "Open Dashboard",
+    "footer": "Sign in with Discord for automatic access"
   }
 }

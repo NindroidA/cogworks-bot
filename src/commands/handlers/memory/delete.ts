@@ -8,7 +8,7 @@ import {
   type ThreadChannel,
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
-import { MemoryConfig, MemoryItem } from '../../../typeorm/entities/memory';
+import { MemoryItem } from '../../../typeorm/entities/memory';
 import {
   createRateLimitKey,
   E,
@@ -20,9 +20,9 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
+import { resolveConfigFromThread } from './channelPicker';
 
 const tl = lang.memory;
-const memoryConfigRepo = AppDataSource.getRepository(MemoryConfig);
 const memoryItemRepo = AppDataSource.getRepository(MemoryItem);
 
 export const memoryDeleteHandler = async (interaction: ChatInputCommandInteraction) => {
@@ -53,16 +53,6 @@ export const memoryDeleteHandler = async (interaction: ChatInputCommandInteracti
 
   const channel = interaction.channel;
 
-  // Check if memory system is configured
-  const config = await memoryConfigRepo.findOneBy({ guildId });
-  if (!config) {
-    await interaction.reply({
-      content: `${E.error} ${tl.errors.notConfigured}`,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
-
   // Check if we're in a thread within the memory forum
   if (!channel || channel.type !== ChannelType.PublicThread) {
     await interaction.reply({
@@ -74,8 +64,8 @@ export const memoryDeleteHandler = async (interaction: ChatInputCommandInteracti
 
   const threadChannel = channel as ThreadChannel;
 
-  // Check if the parent is the memory forum
-  if (threadChannel.parentId !== config.forumChannelId) {
+  const config = await resolveConfigFromThread(guildId, threadChannel.parentId);
+  if (!config) {
     await interaction.reply({
       content: `${E.error} ${tl.delete.notInForum}`,
       flags: [MessageFlags.Ephemeral],
@@ -102,11 +92,11 @@ export const memoryDeleteHandler = async (interaction: ChatInputCommandInteracti
   const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId('memory_delete_confirm')
-      .setLabel('Delete')
+      .setLabel(lang.general.buttons.delete)
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId('memory_delete_cancel')
-      .setLabel('Cancel')
+      .setLabel(lang.general.buttons.cancel)
       .setStyle(ButtonStyle.Secondary),
   );
 
@@ -142,18 +132,15 @@ export const memoryDeleteHandler = async (interaction: ChatInputCommandInteracti
       collector.stop('confirmed');
 
       try {
-        // Delete from database if exists
         if (memoryItem) {
           await memoryItemRepo.remove(memoryItem);
         }
 
-        // Update the reply before deleting the thread
         await i.update({
           content: `${E.success} ${tl.delete.success}`,
           components: [],
         });
 
-        // Delete the thread
         await threadChannel.delete();
       } catch (error) {
         enhancedLogger.error(

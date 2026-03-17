@@ -12,7 +12,6 @@ import {
   healthMonitor,
   LogCategory,
   lang,
-  logger,
   RateLimits,
   rateLimiter,
 } from '../utils';
@@ -25,6 +24,7 @@ import { applicationSetupHandler } from './handlers/application/applicationSetup
 import { baitChannelHandler } from './handlers/baitChannel';
 import { botSetupHandler } from './handlers/botSetup';
 import { coffeeHandler } from './handlers/coffee';
+import { dashboardHandler } from './handlers/dashboard';
 import { dataExportHandler } from './handlers/dataExport';
 import {
   deleteAllArchivedApplicationsHandler,
@@ -50,6 +50,7 @@ import { pingHandler } from './handlers/ping';
 import { reactionRoleHandler } from './handlers/reactionRole';
 import { roleAddHandler, roleListHandler, roleRemoveHandler } from './handlers/role';
 import { rulesSetupHandler } from './handlers/rulesSetup';
+import { serverCommandHandler } from './handlers/serverCommand';
 import { statusHandler } from './handlers/status';
 import {
   emailImportHandler,
@@ -89,7 +90,7 @@ export const handleSlashCommand = async (
       content: globalRateCheck.message,
       flags: [MessageFlags.Ephemeral],
     });
-    logger(`User ${user} hit global command rate limit`, 'WARN');
+    enhancedLogger.warn(`User ${user} hit global command rate limit`, LogCategory.SECURITY);
     healthMonitor.recordCommand(commandName, Date.now() - startTime, false);
     return;
   }
@@ -99,7 +100,8 @@ export const handleSlashCommand = async (
       content: lang.general.cmdGuildNotFound,
     });
     healthMonitor.recordCommand(commandName, Date.now() - startTime, true);
-    return logger(lang.general.cmdGuildNotFound, 'ERROR');
+    enhancedLogger.error(lang.general.cmdGuildNotFound, undefined, LogCategory.COMMAND_EXECUTION);
+    return;
   }
 
   try {
@@ -110,7 +112,7 @@ export const handleSlashCommand = async (
     if (commandName === 'bot-setup') {
       await botSetupHandler(client, interaction);
     } else if (!botConfig) {
-      logger(lang.botConfig.notFound, 'WARN');
+      enhancedLogger.warn(lang.botConfig.notFound, LogCategory.COMMAND_EXECUTION);
       await interaction.reply({
         content: lang.botConfig.notFound,
         flags: [MessageFlags.Ephemeral],
@@ -165,6 +167,14 @@ export const handleSlashCommand = async (
         }
         case 'coffee': {
           await coffeeHandler(interaction);
+          break;
+        }
+        case 'server': {
+          await serverCommandHandler(interaction);
+          break;
+        }
+        case 'dashboard': {
+          await dashboardHandler(interaction);
           break;
         }
         case 'memory-setup': {

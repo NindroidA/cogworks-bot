@@ -67,5 +67,29 @@
   },
   "success": "Announcement sent to",
   "error": "Error sending announcement: ",
-  "fail": "Failed to send announcement."
+  "fail": "Failed to send announcement.",
+  "templates": {
+    "maintenanceTitle": "Server Maintenance",
+    "scheduledMaintenanceTitle": "Scheduled Server Maintenance",
+    "backOnlineTitle": "Server is Back Online!",
+    "updateScheduledTitle": "Scheduled Server Update",
+    "updateCompleteTitle": "Server Update Complete!",
+    "durationShort": "5-10 minutes",
+    "durationLong": "up to 1 hour or more",
+    "scheduledDefaultMsg": "The Minecraft server will be going down for server-side maintenance and updates. We will update this channel if anything goes awry.",
+    "expectedDuration": "Expected Duration",
+    "starting": "Starting",
+    "startingValue": "In about 5 minutes",
+    "scheduledTime": "Scheduled Time",
+    "relativeTime": "Relative Time",
+    "status": "Status",
+    "statusOnline": "Online and ready",
+    "downtimeComplete": "Downtime Complete",
+    "version": "Version",
+    "newVersion": "New Version",
+    "updated": "Updated",
+    "timezoneFooter": "Times shown are in your local timezone",
+    "sendButton": "Send Announcement",
+    "cancelButton": "Cancel"
+  }
 }

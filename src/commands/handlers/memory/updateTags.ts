@@ -29,11 +29,6 @@ const memoryConfigRepo = AppDataSource.getRepository(MemoryConfig);
 const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
 const memoryItemRepo = AppDataSource.getRepository(MemoryItem);
 
-/**
- * Quick tag update — works from any channel via autocomplete.
- * `/memory update-tags thread:<id>`
- * Shows a tag selection UI, then updates both forum tags and database.
- */
 export const memoryUpdateTagsHandler = async (interaction: ChatInputCommandInteraction) => {
   const startTime = Date.now();
   const adminCheck = requireAdmin(interaction);
@@ -53,15 +48,6 @@ export const memoryUpdateTagsHandler = async (interaction: ChatInputCommandInter
     return;
   }
 
-  const config = await memoryConfigRepo.findOneBy({ guildId });
-  if (!config) {
-    await interaction.reply({
-      content: `${E.error} ${tl.errors.notConfigured}`,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
-
   const threadId = interaction.options.getString('thread', true);
 
   // Find memory item
@@ -74,9 +60,23 @@ export const memoryUpdateTagsHandler = async (interaction: ChatInputCommandInter
     return;
   }
 
-  // Get available tags
-  const categoryTags = await memoryTagRepo.find({ where: { guildId, tagType: 'category' } });
-  const statusTags = await memoryTagRepo.find({ where: { guildId, tagType: 'status' } });
+  // Resolve config from memory item's memoryConfigId
+  const config = await memoryConfigRepo.findOneBy({ guildId, id: memoryItem.memoryConfigId });
+  if (!config) {
+    await interaction.reply({
+      content: `${E.error} ${tl.errors.notConfigured}`,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  // Get available tags scoped by memoryConfigId
+  const categoryTags = await memoryTagRepo.find({
+    where: { guildId, memoryConfigId: memoryItem.memoryConfigId, tagType: 'category' },
+  });
+  const statusTags = await memoryTagRepo.find({
+    where: { guildId, memoryConfigId: memoryItem.memoryConfigId, tagType: 'status' },
+  });
 
   if (categoryTags.length === 0 || statusTags.length === 0) {
     await interaction.reply({
@@ -150,13 +150,13 @@ async function applyTagUpdate(
     }
 
     const categoryTag = selectionState.categoryId
-      ? await AppDataSource.getRepository(MemoryTag).findOneBy({
+      ? await memoryTagRepo.findOneBy({
           id: parseInt(selectionState.categoryId, 10),
           guildId,
         })
       : null;
     const statusTag = selectionState.statusId
-      ? await AppDataSource.getRepository(MemoryTag).findOneBy({
+      ? await memoryTagRepo.findOneBy({
           id: parseInt(selectionState.statusId, 10),
           guildId,
         })
@@ -167,13 +167,13 @@ async function applyTagUpdate(
     if (categoryTag?.discordTagId) appliedTags.push(categoryTag.discordTagId);
     if (statusTag?.discordTagId) appliedTags.push(statusTag.discordTagId);
 
-    // Update forum thread tags (replace all memory-managed tags)
+    // Update forum thread tags
     await thread.edit({ appliedTags });
 
     // Update database status
     if (statusTag) {
       memoryItem.status = statusTag.name;
-      await AppDataSource.getRepository(MemoryItem).save(memoryItem);
+      await memoryItemRepo.save(memoryItem);
     }
 
     await interaction.editReply({

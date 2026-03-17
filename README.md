@@ -11,6 +11,11 @@ A modular Discord server management bot built for communities that need more tha
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/NindroidA/cogworks-bot/main/.github/badges/loc.json&style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBvbHlsaW5lIHBvaW50cz0iMTYgMTggMjIgMTIgMTYgNiIvPjxwb2x5bGluZSBwb2ludHM9IjggNiAyIDEyIDggMTgiLz48L3N2Zz4=" alt="Lines of Code" />
 </p>
 
+## Useful Links
+- [Cogworks Home](https://cogworks.nindroidsystems.com)
+- [Cogworks Dashboard](https://cogworks.nindroidsystems.com/dashboard)
+- [Nindroid Systems Development Discord](https://discord.gg/nkwMUaVSYH)
+
 ## Quick Start
 
 ```
@@ -81,9 +86,10 @@ The setup wizard auto-detects what's already configured and walks you through th
 
 ### Memory System
 - Forum-based tracker for bugs, features, suggestions, reminders, notes
+- **Multi-channel support** — up to 3 memory channels per server
 - Capture messages directly into the tracker
-- Category and status tags with custom tag support
-- Status-driven thread archiving
+- Per-channel category and status tags with custom tag support
+- Status-driven thread archiving with auto-lock
 
 </td>
 </tr>
@@ -117,6 +123,7 @@ The setup wizard auto-detects what's already configured and walks you through th
 
 - **Role Management** — Admin/staff roles with custom aliases
 - **Health Monitoring** — HTTP endpoints for Docker health checks
+- **Internal API** — Dashboard integration for remote bot operations
 - **Data Export** — GDPR-compliant `/data-export` for full server data
 - **Auto-Cleanup** — All data removed when bot leaves a server
 - **Setup Wizard** — `/bot-setup` configures everything in one guided flow
@@ -162,9 +169,9 @@ PolyForm Noncommercial License 1.0.0 — see [LICENSE](LICENSE) for details.
 
 ## Support
 
-For issues or questions, open an issue on GitHub.
-
-Use `/coffee` in Discord to support Cogworks development.
+- [Development Discord](https://discord.gg/nkwMUaVSYH) — Join for help and updates
+- [GitHub Issues](https://github.com/NindroidA/cogworks-bot/issues) — Bug reports and feature requests
+- Use `/coffee` in Discord to support Cogworks development
 
 ## Development
 

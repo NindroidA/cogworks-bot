@@ -10,6 +10,8 @@ export { lang } from '../lang';
 // Utility Module Exports
 // ============================================================================
 
+// Internal API
+export * from './api/internalApiServer';
 // Core utilities
 export * from './apiConnector';
 export * from './baitChannelManager';
@@ -75,26 +77,6 @@ export function LANGF(template: string, ...args: (string | number)[]): string {
 export function extractIdFromMention(mention: string): string | null {
   const matches = mention.match(/^<@&?(\d+)>$/);
   return matches ? matches[1] : null;
-}
-
-// ============================================================================
-// Number Utilities
-// ============================================================================
-
-/**
- * Formats bytes into human-readable string
- * @param bytes - Number of bytes
- * @returns Formatted string (e.g., "1.5 MB")
- * @example
- * formatBytes(1024) // Returns: "1 KB"
- * formatBytes(1536000) // Returns: "1.46 MB"
- */
-export function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
 }
 
 // ============================================================================

@@ -3,6 +3,7 @@ import type { ApplicationStatus } from '../../../utils/types';
 
 @Entity({ name: 'applications' })
 @Index(['guildId'])
+@Index(['guildId', 'createdBy'])
 export class Application {
   @PrimaryGeneratedColumn()
   id: number;

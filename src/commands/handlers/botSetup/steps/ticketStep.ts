@@ -10,21 +10,14 @@ import {
   ChannelType,
   EmbedBuilder,
 } from 'discord.js';
+import { lang } from '../../../../utils';
+
+const tl = lang.botSetup.ticket;
+const btn = lang.botSetup.buttons;
 
 export const ticketStep = {
   buildEmbed: () => {
-    return new EmbedBuilder()
-      .setTitle('🎫 Ticket System Setup')
-      .setDescription(
-        '**Would you like to configure the ticket system?**\n\n' +
-          'The ticket system allows users to create private support tickets.\n\n' +
-          '**This includes:**\n' +
-          '• Main ticket channel (where users click to create tickets)\n' +
-          '• Ticket category (where active tickets are created)\n' +
-          '• Archive forum (where closed tickets are stored)\n\n' +
-          '**You can skip this and set it up later with `/ticket-setup`**',
-      )
-      .setColor('#5865F2');
+    return new EmbedBuilder().setTitle(tl.title).setDescription(tl.description).setColor('#5865F2');
   },
 
   buildComponents: () => {
@@ -32,16 +25,16 @@ export const ticketStep = {
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId('ticket_enable')
-          .setLabel('Configure Ticket System')
+          .setLabel(btn.configureTicket)
           .setStyle(ButtonStyle.Primary)
           .setEmoji('🎫'),
         new ButtonBuilder()
           .setCustomId('ticket_skip')
-          .setLabel('Skip')
+          .setLabel(btn.skip)
           .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
           .setCustomId('setup_cancel')
-          .setLabel('Cancel Setup')
+          .setLabel(btn.cancelSetup)
           .setStyle(ButtonStyle.Danger),
       ),
     ];
@@ -49,11 +42,8 @@ export const ticketStep = {
 
   buildChannelSelectEmbed: () => {
     return new EmbedBuilder()
-      .setTitle('🎫 Select Ticket Channel')
-      .setDescription(
-        'Select the text channel where users will create tickets.\n\n' +
-          'This channel will have a "Create Ticket" button message.',
-      )
+      .setTitle(tl.channelSelectTitle)
+      .setDescription(tl.channelSelectDescription)
       .setColor('#5865F2');
   },
 
@@ -61,18 +51,15 @@ export const ticketStep = {
     return new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder()
         .setCustomId(`ticket_channel_select_${Date.now()}`)
-        .setPlaceholder('Select ticket channel')
+        .setPlaceholder(tl.channelSelectPlaceholder)
         .setChannelTypes(ChannelType.GuildText),
     );
   },
 
   buildCategorySelectEmbed: () => {
     return new EmbedBuilder()
-      .setTitle('📂 Select Ticket Category')
-      .setDescription(
-        'Select the category where active tickets will be created.\n\n' +
-          'Each ticket will be a private channel in this category.',
-      )
+      .setTitle(tl.categorySelectTitle)
+      .setDescription(tl.categorySelectDescription)
       .setColor('#5865F2');
   },
 
@@ -80,18 +67,15 @@ export const ticketStep = {
     return new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder()
         .setCustomId(`ticket_category_select_${Date.now()}`)
-        .setPlaceholder('Select ticket category')
+        .setPlaceholder(tl.categorySelectPlaceholder)
         .setChannelTypes(ChannelType.GuildCategory),
     );
   },
 
   buildArchiveSelectEmbed: () => {
     return new EmbedBuilder()
-      .setTitle('🗃️ Select Archive Forum')
-      .setDescription(
-        'Select the forum channel where closed tickets will be archived.\n\n' +
-          'Each closed ticket will create a thread in this forum.',
-      )
+      .setTitle(tl.archiveSelectTitle)
+      .setDescription(tl.archiveSelectDescription)
       .setColor('#5865F2');
   },
 
@@ -99,7 +83,7 @@ export const ticketStep = {
     return new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
       new ChannelSelectMenuBuilder()
         .setCustomId(`ticket_archive_select_${Date.now()}`)
-        .setPlaceholder('Select archive forum')
+        .setPlaceholder(tl.archiveSelectPlaceholder)
         .setChannelTypes(ChannelType.GuildForum),
     );
   },

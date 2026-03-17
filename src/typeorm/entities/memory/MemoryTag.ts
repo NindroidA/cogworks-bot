@@ -4,13 +4,16 @@ export type MemoryTagType = 'category' | 'status';
 
 @Entity({ name: 'memory_tags' })
 @Index(['guildId'])
-@Index(['guildId', 'tagType'])
+@Index(['guildId', 'memoryConfigId', 'tagType'])
 export class MemoryTag {
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column({ type: 'varchar', length: 255 })
   guildId: string;
+
+  @Column({ type: 'int' })
+  memoryConfigId: number;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   discordTagId: string | null;

@@ -5,8 +5,8 @@ import { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
 import { ReactionRoleMenu } from '../typeorm/entities/reactionRole';
 import { RulesConfig } from '../typeorm/entities/rules';
 import { TicketConfig } from '../typeorm/entities/ticket/TicketConfig';
+import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';
-import type { BaitChannelManager } from '../utils/baitChannelManager';
 import { invalidateMenuCache } from '../utils/reactionRole/menuCache';
 import { invalidateRulesCache } from './rulesReaction';
 
@@ -24,9 +24,7 @@ export default {
     if (message.author && message.author.id !== client.user?.id) return;
 
     // Bait channel manager check (existing behavior)
-    const { baitChannelManager } = client as {
-      baitChannelManager?: BaitChannelManager;
-    };
+    const { baitChannelManager } = client as ExtendedClient;
     if (baitChannelManager) {
       await baitChannelManager.handleMessageDelete(messageId, guildId);
     }

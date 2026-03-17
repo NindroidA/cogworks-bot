@@ -11,7 +11,7 @@ import {
   type ThreadChannel,
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
-import { MemoryConfig, MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
+import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
   Colors,
   createRateLimitKey,
@@ -24,9 +24,9 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
+import { resolveConfigFromThread } from './channelPicker';
 
 const tl = lang.memory;
-const memoryConfigRepo = AppDataSource.getRepository(MemoryConfig);
 const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
 const memoryItemRepo = AppDataSource.getRepository(MemoryItem);
 
@@ -58,16 +58,6 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
 
   const channel = interaction.channel;
 
-  // Check if memory system is configured
-  const config = await memoryConfigRepo.findOneBy({ guildId });
-  if (!config) {
-    await interaction.reply({
-      content: `${E.error} ${tl.errors.notConfigured}`,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
-
   // Check if we're in a thread within the memory forum
   if (!channel || channel.type !== ChannelType.PublicThread) {
     await interaction.reply({
@@ -79,8 +69,8 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
 
   const threadChannel = channel as ThreadChannel;
 
-  // Check if the parent is the memory forum
-  if (threadChannel.parentId !== config.forumChannelId) {
+  const config = await resolveConfigFromThread(guildId, threadChannel.parentId);
+  if (!config) {
     await interaction.reply({
       content: `${E.error} ${tl.update.notInForum}`,
       flags: [MessageFlags.Ephemeral],
@@ -103,7 +93,7 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
 
   // Get available status tags
   const statusTags = await memoryTagRepo.find({
-    where: { guildId, tagType: 'status' },
+    where: { guildId, memoryConfigId: config.id, tagType: 'status' },
   });
 
   if (statusTags.length === 0) {
@@ -241,23 +231,37 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
         memoryItem.status = newStatusTag.name;
         await memoryItemRepo.save(memoryItem);
 
-        // Send success reply FIRST (while thread is still open)
         const willClose = newStatusTag.name === 'Completed';
-        const closedMessage = willClose ? '\nThread has been closed.' : '';
 
+        // Update the ephemeral interaction reply
         await interaction.editReply({
-          content: `${E.success} ${tl.update.success}\n**${selectionState.oldStatusName}** \u2192 **${newStatusTag.emoji ? `${newStatusTag.emoji} ` : ''}${newStatusTag.name}**${closedMessage}`,
+          content: `${E.success} ${tl.update.success}\n**${selectionState.oldStatusName}** → **${newStatusTag.emoji ? `${newStatusTag.emoji} ` : ''}${newStatusTag.name}**`,
           embeds: [],
           components: [],
         });
 
-        // THEN archive (reply already delivered)
+        // Send visible close notice in the thread, then lock + archive
         if (willClose) {
           try {
+            const closeEmbed = new EmbedBuilder()
+              .setTitle(`${E.memory} ${tl.closeNotice.title}`)
+              .setDescription(
+                tl.closeNotice.description.replace('{0}', `<@${interaction.user.id}>`),
+              )
+              .setColor(Colors.status.neutral)
+              .setTimestamp();
+
+            await threadChannel.send({ embeds: [closeEmbed] });
+          } catch {
+            // Non-critical — close notice is informational
+          }
+
+          try {
+            await threadChannel.setLocked(true);
             await threadChannel.setArchived(true);
           } catch {
             enhancedLogger.warn(
-              'Could not archive completed memory thread',
+              'Could not lock/archive completed memory thread',
               LogCategory.COMMAND_EXECUTION,
               { guildId, threadId: threadChannel.id },
             );

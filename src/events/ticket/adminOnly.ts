@@ -12,7 +12,7 @@ import { BotConfig } from '../../typeorm/entities/BotConfig';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
-import { extractIdFromMention, lang, logger } from '../../utils';
+import { enhancedLogger, extractIdFromMention, LogCategory, lang } from '../../utils';
 
 const tl = lang.ticket.adminOnly;
 const ticketRepo = AppDataSource.getRepository(Ticket);
@@ -43,7 +43,7 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
 
   // check if the ticket exists in the database
   if (!ticket) {
-    return logger(lang.general.fatalError, 'ERROR');
+    return enhancedLogger.error(lang.general.fatalError, undefined, LogCategory.COMMAND_EXECUTION);
   }
 
   // check if the person hitting the button is the ticket creator
@@ -76,7 +76,7 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
   savedRoles.forEach(role => {
     const roleId = extractIdFromMention(role.role);
     if (!roleId) {
-      logger(`Invalid role format: ${role.role}`, 'WARN');
+      enhancedLogger.warn(`Invalid role format: ${role.role}`, LogCategory.COMMAND_EXECUTION);
       return; // skip this role
     }
 

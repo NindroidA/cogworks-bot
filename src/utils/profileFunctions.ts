@@ -51,9 +51,10 @@ export function setStatus(client: Client, isDev: boolean = false): void {
  */
 export function setDescription(client: Client, isDev: boolean = false): void {
   const devPrefix = isDev ? '🔧 [DEV] ' : '';
+  const dashboardURL = process.env.DASHBOARD_URL || 'https://cogworks.nindroidsystems.com';
 
   client.application?.edit({
-    // Include bot version and description message
-    description: `${devPrefix}v${pjson.version}\n\n${lang.general.descriptionMsg}`,
+    // Include bot version, dashboard url, and description message
+    description: `${devPrefix}v${pjson.version}\n${dashboardURL}\n\n${lang.general.descriptionMsg}`,
   });
 }
