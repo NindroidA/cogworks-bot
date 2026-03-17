@@ -91,7 +91,6 @@ archiveDownload/
 src/utils/baResponses.json
 
 # Development
-tests/
 TODO.md
 task_plan.md
 docs/admin_guide.md

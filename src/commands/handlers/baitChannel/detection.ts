@@ -23,6 +23,8 @@ export const detectionHandler = async (
     const requireVerification = interaction.options.getBoolean('require_verification');
     const disableAdminWhitelist = interaction.options.getBoolean('disable_admin_whitelist');
     const threshold = interaction.options.getInteger('threshold');
+    const joinVelocityThreshold = interaction.options.getInteger('join_velocity_threshold');
+    const joinVelocityWindow = interaction.options.getInteger('join_velocity_window');
 
     const configRepo = AppDataSource.getRepository(BaitChannelConfig);
     const config = await safeDbOperation(
@@ -45,6 +47,8 @@ export const detectionHandler = async (
     if (requireVerification !== null) config.requireVerification = requireVerification;
     if (disableAdminWhitelist !== null) config.disableAdminWhitelist = disableAdminWhitelist;
     if (threshold !== null) config.instantActionThreshold = threshold;
+    if (joinVelocityThreshold !== null) config.joinVelocityThreshold = joinVelocityThreshold;
+    if (joinVelocityWindow !== null) config.joinVelocityWindowMinutes = joinVelocityWindow;
 
     await safeDbOperation(() => configRepo.save(config), 'Save bait channel config');
 
@@ -85,6 +89,16 @@ export const detectionHandler = async (
         {
           name: tl.detection.threshold,
           value: `${config.instantActionThreshold ?? 90}/100`,
+          inline: true,
+        },
+        {
+          name: tl.detection.joinVelocityThreshold,
+          value: `${config.joinVelocityThreshold ?? 10} joins`,
+          inline: true,
+        },
+        {
+          name: tl.detection.joinVelocityWindow,
+          value: `${config.joinVelocityWindowMinutes ?? 5} min`,
           inline: true,
         },
       );

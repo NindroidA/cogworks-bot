@@ -10,11 +10,14 @@ import {
   PermissionFlagsBits,
   type TextChannel,
 } from 'discord.js';
-import { LessThan, type Repository } from 'typeorm';
+import { Between, LessThan, type Repository } from 'typeorm';
+import { AppDataSource } from '../typeorm';
 import type { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
 import type { BaitChannelLog } from '../typeorm/entities/BaitChannelLog';
+import { JoinEvent } from '../typeorm/entities/bait/JoinEvent';
 import type { PendingBan as PendingBanEntity } from '../typeorm/entities/PendingBan';
 import type { UserActivity } from '../typeorm/entities/UserActivity';
+import type { JoinVelocityTracker } from './baitChannel/joinVelocityTracker';
 import { analyzeUrls } from './baitChannel/urlAnalyzer';
 import { analyzeUsername } from './baitChannel/usernameAnalyzer';
 import { Colors } from './colors';
@@ -77,11 +80,17 @@ interface BufferedActivity {
   joinedAt: Date;
 }
 
+interface RepeatOffenderResult {
+  matchCount: number;
+  matchingUsers: { userId: string; joinedAt: Date; accountCreatedAt: Date }[];
+}
+
 export class BaitChannelManager {
   private pendingBans: Map<string, PendingBan> = new Map();
   private configCache: Map<string, CachedConfig> = new Map();
   private activityBuffer: Map<string, BufferedActivity> = new Map();
   private activityFlushInterval: ReturnType<typeof setInterval> | null = null;
+  private joinVelocityTracker: JoinVelocityTracker | null = null;
 
   constructor(
     private client: Client,
@@ -90,6 +99,10 @@ export class BaitChannelManager {
     private activityRepo: Repository<UserActivity>,
     private pendingBanRepo?: Repository<PendingBanEntity>,
   ) {}
+
+  setJoinVelocityTracker(tracker: JoinVelocityTracker): void {
+    this.joinVelocityTracker = tracker;
+  }
 
   /**
    * Initialize: restore unexpired pending bans from DB and clean up expired ones.
@@ -470,6 +483,20 @@ export class BaitChannelManager {
       flags.suspiciousContent = true;
       score += Math.min(25, foundKeywords.length * 8);
       reasons.push(`Suspicious keywords: ${foundKeywords.join(', ')}`);
+    }
+
+    // Check join velocity (burst detection)
+    if (this.joinVelocityTracker && message.guild) {
+      const windowMs = (config.joinVelocityWindowMinutes ?? 5) * 60 * 1000;
+      const threshold = config.joinVelocityThreshold ?? 10;
+      if (this.joinVelocityTracker.isBurstActive(message.guild.id, threshold, windowMs)) {
+        flags.joinBurst = true;
+        score += 15;
+        const joinCount = this.joinVelocityTracker.getJoinCount(message.guild.id, windowMs);
+        reasons.push(
+          `Join burst detected (${joinCount} joins in ${config.joinVelocityWindowMinutes ?? 5} min)`,
+        );
+      }
     }
 
     // Cap score at 100
@@ -1048,6 +1075,12 @@ export class BaitChannelManager {
       purgeResult = await this.purgeUserMessages(message.guild, member.id, config.channelId);
     }
 
+    // Step 4b: Detect repeat offenders (for ban/kick actions only)
+    let repeatOffenderResult: RepeatOffenderResult | null = null;
+    if (actionResult === 'success' && config.actionType !== 'log-only' && member.joinedAt) {
+      repeatOffenderResult = await this.detectRepeatOffenders(member, message.guild!.id);
+    }
+
     // Step 5: Log to channel AFTER purge (with result)
     await this.logToChannel(
       member,
@@ -1060,10 +1093,65 @@ export class BaitChannelManager {
       failureReason,
       purgeResult,
       dmSent,
+      repeatOffenderResult,
     );
 
     // Step 6: Log to database
     await this.logAction(message, actionTaken, config, analysis, failureReason);
+  }
+
+  /**
+   * Detect accounts that joined around the same time with similar suspicious characteristics.
+   * Returns null if fewer than 3 matching accounts are found (not enough evidence).
+   */
+  private async detectRepeatOffenders(
+    member: GuildMember,
+    guildId: string,
+  ): Promise<RepeatOffenderResult | null> {
+    try {
+      if (!member.joinedAt) return null;
+
+      const joinEventRepo = AppDataSource.getRepository(JoinEvent);
+      const windowMs = 30 * 60 * 1000; // +/- 30 minutes
+      const windowStart = new Date(member.joinedAt.getTime() - windowMs);
+      const windowEnd = new Date(member.joinedAt.getTime() + windowMs);
+
+      const nearbyJoins = await joinEventRepo.find({
+        where: {
+          guildId,
+          joinedAt: Between(windowStart, windowEnd),
+        },
+      });
+
+      // Filter for accounts with suspicious characteristics
+      const accountAgeWindow = 48 * 60 * 60 * 1000; // 48 hours
+      const matchingUsers = nearbyJoins.filter(je => {
+        if (je.userId === member.id) return false; // Exclude self
+        if (!je.hasDefaultAvatar) return false;
+        if (je.roleCount > 1) return false;
+        // Account created within 48h of the triggering user's account
+        const ageDiff = Math.abs(je.accountCreatedAt.getTime() - member.user.createdAt.getTime());
+        return ageDiff <= accountAgeWindow;
+      });
+
+      if (matchingUsers.length < 3) return null;
+
+      return {
+        matchCount: matchingUsers.length,
+        matchingUsers: matchingUsers.map(je => ({
+          userId: je.userId,
+          joinedAt: je.joinedAt,
+          accountCreatedAt: je.accountCreatedAt,
+        })),
+      };
+    } catch (error) {
+      enhancedLogger.debug(
+        `Failed to detect repeat offenders for ${member.user.tag}`,
+        LogCategory.DATABASE,
+        { error: (error as Error).message },
+      );
+      return null;
+    }
   }
 
   private async logAction(
@@ -1128,6 +1216,7 @@ export class BaitChannelManager {
     failureReason?: string,
     purgeResult?: PurgeResult,
     dmSent?: boolean,
+    repeatOffenderResult?: RepeatOffenderResult | null,
   ): Promise<void> {
     if (!config.logChannelId) return;
 
@@ -1275,6 +1364,18 @@ export class BaitChannelManager {
         embed.addFields({
           name: '📩 DM Notification',
           value: dmSent ? 'DM notification sent' : 'DM notification failed (user has DMs disabled)',
+        });
+      }
+
+      // Add repeat offender annotation if detected
+      if (repeatOffenderResult && repeatOffenderResult.matchCount > 0) {
+        const matchList = repeatOffenderResult.matchingUsers
+          .slice(0, 10) // Cap display at 10
+          .map(u => `• <@${u.userId}> — joined <t:${Math.floor(u.joinedAt.getTime() / 1000)}:R>`)
+          .join('\n');
+        embed.addFields({
+          name: '🚨 Possible Coordinated Raid',
+          value: `${repeatOffenderResult.matchCount} similar account(s) joined around the same time:\n${matchList}`,
         });
       }
 

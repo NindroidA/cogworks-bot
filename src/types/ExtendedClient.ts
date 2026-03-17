@@ -1,4 +1,5 @@
 import type { Client } from 'discord.js';
+import type { JoinVelocityTracker } from '../utils/baitChannel/joinVelocityTracker';
 import type { BaitChannelManager } from '../utils/baitChannelManager';
 import type { StatusManager } from '../utils/status/StatusManager';
 
@@ -10,5 +11,6 @@ import type { StatusManager } from '../utils/status/StatusManager';
  */
 export interface ExtendedClient extends Client {
   baitChannelManager: BaitChannelManager;
+  joinVelocityTracker: JoinVelocityTracker;
   statusManager: StatusManager;
 }

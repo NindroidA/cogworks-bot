@@ -9,6 +9,7 @@ import { handleAutocomplete } from './events/autocomplete';
 import channelDeleteEvent from './events/channelDelete';
 import guildCreateEvent from './events/guildCreate';
 import guildDeleteEvent from './events/guildDelete';
+import guildMemberAddEvent from './events/guildMemberAdd';
 import { routeInteraction } from './events/interactionRouter';
 import messageCreateEvent from './events/messageCreate';
 import messageDeleteEvent from './events/messageDelete';
@@ -41,6 +42,7 @@ import {
   rateLimiter,
 } from './utils';
 import { APIConnector } from './utils/apiConnector';
+import { JoinVelocityTracker } from './utils/baitChannel/joinVelocityTracker';
 import { BaitChannelManager } from './utils/baitChannelManager';
 import { startLogCleanup, stopLogCleanup } from './utils/database/logCleanup';
 import { setupGlobalErrorHandlers } from './utils/errorHandler';
@@ -154,6 +156,9 @@ client.on(guildDeleteEvent.name, guild => guildDeleteEvent.execute(guild, client
 // register channel lifecycle events
 client.on(channelDeleteEvent.name, channel => channelDeleteEvent.execute(channel, client));
 
+// register member lifecycle events
+client.on(guildMemberAddEvent.name, member => guildMemberAddEvent.execute(member, client));
+
 // once we ready, LEGGO
 client.once('clientReady', async () => {
   // initialize health monitor first
@@ -193,8 +198,14 @@ client.once('clientReady', async () => {
   await baitChannelManager.initialize();
   baitChannelManager.startActivityFlush();
 
+  // initialize join velocity tracker for burst detection
+  const joinVelocityTracker = new JoinVelocityTracker();
+  joinVelocityTracker.startCleanupInterval();
+  baitChannelManager.setJoinVelocityTracker(joinVelocityTracker);
+
   // attach to client for access in events and commands
   (client as ExtendedClient).baitChannelManager = baitChannelManager;
+  (client as ExtendedClient).joinVelocityTracker = joinVelocityTracker;
   console.log(`${E.target} ${tl.baitChannelInit}`);
   enhancedLogger.info('Bait channel manager initialized', LogCategory.SYSTEM);
 
@@ -270,6 +281,11 @@ async function gracefulShutdown(signal: string) {
   if (extClient.baitChannelManager) {
     extClient.baitChannelManager.stopActivityFlush();
     await extClient.baitChannelManager.flushActivityBuffer();
+  }
+
+  // destroy join velocity tracker (clear interval + free memory)
+  if (extClient.joinVelocityTracker) {
+    extClient.joinVelocityTracker.destroy();
   }
 
   // stop servers
