@@ -11,6 +11,7 @@
       "action": "Action to take",
       "actionBan": "Ban",
       "actionKick": "Kick",
+      "actionTimeout": "Timeout — Temporarily mute the user",
       "actionLogOnly": "Log Only (Testing)",
       "logChannel": "Channel for logging detections"
     },
@@ -43,6 +44,22 @@
     "toggle": {
       "descrp": "Enable or disable the bait channel",
       "enabled": "Enable or disable"
+    },
+    "escalation": {
+      "enableDescrp": "Enable score-based action escalation",
+      "disableDescrp": "Disable escalation (use fixed action type)",
+      "thresholdsDescrp": "Configure escalation score thresholds",
+      "logOption": "Minimum score for log-only (default: 30)",
+      "timeoutOption": "Minimum score for timeout (default: 50)",
+      "kickOption": "Minimum score for kick (default: 75)",
+      "banOption": "Minimum score for ban (default: 90)"
+    },
+    "dmNotify": {
+      "enableDescrp": "Enable DM notification before action",
+      "disableDescrp": "Disable DM notification before action",
+      "appealDescrp": "Set appeal information shown in DM",
+      "appealTextOption": "Appeal instructions text (max 500 characters)",
+      "clearAppealDescrp": "Clear appeal information from DMs"
     }
   },
   "status": {
@@ -117,6 +134,23 @@
       "phishingUrl": "Contains suspected phishing URL(s)",
       "attachmentOnly": "Attachment-only message (no text)"
     }
+  },
+  "escalation": {
+    "enabled": "Escalation mode enabled",
+    "enabledDescription": "Actions are now determined by suspicion score. The fixed action type is ignored while escalation is active.",
+    "disabled": "Escalation mode disabled — using fixed action type.",
+    "thresholdsUpdated": "Escalation Thresholds Updated",
+    "invalidThresholds": "Invalid thresholds: values must be strictly ascending (log < timeout < kick < ban).",
+    "currentThresholds": "Current Escalation Thresholds"
+  },
+  "dmNotify": {
+    "enabled": "DM notification before action is now **enabled**.",
+    "disabled": "DM notification before action is now **disabled**.",
+    "appealSet": "Appeal Information Configured",
+    "appealCleared": "Appeal information has been cleared.",
+    "appealTooLong": "Appeal text must be 500 characters or fewer.",
+    "dmTitle": "Action Taken in {guildName}",
+    "dmDescription": "Your message in a monitored channel triggered automatic detection."
   },
   "error": {
     "fetchStatus": "Failed to fetch bait channel status",

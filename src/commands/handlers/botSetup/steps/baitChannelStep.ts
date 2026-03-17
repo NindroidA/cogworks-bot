@@ -76,6 +76,12 @@ export const baitChannelStep = {
             emoji: '👢',
           },
           {
+            label: tl.actionTimeout,
+            value: 'timeout',
+            description: tl.actionTimeoutDescription,
+            emoji: '⏱️',
+          },
+          {
             label: tl.actionLogOnly,
             value: 'log-only',
             description: tl.actionLogOnlyDescription,
@@ -101,10 +107,30 @@ export const baitChannelStep = {
             description: tl.graceInstantDescription,
             emoji: '⚡',
           },
-          { label: tl.grace5, value: '5', description: tl.grace5Description, emoji: '⏱️' },
-          { label: tl.grace10, value: '10', description: tl.grace10Description, emoji: '⏱️' },
-          { label: tl.grace30, value: '30', description: tl.grace30Description, emoji: '⏱️' },
-          { label: tl.grace60, value: '60', description: tl.grace60Description, emoji: '⏱️' },
+          {
+            label: tl.grace5,
+            value: '5',
+            description: tl.grace5Description,
+            emoji: '⏱️',
+          },
+          {
+            label: tl.grace10,
+            value: '10',
+            description: tl.grace10Description,
+            emoji: '⏱️',
+          },
+          {
+            label: tl.grace30,
+            value: '30',
+            description: tl.grace30Description,
+            emoji: '⏱️',
+          },
+          {
+            label: tl.grace60,
+            value: '60',
+            description: tl.grace60Description,
+            emoji: '⏱️',
+          },
         ]),
     );
   },

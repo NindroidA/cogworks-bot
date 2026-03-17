@@ -114,6 +114,8 @@
     "actionBanDescription": "Permanently ban detected bots",
     "actionKick": "Kick",
     "actionKickDescription": "Kick detected bots (they can rejoin)",
+    "actionTimeout": "Timeout",
+    "actionTimeoutDescription": "Temporarily mute the user (configurable duration)",
     "actionLogOnly": "Log Only (Testing)",
     "actionLogOnlyDescription": "Only log detections without taking action",
     "graceInstant": "0 seconds (Instant)",

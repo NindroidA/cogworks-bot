@@ -33,6 +33,7 @@ export const baitChannelCommand = new SlashCommandBuilder()
           .addChoices(
             { name: tl.setup.actionBan, value: 'ban' },
             { name: tl.setup.actionKick, value: 'kick' },
+            { name: tl.setup.actionTimeout, value: 'timeout' },
             { name: tl.setup.actionLogOnly, value: 'log-only' },
           )
           .setRequired(true),
@@ -122,4 +123,66 @@ export const baitChannelCommand = new SlashCommandBuilder()
       .addBooleanOption(option =>
         option.setName('enabled').setDescription(tl.toggle.enabled).setRequired(true),
       ),
+  )
+  // Escalation subcommands
+  .addSubcommand(subcommand =>
+    subcommand.setName('escalation-enable').setDescription(tl.escalation.enableDescrp),
+  )
+  .addSubcommand(subcommand =>
+    subcommand.setName('escalation-disable').setDescription(tl.escalation.disableDescrp),
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('escalation-thresholds')
+      .setDescription(tl.escalation.thresholdsDescrp)
+      .addIntegerOption(option =>
+        option
+          .setName('log')
+          .setDescription(tl.escalation.logOption)
+          .setMinValue(0)
+          .setMaxValue(100),
+      )
+      .addIntegerOption(option =>
+        option
+          .setName('timeout')
+          .setDescription(tl.escalation.timeoutOption)
+          .setMinValue(0)
+          .setMaxValue(100),
+      )
+      .addIntegerOption(option =>
+        option
+          .setName('kick')
+          .setDescription(tl.escalation.kickOption)
+          .setMinValue(0)
+          .setMaxValue(100),
+      )
+      .addIntegerOption(option =>
+        option
+          .setName('ban')
+          .setDescription(tl.escalation.banOption)
+          .setMinValue(0)
+          .setMaxValue(100),
+      ),
+  )
+  // DM notification subcommands
+  .addSubcommand(subcommand =>
+    subcommand.setName('dm-enable').setDescription(tl.dmNotify.enableDescrp),
+  )
+  .addSubcommand(subcommand =>
+    subcommand.setName('dm-disable').setDescription(tl.dmNotify.disableDescrp),
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('dm-appeal-info')
+      .setDescription(tl.dmNotify.appealDescrp)
+      .addStringOption(option =>
+        option
+          .setName('text')
+          .setDescription(tl.dmNotify.appealTextOption)
+          .setRequired(true)
+          .setMaxLength(500),
+      ),
+  )
+  .addSubcommand(subcommand =>
+    subcommand.setName('dm-clear-appeal').setDescription(tl.dmNotify.clearAppealDescrp),
   );

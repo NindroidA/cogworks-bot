@@ -21,6 +21,7 @@
   "postedInBait": "posted in bait channel. Suspicion:",
   "bannedUser": "Banned",
   "kickedUser": "Kicked",
+  "timedOutUser": "Timed Out",
   "loggedUser": "Logged",
   "noActionTaken": "- No action taken",
   "unknownActionType": "Unknown action type:",

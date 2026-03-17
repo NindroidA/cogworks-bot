@@ -11,6 +11,8 @@ import {
   requireAdmin,
 } from '../../../utils';
 import { detectionHandler } from './detection';
+import { dmNotifyHandler } from './dmNotify';
+import { escalationHandler } from './escalation';
 import { setupHandler } from './setup';
 import { statsHandler } from './stats';
 import { statusHandler } from './status';
@@ -77,6 +79,19 @@ export const baitChannelHandler = async (
 
       case 'toggle':
         await toggleHandler(client, interaction);
+        break;
+
+      case 'escalation-enable':
+      case 'escalation-disable':
+      case 'escalation-thresholds':
+        await escalationHandler(client, interaction);
+        break;
+
+      case 'dm-enable':
+      case 'dm-disable':
+      case 'dm-appeal-info':
+      case 'dm-clear-appeal':
+        await dmNotifyHandler(client, interaction);
         break;
 
       default:

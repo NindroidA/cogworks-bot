@@ -160,6 +160,7 @@ export interface LangConsole {
   postedInBait: string;
   bannedUser: string;
   kickedUser: string;
+  timedOutUser: string;
   loggedUser: string;
   noActionTaken: string;
   unknownActionType: string;
@@ -281,6 +282,8 @@ export interface LangBotSetup {
     actionBanDescription: string;
     actionKick: string;
     actionKickDescription: string;
+    actionTimeout: string;
+    actionTimeoutDescription: string;
     actionLogOnly: string;
     actionLogOnlyDescription: string;
     graceInstant: string;
@@ -853,6 +856,7 @@ export interface LangBaitChannel {
       action: string;
       actionBan: string;
       actionKick: string;
+      actionTimeout: string;
       actionLogOnly: string;
       logChannel: string;
     };
@@ -885,6 +889,22 @@ export interface LangBaitChannel {
     toggle: {
       descrp: string;
       enabled: string;
+    };
+    escalation: {
+      enableDescrp: string;
+      disableDescrp: string;
+      thresholdsDescrp: string;
+      logOption: string;
+      timeoutOption: string;
+      kickOption: string;
+      banOption: string;
+    };
+    dmNotify: {
+      enableDescrp: string;
+      disableDescrp: string;
+      appealDescrp: string;
+      appealTextOption: string;
+      clearAppealDescrp: string;
     };
   };
   status: {
@@ -959,6 +979,23 @@ export interface LangBaitChannel {
       phishingUrl: string;
       attachmentOnly: string;
     };
+  };
+  escalation: {
+    enabled: string;
+    enabledDescription: string;
+    disabled: string;
+    thresholdsUpdated: string;
+    invalidThresholds: string;
+    currentThresholds: string;
+  };
+  dmNotify: {
+    enabled: string;
+    disabled: string;
+    appealSet: string;
+    appealCleared: string;
+    appealTooLong: string;
+    dmTitle: string;
+    dmDescription: string;
   };
   error: {
     fetchStatus: string;

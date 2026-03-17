@@ -533,6 +533,69 @@ export class BaitChannelManager {
     return 'User is whitelisted';
   }
 
+  private determineAction(score: number, config: BaitChannelConfig): string {
+    if (!config.enableEscalation) {
+      return config.actionType;
+    }
+
+    const timeoutThreshold = config.escalationTimeoutThreshold ?? 50;
+    const kickThreshold = config.escalationKickThreshold ?? 75;
+    const banThreshold = config.escalationBanThreshold ?? 90;
+
+    if (score >= banThreshold) return 'ban';
+    if (score >= kickThreshold) return 'kick';
+    if (score >= timeoutThreshold) return 'timeout';
+    return 'log-only';
+  }
+
+  private async sendDmNotification(
+    member: GuildMember,
+    action: string,
+    config: BaitChannelConfig,
+    _analysis: SuspicionAnalysis,
+  ): Promise<boolean> {
+    if (!config.dmBeforeAction) return false;
+    if (action === 'log-only') return false;
+
+    const actionLabels: Record<string, string> = {
+      ban: 'Ban',
+      kick: 'Kick',
+      timeout: `Timeout (${config.timeoutDurationMinutes ?? 60} minutes)`,
+    };
+
+    try {
+      const embed = new EmbedBuilder()
+        .setColor(Colors.status.warning)
+        .setTitle(`Action Taken in ${member.guild.name}`)
+        .setDescription('Your message in a monitored channel triggered automatic detection.')
+        .addFields(
+          {
+            name: 'Action',
+            value: actionLabels[action] || action,
+            inline: true,
+          },
+          { name: 'Server', value: member.guild.name, inline: true },
+        )
+        .setTimestamp();
+
+      if (config.appealInfo) {
+        embed.addFields({
+          name: 'Appeal Information',
+          value: config.appealInfo,
+        });
+      }
+
+      await member.send({ embeds: [embed] });
+      return true;
+    } catch {
+      enhancedLogger.debug(
+        `Failed to send DM notification to ${member.user.tag}`,
+        LogCategory.SECURITY,
+      );
+      return false;
+    }
+  }
+
   private async initiateGracePeriod(
     message: Message,
     config: BaitChannelConfig,
@@ -540,6 +603,17 @@ export class BaitChannelManager {
   ): Promise<void> {
     const member = message.member!;
     const key = `${member.id}-${message.id}`;
+
+    // Determine the potential action based on current score
+    const potentialAction = this.determineAction(analysis.score, config);
+    const actionDescription =
+      potentialAction === 'timeout'
+        ? `timed out for ${config.timeoutDurationMinutes ?? 60} minutes`
+        : potentialAction === 'ban'
+          ? 'banned'
+          : potentialAction === 'kick'
+            ? 'kicked'
+            : 'logged';
 
     // Build warning message with suspicion details
     const warningEmbed = new EmbedBuilder()
@@ -549,7 +623,7 @@ export class BaitChannelManager {
       .addFields(
         {
           name: '⏰ Action Required',
-          value: `Delete your message within **${config.gracePeriodSeconds} seconds** to avoid being ${config.actionType === 'ban' ? 'banned' : 'kicked'}.`,
+          value: `Delete your message within **${config.gracePeriodSeconds} seconds** to avoid being ${actionDescription}.`,
         },
         {
           name: '🚨 Suspicion Score',
@@ -839,7 +913,9 @@ export class BaitChannelManager {
     analysis: SuspicionAnalysis,
     reason: string,
   ): Promise<void> {
-    let actionTaken: string = config.actionType;
+    // Determine action (escalation-aware)
+    const resolvedAction = this.determineAction(analysis.score, config);
+    let actionTaken: string = resolvedAction;
     let actionResult: 'success' | 'failed' = 'success';
     let failureReason: string | undefined;
 
@@ -856,9 +932,12 @@ export class BaitChannelManager {
       });
     }
 
-    // Step 2: Execute the configured action
+    // Step 2: Send DM notification BEFORE action (user must still be in server)
+    const dmSent = await this.sendDmNotification(member, resolvedAction, config, analysis);
+
+    // Step 3: Execute the resolved action
     try {
-      switch (config.actionType) {
+      switch (resolvedAction) {
         case 'ban':
           await member.ban({
             reason: `${config.banReason} (${reason})`,
@@ -892,6 +971,22 @@ export class BaitChannelManager {
           );
           break;
 
+        case 'timeout': {
+          const timeoutMs = (config.timeoutDurationMinutes ?? 60) * 60 * 1000;
+          await member.timeout(timeoutMs, `${config.banReason} (${reason})`);
+          enhancedLogger.info(
+            `Timed out user ${member.user.tag} for ${config.timeoutDurationMinutes ?? 60}min (Score: ${analysis.score})`,
+            LogCategory.SECURITY,
+            {
+              userId: member.id,
+              score: analysis.score,
+              action: 'timeout',
+              guildId: message.guild!.id,
+            },
+          );
+          break;
+        }
+
         case 'log-only':
           enhancedLogger.info(
             `Logged user ${member.user.tag} (Score: ${analysis.score}) - no action taken`,
@@ -907,8 +1002,8 @@ export class BaitChannelManager {
           break;
 
         default:
-          enhancedLogger.warn(`Unknown action type: ${config.actionType}`, LogCategory.ERROR, {
-            actionType: config.actionType,
+          enhancedLogger.warn(`Unknown action type: ${resolvedAction}`, LogCategory.ERROR, {
+            actionType: resolvedAction,
             guildId: message.guild!.id,
           });
       }
@@ -919,12 +1014,12 @@ export class BaitChannelManager {
       actionTaken = 'failed';
 
       enhancedLogger.error(
-        `Failed to execute action ${config.actionType} for ${member.user.tag}`,
+        `Failed to execute action ${resolvedAction} for ${member.user.tag}`,
         err,
         LogCategory.ERROR,
         {
           userId: member.id,
-          action: config.actionType,
+          action: resolvedAction,
           guildId: message.guild!.id,
         },
       );
@@ -932,35 +1027,42 @@ export class BaitChannelManager {
       logError({
         category: ErrorCategory.DISCORD_API,
         severity: ErrorSeverity.HIGH,
-        message: `Failed to execute bait channel action: ${config.actionType}`,
+        message: `Failed to execute bait channel action: ${resolvedAction}`,
         error,
         context: {
           userId: member.id,
           guildId: message.guild!.id,
-          action: config.actionType,
+          action: resolvedAction,
         },
       });
     }
 
-    // Step 3: Purge user messages across all channels (ban only)
+    // Step 4: Purge user messages (ban, or timeout with deleteUserMessages)
     let purgeResult: PurgeResult | undefined;
-    if (actionResult === 'success' && config.actionType === 'ban' && message.guild) {
+    if (
+      actionResult === 'success' &&
+      config.deleteUserMessages &&
+      (resolvedAction === 'ban' || resolvedAction === 'timeout') &&
+      message.guild
+    ) {
       purgeResult = await this.purgeUserMessages(message.guild, member.id, config.channelId);
     }
 
-    // Step 4: Log to channel AFTER purge (with result)
+    // Step 5: Log to channel AFTER purge (with result)
     await this.logToChannel(
       member,
       message,
       config,
       analysis,
       reason,
+      resolvedAction,
       actionResult,
       failureReason,
       purgeResult,
+      dmSent,
     );
 
-    // Step 5: Log to database
+    // Step 6: Log to database
     await this.logAction(message, actionTaken, config, analysis, failureReason);
   }
 
@@ -1021,9 +1123,11 @@ export class BaitChannelManager {
     config: BaitChannelConfig,
     analysis: SuspicionAnalysis,
     reason: string,
+    resolvedAction: string,
     actionResult: 'success' | 'failed' = 'success',
     failureReason?: string,
     purgeResult?: PurgeResult,
+    dmSent?: boolean,
   ): Promise<void> {
     if (!config.logChannelId) return;
 
@@ -1040,22 +1144,24 @@ export class BaitChannelManager {
 
       if (actionResult === 'failed') {
         actionEmoji = '';
-        actionText = `${config.actionType === 'ban' ? 'Ban' : 'Kick'} FAILED`;
+        actionText = `${resolvedAction === 'ban' ? 'Ban' : resolvedAction === 'kick' ? 'Kick' : resolvedAction === 'timeout' ? 'Timeout' : 'Action'} FAILED`;
         color = Colors.status.neutral; // Gray for failure
       } else {
-        actionEmoji =
-          {
-            ban: '',
-            kick: '',
-            'log-only': '',
-          }[config.actionType] || '';
+        const emojiMap: Record<string, string> = {
+          ban: '',
+          kick: '',
+          timeout: '',
+          'log-only': '',
+        };
+        actionEmoji = emojiMap[resolvedAction] || '';
 
-        actionText =
-          {
-            ban: 'Banned',
-            kick: 'Kicked',
-            'log-only': 'Logged (No action)',
-          }[config.actionType] || 'Action taken';
+        const textMap: Record<string, string> = {
+          ban: 'Banned',
+          kick: 'Kicked',
+          timeout: `Timed Out (${config.timeoutDurationMinutes ?? 60} min)`,
+          'log-only': 'Logged (No action)',
+        };
+        actionText = textMap[resolvedAction] || 'Action taken';
 
         color =
           analysis.score >= 90
@@ -1153,6 +1259,22 @@ export class BaitChannelManager {
         embed.addFields({
           name: '🧹 Message Purge',
           value: purgeValue,
+        });
+      }
+
+      // Add escalation mode info
+      if (config.enableEscalation) {
+        embed.addFields({
+          name: '📈 Escalation Mode',
+          value: `Score-based action (log: ${config.escalationLogThreshold ?? 30}+ / timeout: ${config.escalationTimeoutThreshold ?? 50}+ / kick: ${config.escalationKickThreshold ?? 75}+ / ban: ${config.escalationBanThreshold ?? 90}+)`,
+        });
+      }
+
+      // Add DM notification status
+      if (config.dmBeforeAction && resolvedAction !== 'log-only') {
+        embed.addFields({
+          name: '📩 DM Notification',
+          value: dmSent ? 'DM notification sent' : 'DM notification failed (user has DMs disabled)',
         });
       }
 
