@@ -7,7 +7,6 @@ import {
   MessageFlags,
   type ThreadChannel,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { MemoryItem } from '../../../typeorm/entities/memory';
 import {
   createRateLimitKey,
@@ -20,10 +19,11 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveConfigFromThread } from './channelPicker';
 
 const tl = lang.memory;
-const memoryItemRepo = AppDataSource.getRepository(MemoryItem);
+const memoryItemRepo = lazyRepo(MemoryItem);
 
 export const memoryDeleteHandler = async (interaction: ChatInputCommandInteraction) => {
   const startTime = Date.now();

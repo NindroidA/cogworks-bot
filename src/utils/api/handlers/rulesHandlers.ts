@@ -1,12 +1,13 @@
 import type { Client, TextChannel } from 'discord.js';
 import { invalidateRulesCache } from '../../../events/rulesReaction';
-import { AppDataSource } from '../../../typeorm';
 import { RulesConfig } from '../../../typeorm/entities/rules/RulesConfig';
+import { lazyRepo } from '../../database/lazyRepo';
+import { ApiError } from '../apiError';
 import { isValidSnowflake } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
-const rulesConfigRepo = AppDataSource.getRepository(RulesConfig);
+const rulesConfigRepo = lazyRepo(RulesConfig);
 
 export function registerRulesHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // POST /internal/guilds/:guildId/rules/setup
@@ -15,17 +16,17 @@ export function registerRulesHandlers(client: Client, routes: Map<string, RouteH
     const messageContent = body.messageContent as string;
     const roleId = body.roleId as string;
     if (!channelId || !messageContent || !roleId) {
-      return { error: 'channelId, messageContent, and roleId are required' };
+      throw ApiError.badRequest('channelId, messageContent, and roleId are required');
     }
-    if (!isValidSnowflake(channelId)) return { error: 'Invalid channelId format' };
-    if (!isValidSnowflake(roleId)) return { error: 'Invalid roleId format' };
+    if (!isValidSnowflake(channelId)) throw ApiError.badRequest('Invalid channelId format');
+    if (!isValidSnowflake(roleId)) throw ApiError.badRequest('Invalid roleId format');
 
     const guild = client.guilds.cache.get(guildId);
-    if (!guild) return { error: 'Guild not found' };
+    if (!guild) throw ApiError.notFound('Guild not found');
 
     const channel = await guild.channels.fetch(channelId).catch(() => null);
     if (!channel || !channel.isTextBased()) {
-      return { error: 'Channel not found or not a text channel' };
+      throw ApiError.notFound('Channel not found or not a text channel');
     }
 
     const emoji = (body.emoji as string) || '✅';

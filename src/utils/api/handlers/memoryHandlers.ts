@@ -1,12 +1,13 @@
 import type { Client, ForumChannel } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { MemoryConfig, MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
+import { lazyRepo } from '../../database/lazyRepo';
+import { ApiError } from '../apiError';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
-const memoryConfigRepo = AppDataSource.getRepository(MemoryConfig);
-const memoryItemRepo = AppDataSource.getRepository(MemoryItem);
-const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
+const memoryConfigRepo = lazyRepo(MemoryConfig);
+const memoryItemRepo = lazyRepo(MemoryItem);
+const memoryTagRepo = lazyRepo(MemoryTag);
 
 export function registerMemoryHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // POST /internal/guilds/:guildId/memory/create
@@ -16,22 +17,22 @@ export function registerMemoryHandlers(client: Client, routes: Map<string, Route
     const description = body.description as string;
     const createdBy = body.createdBy as string;
     if (!memoryConfigId || !title || !createdBy) {
-      return { error: 'memoryConfigId, title, and createdBy are required' };
+      throw ApiError.badRequest('memoryConfigId, title, and createdBy are required');
     }
 
     const config = await memoryConfigRepo.findOneBy({
       guildId,
       id: memoryConfigId,
     });
-    if (!config) return { error: 'Memory config not found' };
+    if (!config) throw ApiError.notFound('Memory config not found');
 
     const guild = client.guilds.cache.get(guildId);
-    if (!guild) return { error: 'Guild not found' };
+    if (!guild) throw ApiError.notFound('Guild not found');
 
     const forum = (await guild.channels
       .fetch(config.forumChannelId)
       .catch(() => null)) as ForumChannel | null;
-    if (!forum) return { error: 'Memory forum channel not found' };
+    if (!forum) throw ApiError.notFound('Memory forum channel not found');
 
     // Build applied tags
     const appliedTags: string[] = [];

@@ -5,6 +5,7 @@
   "setup": {
     "cmdDescrp": "Initializes and sets up the announcement module.",
     "mcRole": "The Minecraft role to ping in announcements",
+    "announcementRole": "The role to ping in announcements",
     "defaultChannel": "Default channel for announcements",
     "success": "Announcement settings configured!",
     "configured": "configured announcement settings for guild",
@@ -68,6 +69,40 @@
   "success": "Announcement sent to",
   "error": "Error sending announcement: ",
   "fail": "Failed to send announcement.",
+  "template": {
+    "create": {
+      "success": "Template created successfully! Here is a preview:",
+      "limitReached": "You have reached the maximum number of templates (25). Delete a custom template to make room.",
+      "duplicate": "A template with that name already exists.",
+      "invalidName": "Template name must be lowercase, start with a letter or number, and contain only letters, numbers, and hyphens.",
+      "invalidColor": "Invalid color format. Use hex format like #5865F2."
+    },
+    "edit": {
+      "success": "Template updated successfully! Here is the updated preview:",
+      "notFound": "Template not found."
+    },
+    "delete": {
+      "success": "Template deleted successfully.",
+      "notFound": "Template not found.",
+      "isDefault": "Default templates cannot be deleted. You can edit them instead."
+    },
+    "list": {
+      "title": "Announcement Templates",
+      "empty": "No templates found. Run `/announcement-setup` to seed default templates, or create one with `/announcement template create`.",
+      "footer": "{count}/25 templates"
+    },
+    "preview": {
+      "title": "Template Preview"
+    },
+    "reset": {
+      "confirm": "Are you sure you want to reset all templates? This will delete all custom templates and re-seed the defaults.",
+      "success": "Templates reset to defaults."
+    }
+  },
+  "send": {
+    "templateNotFound": "Template not found. Use `/announcement template list` to see available templates.",
+    "noTemplates": "No templates found. Run `/announcement-setup` to set up the announcement system and seed default templates."
+  },
   "templates": {
     "maintenanceTitle": "Server Maintenance",
     "scheduledMaintenanceTitle": "Scheduled Server Maintenance",

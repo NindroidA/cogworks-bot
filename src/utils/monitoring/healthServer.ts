@@ -20,10 +20,7 @@ import type { Client } from 'discord.js';
 import { version } from '../../../package.json';
 import { enhancedLogger, LogCategory } from './enhancedLogger';
 import { healthMonitor } from './healthMonitor';
-
-// ============================================================================
-// Interfaces
-// ============================================================================
+import { memoryWatchdog } from './memoryWatchdog';
 
 /**
  * Health check response format
@@ -88,10 +85,6 @@ interface LivenessResponse {
   timestamp: string;
   uptime: number;
 }
-
-// ============================================================================
-// Health Server Class
-// ============================================================================
 
 /**
  * HTTP server that exposes bot health metrics.
@@ -239,6 +232,13 @@ class HealthServer {
             errorRate: healthStatus.errors.errorRate,
           },
         },
+      };
+
+      // Attach memory watchdog stats to the response
+      const watchdogStats = memoryWatchdog.getStats();
+      (response as unknown as Record<string, unknown>).memoryWatchdog = {
+        heapPct: watchdogStats.heapPct,
+        trackedMaps: watchdogStats.trackedMaps,
       };
 
       // Return appropriate status code based on health
@@ -509,9 +509,5 @@ class HealthServer {
     return this.server ? this.port : null;
   }
 }
-
-// ============================================================================
-// Singleton Export
-// ============================================================================
 
 export const healthServer = new HealthServer();

@@ -1,0 +1,27 @@
+{
+  "commands": {
+    "importStarted": "Import from {0} started. This may take a few minutes.",
+    "importComplete": "Import complete! Imported: {0}, Skipped: {1}, Failed: {2}",
+    "importFailed": "Import failed: {0}",
+    "importCancelled": "Import cancelled.",
+    "importAlreadyRunning": "An import is already running for this server. Please wait for it to finish.",
+    "importCooldown": "Please wait before starting another import. Next available: {0}",
+    "noImportRunning": "No import is currently running.",
+    "dryRunComplete": "Dry run complete. Would import: {0}, Skip: {1}, Fail: {2}",
+    "csvRequired": "Please attach a CSV file.",
+    "csvInvalidFormat": "Invalid CSV format. Expected: userId,xp,level,messages",
+    "mee6LeaderboardNotPublic": "MEE6 leaderboard must be public for this server.",
+    "statusTitle": "Import Status",
+    "historyTitle": "Import History",
+    "noHistory": "No imports found for this server.",
+    "cmdDescrp": "Import data from other bots (MEE6, CSV, etc.)",
+    "mee6Descrp": "Import XP data from MEE6",
+    "csvDescrp": "Import data from a CSV file",
+    "statusDescrp": "Check current import status",
+    "historyDescrp": "View import history",
+    "cancelDescrp": "Cancel a running import",
+    "overwriteOption": "Overwrite existing data (default: skip existing)",
+    "dryRunOption": "Preview what would be imported without writing data",
+    "attachmentOption": "CSV file to import (userId,xp,level,messages)"
+  }
+}

@@ -14,10 +14,6 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import chalk from 'chalk';
 
-// ============================================================================
-// Types & Enums
-// ============================================================================
-
 /**
  * Log levels in order of severity
  */
@@ -73,10 +69,6 @@ export interface LoggerConfig {
   includeCategory?: boolean;
   colorize?: boolean;
 }
-
-// ============================================================================
-// Enhanced Logger Class
-// ============================================================================
 
 class EnhancedLogger {
   private config: LoggerConfig;
@@ -576,10 +568,6 @@ class EnhancedLogger {
   }
 }
 
-// ============================================================================
-// Singleton Instance
-// ============================================================================
-
 /**
  * Global enhanced logger instance
  *
@@ -595,9 +583,5 @@ export const enhancedLogger = new EnhancedLogger({
   enableFile: process.env.NODE_ENV === 'production',
   colorize: process.env.NODE_ENV !== 'production',
 });
-
-// ============================================================================
-// Convenience Exports
-// ============================================================================
 
 export default enhancedLogger;

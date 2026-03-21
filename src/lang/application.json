@@ -117,5 +117,75 @@
     "autocomplete": {
       "noPositions": "No positions found"
     }
+  },
+  "workflow": {
+    "notEnabled": "Application workflow is not enabled for this server. An admin can enable it with `/application workflow-enable`.",
+    "notInApplication": "This command can only be used inside an application channel.",
+    "applicationNotFound": "No active application found for this channel.",
+    "statusChanged": "Status changed to **{0}** by {1}",
+    "sameStatus": "Application is already in **{0}** status.",
+    "invalidStatus": "Invalid status: `{0}`. Valid statuses: {1}",
+    "claimed": "Application claimed for review by {0}.",
+    "alreadyClaimed": "This application is already claimed by <@{0}>.",
+    "noteAdded": "Internal note added by {0}.",
+    "noteTooLong": "Note is too long. Maximum 1000 characters.",
+    "noNotes": "No internal notes on this application.",
+    "enabled": "Application workflow states have been **enabled**. Default statuses have been configured.",
+    "disabled": "Application workflow states have been **disabled**. Custom statuses are preserved for re-enabling.",
+    "alreadyEnabled": "Application workflow is already enabled.",
+    "alreadyDisabled": "Application workflow is already disabled.",
+    "statusAdded": "Workflow status **{0}** has been added.",
+    "statusRemoved": "Workflow status **{0}** has been removed.",
+    "statusInUse": "Warning: {0} active application(s) currently use this status. They will keep their current status.",
+    "cannotRemoveRequired": "Cannot remove required status: **{0}**. The `submitted`, `approved`, and `denied` statuses are required.",
+    "statusExists": "A status with ID `{0}` already exists.",
+    "maxStatuses": "Maximum of {0} workflow statuses reached.",
+    "invalidStatusId": "Status ID must be lowercase letters, numbers, and hyphens only (max 20 characters).",
+    "checkNoApplication": "You don't have any open applications in this server.",
+    "checkTitle": "Application Status",
+    "checkPosition": "Position",
+    "checkStatus": "Status",
+    "checkSubmittedAt": "Submitted",
+    "checkReviewedBy": "Reviewer",
+    "checkUnassigned": "Not yet assigned"
+  },
+  "workflowInfo": {
+    "title": "Application Information",
+    "createdBy": "Applicant",
+    "status": "Status",
+    "reviewer": "Reviewer",
+    "position": "Position",
+    "history": "Status History",
+    "noHistory": "No status changes recorded.",
+    "unassigned": "Unassigned",
+    "notesTitle": "Internal Notes ({0})",
+    "noteEntry": "{0} by <@{1}> <t:{2}:R>"
+  },
+  "workflowBuilder": {
+    "status": {
+      "descrp": "Change the status of an application",
+      "statusOption": "The new status for the application"
+    },
+    "note": {
+      "descrp": "Add an internal staff note to an application",
+      "textOption": "The note text to add"
+    },
+    "claim": {
+      "descrp": "Claim this application for review"
+    },
+    "info": {
+      "descrp": "View detailed information about this application"
+    },
+    "check": {
+      "descrp": "Check the status of your application"
+    },
+    "workflowEnable": "Enable application workflow states",
+    "workflowDisable": "Disable application workflow states",
+    "statusAdd": "Add a custom workflow status",
+    "statusRemove": "Remove a workflow status",
+    "statusIdOption": "Status ID (lowercase, hyphens allowed)",
+    "statusLabelOption": "Display label for the status",
+    "statusEmojiOption": "Emoji for the status (optional)",
+    "statusSelectOption": "Select the status to remove"
   }
 }

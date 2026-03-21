@@ -5,9 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - 2026-03-10
+## [3.0.0] - 2026-03-19
 
 ### Added
+- **Constants Consolidation**: Centralized all magic numbers into `src/utils/constants.ts`
+  - Cache TTLs, intervals, retention days, max limits, text limits
+  - Single source of truth for all configuration values across the codebase
+- **Input Sanitization Hardening**: 4 new sanitization functions applied across 15+ handlers
+  - `stripZeroWidthChars()` — removes invisible Unicode characters that bypass keyword detection
+  - `sanitizeMentions()` — escapes `@everyone` and `@here` to prevent mass pings
+  - `validateTextLength()` — structured validation with field name in error messages
+  - `sanitizeUserInput()` — convenience pipeline (trim + zero-width + mentions + optional markdown escape + truncation)
+- **Legacy Data Migration System**: Application-level data migrations for semantic transformations
+  - `LegacyMigrationRunner` with configurable concurrency, dry-run mode, and per-guild error isolation
+  - `asyncPool` utility for bounded concurrent processing
+  - Runs on startup after TypeORM sync, before event processing
+  - Initial migrations: `announcementRoleRename`, `baitChannelIdsBackfill`
+- **Announcement System Overhaul**: Template-based announcement system replacing hardcoded templates
+  - `AnnouncementTemplate` entity with per-guild storage (max 25 templates)
+  - Template CRUD commands: `/announcement template create/edit/delete/list/preview/reset`
+  - `/announcement send` — send using any template with autocomplete
+  - Placeholder engine: `{version}`, `{duration}`, `{time}`, `{time_relative}`, `{user}`, `{role}`, `{server}`, `{channel}`
+  - 5 default templates auto-seeded on first setup (maintenance, maintenance-scheduled, back-online, update-scheduled, update-complete)
+  - `defaultRoleId` column on `AnnouncementConfig` (replaces `minecraftRoleId`, kept for legacy migration)
+  - Live preview with example values via `/announcement template preview`
+  - API endpoints: template list (GET), create (POST), delete (POST)
+- **Custom Memory Tags**: Per-channel tag management for memory system
+  - `/memory-setup tag-add` — add category or status tag with emoji, synced to Discord forum
+  - `/memory-setup tag-remove` — remove non-default tags (autocomplete)
+  - `/memory-setup tag-edit` — edit tag name and/or emoji (autocomplete)
+  - `/memory-setup tag-list` — list all tags with type and default status
+  - `/memory-setup tag-reset` — reset to defaults (confirmation required)
+  - Limits: 10 category tags, 6 status tags per channel (20 total Discord forum tag limit)
+  - Tag name sanitization and duplicate detection (case-insensitive)
+- **Ticket Workflow States**: Configurable ticket statuses, staff assignment, and auto-close
+  - `/ticket workflow-enable/disable` — toggle workflow per guild
+  - `/ticket status` — change ticket status with autocomplete
+  - `/ticket assign/unassign` — staff assignment tracking with timestamps
+  - `/ticket info` — view ticket details with status history (last 5 entries)
+  - `/ticket workflow-add-status/workflow-remove-status` — custom status management (max 10)
+  - `/ticket autoclose-enable/autoclose-disable` — automatic closure of inactive tickets
+  - Default statuses: Open, In Progress, Awaiting Response, Resolved, Closed
+  - Required statuses `open` and `closed` cannot be removed
+  - Status history capped at 50 entries per ticket
+  - Auto-close: configurable days (1-90), warning hours (1-72), and target status
+  - Hourly auto-close check via `src/utils/ticket/autoClose.ts`
+  - New `Ticket` columns: `assignedTo`, `assignedAt`, `lastActivityAt`, `statusHistory`
+  - New `TicketConfig` columns: `enableWorkflow`, `workflowStatuses`, `autoCloseEnabled`, `autoCloseDays`, `autoCloseWarningHours`, `autoCloseStatus`
+- **Shared REST Client**: `src/utils/restClient.ts` — single Discord REST instance shared across index.ts and event handlers
 - **Multi-Channel Memory System**: Support up to 3 memory forum channels per guild
   - `/memory-setup add-channel` — Add an additional memory forum channel
   - `/memory-setup remove-channel` — Remove a memory channel
@@ -19,10 +64,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Ticket close/assign, application approve/deny/archive
   - Announcement send, memory create, rules setup, reaction role create/rebuild
   - Bearer token auth with timing-safe comparison
-- **Dashboard**:
+- **Dashboard (Beta)**:
   - Dashboard URL to the bot's profile description
   - `/dashboard` - Opens the Cogworks web dashboard with Discord OAuth authentication
-- **Dashboard Integration Endpoints**:
+  - Note: The web dashboard is in beta — the Cogworks Discord bot itself is stable
+- **Dashboard Integration Endpoints (Beta)**:
   - `GET /internal/guilds` — Live guild list from Discord.js gateway cache
   - `GET /internal/guilds/:guildId/members/:userId/permissions` — Permission verification
   - `GET /internal/guilds/:guildId/channels` — Guild channel list from cache
@@ -32,10 +78,112 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GET /internal/health` — Health status on internal API port
   - `POST /internal/guilds/:guildId/config/refresh` — Cache invalidation for baitChannel, reactionRole, rules
 - **Guild Lifecycle Webhooks**: Join/leave notifications to ninsys-api (fire-and-forget)
-- **Audit Logging**: `AuditLog` entity for dashboard-triggered actions with 90-day TTL cleanup
+- **Audit Logging**: `AuditLog` entity for dashboard-triggered actions (beta) with 90-day TTL cleanup
   - Included in `/data-export` for GDPR compliance
 - **Thread Locking**: Memory items lock thread on completion
 - **Useful Links**: Cogworks Home, Dashboard, and my dev Discord server links now in the README
+- **Bait Channel Smart Detection v2**: Comprehensive overhaul of the anti-bot detection system
+  - Profile and behavioral detection flags: default avatar, empty profile, suspicious username, no roles
+  - Content analysis: Discord invite detection, phishing URL detection, attachment-only messages
+  - Custom keyword management with configurable weights (up to 50 per server)
+  - Graduated escalation: score-based action selection (log/timeout/kick/ban) with configurable thresholds
+  - Timeout action support with configurable duration (1 minute to 28 days)
+  - DM notifications before actions with optional appeal information
+  - Join velocity detection: burst detection with configurable threshold and sliding window
+  - Multi-channel support: monitor up to 3 bait channels per server
+  - Test mode: full detection pipeline without real actions for safe threshold tuning
+  - Override tracking: mark false positives for detection accuracy feedback
+  - Weekly summary digest: automated analytics posted to a channel every Sunday at midnight UTC
+- **Memory Watchdog**: Heap and Map size monitoring with threshold-based alerting
+- **Bait Channel API Endpoints**: Internal API endpoints for dashboard integration
+  - `GET /internal/guilds/:guildId/bait-channel/keywords` — List keywords
+  - `POST /internal/guilds/:guildId/bait-channel/keywords/add` — Add keyword
+  - `POST /internal/guilds/:guildId/bait-channel/keywords/remove` — Remove keyword
+  - `POST /internal/guilds/:guildId/bait-channel/keywords/reset` — Reset to defaults
+  - `POST /internal/guilds/:guildId/bait-channel/override` — Override a detection
+  - `GET /internal/guilds/:guildId/bait-channel/stats` — Detection statistics
+  - `GET /internal/guilds/:guildId/bait-channel/join-events` — Join event history
+
+- **Starboard System**: "Democratic pins" — messages reaching a configurable reaction threshold are posted to a starboard channel
+  - `/starboard setup/config/toggle/ignore/unignore/stats/random`
+  - Configurable emoji, threshold (1-25), self-star prevention, bot/NSFW filtering
+  - Gold-gradient embeds with "Jump to Original" link button
+  - `StarboardConfig` and `StarboardEntry` entities with full GDPR support
+- **XP & Reputation System**: Message and voice-based leveling with role rewards
+  - `/rank [user]`, `/leaderboard [page]` — XP rank card and server leaderboard
+  - `/xp-setup enable/disable/config/role-reward/ignore-channel/multiplier`
+  - `/xp admin set/reset/reset-all` — manual XP management
+  - MEE6-compatible XP formula: `level = floor(0.1 * sqrt(xp))`
+  - Per-channel multipliers, ignored channels/roles, configurable cooldown
+  - Level-up announcements with customizable message template
+  - `XPConfig`, `XPUser`, `XPRoleReward` entities
+- **Bot Data Migration System**: Import XP/leveling data from other bots
+  - `/import mee6 xp [overwrite] [dry-run]` — MEE6 leaderboard import
+  - `/import csv <attachment>` — generic CSV import
+  - `/import status/history/cancel` — import management
+  - Rate limited (1 import/hour per guild), progress reporting, dry-run mode
+  - `ImportLog` entity for import history tracking
+- **Interactive Onboarding Flow**: Guided DM-based welcome for new members
+  - `/onboarding setup/config/step-add/step-remove/step-list/stats/preview/resend`
+  - Step types: message, role-select, channel-suggest, rules-accept, custom-question
+  - Completion role, 24h collector TTL, completion rate tracking
+  - `OnboardingConfig` and `OnboardingCompletion` entities
+- **Smart AutoMod Integration**: Command interface for Discord's native AutoMod API
+  - `/automod rule create/edit/delete/list`
+  - `/automod template apply` — anti-spam, anti-phishing, family-friendly, gaming presets
+  - `/automod backup export/restore` — JSON backup/restore of all rules
+  - `/automod keyword/regex/exempt add/remove` — rule management
+  - No database entities (rules stored on Discord's side)
+- **Ticket SLA Tracking**: Response time targets with breach alerts
+  - `/ticket-setup sla enable/disable/per-type/stats`
+  - Configurable target minutes per ticket type, breach channel alerts
+  - Hourly SLA check with automatic breach detection
+  - New `TicketConfig` columns: `slaEnabled`, `slaTargetMinutes`, `slaBreachChannelId`, `slaPerType`
+  - New `Ticket` columns: `firstResponseAt`, `slaBreached`, `slaBreachNotified`
+- **Application Workflow States**: Intermediate review states for applications
+  - `/application status/note/claim/info/check`
+  - Default statuses: Submitted, Under Review, Interview, Approved, Denied, On Hold
+  - Internal notes, status history, reviewer tracking
+  - New `ApplicationConfig` columns: `enableWorkflow`, `workflowStatuses`
+  - New `Application` columns: `reviewedBy`, `reviewedAt`, `internalNotes`, `statusHistory`
+- **Ticket Smart Routing**: Auto-assign tickets based on staff workload
+  - `/ticket-setup routing enable/disable/rule-add/rule-remove/strategy/stats`
+  - Strategies: least-load, round-robin, random
+  - Type-to-role mapping with max open ticket limits
+- **Scheduled Events Manager**: Full lifecycle management for Discord Scheduled Events
+  - `/event create/from-template/cancel/remind`
+  - `/event template create/edit/delete/list`
+  - `/event setup enable/disable/reminder-channel/summary-channel`
+  - Hourly reminder checks, recurring event support
+  - `EventConfig`, `EventTemplate`, `EventReminder` entities
+- **Server Analytics & Insights**: Built-in analytics with privacy-first aggregate data
+  - `/insights overview/growth/channels/hours`
+  - `/insights setup enable/disable/channel/frequency`
+  - Daily snapshots, weekly/monthly digest embeds, text sparklines
+  - `AnalyticsConfig` and `AnalyticsSnapshot` entities (90-day retention)
+- **Enhanced Status System**: Incident history and status subscriptions
+  - `/status history [days]`, `/status subscribe/unsubscribe`
+  - `/status monitor set <url>` — external monitoring integration
+  - Status banners during outages, `StatusIncident` entity
+- **Command-Based Audit Logging**: Unified activity feed from commands and dashboard
+  - State-changing commands now logged to `AuditLog` with `source: 'command'`
+  - Covers all setup, ticket, memory, role, announcement, baitchannel, reactionrole commands
+- **API Error Status Codes**: Proper HTTP status codes for internal API
+  - `ApiError` class with static factories: badRequest(400), notFound(404), conflict(409)
+  - All handlers now throw typed errors instead of returning `{ error: '...' }` with 200
+- **Permission System Consolidation**: Merged `permissions.ts` into `permissionValidator.ts`
+  - Single canonical module with `PermissionSets`, `createPrivateChannelPermissions`, and all validators
+
+### Improved
+- **Code Quality (Desloppify)**: Comprehensive AI debt cleanup and type safety improvements
+  - Removed section separator comments, trivial JSDoc, and restating comments across 30+ files
+  - Fixed nullable entity types (BaitActionType union, ExtendedClient assertion reduction)
+  - UTC timezone fix for timestamp handling
+  - Empty guildId guards added where missing
+  - Duplicate whitelist logic merged into single code path
+  - All remaining `logger()` calls migrated to `enhancedLogger` with proper categories
+  - Silent catch blocks documented with intent comments
+  - Shared REST client pattern eliminates duplicate Discord REST instances
 
 ### Fixed
 - **Memory Close/Complete**: Fixed "internal error" — reply now sent before thread archive
@@ -59,6 +207,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `fieldManager`, `tagSelection`, and new shared button entries to lang files
 - **Logger Migration**: All command and event handlers migrated from basic `logger()` to structured `enhancedLogger` with `LogCategory` tagging (11 files, ~40 calls)
 - **Deployment**: Migrated from PM2 to Docker containers
+- **Bait Channel Stats**: Enhanced with override rate, score distribution histogram, and top detection flags
+- **Bait Channel Log Embeds**: Consistent emoji scheme, new fields for DM status, escalation info, coordinated raid indicator, test mode annotation
+- **Health Endpoint**: Now includes memory stats (heap usage, tracked Map sizes)
+- **New Entities**: `BaitKeyword` (custom detection keywords), `JoinEvent` (join velocity tracking)
+- **`BaitChannelConfig` Columns**: Added `channelIds`, `testMode`, escalation fields, DM notification fields, join velocity fields, weekly summary fields
+- **`BaitChannelLog` Columns**: Added `overridden`, `overriddenBy`, `overriddenAt` for override tracking
+- **Database Migration**: `BaitChannelDetectionV2` consolidated migration for all bait channel v2 schema changes
+- **GDPR Compliance**: Custom keywords and join events included in data export and guild deletion
+- **CI/CD Pipeline**: GitHub Actions CI workflow (build, lint, test on PRs); deploy now requires passing CI
+- **Git Workflow**: Removed `dev` branch and `sync-dev.yml`, migrated to GitHub flow
+- **`DEV_GUILD_ID` Env Var**: Skips API webhooks and join velocity tracking for the dev server
+- **`MEMORY_ALERT_CHANNEL_ID` Env Var**: Private channel for memory/heap alerts (falls back to `STATUS_CHANNEL_ID`)
+- **Memory Watchdog Dev Mode**: Alerts suppressed when `RELEASE=dev`
+- **`.env.example`**: Reorganized into categorized sections
+- **Tests**: Removed `tests/` from `.gitignore` — tests now tracked in repo
 
 ### Removed
 - **`ServerConfig` Entity**: Unused entity removed (was never queried)

@@ -4,12 +4,12 @@ import {
   MessageFlags,
   StringSelectMenuBuilder,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { MemoryConfig } from '../../../typeorm/entities/memory';
 import { E, lang } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.memory;
-const memoryConfigRepo = AppDataSource.getRepository(MemoryConfig);
+const memoryConfigRepo = lazyRepo(MemoryConfig);
 
 export async function resolveMemoryConfig(
   interaction: ChatInputCommandInteraction,

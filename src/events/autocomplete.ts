@@ -1,12 +1,18 @@
 import type { AutocompleteInteraction, Client } from 'discord.js';
+import { templateAutocomplete } from '../commands/handlers/announcement/templates';
 import { applicationPositionAutocomplete } from '../commands/handlers/application/applicationPosition';
 import { handleKeywordAutocomplete } from '../commands/handlers/baitChannel/keywords';
 import { memoryAutocomplete } from '../commands/handlers/memory';
+import { memoryTagAutocomplete } from '../commands/handlers/memory/manageTags';
 import { reactionRoleMenuAutocomplete } from '../commands/handlers/reactionRole';
 import {
   ticketTypeAutocomplete,
   ticketTypeAutocompleteWithLegacy,
 } from '../commands/handlers/ticket/typeToggle';
+import {
+  removableStatusAutocomplete,
+  workflowStatusAutocomplete,
+} from '../commands/handlers/ticket/workflow';
 import { enhancedLogger, LogCategory } from '../utils';
 
 /**
@@ -14,7 +20,8 @@ import { enhancedLogger, LogCategory } from '../utils';
  */
 export const handleAutocomplete = async (_client: Client, interaction: AutocompleteInteraction) => {
   const commandName = interaction.commandName;
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
 
   try {
     // Route to appropriate autocomplete handler
@@ -40,6 +47,10 @@ export const handleAutocomplete = async (_client: Client, interaction: Autocompl
         } else if (subcommand === 'settings') {
           // Settings needs both legacy and custom types for ping-on-create
           await ticketTypeAutocompleteWithLegacy(interaction);
+        } else if (subcommand === 'status' || subcommand === 'autoclose-enable') {
+          await workflowStatusAutocomplete(interaction);
+        } else if (subcommand === 'workflow-remove-status') {
+          await removableStatusAutocomplete(interaction);
         }
         break;
       }
@@ -68,6 +79,13 @@ export const handleAutocomplete = async (_client: Client, interaction: Autocompl
         }
         break;
       }
+      case 'memory-setup': {
+        const subcommand = interaction.options.getSubcommand();
+        if (subcommand === 'tag-remove' || subcommand === 'tag-edit') {
+          await memoryTagAutocomplete(interaction);
+        }
+        break;
+      }
       case 'reactionrole': {
         await reactionRoleMenuAutocomplete(interaction);
         break;
@@ -77,6 +95,10 @@ export const handleAutocomplete = async (_client: Client, interaction: Autocompl
         if (subcommand === 'keywords') {
           await handleKeywordAutocomplete(interaction);
         }
+        break;
+      }
+      case 'announcement': {
+        await templateAutocomplete(interaction, choices => interaction.respond(choices));
         break;
       }
     }

@@ -1,39 +1,42 @@
 import fs from 'node:fs';
 import type { Client, ForumChannel, ForumThreadChannel, GuildTextBasedChannel } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { ArchivedTicket } from '../../../typeorm/entities/ticket/ArchivedTicket';
 import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
+import { lazyRepo } from '../../database/lazyRepo';
 import { fetchMessagesAndSaveToFile } from '../../fetchAllMessages';
 import { applyForumTags, ensureForumTag } from '../../forumTagManager';
+import { ApiError } from '../apiError';
 import { extractId, isValidSnowflake } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
-const ticketRepo = AppDataSource.getRepository(Ticket);
-const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
-const archivedTicketRepo = AppDataSource.getRepository(ArchivedTicket);
-const customTicketTypeRepo = AppDataSource.getRepository(CustomTicketType);
+const ticketRepo = lazyRepo(Ticket);
+const archivedTicketConfigRepo = lazyRepo(ArchivedTicketConfig);
+const archivedTicketRepo = lazyRepo(ArchivedTicket);
+const customTicketTypeRepo = lazyRepo(CustomTicketType);
 
 export function registerTicketHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // POST /internal/guilds/:guildId/tickets/:id/close
   routes.set('POST /tickets/:id/close', async (guildId, body, url) => {
     const ticketId = extractId(url, 'tickets');
     const ticket = await ticketRepo.findOneBy({ guildId, id: ticketId });
-    if (!ticket) return { error: 'Ticket not found' };
-    if (ticket.status === 'closed') return { error: 'Ticket already closed' };
+    if (!ticket) throw ApiError.notFound('Ticket not found');
+    if (ticket.status === 'closed') throw ApiError.conflict('Ticket already closed');
 
     const archivedConfig = await archivedTicketConfigRepo.findOneBy({
       guildId,
     });
-    if (!archivedConfig) return { error: 'Archive config not found' };
+    if (!archivedConfig) throw ApiError.notFound('Archive config not found');
 
     // Mark closed immediately
     await ticketRepo.update({ id: ticket.id, guildId }, { status: 'closed' });
 
     // Get channel and generate transcript
-    const channel = await client.channels.fetch(ticket.channelId).catch(() => null);
+    const channel = ticket.channelId
+      ? await client.channels.fetch(ticket.channelId).catch(() => null)
+      : null;
     if (!channel || !channel.isTextBased()) {
       return { success: true, ticketId: ticket.id, archived: false };
     }
@@ -116,7 +119,7 @@ export function registerTicketHandlers(client: Client, routes: Map<string, Route
             emailSubject: ticket.emailSubject,
           }),
         );
-      } else {
+      } else if (existingArchive.messageId) {
         const post = (await forumChannel.threads.fetch(
           existingArchive.messageId,
         )) as ForumThreadChannel;
@@ -149,17 +152,18 @@ export function registerTicketHandlers(client: Client, routes: Map<string, Route
   routes.set('POST /tickets/:id/assign', async (guildId, body, url) => {
     const ticketId = extractId(url, 'tickets');
     const userId = body.userId as string;
-    if (!userId) return { error: 'userId is required' };
-    if (!isValidSnowflake(userId)) return { error: 'Invalid userId format' };
+    if (!userId) throw ApiError.badRequest('userId is required');
+    if (!isValidSnowflake(userId)) throw ApiError.badRequest('Invalid userId format');
 
     const ticket = await ticketRepo.findOneBy({ guildId, id: ticketId });
-    if (!ticket) return { error: 'Ticket not found' };
+    if (!ticket) throw ApiError.notFound('Ticket not found');
 
     const guild = client.guilds.cache.get(guildId);
-    if (!guild) return { error: 'Guild not found' };
+    if (!guild) throw ApiError.notFound('Guild not found');
+    if (!ticket.channelId) throw ApiError.conflict('Ticket has no channel');
 
     const channel = await guild.channels.fetch(ticket.channelId).catch(() => null);
-    if (!channel) return { error: 'Ticket channel not found' };
+    if (!channel) throw ApiError.notFound('Ticket channel not found');
 
     // Add user to channel permissions
     if ('permissionOverwrites' in channel) {

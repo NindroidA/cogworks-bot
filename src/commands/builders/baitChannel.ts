@@ -202,6 +202,46 @@ export const baitChannelCommand = new SlashCommandBuilder()
   )
   .addSubcommand(subcommand =>
     subcommand
+      .setName('override')
+      .setDescription(tl.override.descrp)
+      .addUserOption(option =>
+        option.setName('user').setDescription(tl.override.user).setRequired(true),
+      ),
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('add-channel')
+      .setDescription(tl.addChannel.descrp)
+      .addChannelOption(option =>
+        option
+          .setName('channel')
+          .setDescription(tl.addChannel.channel)
+          .addChannelTypes(ChannelType.GuildText)
+          .setRequired(true),
+      ),
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('remove-channel')
+      .setDescription(tl.removeChannel.descrp)
+      .addChannelOption(option =>
+        option
+          .setName('channel')
+          .setDescription(tl.removeChannel.channel)
+          .addChannelTypes(ChannelType.GuildText)
+          .setRequired(true),
+      ),
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('test-mode')
+      .setDescription(tl.testMode.descrp)
+      .addBooleanOption(option =>
+        option.setName('enabled').setDescription(tl.testMode.enabled).setRequired(true),
+      ),
+  )
+  .addSubcommand(subcommand =>
+    subcommand
       .setName('keywords')
       .setDescription(tl.keywords.descrp)
       .addStringOption(option =>
@@ -225,5 +265,19 @@ export const baitChannelCommand = new SlashCommandBuilder()
       )
       .addIntegerOption(option =>
         option.setName('weight').setDescription(tl.keywords.weight).setMinValue(1).setMaxValue(10),
+      ),
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('summary')
+      .setDescription(tl.summary.descrp)
+      .addBooleanOption(option =>
+        option.setName('enabled').setDescription(tl.summary.enabled).setRequired(true),
+      )
+      .addChannelOption(option =>
+        option
+          .setName('channel')
+          .setDescription(tl.summary.channel)
+          .addChannelTypes(ChannelType.GuildText),
       ),
   );

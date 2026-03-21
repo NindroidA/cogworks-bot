@@ -5,6 +5,12 @@
  * Used to prevent Discord markdown injection and validate Discord IDs.
  */
 
+// Pre-compiled regex patterns for performance
+const ZERO_WIDTH_CHARS_RE =
+  /[\u200B\u200C\u200D\u200E\u200F\u2060\u2061\u2062\u2063\u2064\uFEFF\u00AD\u034F\u061C\u180E\u2028\u2029\u202A-\u202F\u2066-\u2069]/g;
+const MENTION_EVERYONE_RE = /@(everyone)/gi;
+const MENTION_HERE_RE = /@(here)/gi;
+
 /**
  * Escapes Discord markdown special characters.
  * Use when user input is placed within a markdown context
@@ -111,4 +117,91 @@ export function truncateWithNotice(text: string, maxLength: number): string {
   const suffix = '\n\n... (content truncated)';
   if (maxLength <= suffix.length) return text.slice(0, maxLength);
   return `${text.slice(0, maxLength - suffix.length)}${suffix}`;
+}
+
+/**
+ * Removes zero-width and invisible Unicode characters from a string.
+ * These can be used to bypass keyword detection or confuse display.
+ */
+export function stripZeroWidthChars(input: string): string {
+  return input.replace(ZERO_WIDTH_CHARS_RE, '');
+}
+
+/**
+ * Escapes `@everyone` and `@here` mentions in user content to prevent mass pings.
+ * Inserts a zero-width space after `@` to break the mention.
+ * Does NOT escape user/role mentions (`<@123>`, `<@&123>`) — those are controlled by `allowedMentions`.
+ */
+export function sanitizeMentions(input: string): string {
+  return input.replace(MENTION_EVERYONE_RE, '@\u200B$1').replace(MENTION_HERE_RE, '@\u200B$1');
+}
+
+/**
+ * Validates that a text input meets length requirements.
+ * Returns a structured result with field name in error messages.
+ */
+export function validateTextLength(
+  input: string,
+  maxLength: number,
+  fieldName: string,
+): { valid: boolean; error?: string } {
+  if (!input || input.trim().length === 0) {
+    return { valid: false, error: `${fieldName} cannot be empty.` };
+  }
+  if (input.length > maxLength) {
+    return {
+      valid: false,
+      error: `${fieldName} exceeds the maximum length of ${maxLength} characters (currently ${input.length}).`,
+    };
+  }
+  return { valid: true };
+}
+
+/**
+ * Options for the `sanitizeUserInput` convenience pipeline.
+ */
+export interface SanitizeOptions {
+  /** Escape Discord markdown characters. Default: false */
+  escapeMarkdown?: boolean;
+  /** Truncate to this length (with notice). Default: undefined (no truncation) */
+  maxLength?: number;
+  /** Strip @everyone and @here mentions. Default: true */
+  stripMentions?: boolean;
+  /** Remove zero-width/invisible characters. Default: true */
+  stripZeroWidth?: boolean;
+}
+
+/**
+ * Convenience pipeline that applies standard sanitization to user input:
+ * 1. trim()
+ * 2. stripZeroWidthChars() (unless disabled)
+ * 3. sanitizeMentions() (unless disabled)
+ * 4. escapeDiscordMarkdown() (if enabled)
+ * 5. truncateWithNotice() (if maxLength provided)
+ */
+export function sanitizeUserInput(
+  input: string | null | undefined,
+  options?: SanitizeOptions,
+): string {
+  if (input == null) return '';
+
+  let result = input.trim();
+
+  if (options?.stripZeroWidth !== false) {
+    result = stripZeroWidthChars(result);
+  }
+
+  if (options?.stripMentions !== false) {
+    result = sanitizeMentions(result);
+  }
+
+  if (options?.escapeMarkdown) {
+    result = escapeDiscordMarkdown(result);
+  }
+
+  if (options?.maxLength != null) {
+    result = truncateWithNotice(result, options.maxLength);
+  }
+
+  return result;
 }

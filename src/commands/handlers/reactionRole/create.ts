@@ -4,7 +4,6 @@ import {
   MessageFlags,
   type TextChannel,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import {
   buildMenuEmbed,
@@ -13,13 +12,16 @@ import {
   LANGF,
   LogCategory,
   lang,
+  MAX,
   RateLimits,
   rateLimiter,
   requireAdmin,
+  sanitizeUserInput,
 } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.reactionRole;
-const menuRepo = AppDataSource.getRepository(ReactionRoleMenu);
+const menuRepo = lazyRepo(ReactionRoleMenu);
 
 export async function reactionRoleCreateHandler(
   interaction: ChatInputCommandInteraction<CacheType>,
@@ -33,7 +35,8 @@ export async function reactionRoleCreateHandler(
     return;
   }
 
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
 
   // Rate limit (5 per hour per guild)
   const rateLimitKey = createRateLimitKey.guild(guildId, 'reactionrole-create');
@@ -48,7 +51,7 @@ export async function reactionRoleCreateHandler(
 
   // Check max menus per guild (25)
   const menuCount = await menuRepo.count({ where: { guildId } });
-  if (menuCount >= 25) {
+  if (menuCount >= MAX.REACTION_ROLE_MENUS) {
     await interaction.reply({
       content: tl.create.maxMenus,
       flags: [MessageFlags.Ephemeral],
@@ -57,8 +60,8 @@ export async function reactionRoleCreateHandler(
   }
 
   const channel = interaction.options.getChannel('channel', true) as TextChannel;
-  const name = interaction.options.getString('name', true);
-  const description = interaction.options.getString('description') || null;
+  const name = sanitizeUserInput(interaction.options.getString('name', true));
+  const description = sanitizeUserInput(interaction.options.getString('description')) || null;
   const mode = (interaction.options.getString('mode') || 'normal') as 'normal' | 'unique' | 'lock';
 
   try {

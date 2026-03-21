@@ -1,5 +1,4 @@
 import type { ForumChannel, GuildForumTag } from 'discord.js';
-import { logger } from './logger';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
 
 /**
@@ -32,10 +31,6 @@ export async function ensureForumTag(
 
     // Discord API limit: 20 tags per forum channel
     if (forumChannel.availableTags.length >= 20) {
-      logger(
-        `Warning: Forum ${forumChannel.name} has reached tag limit (20). Cannot create new tags.`,
-        'WARN',
-      );
       enhancedLogger.warn(
         `Forum channel has reached maximum tag limit (20), cannot create tag for ${displayName}`,
         LogCategory.SYSTEM,

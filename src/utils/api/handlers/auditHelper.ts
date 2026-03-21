@@ -1,14 +1,17 @@
-import { AppDataSource } from '../../../typeorm';
 import { AuditLog } from '../../../typeorm/entities/AuditLog';
+import { lazyRepo } from '../../database/lazyRepo';
 import { enhancedLogger, LogCategory } from '../../monitoring/enhancedLogger';
 
-const auditLogRepo = AppDataSource.getRepository(AuditLog);
+const auditLogRepo = lazyRepo(AuditLog);
+
+export type AuditSource = 'dashboard' | 'command' | 'system';
 
 export async function writeAuditLog(
   guildId: string,
   action: string,
   triggeredBy: string | undefined,
   details?: Record<string, unknown>,
+  source: AuditSource = 'dashboard',
 ): Promise<void> {
   if (!triggeredBy) return;
 
@@ -18,11 +21,11 @@ export async function writeAuditLog(
         guildId,
         action,
         triggeredBy,
-        source: 'dashboard',
+        source,
         details: details || null,
       }),
     );
-    enhancedLogger.info(`${action} by <@${triggeredBy}> via dashboard`, LogCategory.API, {
+    enhancedLogger.info(`${action} by <@${triggeredBy}> via ${source}`, LogCategory.API, {
       guildId,
       triggeredBy,
     });

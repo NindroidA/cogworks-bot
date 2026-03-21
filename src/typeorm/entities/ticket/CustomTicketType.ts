@@ -4,7 +4,6 @@ import type { CustomInputField } from '../shared/CustomInputField';
 export type { CustomInputField };
 
 @Entity({ name: 'custom_ticket_types' })
-@Index(['guildId'])
 @Index(['guildId', 'typeId'], { unique: true })
 @Index(['guildId', 'isActive'])
 export class CustomTicketType {

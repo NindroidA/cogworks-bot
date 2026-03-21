@@ -1,3 +1,4 @@
+import { lazyRepo } from '../../utils/database/lazyRepo';
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -14,7 +15,6 @@ import {
   MessageFlags,
   StringSelectMenuBuilder,
 } from 'discord.js';
-import { AppDataSource } from '../../typeorm';
 import {
   MemoryConfig,
   MemoryItem,
@@ -35,11 +35,12 @@ import {
 } from '../../utils';
 
 const tl = lang.memory;
-const memoryConfigRepo = AppDataSource.getRepository(MemoryConfig);
-const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
-const memoryItemRepo = AppDataSource.getRepository(MemoryItem);
+const memoryConfigRepo = lazyRepo(MemoryConfig);
+const memoryTagRepo = lazyRepo(MemoryTag);
+const memoryItemRepo = lazyRepo(MemoryItem);
 
-const MAX_CHANNELS_PER_GUILD = 3;
+import { MAX } from '../../utils/constants';
+import { manageTagsHandler } from './memory/manageTags';
 
 const DEFAULT_CATEGORY_TAGS = [
   { name: 'Bug', emoji: '\u{1F41B}' },
@@ -97,6 +98,13 @@ export const memorySetupHandler = async (
       break;
     case 'view':
       await handleView(interaction, guildId);
+      break;
+    case 'tag-add':
+    case 'tag-remove':
+    case 'tag-edit':
+    case 'tag-list':
+    case 'tag-reset':
+      await manageTagsHandler(interaction, subcommand);
       break;
   }
 };
@@ -243,7 +251,7 @@ async function handleAddChannel(
 ) {
   const existingConfigs = await memoryConfigRepo.find({ where: { guildId } });
 
-  if (existingConfigs.length >= MAX_CHANNELS_PER_GUILD) {
+  if (existingConfigs.length >= MAX.MEMORY_CHANNELS_PER_GUILD) {
     await interaction.reply({
       content: `${E.error} ${tl.setup.maxChannelsReached}`,
       flags: [MessageFlags.Ephemeral],

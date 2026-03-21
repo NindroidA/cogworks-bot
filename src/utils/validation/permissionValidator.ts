@@ -7,25 +7,18 @@
 import {
   type ChatInputCommandInteraction,
   type GuildMember,
+  PermissionFlagsBits,
+  type PermissionResolvable,
   PermissionsBitField,
 } from 'discord.js';
 import { lang } from '../../lang';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
-/**
- * Permission check result
- */
 export interface PermissionCheckResult {
   allowed: boolean;
   message?: string;
 }
 
-/**
- * Check if user has administrator permission
- *
- * @param member - Guild member to check
- * @returns Permission check result
- */
 export function hasAdminPermission(member: GuildMember | null): PermissionCheckResult {
   if (!member) {
     return {
@@ -44,14 +37,6 @@ export function hasAdminPermission(member: GuildMember | null): PermissionCheckR
   };
 }
 
-/**
- * Check if user has specific permission
- *
- * @param member - Guild member to check
- * @param permission - Permission to check for
- * @param permissionName - Human-readable permission name for error message
- * @returns Permission check result
- */
 export function hasPermission(
   member: GuildMember | null,
   permission: bigint,
@@ -74,14 +59,6 @@ export function hasPermission(
   };
 }
 
-/**
- * Check if user has any of the specified permissions
- *
- * @param member - Guild member to check
- * @param permissions - Array of permissions to check for
- * @param permissionNames - Human-readable permission names for error message
- * @returns Permission check result
- */
 export function hasAnyPermission(
   member: GuildMember | null,
   permissions: bigint[],
@@ -107,14 +84,6 @@ export function hasAnyPermission(
   };
 }
 
-/**
- * Check if user has all of the specified permissions
- *
- * @param member - Guild member to check
- * @param permissions - Array of permissions to check for
- * @param permissionNames - Human-readable permission names for error message
- * @returns Permission check result
- */
 export function hasAllPermissions(
   member: GuildMember | null,
   permissions: bigint[],
@@ -139,12 +108,6 @@ export function hasAllPermissions(
   return { allowed: true };
 }
 
-/**
- * Check if user is guild owner
- *
- * @param member - Guild member to check
- * @returns Permission check result
- */
 export function isGuildOwner(member: GuildMember | null): PermissionCheckResult {
   if (!member) {
     return {
@@ -163,14 +126,6 @@ export function isGuildOwner(member: GuildMember | null): PermissionCheckResult 
   };
 }
 
-/**
- * Check if user has a specific role
- *
- * @param member - Guild member to check
- * @param roleId - Role ID to check for
- * @param roleName - Human-readable role name for error message
- * @returns Permission check result
- */
 export function hasRole(
   member: GuildMember | null,
   roleId: string,
@@ -194,14 +149,6 @@ export function hasRole(
   };
 }
 
-/**
- * Check if user has any of the specified roles
- *
- * @param member - Guild member to check
- * @param roleIds - Array of role IDs to check for
- * @param roleNames - Human-readable role names for error message
- * @returns Permission check result
- */
 export function hasAnyRole(
   member: GuildMember | null,
   roleIds: string[],
@@ -233,13 +180,6 @@ export function hasAnyRole(
   };
 }
 
-/**
- * Check role hierarchy (is member's highest role above target role?)
- *
- * @param member - Guild member to check
- * @param targetRoleId - Role ID to compare against
- * @returns Permission check result
- */
 export function isRoleAbove(
   member: GuildMember | null,
   targetRoleId: string,
@@ -270,12 +210,6 @@ export function isRoleAbove(
   };
 }
 
-/**
- * Validate interaction is in a guild
- *
- * @param interaction - Command interaction
- * @returns Permission check result
- */
 export function requireGuild(interaction: ChatInputCommandInteraction): PermissionCheckResult {
   if (!interaction.guild || !interaction.guildId) {
     return {
@@ -384,3 +318,71 @@ export const PermissionNames = {
   BAN_MEMBERS: 'Ban Members',
   MENTION_EVERYONE: 'Mention Everyone',
 } as const;
+
+/**
+ * Predefined permission sets for channel permission overwrites
+ */
+export const PermissionSets = {
+  TICKET_CREATOR: [
+    PermissionFlagsBits.ViewChannel,
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.AttachFiles,
+    PermissionFlagsBits.AddReactions,
+    PermissionFlagsBits.UseExternalEmojis,
+  ] as PermissionResolvable[],
+
+  STAFF_MEMBER: [
+    PermissionFlagsBits.ViewChannel,
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.ReadMessageHistory,
+    PermissionFlagsBits.AttachFiles,
+    PermissionFlagsBits.AddReactions,
+    PermissionFlagsBits.UseExternalEmojis,
+  ] as PermissionResolvable[],
+
+  APPLICATION_CREATOR: [
+    PermissionFlagsBits.ViewChannel,
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.AttachFiles,
+    PermissionFlagsBits.AddReactions,
+    PermissionFlagsBits.UseExternalEmojis,
+    PermissionFlagsBits.EmbedLinks,
+  ] as PermissionResolvable[],
+
+  DENY_ALL: [PermissionFlagsBits.ViewChannel] as PermissionResolvable[],
+} as const;
+
+/**
+ * Creates permission overwrites for a private channel
+ */
+export function createPrivateChannelPermissions(
+  guildId: string,
+  allowedUserIds: string[],
+  allowedRoleIds: string[],
+  permissions: PermissionResolvable[] = PermissionSets.STAFF_MEMBER,
+): Array<{
+  id: string;
+  deny?: PermissionResolvable[];
+  allow?: PermissionResolvable[];
+}> {
+  const overwrites: Array<{
+    id: string;
+    deny?: PermissionResolvable[];
+    allow?: PermissionResolvable[];
+  }> = [
+    {
+      id: guildId,
+      deny: PermissionSets.DENY_ALL,
+    },
+  ];
+
+  for (const userId of allowedUserIds) {
+    overwrites.push({ id: userId, allow: permissions });
+  }
+
+  for (const roleId of allowedRoleIds) {
+    overwrites.push({ id: roleId, allow: permissions });
+  }
+
+  return overwrites;
+}

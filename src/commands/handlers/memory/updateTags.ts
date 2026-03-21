@@ -5,7 +5,6 @@ import type {
   ThreadChannel,
 } from 'discord.js';
 import { MessageFlags } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { MemoryConfig, MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
   createRateLimitKey,
@@ -18,6 +17,7 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 import {
   createDefaultSelectionState,
   runTagSelectionCollector,
@@ -25,9 +25,9 @@ import {
 } from './tagSelection';
 
 const tl = lang.memory;
-const memoryConfigRepo = AppDataSource.getRepository(MemoryConfig);
-const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
-const memoryItemRepo = AppDataSource.getRepository(MemoryItem);
+const memoryConfigRepo = lazyRepo(MemoryConfig);
+const memoryTagRepo = lazyRepo(MemoryTag);
+const memoryItemRepo = lazyRepo(MemoryItem);
 
 export const memoryUpdateTagsHandler = async (interaction: ChatInputCommandInteraction) => {
   const startTime = Date.now();

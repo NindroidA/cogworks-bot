@@ -1,3 +1,4 @@
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 import {
   ActionRowBuilder,
   type AutocompleteInteraction,
@@ -9,12 +10,11 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { BaitKeyword } from '../../../typeorm/entities/bait/BaitKeyword';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { handleInteractionError, lang } from '../../../utils';
+import { handleInteractionError, lang, stripZeroWidthChars } from '../../../utils';
 
-const keywordRepo = AppDataSource.getRepository(BaitKeyword);
+const keywordRepo = lazyRepo(BaitKeyword);
 const tl = lang.baitChannel;
 
 /** Default keywords seeded on first bait channel setup or keyword reset */
@@ -37,7 +37,7 @@ export const DEFAULT_KEYWORDS: { keyword: string; weight: number }[] = [
   { keyword: 'tf2', weight: 5 },
 ];
 
-const MAX_KEYWORDS = 50;
+import { MAX } from '../../../utils/constants';
 
 /**
  * Seed default keywords for a guild if none exist.
@@ -114,7 +114,7 @@ async function handleAdd(
     return;
   }
 
-  const keyword = rawKeyword.toLowerCase().trim();
+  const keyword = stripZeroWidthChars(rawKeyword.toLowerCase().trim());
   if (keyword.length < 1 || keyword.length > 100) {
     await interaction.reply({
       content: tl.keywords.add.invalidLength,
@@ -127,7 +127,7 @@ async function handleAdd(
 
   // Check guild keyword limit
   const count = await keywordRepo.count({ where: { guildId } });
-  if (count >= MAX_KEYWORDS) {
+  if (count >= MAX.BAIT_KEYWORDS_PER_GUILD) {
     await interaction.reply({
       content: tl.keywords.add.limitReached,
       flags: [MessageFlags.Ephemeral],
@@ -326,7 +326,8 @@ async function handleReset(
 export async function handleKeywordAutocomplete(
   interaction: AutocompleteInteraction,
 ): Promise<void> {
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
   const focusedValue = interaction.options.getFocused().toLowerCase();
 
   try {

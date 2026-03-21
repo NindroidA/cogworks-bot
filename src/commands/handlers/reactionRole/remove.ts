@@ -1,5 +1,4 @@
 import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { ReactionRoleMenu, ReactionRoleOption } from '../../../typeorm/entities/reactionRole';
 import {
   createRateLimitKey,
@@ -13,10 +12,11 @@ import {
   requireAdmin,
   updateMenuMessage,
 } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.reactionRole;
-const menuRepo = AppDataSource.getRepository(ReactionRoleMenu);
-const optionRepo = AppDataSource.getRepository(ReactionRoleOption);
+const menuRepo = lazyRepo(ReactionRoleMenu);
+const optionRepo = lazyRepo(ReactionRoleOption);
 
 export async function reactionRoleRemoveHandler(
   interaction: ChatInputCommandInteraction<CacheType>,
@@ -30,7 +30,8 @@ export async function reactionRoleRemoveHandler(
     return;
   }
 
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
   const guild = interaction.guild;
   if (!guild) return;
 

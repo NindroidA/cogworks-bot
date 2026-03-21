@@ -10,8 +10,8 @@ export class ArchivedApplication {
   @Column()
   guildId: string;
 
-  @Column({ nullable: true })
-  messageId: string;
+  @Column({ type: 'varchar', nullable: true })
+  messageId: string | null;
 
   @Column()
   createdBy: string;

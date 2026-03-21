@@ -7,7 +7,6 @@ import {
   type TextChannel,
 } from 'discord.js';
 import { invalidateRulesCache } from '../../events/rulesReaction';
-import { AppDataSource } from '../../typeorm';
 import { RulesConfig } from '../../typeorm/entities/rules';
 import {
   Colors,
@@ -23,9 +22,10 @@ import {
   truncateWithNotice,
   validateEmoji,
 } from '../../utils';
+import { lazyRepo } from '../../utils/database/lazyRepo';
 
 const tl = lang.rules;
-const rulesConfigRepo = AppDataSource.getRepository(RulesConfig);
+const rulesConfigRepo = lazyRepo(RulesConfig);
 
 export const rulesSetupHandler = async (
   client: Client,
@@ -57,7 +57,8 @@ async function handleSetup(_client: Client, interaction: ChatInputCommandInterac
     return;
   }
 
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
 
   // Rate limit check (5 setup operations per hour per guild)
   const rateLimitKey = createRateLimitKey.guild(guildId, 'rules-setup');
@@ -198,7 +199,8 @@ async function handleView(interaction: ChatInputCommandInteraction<CacheType>) {
     return;
   }
 
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
 
   const config = await rulesConfigRepo.findOneBy({ guildId });
   if (!config) {
@@ -240,7 +242,8 @@ async function handleRemove(_client: Client, interaction: ChatInputCommandIntera
     return;
   }
 
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
   const guild = interaction.guild;
   if (!guild) return;
 

@@ -1,11 +1,4 @@
-/** Maximum sliding window: 10 minutes (longest configurable window). */
-const MAX_WINDOW_MS = 10 * 60 * 1000;
-
-/** Lazy-prune threshold per guild to prevent unbounded growth. */
-const LAZY_PRUNE_THRESHOLD = 1000;
-
-/** Cleanup interval: sweep stale data every 60 seconds. */
-const CLEANUP_INTERVAL_MS = 60_000;
+import { INTERVALS, JOIN_VELOCITY, MAX } from '../constants';
 
 export class JoinVelocityTracker {
   private joinTimestamps: Map<string, number[]> = new Map();
@@ -23,9 +16,9 @@ export class JoinVelocityTracker {
       this.joinTimestamps.set(guildId, timestamps);
     }
 
-    // Lazy-prune: if array is too large, remove entries older than MAX_WINDOW_MS
-    if (timestamps.length >= LAZY_PRUNE_THRESHOLD) {
-      const cutoff = now - MAX_WINDOW_MS;
+    // Lazy-prune: if array is too large, remove entries older than JOIN_VELOCITY.MAX_WINDOW_MS
+    if (timestamps.length >= MAX.JOIN_VELOCITY_ENTRIES) {
+      const cutoff = now - JOIN_VELOCITY.MAX_WINDOW_MS;
       const pruned = timestamps.filter(ts => ts >= cutoff);
       this.joinTimestamps.set(guildId, pruned);
       timestamps = pruned;
@@ -64,7 +57,7 @@ export class JoinVelocityTracker {
    * Remove stale timestamps from all guilds.
    */
   cleanup(): void {
-    const cutoff = Date.now() - MAX_WINDOW_MS;
+    const cutoff = Date.now() - JOIN_VELOCITY.MAX_WINDOW_MS;
     for (const [guildId, timestamps] of this.joinTimestamps) {
       const filtered = timestamps.filter(ts => ts >= cutoff);
       if (filtered.length === 0) {
@@ -80,7 +73,7 @@ export class JoinVelocityTracker {
    */
   startCleanupInterval(): void {
     if (this.cleanupInterval) return;
-    this.cleanupInterval = setInterval(() => this.cleanup(), CLEANUP_INTERVAL_MS);
+    this.cleanupInterval = setInterval(() => this.cleanup(), INTERVALS.JOIN_VELOCITY_CLEANUP);
   }
 
   /** Number of guilds currently being tracked. */

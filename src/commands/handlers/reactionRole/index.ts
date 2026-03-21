@@ -4,9 +4,9 @@ import type {
   ChatInputCommandInteraction,
   Client,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import { lang } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { reactionRoleAddHandler } from './add';
 import { reactionRoleCreateHandler } from './create';
 import { reactionRoleDeleteHandler } from './delete';
@@ -15,7 +15,7 @@ import { reactionRoleListHandler } from './list';
 import { reactionRoleRemoveHandler } from './remove';
 import { reactionRoleValidateHandler } from './validate';
 
-const menuRepo = AppDataSource.getRepository(ReactionRoleMenu);
+const menuRepo = lazyRepo(ReactionRoleMenu);
 
 export const reactionRoleHandler = async (
   _client: Client,
@@ -52,7 +52,8 @@ export const reactionRoleHandler = async (
  * Autocomplete for the menu option — returns menus from this guild
  */
 export async function reactionRoleMenuAutocomplete(interaction: AutocompleteInteraction) {
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
   const focused = interaction.options.getFocused().toLowerCase();
 
   const menus = await menuRepo.find({ where: { guildId } });

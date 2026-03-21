@@ -1,14 +1,6 @@
-// ============================================================================
-// Language Module Exports
-// ============================================================================
-
 export type { Language } from '../lang';
 /** Re-export lang module with type safety */
 export { lang } from '../lang';
-
-// ============================================================================
-// Utility Module Exports
-// ============================================================================
 
 // Internal API
 export * from './api/internalApiServer';
@@ -17,9 +9,12 @@ export * from './apiConnector';
 export * from './baitChannelManager';
 export * from './collectors';
 export * from './colors';
+// Constants
+export * from './constants';
 // Database utilities
 export * from './database/ensureDefaultTicketTypes';
 export * from './database/guildQueries';
+export * from './database/legacyMigration';
 export * from './embedBuilders';
 export * from './emojis';
 export * from './errorHandler';
@@ -31,6 +26,7 @@ export * from './logger';
 export * from './monitoring/enhancedLogger';
 export * from './monitoring/healthMonitor';
 export * from './monitoring/healthServer';
+export * from './monitoring/memoryWatchdog';
 // Reaction role utilities
 export * from './reactionRole';
 // Security utilities
@@ -42,13 +38,8 @@ export * from './status';
 export * from './types';
 // Validation utilities
 export * from './validation/inputSanitizer';
-export * from './validation/permissions';
 export * from './validation/permissionValidator';
 export * from './validation/validators';
-
-// ============================================================================
-// String Utilities
-// ============================================================================
 
 /**
  * Formats a language template string with arguments
@@ -79,17 +70,18 @@ export function extractIdFromMention(mention: string): string | null {
   return matches ? matches[1] : null;
 }
 
-// ============================================================================
-// Date & Time Utilities
-// ============================================================================
-
 /**
- * Parses time input string into Date object
+ * Parses time input string into Date object (UTC)
+ *
+ * The parsed Date is treated as UTC. Callers should convert the resulting
+ * Unix timestamp to a Discord timestamp (`<t:UNIX:F>`) so each user sees
+ * the time in their own local timezone.
+ *
  * @param timeInput - Time string in format "YYYY-MM-DD HH:MM AM/PM"
- * @returns Parsed Date object or null if invalid
+ * @returns Parsed Date object (UTC) or null if invalid
  * @example
  * parseTimeInput("2025-10-27 3:45 PM")
- * // Returns: Date object for October 27, 2025 at 3:45 PM CST
+ * // Returns: Date object for October 27, 2025 at 3:45 PM UTC
  */
 export function parseTimeInput(timeInput: string): Date | null {
   try {
@@ -110,10 +102,10 @@ export function parseTimeInput(timeInput: string): Date | null {
     // Format hour with leading zero if needed
     const hourFormatted = hour.toString().padStart(2, '0');
 
-    // Assuming timezone CST (UTC-6)
-    const centralTime = new Date(`${year}-${month}-${day}T${hourFormatted}:${minute}:00-05:00`);
+    // Parse as UTC — Discord timestamps (<t:UNIX:F>) handle local timezone display
+    const utcTime = new Date(`${year}-${month}-${day}T${hourFormatted}:${minute}:00Z`);
 
-    return centralTime;
+    return utcTime;
   } catch {
     return null;
   }

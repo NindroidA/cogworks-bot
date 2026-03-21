@@ -18,10 +18,6 @@ import { BotConfig } from '../../typeorm/entities/BotConfig';
 import type { StatusManager } from '../status/StatusManager';
 import { enhancedLogger, LogCategory } from './enhancedLogger';
 
-// ============================================================================
-// Types & Interfaces
-// ============================================================================
-
 /**
  * Command execution statistics
  */
@@ -85,10 +81,6 @@ export interface HealthStatus {
   errors: ErrorStats;
   timestamp: Date;
 }
-
-// ============================================================================
-// Health Monitor Class
-// ============================================================================
 
 class HealthMonitor {
   private client?: Client;
@@ -487,10 +479,6 @@ class HealthMonitor {
     this.previousStatus = status.status;
   }
 }
-
-// ============================================================================
-// Singleton Instance
-// ============================================================================
 
 /**
  * Global health monitor instance

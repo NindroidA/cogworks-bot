@@ -7,22 +7,23 @@ import {
   type GuildTextBasedChannel,
   MessageFlags,
 } from 'discord.js';
-import { AppDataSource } from '../../typeorm';
 import { ArchivedTicket } from '../../typeorm/entities/ticket/ArchivedTicket';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { CustomTicketType } from '../../typeorm/entities/ticket/CustomTicketType';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { applyForumTags, enhancedLogger, ensureForumTag, LogCategory, lang } from '../../utils';
+import { lazyRepo } from '../../utils/database/lazyRepo';
 import { fetchMessagesAndSaveToFile } from '../../utils/fetchAllMessages';
 
 const tl = lang.ticket.close;
-const ticketRepo = AppDataSource.getRepository(Ticket);
-const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
-const archivedTicketRepo = AppDataSource.getRepository(ArchivedTicket);
-const customTicketTypeRepo = AppDataSource.getRepository(CustomTicketType);
+const ticketRepo = lazyRepo(Ticket);
+const archivedTicketConfigRepo = lazyRepo(ArchivedTicketConfig);
+const archivedTicketRepo = lazyRepo(ArchivedTicket);
+const customTicketTypeRepo = lazyRepo(CustomTicketType);
 
 export const ticketCloseEvent = async (client: Client, interaction: ButtonInteraction) => {
-  const guildId = interaction.guildId || ''; // guild where the event was initiated
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
   const channel = interaction.channel as GuildTextBasedChannel; // text channel the event was initiated
   const channelId = interaction.channelId || '';
   const transcriptPath = process.env.TEMP_STORAGE_PATH || 'temp/'; // path to temporarily save transcripts
@@ -254,7 +255,7 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
       //save to database
       await archivedTicketRepo.save(newArchivedTicket);
       // if transcript channel DOES exist, just add the transcript to the channel
-    } else {
+    } else if (transcriptChannel.messageId) {
       enhancedLogger.debug(
         'Forum tag: adding transcript to existing thread',
         LogCategory.COMMAND_EXECUTION,
@@ -335,5 +336,5 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
   });
 
   // delete the channel
-  await channel.delete(ticket.channelId);
+  await channel.delete(ticket.channelId ?? undefined);
 };

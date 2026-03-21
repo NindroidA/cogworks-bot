@@ -2,6 +2,7 @@ import type { Client } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { AuditLog } from '../../../typeorm/entities/AuditLog';
 import { healthMonitor } from '../../monitoring/healthMonitor';
+import { ApiError } from '../apiError';
 import type { RouteHandler } from '../router';
 
 export function registerGuildHandlers(client: Client, routes: Map<string, RouteHandler>): void {
@@ -25,14 +26,14 @@ export function registerGuildHandlers(client: Client, routes: Map<string, RouteH
   // GET /internal/guilds/:guildId/members/:userId/permissions
   routes.set('GET /members/:userId/permissions', async (guildId, _body, url) => {
     const userIdMatch = url.match(/members\/(\d+)\/permissions/);
-    if (!userIdMatch) return { error: 'Invalid URL' };
+    if (!userIdMatch) throw ApiError.badRequest('Invalid URL');
     const userId = userIdMatch[1];
 
     const guild = client.guilds.cache.get(guildId);
-    if (!guild) return { error: 'Guild not found' };
+    if (!guild) throw ApiError.notFound('Guild not found');
 
     const member = await guild.members.fetch(userId).catch(() => null);
-    if (!member) return { error: 'Member not found' };
+    if (!member) throw ApiError.notFound('Member not found');
 
     return {
       userId,
@@ -72,7 +73,7 @@ export function registerGuildHandlers(client: Client, routes: Map<string, RouteH
   // GET /internal/guilds/:guildId/channels
   routes.set('GET /channels', async guildId => {
     const guild = client.guilds.cache.get(guildId);
-    if (!guild) return { error: 'Guild not found' };
+    if (!guild) throw ApiError.notFound('Guild not found');
 
     const channels = guild.channels.cache
       .filter(c => !c.isThread())
@@ -90,7 +91,7 @@ export function registerGuildHandlers(client: Client, routes: Map<string, RouteH
   // GET /internal/guilds/:guildId/roles
   routes.set('GET /roles', async guildId => {
     const guild = client.guilds.cache.get(guildId);
-    if (!guild) return { error: 'Guild not found' };
+    if (!guild) throw ApiError.notFound('Guild not found');
 
     const roles = guild.roles.cache
       .filter(r => r.id !== guildId) // exclude @everyone
@@ -110,7 +111,7 @@ export function registerGuildHandlers(client: Client, routes: Map<string, RouteH
   // GET /internal/guilds/:guildId/members/search?query=&limit=
   routes.set('GET /members/search', async (guildId, _body, url) => {
     const guild = client.guilds.cache.get(guildId);
-    if (!guild) return { error: 'Guild not found' };
+    if (!guild) throw ApiError.notFound('Guild not found');
 
     const urlObj = new URL(url, 'http://localhost');
     const query = urlObj.searchParams.get('query') || '';

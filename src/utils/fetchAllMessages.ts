@@ -12,10 +12,6 @@ import type { GuildTextBasedChannel, Message } from 'discord.js';
 import JSZip from 'jszip';
 import { lang } from '../lang';
 
-// ============================================================================
-// Archiving Functions
-// ============================================================================
-
 /**
  * Fetches all messages from a channel and saves them to files
  * Creates a transcript TXT file and optionally a ZIP file of image attachments
@@ -36,10 +32,6 @@ export async function fetchMessagesAndSaveToFile(
   if (!channel) {
     throw new Error('Invalid channel or channel is not a text channel.');
   }
-
-  // ========================================================================
-  // Fetch Messages
-  // ========================================================================
 
   let messages: Message[] = [];
   let lastId: string | undefined;
@@ -79,10 +71,6 @@ export async function fetchMessagesAndSaveToFile(
   const fullFile = header + fileContent;
   await fs.promises.writeFile(transcriptPath, fullFile);
   console.log(lang.console.transcriptSaved);
-
-  // ========================================================================
-  // Save Image Attachments
-  // ========================================================================
 
   const zip = new JSZip();
   let attachmentCount = 0;

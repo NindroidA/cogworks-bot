@@ -14,7 +14,6 @@ import {
 import { emailImportModalHandler } from '../commands/handlers/ticket/emailImport';
 import { typeAddModalHandler } from '../commands/handlers/ticket/typeAdd';
 import { typeEditModalHandler } from '../commands/handlers/ticket/typeEdit';
-import { AppDataSource } from '../typeorm';
 import { BotConfig } from '../typeorm/entities/BotConfig';
 import { SavedRole } from '../typeorm/entities/SavedRole';
 import { CustomTicketType } from '../typeorm/entities/ticket/CustomTicketType';
@@ -33,6 +32,7 @@ import {
   RateLimits,
   rateLimiter,
 } from '../utils';
+import { lazyRepo } from '../utils/database/lazyRepo';
 import { customTicketOptions, ticketOptions } from './ticket';
 import { ticketAdminOnlyEvent } from './ticket/adminOnly';
 import { ageVerifyMessage, ageVerifyModal } from './ticket/ageVerify';
@@ -42,11 +42,11 @@ import { ticketCloseEvent } from './ticket/close';
 import { otherMessage, otherModal } from './ticket/other';
 import { playerReportMessage, playerReportModal } from './ticket/playerReport';
 
-const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
-const ticketRepo = AppDataSource.getRepository(Ticket);
-const savedRoleRepo = AppDataSource.getRepository(SavedRole);
-const botConfigRepo = AppDataSource.getRepository(BotConfig);
-const customTypeRepo = AppDataSource.getRepository(CustomTicketType);
+const ticketConfigRepo = lazyRepo(TicketConfig);
+const ticketRepo = lazyRepo(Ticket);
+const savedRoleRepo = lazyRepo(SavedRole);
+const botConfigRepo = lazyRepo(BotConfig);
+const customTypeRepo = lazyRepo(CustomTicketType);
 
 // Legacy type column mapping for ping-on-create setting
 type LegacyType = '18_verify' | 'ban_appeal' | 'player_report' | 'bug_report' | 'other';
@@ -59,7 +59,8 @@ const LEGACY_PING_COLUMNS: Record<LegacyType, keyof TicketConfig> = {
 };
 
 export const handleTicketInteraction = async (client: Client, interaction: Interaction) => {
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
   // ticketConfig is loaded lazily — only fetched when actually needed
   let ticketConfig: import('../typeorm/entities/ticket/TicketConfig').TicketConfig | null = null;
   const getTicketConfig = async () => {
@@ -247,7 +248,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
     }
 
     // Check if user is restricted from creating this ticket type
-    const restrictionRepo = AppDataSource.getRepository(UserTicketRestriction);
+    const restrictionRepo = lazyRepo(UserTicketRestriction);
     const restriction = await restrictionRepo.findOne({
       where: { guildId, userId: interaction.user.id, typeId: selectedTypeId },
     });
@@ -300,7 +301,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
     }
 
     // Get the custom ticket type details
-    const typeRepo = AppDataSource.getRepository(CustomTicketType);
+    const typeRepo = customTypeRepo;
     const ticketType = await typeRepo.findOne({
       where: { guildId, typeId: selectedTypeId },
     });
@@ -516,7 +517,9 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
             try {
               const value = fields.getTextInputValue(field.id);
               fieldResponses.push(`**${field.label}:** ${escapeDiscordMarkdown(value)}`);
-            } catch {}
+            } catch {
+              // Field may not be present in the modal submission — skip silently
+            }
           }
 
           description = header + fieldResponses.join('\n');

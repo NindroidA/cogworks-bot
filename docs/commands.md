@@ -1,6 +1,6 @@
 # Cogworks Bot Commands
 
-**Last Updated:** `March 10, 2026` (v3.0.0)
+**Last Updated:** `March 19, 2026` (v3.0.0)
 
 Complete command reference for all bot systems.
 
@@ -102,6 +102,74 @@ Complete command reference for all bot systems.
   - `ping-on-create` - Toggle whether staff is pinged when a ticket of a specific type is created (requires `type` parameter)
 - `type` - Required for `ping-on-create` setting. Supports both legacy types (18_verify, ban_appeal, player_report, bug_report, other) and custom ticket types
 
+### Ticket Workflow
+
+The workflow system adds configurable statuses, staff assignment, status history tracking, and auto-close to tickets. Must be enabled per-guild.
+
+**`/ticket workflow-enable`**
+- Enable the ticket workflow system for this server
+- Seeds default statuses (Open, In Progress, Awaiting Response, Resolved, Closed) if none exist
+- **Admin-only command**
+
+**`/ticket workflow-disable`**
+- Disable the workflow system (preserves custom statuses for re-enable)
+- **Admin-only command**
+
+**`/ticket status status:[status]`**
+- Change the status of the current ticket
+- `status` - New status (autocomplete from configured statuses)
+- Must be run inside a ticket channel
+- Posts a visible status change embed in the channel
+
+**`/ticket assign user:[user]`**
+- Assign a staff member to the current ticket
+- `user` - User to assign
+- Must be run inside a ticket channel
+
+**`/ticket unassign`**
+- Remove the current assignment from a ticket
+- Must be run inside a ticket channel
+
+**`/ticket info`**
+- View ticket details: creator, status, assignment, type, last activity, and recent status history
+- Must be run inside a ticket channel (works even without workflow enabled)
+
+**`/ticket workflow-add-status id:[id] label:[label] [emoji]`**
+- Add a custom workflow status
+- `id` - Lowercase alphanumeric with hyphens (max 20 chars)
+- `label` - Display label (max 50 chars)
+- `emoji` - (Optional) Emoji for this status (default: blue circle)
+- Inserted before "Closed" in the status order
+- Max 10 statuses per guild
+- **Admin-only command**
+
+**`/ticket workflow-remove-status status:[status]`**
+- Remove a custom workflow status
+- `status` - Status to remove (autocomplete, excludes Open and Closed which are required)
+- Warns if tickets currently use this status
+- **Admin-only command**
+
+**`/ticket autoclose-enable [days] [warning-hours] [status]`**
+- Enable auto-close for inactive tickets (requires workflow to be enabled)
+- `days` - Days of inactivity before closing (1-90, default: 7)
+- `warning-hours` - Hours before close to send warning (1-72, default: 24)
+- `status` - Which status triggers auto-close checks (default: resolved)
+- **Admin-only command**
+
+**`/ticket autoclose-disable`**
+- Disable auto-close
+- **Admin-only command**
+
+#### Default Workflow Statuses
+
+| Status | Emoji | Color |
+|--------|-------|-------|
+| Open | :clipboard: | Blue |
+| In Progress | :wrench: | Orange |
+| Awaiting Response | :hourglass_flowing_sand: | Gold |
+| Resolved | :white_check_mark: | Green |
+| Closed | :lock: | Gray |
+
 ### Ticket Channel Naming
 Ticket channels are named using the format: `{id}_{type}_{username}`
 Example: `123_ban-appeal_johndoe`
@@ -109,11 +177,80 @@ Example: `123_ban-appeal_johndoe`
 ## Announcement System
 
 ### Announcement Setup
-**`/announcement-setup minecraft-role:[role] default-channel:[channel]`**
-- `minecraft-role` - Role to mention in announcements
+**`/announcement-setup announcement-role:[role] default-channel:[channel]`**
+- `announcement-role` - Role to mention in announcements
 - `default-channel` - Default channel for announcements
+- Seeds 5 default templates on first setup (if no templates exist)
 
-### Announcements
+### Template-Based Announcements
+**`/announcement send template:[template] [channel] [message]`**
+- Send an announcement using a template
+- `template` - Template to use (autocomplete)
+- `channel` - (Optional) Override default channel
+- `message` - (Optional) Custom message (overrides template body, max 4000 chars)
+- Renders placeholders from template with context values
+
+### Template Management
+**`/announcement template create`**
+- Create a new custom announcement template via modal
+- Fields: Name (lowercase with hyphens), Display Name, Embed Title, Embed Body, Color (hex)
+- Template body supports placeholders: `{version}`, `{duration}`, `{time}`, `{time_relative}`, `{user}`, `{role}`, `{server}`, `{channel}`
+- Max 25 templates per server
+- **Admin-only command**
+
+**`/announcement template edit template:[template]`**
+- Edit an existing template via modal
+- `template` - Template to edit (autocomplete)
+- Editable: Display Name, Embed Title, Embed Body, Color
+- **Admin-only command**
+
+**`/announcement template delete template:[template]`**
+- Delete a custom template (with confirmation)
+- `template` - Template to delete (autocomplete)
+- Default templates cannot be deleted
+- **Admin-only command**
+
+**`/announcement template list`**
+- List all templates with name, color, and detected placeholders
+- Shows default badge for built-in templates
+- **Admin-only command**
+
+**`/announcement template preview template:[template]`**
+- Preview a template with example placeholder values
+- `template` - Template to preview (autocomplete)
+- **Admin-only command**
+
+**`/announcement template reset`**
+- Reset all templates to defaults (with confirmation)
+- Deletes all custom and default templates, then re-seeds defaults
+- **Admin-only command**
+
+### Default Templates
+
+| Name | Display Name | Color | Placeholders |
+|------|-------------|-------|-------------|
+| `maintenance` | Immediate Maintenance | Orange | `{duration}` |
+| `maintenance-scheduled` | Scheduled Maintenance | Orange | `{duration}`, `{time}`, `{time_relative}` |
+| `back-online` | Back Online | Green | None |
+| `update-scheduled` | Scheduled Update | Blue | `{version}`, `{time}`, `{time_relative}` |
+| `update-complete` | Update Complete | Green | `{version}` |
+
+### Template Placeholders
+
+| Placeholder | Description | Requires Input |
+|-------------|------------|---------------|
+| `{version}` | Version string (e.g., 1.21.5) | Yes |
+| `{duration}` | Duration description (e.g., 5-10 minutes) | Yes |
+| `{time}` | Discord full date/time timestamp | Yes |
+| `{time_relative}` | Discord relative timestamp (e.g., "in 2 hours") | Yes |
+| `{user}` | Mention of the user sending | No |
+| `{role}` | Mention of the configured announcement role | No |
+| `{server}` | Server/guild name | No |
+| `{channel}` | Channel mention where announcement is sent | No |
+
+### Legacy Announcements
+These commands use the default templates internally and remain for backward compatibility.
+
 **`/announcement maintenance duration:[short|long]`**
 - Send immediate maintenance announcement
 - Shows preview with Send/Cancel buttons (2min timeout)
@@ -258,11 +395,11 @@ The bait channel system can be configured through the main setup wizard with bas
 - Optional log channel
 
 ### Advanced Configuration
-**`/baitchannel setup channel:[channel] grace_period:[0-60] action:[ban|kick|log-only] log_channel:[channel]`**
+**`/baitchannel setup channel:[channel] grace_period:[0-60] action:[ban|kick|timeout|log-only] log_channel:[channel]`**
 - Complete bait channel configuration
 - `channel` - The hidden bait channel
 - `grace_period` - Seconds to wait before action (0-60)
-- `action` - What to do when bot detected (ban/kick/log-only)
+- `action` - What to do when bot detected (ban/kick/timeout/log-only)
 - `log_channel` - Optional logging channel
 
 **`/baitchannel detection enabled:[true|false]`**
@@ -273,6 +410,9 @@ The bait channel system can be configured through the main setup wizard with bas
   - `min_messages` - Minimum message count (0-100)
   - `require_verification` - Require verification role
   - `disable_admin_whitelist` - Disable automatic admin whitelist (for testing)
+  - `threshold` - Instant action score threshold (default: 90, range: 50-100)
+  - `join_velocity_threshold` - Joins within window to trigger burst detection (2-100)
+  - `join_velocity_window` - Sliding window size in minutes for join velocity (1-30)
 
 **`/baitchannel whitelist action:[add|remove|list] role:[role] user:[user]`**
 - Manage whitelist for trusted users/roles
@@ -282,42 +422,136 @@ The bait channel system can be configured through the main setup wizard with bas
 
 **`/baitchannel status`**
 - View current bait channel configuration and statistics
+- Shows multi-channel display, test mode indicator, escalation status
 
 **`/baitchannel stats days:[1-90]`**
 - View detailed statistics
 - `days` - Number of days to analyze (default: 7)
+- Includes override rate, score distribution, and top detection flags
 
 **`/baitchannel toggle enabled:[true|false]`**
 - Enable or disable the bait channel system
 - `enabled` - true to enable, false to disable
+
+### Keywords
+**`/baitchannel keywords add keyword:[keyword] weight:[1-10]`**
+- Add a custom detection keyword with weight (default weight: 5)
+- Maximum 50 keywords per server
+- **Admin-only command**
+
+**`/baitchannel keywords remove keyword:[keyword]`**
+- Remove a custom detection keyword
+- **Admin-only command**
+
+**`/baitchannel keywords list`**
+- List all custom detection keywords with their weights
+
+**`/baitchannel keywords reset`**
+- Reset all keywords to defaults (with confirmation)
+- **Admin-only command**
+
+### Escalation
+**`/baitchannel escalation-enable`**
+- Enable score-based action escalation
+- Actions are determined by suspicion score instead of a fixed action type
+- **Admin-only command**
+
+**`/baitchannel escalation-disable`**
+- Disable escalation and use the fixed action type
+- **Admin-only command**
+
+**`/baitchannel escalation-thresholds log:[score] timeout:[score] kick:[score] ban:[score]`**
+- Configure escalation score thresholds
+- Default: log 30, timeout 50, kick 75, ban 90
+- Values must be strictly ascending (log < timeout < kick < ban)
+- **Admin-only command**
+
+### Test Mode
+**`/baitchannel test-mode enabled:[true|false]`**
+- Enable or disable test mode
+- When enabled, detections are logged but no ban/kick/timeout actions are taken
+- Useful for tuning thresholds before going live
+- **Admin-only command**
+
+### Override
+**`/baitchannel override user:[user]`**
+- Mark a user's most recent detection as a false positive (override)
+- Cannot override log-only or already-overridden detections
+- Records the overriding admin's user ID
+- **Admin-only command**
+
+### DM Notifications
+**`/baitchannel dm-enable`**
+- Enable DM notification sent to users before action is taken
+- **Admin-only command**
+
+**`/baitchannel dm-disable`**
+- Disable DM notification before action
+- **Admin-only command**
+
+**`/baitchannel dm-appeal-info appeal_text:[text]`**
+- Set appeal information shown in DM notifications (max 500 characters)
+- **Admin-only command**
+
+**`/baitchannel dm-clear-appeal`**
+- Clear appeal information from DM notifications
+- **Admin-only command**
+
+### Weekly Summary
+**`/baitchannel summary enabled:[true|false] channel:[channel]`**
+- Enable or disable the weekly summary digest
+- When enabled, a summary is posted every Sunday at midnight UTC
+- `channel` - Optional channel to send the summary (defaults to log channel)
+- **Admin-only command**
+
+### Multi-Channel
+**`/baitchannel add-channel channel:[channel]`**
+- Add an additional bait channel (up to 3 per server)
+- **Admin-only command**
+
+**`/baitchannel remove-channel channel:[channel]`**
+- Remove a bait channel
+- Cannot remove the last channel (use `/baitchannel toggle` to disable instead)
+- **Admin-only command**
 
 ### How It Works
 1. Create a hidden text channel with no permissions for @everyone
 2. Configure it as the bait channel
 3. Automated bots often try to access all visible channels
 4. When someone posts in the bait channel, they're flagged
-5. System takes configured action (ban/kick/log)
-6. All detections are logged with timestamps and user info
+5. System calculates a suspicion score based on detection flags
+6. System takes configured action (ban/kick/timeout/log) based on score or fixed action
+7. All detections are logged with timestamps, user info, and detection flags
 
 ### Security Features
 - **Smart Detection**: Filter by account age, server membership, message count
 - **Whitelist System**: Protect trusted users and roles
 - **Auto-Protected Users**: Server owner and administrators are automatically protected
 - **Grace Period**: Give users time to delete their message before action
-- **Suspicion Scoring**: 7 detection flags contribute to a suspicion score (0-100)
+- **Suspicion Scoring**: 9 detection flags contribute to a suspicion score (0-100)
+- **Escalation**: Score-based graduated response (log/timeout/kick/ban)
+- **Custom Keywords**: Up to 50 weighted keywords for content detection
+- **Join Velocity Detection**: Detects coordinated join bursts
+- **Test Mode**: Full detection pipeline without real actions for threshold tuning
+- **DM Notifications**: Optionally notify users before action with appeal information
+- **Override Tracking**: Mark false positives for detection accuracy feedback
+- **Multi-Channel**: Monitor up to 3 bait channels simultaneously
+- **Weekly Summary**: Automated analytics digest posted every Sunday
 - **Message Purge**: Automatically purges banned user's messages across all server channels
 - **Detailed Logging**: Track all detections with full context
-- **Statistics**: Monitor bot activity over time
+- **Statistics**: Monitor bot activity with override rates, score distribution, and top flags
 
 ### Detection Flags
 The system analyzes multiple factors to calculate a suspicion score:
-1. **New Account** - Account created recently
-2. **New Member** - Just joined the server
-3. **No Messages** - Low message count in server
-4. **No Verification** - Missing verification role
-5. **Suspicious Content** - Common spam keywords detected
-6. **Link Spam** - Contains multiple links
-7. **Mention Spam** - Excessive mentions
+1. **Default Avatar** - No custom avatar set
+2. **Empty Profile** - No banner or avatar customization
+3. **Suspicious Username** - Username patterns matching known bot patterns
+4. **No Roles** - No server roles assigned
+5. **Discord Invite** - Message contains Discord invite links
+6. **Phishing URL** - Message contains suspected phishing URLs
+7. **Attachment Only** - Message contains only attachments (no text)
+8. **Join Burst** - User joined during a detected join velocity burst
+9. **Coordinated Raid** - Possible coordinated raid pattern detected
 
 ## Memory System
 
@@ -384,11 +618,49 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 - Confirmation required before deletion
 
 **`/memory tags action:[add|edit|remove|list]`**
-- Manage memory tags
+- Manage memory tags (in-channel, interactive UI)
 - `add` - Create a new tag (opens modal for name, emoji, type)
 - `edit` - Edit an existing tag
 - `remove` - Delete a non-default tag
 - `list` - View all configured tags
+
+### Custom Tag Management (Admin-Only)
+
+**`/memory-setup tag-add name:[name] type:[category|status] [emoji] [channel]`**
+- Add a custom category or status tag
+- `name` - Tag name (max 20 characters)
+- `type` - Tag type: Category or Status
+- `emoji` - (Optional) Unicode emoji for the tag
+- `channel` - (Optional) Target forum channel (required if multiple channels configured)
+- Syncs to Discord forum tags automatically
+- Limits: 10 category tags, 6 status tags per channel (20 total Discord forum tag limit)
+- **Admin-only command**
+
+**`/memory-setup tag-remove tag:[tag] [channel]`**
+- Remove a custom tag (default tags cannot be removed)
+- `tag` - Tag to remove (autocomplete)
+- `channel` - (Optional) Target forum channel
+- Removes from both database and Discord forum
+- **Admin-only command**
+
+**`/memory-setup tag-edit tag:[tag] [name] [emoji] [channel]`**
+- Edit a tag's name and/or emoji
+- `tag` - Tag to edit (autocomplete)
+- `name` - (Optional) New name (max 20 characters)
+- `emoji` - (Optional) New emoji
+- `channel` - (Optional) Target forum channel
+- **Admin-only command**
+
+**`/memory-setup tag-list [channel]`**
+- List all configured tags with type and default status
+- `channel` - (Optional) Target forum channel
+- Shows category and status tags separately with usage counts
+
+**`/memory-setup tag-reset [channel]`**
+- Reset all tags to defaults (with confirmation)
+- `channel` - (Optional) Target forum channel
+- Deletes all custom and default tags, then re-seeds default category and status tags
+- **Admin-only command**
 
 ### Default Tags
 
@@ -492,9 +764,10 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 - Shows an invite link to the Cogworks development Discord server
 - Available to all users
 
-### Dashboard (Web Dashboard)
+### Dashboard (Web Dashboard — Beta)
 **`/dashboard`**
 - Opens the Cogworks web dashboard for managing your server
+- The web dashboard is currently in **beta** — some features may be incomplete or change
 - Sign in with Discord for automatic authentication
 - Available to all users
 
@@ -563,7 +836,7 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
   - User ticket restrictions
   - Application configuration and active applications
   - Application positions
-  - Announcement configuration and logs
+  - Announcement configuration, logs, and templates
   - Bait channel configuration and logs
   - Pending bans
   - Saved roles (admin/staff)

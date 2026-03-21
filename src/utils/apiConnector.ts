@@ -15,10 +15,6 @@ import type { Client } from 'discord.js';
 import { version } from '../../package.json';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
 
-// ============================================================================
-// Interfaces & Types
-// ============================================================================
-
 /**
  * Bot stats data sent to API (v1.3.0 format)
  */

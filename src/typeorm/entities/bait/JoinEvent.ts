@@ -13,10 +13,10 @@ export class JoinEvent {
   @Column()
   userId: string;
 
-  @Column({ default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
   joinedAt: Date;
 
-  @Column()
+  @Column({ type: 'datetime' })
   accountCreatedAt: Date;
 
   @Column({ default: false })
@@ -28,6 +28,6 @@ export class JoinEvent {
   @Column({ default: false })
   isSuspicious: boolean;
 
-  @Column('text', { nullable: true })
-  suspicionReasons: string;
+  @Column({ type: 'text', nullable: true })
+  suspicionReasons: string | null;
 }

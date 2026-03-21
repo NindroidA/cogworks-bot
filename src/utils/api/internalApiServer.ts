@@ -1,10 +1,12 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { Client } from 'discord.js';
+import { MAX } from '../constants';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+import { ApiError } from './apiError';
 import { validateAuth } from './internalApiAuth';
 import { type RouteHandler, registerHandlers } from './router';
 
-const MAX_BODY_SIZE = 1024 * 1024; // 1MB
+const MAX_BODY_SIZE = MAX.API_BODY_SIZE;
 
 class InternalApiServer {
   private server: Server | null = null;
@@ -79,6 +81,10 @@ class InternalApiServer {
         const result = await topLevelHandler('', body, url);
         sendJson(res, 200, result);
       } catch (error) {
+        if (error instanceof ApiError) {
+          sendJson(res, error.statusCode, { error: error.message });
+          return;
+        }
         enhancedLogger.error(
           `Internal API handler error: ${url}`,
           error instanceof Error ? error : undefined,
@@ -124,6 +130,10 @@ class InternalApiServer {
       const result = await handler(guildId, body, url);
       sendJson(res, 200, result);
     } catch (error) {
+      if (error instanceof ApiError) {
+        sendJson(res, error.statusCode, { error: error.message });
+        return;
+      }
       enhancedLogger.error(
         `Internal API handler error: ${url}`,
         error instanceof Error ? error : undefined,

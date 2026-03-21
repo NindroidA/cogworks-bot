@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Partials, REST, Routes } from 'discord.js';
+import { Client, GatewayIntentBits, Partials, Routes } from 'discord.js';
 import dotenv from 'dotenv';
 import 'reflect-metadata';
 import { commands } from './commands/commandList';
@@ -23,6 +23,10 @@ import {
   handleRulesReactionRemove,
   stopRulesCooldownCleanup,
 } from './events/rulesReaction';
+import {
+  handleStarboardReactionAdd,
+  handleStarboardReactionRemove,
+} from './events/starboardReaction';
 import { AppDataSource } from './typeorm';
 import { BaitChannelConfig } from './typeorm/entities/BaitChannelConfig';
 import { BaitChannelLog } from './typeorm/entities/BaitChannelLog';
@@ -37,18 +41,25 @@ import {
   ensureDefaultTicketTypes,
   healthMonitor,
   healthServer,
+  INTERVALS,
   internalApiServer,
+  LegacyMigrationRunner,
   LogCategory,
   lang,
+  memoryWatchdog,
   rateLimiter,
 } from './utils';
 import { APIConnector } from './utils/apiConnector';
 import { JoinVelocityTracker } from './utils/baitChannel/joinVelocityTracker';
+import { checkAndSendWeeklySummaries } from './utils/baitChannel/weeklySummary';
 import { BaitChannelManager } from './utils/baitChannelManager';
 import { startLogCleanup, stopLogCleanup } from './utils/database/logCleanup';
+import { announcementRoleRename } from './utils/database/migrations/announcementRoleRename';
+import { baitChannelIdsBackfill } from './utils/database/migrations/baitChannelIdsBackfill';
 import { setupGlobalErrorHandlers } from './utils/errorHandler';
 import { setDescription, setStatus } from './utils/profileFunctions';
 import { StatusManager } from './utils/status/StatusManager';
+import { checkAndAutoCloseTickets } from './utils/ticket/autoClose';
 
 dotenv.config();
 
@@ -105,8 +116,8 @@ const client = new Client({
   partials: [Partials.Message, Partials.Reaction, Partials.User],
 });
 
-// create new REST client and set bot token
-const rest = new REST({ version: '10' }).setToken(TOKEN);
+// Shared REST client (also used by guildCreate event handler)
+import { rest } from './utils/restClient';
 
 /* init API connector */
 const apiConnector = new APIConnector(
@@ -114,8 +125,10 @@ const apiConnector = new APIConnector(
   TOKEN, // bot token for authentication
 );
 
-// Interval ref for health monitor (set in clientReady, cleared on shutdown)
+// Interval refs (set in clientReady, cleared on shutdown)
 let healthMonitorInterval: ReturnType<typeof setInterval> | null = null;
+let weeklySummaryInterval: ReturnType<typeof setInterval> | null = null;
+let autoCloseInterval: ReturnType<typeof setInterval> | null = null;
 
 // listen for interactions
 client.on('interactionCreate', async interaction => {
@@ -145,20 +158,29 @@ client.on('messageReactionAdd', (reaction, user) => handleReactionRoleAdd(reacti
 client.on('messageReactionRemove', (reaction, user) =>
   handleReactionRoleRemove(reaction, user, client),
 );
+client.on('messageReactionAdd', (reaction, user) =>
+  handleStarboardReactionAdd(reaction, user, client),
+);
+client.on('messageReactionRemove', (reaction, user) =>
+  handleStarboardReactionRemove(reaction, user, client),
+);
 
 // register message events
-client.on(messageCreateEvent.name, message => messageCreateEvent.execute(message, client));
-client.on(messageDeleteEvent.name, message => messageDeleteEvent.execute(message, client));
+// Note: These handlers accept ExtendedClient, which is safe because they only fire
+// after the client is ready and managers are attached in the clientReady event.
+const extClient = client as ExtendedClient;
+client.on(messageCreateEvent.name, message => messageCreateEvent.execute(message, extClient));
+client.on(messageDeleteEvent.name, message => messageDeleteEvent.execute(message, extClient));
 
 // register guild lifecycle events
 client.on(guildCreateEvent.name, guild => guildCreateEvent.execute(guild, client));
 client.on(guildDeleteEvent.name, guild => guildDeleteEvent.execute(guild, client));
 
 // register channel lifecycle events
-client.on(channelDeleteEvent.name, channel => channelDeleteEvent.execute(channel, client));
+client.on(channelDeleteEvent.name, channel => channelDeleteEvent.execute(channel, extClient));
 
 // register member lifecycle events
-client.on(guildMemberAddEvent.name, member => guildMemberAddEvent.execute(member, client));
+client.on(guildMemberAddEvent.name, member => guildMemberAddEvent.execute(member, extClient));
 
 // once we ready, LEGGO
 client.once('clientReady', async () => {
@@ -249,10 +271,37 @@ client.once('clientReady', async () => {
   // start periodic health status logging (every 5 minutes)
   healthMonitorInterval = setInterval(async () => {
     await healthMonitor.logHealthStatus();
-  }, 300000);
+  }, INTERVALS.HEALTH_STATUS);
 
   // start daily log cleanup (bait channel logs: 90d, announcement logs: 365d)
   startLogCleanup();
+
+  // Initialize memory watchdog — register tracked maps and start
+  memoryWatchdog.setClient(client);
+  memoryWatchdog.trackMap('rateLimiter', () => rateLimiter.getSize());
+  const baitMaps = (client as ExtendedClient).baitChannelManager.getTrackedMaps();
+  for (const [name, _size] of Object.entries(baitMaps)) {
+    memoryWatchdog.trackMap(
+      `bait.${name}`,
+      () => (client as ExtendedClient).baitChannelManager.getTrackedMaps()[name],
+    );
+  }
+  memoryWatchdog.start();
+  enhancedLogger.info('Memory watchdog started', LogCategory.SYSTEM);
+
+  // Start weekly summary check (hourly, fires Sunday 00:xx UTC)
+  weeklySummaryInterval = setInterval(() => {
+    checkAndSendWeeklySummaries(client).catch(error => {
+      enhancedLogger.error('Weekly summary check failed', error as Error, LogCategory.ERROR);
+    });
+  }, INTERVALS.WEEKLY_SUMMARY);
+
+  // Start auto-close ticket check (hourly)
+  autoCloseInterval = setInterval(() => {
+    checkAndAutoCloseTickets(client).catch(error => {
+      enhancedLogger.error('Auto-close ticket check failed', error as Error, LogCategory.ERROR);
+    });
+  }, INTERVALS.AUTO_CLOSE_CHECK);
 
   enhancedLogger.info(
     'Periodic health monitoring started (5 minute intervals)',
@@ -276,7 +325,10 @@ async function gracefulShutdown(signal: string) {
   stopLogCleanup();
   healthMonitor.stopPeriodicChecks();
   rateLimiter.destroy();
+  memoryWatchdog.stop();
   if (healthMonitorInterval) clearInterval(healthMonitorInterval);
+  if (weeklySummaryInterval) clearInterval(weeklySummaryInterval);
+  if (autoCloseInterval) clearInterval(autoCloseInterval);
 
   // stop bait channel activity flush and write remaining buffer to DB
   const extClient = client as ExtendedClient;
@@ -334,8 +386,48 @@ async function main() {
       }
     }
 
+    // Run legacy data migrations (after TypeORM sync, before command registration)
+    const guildIds = botConfigs.map(c => c.guildId);
+    if (guildIds.length > 0) {
+      try {
+        const migrationRunner = new LegacyMigrationRunner({
+          concurrency: 5,
+          dryRun: false,
+        });
+        migrationRunner.register(announcementRoleRename);
+        migrationRunner.register(baitChannelIdsBackfill);
+
+        const report = await migrationRunner.runAll(guildIds);
+        const totalChanges = report.results.reduce((sum, r) => sum + r.totalChanges, 0);
+
+        if (totalChanges > 0) {
+          enhancedLogger.info('Legacy data migrations completed', LogCategory.DATABASE, {
+            totalChanges,
+            durationMs: report.durationMs,
+          });
+        }
+
+        // Log warnings for failed migrations (don't block startup)
+        for (const result of report.results) {
+          for (const failure of result.failures) {
+            enhancedLogger.warn(
+              `Legacy migration '${result.migrationId}' failed for guild ${failure.guildId}: ${failure.error}`,
+              LogCategory.DATABASE,
+            );
+          }
+        }
+      } catch (error) {
+        enhancedLogger.warn(
+          'Legacy migration runner failed — continuing startup',
+          LogCategory.DATABASE,
+          { error: error instanceof Error ? error.message : String(error) },
+        );
+      }
+    }
+
     // log all startup info together before enhanced logging
     if (botConfigs.length > 0) {
+      // nosemgrep: javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring
       console.log(tl.foundConfigs + botConfigs.length);
     } else {
       console.warn(tl.noFoundConfigs);
@@ -349,6 +441,7 @@ async function main() {
             body: commands,
           })
           .then(() => {
+            // nosemgrep: javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring
             console.log(tl.regCmdsSuccess + config.guildId);
           }),
       ),
@@ -356,6 +449,7 @@ async function main() {
     for (let i = 0; i < registrationResults.length; i++) {
       const result = registrationResults[i];
       if (result.status === 'rejected') {
+        // nosemgrep: javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring
         console.error(`${tl.regCmdsFail}${botConfigs[i].guildId}:`, result.reason);
       }
     }

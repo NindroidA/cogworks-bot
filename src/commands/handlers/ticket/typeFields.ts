@@ -5,9 +5,9 @@ import {
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { enhancedLogger, handleInteractionError, LogCategory, lang } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 import {
   handleAddFieldModal as coreHandleAddFieldModal,
   handleFieldButton as coreHandleFieldButton,
@@ -17,7 +17,7 @@ import {
   showFieldManager,
 } from '../shared/fieldManagerCore';
 
-const typeRepo = AppDataSource.getRepository(CustomTicketType);
+const typeRepo = lazyRepo(CustomTicketType);
 
 /** Config for ticket type field manager */
 const ticketFieldConfig: FieldManagerConfig<CustomTicketType> = {

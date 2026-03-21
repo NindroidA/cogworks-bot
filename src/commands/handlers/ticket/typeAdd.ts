@@ -19,6 +19,7 @@ import {
   LANGF,
   LogCategory,
   lang,
+  sanitizeUserInput,
 } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeAdd;
@@ -128,10 +129,11 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
 
     // Get modal inputs
     const typeId = interaction.fields.getTextInputValue('typeId').toLowerCase().trim();
-    const displayName = interaction.fields.getTextInputValue('displayName').trim();
+    const displayName = sanitizeUserInput(interaction.fields.getTextInputValue('displayName'));
     const emoji = interaction.fields.getTextInputValue('emoji')?.trim() || null;
     const colorInput = interaction.fields.getTextInputValue('color')?.trim() || '#0099ff';
-    const description = interaction.fields.getTextInputValue('description')?.trim() || null;
+    const description =
+      sanitizeUserInput(interaction.fields.getTextInputValue('description')) || null;
 
     // Validate type ID format (lowercase, numbers, underscores only)
     if (!/^[a-z0-9_]+$/.test(typeId)) {

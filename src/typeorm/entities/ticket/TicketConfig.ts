@@ -1,7 +1,13 @@
-import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+
+export interface WorkflowStatus {
+  id: string;
+  label: string;
+  emoji: string;
+  color: string;
+}
 
 @Entity({ name: 'ticket_configs' })
-@Index(['guildId'])
 export class TicketConfig {
   @PrimaryGeneratedColumn()
   id: number;
@@ -15,8 +21,8 @@ export class TicketConfig {
   @Column()
   channelId: string;
 
-  @Column({ nullable: true })
-  categoryId: string;
+  @Column({ type: 'varchar', nullable: true })
+  categoryId: string | null;
 
   @Column({ default: true })
   adminOnlyMentionStaff: boolean;
@@ -36,4 +42,50 @@ export class TicketConfig {
 
   @Column({ default: false })
   pingStaffOnOther: boolean;
+
+  // Workflow configuration
+  @Column({ default: false })
+  enableWorkflow: boolean;
+
+  @Column({ type: 'simple-json', nullable: true })
+  workflowStatuses: WorkflowStatus[] | null;
+
+  @Column({ default: false })
+  autoCloseEnabled: boolean;
+
+  @Column({ default: 7 })
+  autoCloseDays: number;
+
+  @Column({ default: 24 })
+  autoCloseWarningHours: number;
+
+  @Column({ default: 'resolved' })
+  autoCloseStatus: string;
+
+  // SLA configuration
+  @Column({ default: false })
+  slaEnabled: boolean;
+
+  @Column({ default: 60 })
+  slaTargetMinutes: number;
+
+  @Column({ type: 'varchar', nullable: true })
+  slaBreachChannelId: string | null;
+
+  @Column({ type: 'simple-json', nullable: true })
+  slaPerType: Record<string, number> | null;
+
+  // Smart routing configuration
+  @Column({ default: false })
+  smartRoutingEnabled: boolean;
+
+  @Column({ type: 'simple-json', nullable: true })
+  routingRules: Array<{
+    ticketTypeId: string;
+    staffRoleId: string;
+    maxOpen?: number;
+  }> | null;
+
+  @Column({ type: 'varchar', default: 'least-load' })
+  routingStrategy: string;
 }

@@ -1,3 +1,4 @@
+import { lazyRepo } from '../utils/database/lazyRepo';
 import type {
   Client,
   MessageReaction,
@@ -5,16 +6,14 @@ import type {
   PartialUser,
   User,
 } from 'discord.js';
-import { AppDataSource } from '../typeorm';
 import { RulesConfig } from '../typeorm/entities/rules';
 import { enhancedLogger, LogCategory, lang } from '../utils';
 import { ReactionCooldown } from '../utils/reactionCooldown';
 
-const rulesConfigRepo = AppDataSource.getRepository(RulesConfig);
+const rulesConfigRepo = lazyRepo(RulesConfig);
 const tl = lang.rules.reaction;
 
-// TTL for cache entries (30 minutes)
-const CACHE_TTL_MS = 30 * 60 * 1000;
+import { CACHE_TTL } from '../utils/constants';
 
 // In-memory cache: Map<messageId, { config, cachedAt }>
 const rulesCache = new Map<string, { config: RulesConfig; cachedAt: number }>();
@@ -41,7 +40,7 @@ async function getRulesConfig(messageId: string, guildId: string): Promise<Rules
   const cached = rulesCache.get(messageId);
   if (cached) {
     // Check TTL — evict stale entries
-    if (Date.now() - cached.cachedAt > CACHE_TTL_MS) {
+    if (Date.now() - cached.cachedAt > CACHE_TTL.RULES) {
       rulesCache.delete(messageId);
     } else if (cached.config.guildId === guildId) {
       return cached.config;

@@ -1,6 +1,5 @@
 import type { CacheType, ChatInputCommandInteraction, TextChannel } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import {
   Colors,
@@ -12,9 +11,10 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.reactionRole;
-const menuRepo = AppDataSource.getRepository(ReactionRoleMenu);
+const menuRepo = lazyRepo(ReactionRoleMenu);
 
 interface ValidationIssue {
   menu: string;
@@ -37,7 +37,8 @@ export async function reactionRoleValidateHandler(
     return;
   }
 
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
 
   // Rate limit: 1 per 5 minutes per guild
   const rateLimitKey = createRateLimitKey.guild(guildId, 'reactionrole-validate');

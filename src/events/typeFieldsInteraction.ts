@@ -16,7 +16,8 @@ import { enhancedLogger, LogCategory } from '../utils';
  * Event handler for type-fields interactions (buttons, select menus, modals)
  */
 export const typeFieldsInteraction = async (_client: Client, interaction: Interaction) => {
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
 
   try {
     // Handle button interactions for field management

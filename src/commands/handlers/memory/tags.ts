@@ -14,7 +14,6 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { MemoryTag, type MemoryTagType } from '../../../typeorm/entities/memory';
 import {
   Colors,
@@ -29,10 +28,11 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveMemoryConfig } from './channelPicker';
 
 const tl = lang.memory;
-const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
+const memoryTagRepo = lazyRepo(MemoryTag);
 
 export const memoryTagsHandler = async (interaction: ChatInputCommandInteraction) => {
   const startTime = Date.now();

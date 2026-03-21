@@ -23,13 +23,13 @@ export class UserActivity {
   messageCount: number;
 
   @Column({ type: 'timestamp', nullable: true })
-  firstMessageAt: Date;
+  firstMessageAt: Date | null;
 
   @Column({ type: 'timestamp', nullable: true })
-  lastMessageAt: Date;
+  lastMessageAt: Date | null;
 
   @Column({ type: 'timestamp', nullable: true })
-  joinedAt: Date;
+  joinedAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

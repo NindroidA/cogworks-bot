@@ -7,7 +7,7 @@ import {
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
+import { handleInteractionError, lang, safeDbOperation, sanitizeUserInput } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
@@ -56,7 +56,7 @@ export const dmNotifyHandler = async (client: Client, interaction: ChatInputComm
       }
 
       case 'dm-appeal-info': {
-        const text = interaction.options.getString('text', true);
+        const text = sanitizeUserInput(interaction.options.getString('text', true));
 
         if (text.length > 500) {
           await interaction.reply({
@@ -78,7 +78,10 @@ export const dmNotifyHandler = async (client: Client, interaction: ChatInputComm
             value: text,
           });
 
-        await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
+        await interaction.reply({
+          embeds: [embed],
+          flags: [MessageFlags.Ephemeral],
+        });
         break;
       }
 

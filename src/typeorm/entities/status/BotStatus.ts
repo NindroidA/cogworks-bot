@@ -38,4 +38,7 @@ export class BotStatus {
 
   @Column({ type: 'datetime', nullable: true })
   manualOverrideExpiresAt: Date | null;
+
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  externalMonitorUrl: string | null;
 }

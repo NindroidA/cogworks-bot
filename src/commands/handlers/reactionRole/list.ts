@@ -4,12 +4,12 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import { Colors, enhancedLogger, LogCategory, lang, requireAdmin } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.reactionRole;
-const menuRepo = AppDataSource.getRepository(ReactionRoleMenu);
+const menuRepo = lazyRepo(ReactionRoleMenu);
 
 export async function reactionRoleListHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
@@ -21,7 +21,8 @@ export async function reactionRoleListHandler(interaction: ChatInputCommandInter
     return;
   }
 
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
 
   try {
     const menus = await menuRepo.find({

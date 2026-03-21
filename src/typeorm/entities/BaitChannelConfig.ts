@@ -2,13 +2,13 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  Index,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
+export type BaitActionType = 'ban' | 'kick' | 'timeout' | 'log-only';
+
 @Entity('bait_channel_configs')
-@Index(['guildId'])
 export class BaitChannelConfig {
   @PrimaryGeneratedColumn()
   id: number;
@@ -19,8 +19,8 @@ export class BaitChannelConfig {
   @Column()
   channelId: string;
 
-  @Column({ nullable: true })
-  channelMessageId: string;
+  @Column({ type: 'varchar', nullable: true })
+  channelMessageId: string | null;
 
   @Column({ default: true })
   enabled: boolean;
@@ -29,16 +29,16 @@ export class BaitChannelConfig {
   gracePeriodSeconds: number;
 
   @Column('simple-array', { nullable: true })
-  whitelistedRoles: string[];
+  whitelistedRoles: string[] | null;
 
   @Column('simple-array', { nullable: true })
-  whitelistedUsers: string[];
+  whitelistedUsers: string[] | null;
 
-  @Column({ nullable: true })
-  logChannelId: string;
+  @Column({ type: 'varchar', nullable: true })
+  logChannelId: string | null;
 
-  @Column({ nullable: true })
-  logChannelMessageId: string;
+  @Column({ type: 'varchar', nullable: true })
+  logChannelMessageId: string | null;
 
   @Column({ default: 'Posted in bait channel - Potential bot/scammer' })
   banReason: string;
@@ -73,7 +73,7 @@ export class BaitChannelConfig {
 
   // Action settings
   @Column({ default: 'ban' }) // 'ban', 'kick', 'timeout', 'log-only'
-  actionType: string;
+  actionType: BaitActionType;
 
   @Column({ default: false })
   deleteUserMessages: boolean;
@@ -105,8 +105,8 @@ export class BaitChannelConfig {
   @Column({ default: false })
   dmBeforeAction: boolean;
 
-  @Column({ length: 500, nullable: true })
-  appealInfo: string; // Optional appeal instructions shown in DM
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  appealInfo: string | null; // Optional appeal instructions shown in DM
 
   // Join velocity settings (Plan 04)
   @Column({ default: 10 })
@@ -117,7 +117,7 @@ export class BaitChannelConfig {
 
   // Multi-channel support (Plan 07)
   @Column('simple-array', { nullable: true })
-  channelIds: string[]; // Multiple bait channels (max 3)
+  channelIds: string[] | null; // Multiple bait channels (max 3)
 
   // Test mode (Plan 07)
   @Column({ default: false })
@@ -127,8 +127,8 @@ export class BaitChannelConfig {
   @Column({ default: false })
   enableWeeklySummary: boolean;
 
-  @Column({ nullable: true })
-  summaryChannelId: string;
+  @Column({ type: 'varchar', nullable: true })
+  summaryChannelId: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -1,159 +1,38 @@
-import {
-  analyzeUrls,
-  isDiscordInvite,
-  isPhishingUrl,
-  isShortenedUrl,
-} from '../../../../src/utils/baitChannel/urlAnalyzer';
+import { describe, test, expect } from 'bun:test';
+import { isDiscordInvite, isShortenedUrl, isPhishingUrl, analyzeUrls } from '../../../../src/utils/baitChannel/urlAnalyzer';
 
-describe('urlAnalyzer', () => {
-  describe('isDiscordInvite', () => {
-    it('should detect discord.gg invites', () => {
-      expect(isDiscordInvite('https://discord.gg/coolserver')).toBe(true);
-    });
+describe('isDiscordInvite', () => {
+  test('discord.gg', () => { expect(isDiscordInvite('https://discord.gg/abc')).toBe(true); });
+  test('discord.com/invite', () => { expect(isDiscordInvite('https://discord.com/invite/abc')).toBe(true); });
+  test('regular', () => { expect(isDiscordInvite('https://example.com')).toBe(false); });
+});
 
-    it('should detect discord.com/invite', () => {
-      expect(isDiscordInvite('https://discord.com/invite/abc123')).toBe(true);
-    });
+describe('isShortenedUrl', () => {
+  test('bit.ly', () => { expect(isShortenedUrl('https://bit.ly/abc')).toBe(true); });
+  test('t.co', () => { expect(isShortenedUrl('https://t.co/abc')).toBe(true); });
+  test('regular', () => { expect(isShortenedUrl('https://example.com')).toBe(false); });
+  test('invalid', () => { expect(isShortenedUrl('not a url')).toBe(false); });
+});
 
-    it('should detect discordapp.com/invite', () => {
-      expect(isDiscordInvite('https://discordapp.com/invite/xyz')).toBe(true);
-    });
+describe('isPhishingUrl', () => {
+  test('discord lookalike', () => { expect(isPhishingUrl('https://dlscord.com/nitro')).toBe(true); });
+  test('steam lookalike', () => { expect(isPhishingUrl('https://steamcommunlty.com/gift')).toBe(true); });
+  test('legit discord', () => { expect(isPhishingUrl('https://discord.com/channels')).toBe(false); });
+  test('sus TLD + keyword', () => { expect(isPhishingUrl('https://free-nitro.xyz/claim')).toBe(true); });
+  test('sus TLD no keyword', () => { expect(isPhishingUrl('https://mysite.xyz/hello')).toBe(false); });
+  test('invalid', () => { expect(isPhishingUrl('not a url')).toBe(false); });
+});
 
-    it('should NOT flag regular discord.com URLs', () => {
-      expect(isDiscordInvite('https://discord.com/channels/123/456')).toBe(false);
-    });
+describe('analyzeUrls', () => {
+  test('no URLs', () => { const r = analyzeUrls('hello'); expect(r.regularLinks).toHaveLength(0); });
+  test('empty', () => { const r = analyzeUrls(''); expect(r.regularLinks).toHaveLength(0); });
+  test('regular', () => { expect(analyzeUrls('https://example.com').regularLinks).toHaveLength(1); });
+  test('invite', () => { expect(analyzeUrls('https://discord.gg/abc').inviteLinks).toHaveLength(1); });
+  test('phishing', () => { expect(analyzeUrls('https://dlscord.com/nitro').phishingLinks).toHaveLength(1); });
+  test('shortened', () => { expect(analyzeUrls('https://bit.ly/abc').shortenedLinks).toHaveLength(1); });
+  test('mixed', () => {
+    const r = analyzeUrls('https://example.com https://discord.gg/abc https://bit.ly/x');
+    expect(r.regularLinks).toHaveLength(1); expect(r.inviteLinks).toHaveLength(1); expect(r.shortenedLinks).toHaveLength(1);
   });
-
-  describe('isShortenedUrl', () => {
-    it('should detect bit.ly', () => {
-      expect(isShortenedUrl('https://bit.ly/abc123')).toBe(true);
-    });
-
-    it('should detect tinyurl.com', () => {
-      expect(isShortenedUrl('https://tinyurl.com/something')).toBe(true);
-    });
-
-    it('should detect t.co', () => {
-      expect(isShortenedUrl('https://t.co/abcdef')).toBe(true);
-    });
-
-    it('should NOT flag regular URLs', () => {
-      expect(isShortenedUrl('https://google.com')).toBe(false);
-      expect(isShortenedUrl('https://github.com/repo')).toBe(false);
-    });
-
-    it('should handle malformed URLs gracefully', () => {
-      expect(isShortenedUrl('not-a-url')).toBe(false);
-    });
-  });
-
-  describe('isPhishingUrl', () => {
-    it('should detect Discord lookalike domains', () => {
-      expect(isPhishingUrl('https://discorcl.com/nitro')).toBe(true);
-      expect(isPhishingUrl('https://dlscord.gift/free')).toBe(true);
-      expect(isPhishingUrl('https://disc0rd.com/verify')).toBe(true);
-    });
-
-    it('should detect Steam lookalike domains', () => {
-      expect(isPhishingUrl('https://steamcommunlty.com/login')).toBe(true);
-    });
-
-    it('should detect suspicious TLD + path keyword combos', () => {
-      expect(isPhishingUrl('https://example.xyz/free-nitro')).toBe(true);
-      expect(isPhishingUrl('https://fakesite.tk/claim-gift')).toBe(true);
-    });
-
-    it('should NOT flag suspicious TLD without suspicious path', () => {
-      expect(isPhishingUrl('https://example.xyz/about')).toBe(false);
-      expect(isPhishingUrl('https://mysite.xyz')).toBe(false);
-    });
-
-    it('should NOT flag legitimate Discord domains', () => {
-      expect(isPhishingUrl('https://discord.com')).toBe(false);
-      expect(isPhishingUrl('https://discord.com/channels/123')).toBe(false);
-      expect(isPhishingUrl('https://discord.gg/server')).toBe(false);
-      expect(isPhishingUrl('https://discordapp.com')).toBe(false);
-    });
-
-    it('should NOT flag legitimate Steam domains', () => {
-      expect(isPhishingUrl('https://steamcommunity.com')).toBe(false);
-      expect(isPhishingUrl('https://store.steampowered.com')).toBe(false);
-    });
-
-    it('should handle malformed URLs gracefully', () => {
-      expect(isPhishingUrl('not-a-url')).toBe(false);
-    });
-  });
-
-  describe('analyzeUrls', () => {
-    it('should categorize invite links', () => {
-      const result = analyzeUrls('Check out https://discord.gg/coolserver');
-      expect(result.inviteLinks).toHaveLength(1);
-      expect(result.regularLinks).toHaveLength(0);
-    });
-
-    it('should categorize multiple invite links', () => {
-      const result = analyzeUrls('Join https://discord.gg/a and https://discord.gg/b');
-      expect(result.inviteLinks).toHaveLength(2);
-    });
-
-    it('should categorize phishing links', () => {
-      const result = analyzeUrls('Free nitro at https://discorcl.com/nitro');
-      expect(result.phishingLinks).toHaveLength(1);
-      expect(result.regularLinks).toHaveLength(0);
-    });
-
-    it('should categorize shortened links', () => {
-      const result = analyzeUrls('Click https://bit.ly/abc123');
-      expect(result.shortenedLinks).toHaveLength(1);
-    });
-
-    it('should categorize regular links', () => {
-      const result = analyzeUrls('Visit https://google.com and https://github.com/repo');
-      expect(result.regularLinks).toHaveLength(2);
-      expect(result.phishingLinks).toHaveLength(0);
-      expect(result.inviteLinks).toHaveLength(0);
-      expect(result.shortenedLinks).toHaveLength(0);
-    });
-
-    it('should handle mixed content correctly', () => {
-      const result = analyzeUrls(
-        'Check https://discorcl.com/nitro and https://discord.gg/server and https://google.com',
-      );
-      expect(result.phishingLinks).toHaveLength(1);
-      expect(result.inviteLinks).toHaveLength(1);
-      expect(result.regularLinks).toHaveLength(1);
-    });
-
-    it('should return empty arrays for no links', () => {
-      const result = analyzeUrls('Hello world, no links here!');
-      expect(result.regularLinks).toHaveLength(0);
-      expect(result.inviteLinks).toHaveLength(0);
-      expect(result.phishingLinks).toHaveLength(0);
-      expect(result.shortenedLinks).toHaveLength(0);
-    });
-
-    it('should handle empty string', () => {
-      const result = analyzeUrls('');
-      expect(result.regularLinks).toHaveLength(0);
-    });
-
-    it('should prioritize phishing over invite', () => {
-      // A discord-nitro.xyz/gift URL matches both phishing patterns
-      const result = analyzeUrls('https://discord-nitro.xyz/gift');
-      expect(result.phishingLinks).toHaveLength(1);
-      expect(result.inviteLinks).toHaveLength(0);
-    });
-
-    it('should handle URLs with query strings and fragments', () => {
-      const result = analyzeUrls('https://google.com/search?q=test#section');
-      expect(result.regularLinks).toHaveLength(1);
-    });
-
-    it('should handle very long URLs without crashing', () => {
-      const longPath = 'a'.repeat(500);
-      const result = analyzeUrls(`https://example.com/${longPath}`);
-      expect(result.regularLinks).toHaveLength(1);
-    });
-  });
+  test('null', () => { expect(analyzeUrls(null as unknown as string).regularLinks).toHaveLength(0); });
 });

@@ -15,7 +15,18 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import type { CustomInputField } from '../../../typeorm/entities/shared/CustomInputField';
-import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
+import {
+  CACHE_TTL,
+  enhancedLogger,
+  handleInteractionError,
+  INTERVALS,
+  LANGF,
+  LogCategory,
+  lang,
+  MAX,
+  sanitizeUserInput,
+  TEXT_LIMITS,
+} from '../../../utils';
 
 const btn = lang.general.buttons;
 const fm = lang.general.fieldManager;
@@ -91,13 +102,13 @@ const fieldDraftCache = new Map<
 
 // Clean up old drafts every minute
 const fieldDraftCleanupInterval = setInterval(() => {
-  const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+  const cutoff = Date.now() - CACHE_TTL.FIELD_DRAFT;
   for (const [key, value] of fieldDraftCache.entries()) {
-    if (value.timestamp < fiveMinutesAgo) {
+    if (value.timestamp < cutoff) {
       fieldDraftCache.delete(key);
     }
   }
-}, 60 * 1000);
+}, INTERVALS.FIELD_DRAFT_CLEANUP);
 
 /** Stop the field draft cleanup interval (call on shutdown) */
 export function stopFieldDraftCleanup(): void {
@@ -126,7 +137,7 @@ export async function showFieldManager<T extends FieldBearingEntity>(
     .setDescription(
       fields.length === 0
         ? `*${config.messages.noFields}*`
-        : `**Current Fields (${fields.length}/5)**\n` +
+        : `**Current Fields (${fields.length}/${MAX.CUSTOM_FIELDS_PER_ENTITY})**\n` +
             fields
               .map(
                 (f, i) =>
@@ -147,7 +158,7 @@ export async function showFieldManager<T extends FieldBearingEntity>(
       .setEmoji('✅'),
   );
 
-  if (fields.length < 5) {
+  if (fields.length < MAX.CUSTOM_FIELDS_PER_ENTITY) {
     buttons.addComponents(
       new ButtonBuilder()
         .setCustomId(`${prefix}add_${entityId}`)
@@ -307,14 +318,14 @@ export async function handleAddFieldModal<T extends FieldBearingEntity>(
     }
 
     const fieldId = interaction.fields.getTextInputValue('field_id').toLowerCase().trim();
-    const fieldLabel = interaction.fields.getTextInputValue('field_label').trim();
+    const fieldLabel = sanitizeUserInput(interaction.fields.getTextInputValue('field_label'));
     const fieldStyle = interaction.fields.getTextInputValue('field_style').toLowerCase().trim();
     const fieldRequired = interaction.fields
       .getTextInputValue('field_required')
       .toLowerCase()
       .trim();
     const fieldPlaceholder =
-      interaction.fields.getTextInputValue('field_placeholder')?.trim() || undefined;
+      sanitizeUserInput(interaction.fields.getTextInputValue('field_placeholder')) || undefined;
 
     // Cache the values in case of validation failure
     fieldDraftCache.set(cacheKey, {
@@ -359,7 +370,7 @@ export async function handleAddFieldModal<T extends FieldBearingEntity>(
     }
 
     // Check field limit
-    if (fields.length >= 5) {
+    if (fields.length >= MAX.CUSTOM_FIELDS_PER_ENTITY) {
       await interaction.reply({
         content: `❌ ${config.messages.maxReached}`,
         flags: [MessageFlags.Ephemeral],
@@ -374,7 +385,7 @@ export async function handleAddFieldModal<T extends FieldBearingEntity>(
       style: fieldStyle as 'short' | 'paragraph',
       required,
       placeholder: fieldPlaceholder,
-      maxLength: fieldStyle === 'short' ? 100 : 4000,
+      maxLength: fieldStyle === 'short' ? TEXT_LIMITS.SHORT_FIELD : TEXT_LIMITS.PARAGRAPH_FIELD,
     };
 
     fields.push(newField);

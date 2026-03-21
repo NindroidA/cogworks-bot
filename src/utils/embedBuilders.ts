@@ -8,10 +8,6 @@
 import { type ColorResolvable, EmbedBuilder } from 'discord.js';
 import { Colors } from './colors';
 
-// ============================================================================
-// Embed Builder Functions
-// ============================================================================
-
 /**
  * Creates a success embed with green color and checkmark
  * @param title - Embed title (checkmark auto-added)

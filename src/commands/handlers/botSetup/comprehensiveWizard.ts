@@ -30,7 +30,10 @@ import { AnnouncementConfig } from '../../../typeorm/entities/announcement/Annou
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
+import {
+  type BaitActionType,
+  BaitChannelConfig,
+} from '../../../typeorm/entities/BaitChannelConfig';
 import { BotConfig } from '../../../typeorm/entities/BotConfig';
 import { SavedRole } from '../../../typeorm/entities/SavedRole';
 import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
@@ -84,7 +87,7 @@ interface ComprehensiveWizardState {
     archiveForumId?: string;
   };
   announcementConfig?: {
-    minecraftRoleId?: string;
+    defaultRoleId?: string;
     defaultChannelId?: string;
   };
   baitChannelConfig?: {
@@ -763,7 +766,7 @@ async function handleAnnouncementRoleSelect(
     }
 
     await roleInteraction.deferUpdate();
-    state.announcementConfig!.minecraftRoleId = selectedRole.id;
+    state.announcementConfig!.defaultRoleId = selectedRole.id;
     await handleAnnouncementChannelSelect(roleInteraction, state, client);
     collector.stop();
   });
@@ -1564,10 +1567,21 @@ async function saveAnnouncementConfiguration(state: ComprehensiveWizardState, _c
       announcementConfig.guildId = state.guildId;
     }
 
-    announcementConfig.minecraftRoleId = state.announcementConfig.minecraftRoleId!;
+    announcementConfig.defaultRoleId = state.announcementConfig.defaultRoleId!;
     announcementConfig.defaultChannelId = state.announcementConfig.defaultChannelId!;
 
     await announcementConfigRepo.save(announcementConfig);
+
+    // Seed default templates if none exist
+    try {
+      const { seedDefaultTemplates } = await import('../announcement/templates');
+      await seedDefaultTemplates(state.guildId);
+    } catch {
+      enhancedLogger.warn(
+        'Failed to seed default announcement templates during bot setup wizard',
+        LogCategory.COMMAND_EXECUTION,
+      );
+    }
   } catch (error) {
     enhancedLogger.error(
       lang.botSetup.errors.savingAnnouncementConfig,
@@ -1593,7 +1607,7 @@ async function saveBaitChannelConfiguration(state: ComprehensiveWizardState, cli
     }
 
     baitChannelConfig.channelId = state.baitChannelConfig.channelId!;
-    baitChannelConfig.actionType = state.baitChannelConfig.actionType!;
+    baitChannelConfig.actionType = state.baitChannelConfig.actionType! as BaitActionType;
     baitChannelConfig.gracePeriodSeconds = state.baitChannelConfig.gracePeriodSeconds!;
     baitChannelConfig.enabled = true;
 

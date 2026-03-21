@@ -7,13 +7,13 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { Position } from '../../../typeorm/entities/application/Position';
 import { enhancedLogger, handleInteractionError, LogCategory, lang } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { updateApplicationMessage } from './applicationPosition';
 
 const pl = lang.application.position;
-const positionRepo = AppDataSource.getRepository(Position);
+const positionRepo = lazyRepo(Position);
 
 /**
  * Handler for /application position edit command

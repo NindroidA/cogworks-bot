@@ -4,7 +4,6 @@ import {
   type Client,
   MessageFlags,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
 import {
   createRateLimitKey,
@@ -16,8 +15,10 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { seedDefaultTemplates } from './templates';
 
-const announcementConfigRepo = AppDataSource.getRepository(AnnouncementConfig);
+const announcementConfigRepo = lazyRepo(AnnouncementConfig);
 
 export const announcementSetupHandler = async (
   _client: Client,
@@ -34,7 +35,8 @@ export const announcementSetupHandler = async (
   }
 
   const tl = lang.announcement.setup;
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
 
   // Rate limit check (guild-scoped: 5 setup operations per hour)
   const rateLimitKey = createRateLimitKey.guild(guildId, 'announcement-setup');
@@ -53,7 +55,7 @@ export const announcementSetupHandler = async (
     return;
   }
 
-  const minecraftRole = interaction.options.getRole('minecraft-role', true);
+  const announcementRole = interaction.options.getRole('announcement-role', true);
   const defaultChannel = interaction.options.getChannel('default-channel', true);
 
   try {
@@ -62,18 +64,22 @@ export const announcementSetupHandler = async (
     if (!config) {
       config = announcementConfigRepo.create({
         guildId,
-        minecraftRoleId: minecraftRole.id,
+        defaultRoleId: announcementRole.id,
         defaultChannelId: defaultChannel.id,
       });
     } else {
-      config.minecraftRoleId = minecraftRole.id;
+      config.defaultRoleId = announcementRole.id;
       config.defaultChannelId = defaultChannel.id;
     }
 
     await announcementConfigRepo.save(config);
 
+    // Seed default templates if none exist
+    const seeded = await seedDefaultTemplates(guildId);
+
+    const seededMsg = seeded > 0 ? `\n• ${seeded} default templates seeded` : '';
     await interaction.reply({
-      content: `${tl.success}\n• Minecraft Role: ${minecraftRole}\n• Default Channel: ${defaultChannel}`,
+      content: `${tl.success}\n• Announcement Role: ${announcementRole}\n• Default Channel: ${defaultChannel}${seededMsg}`,
       flags: [MessageFlags.Ephemeral],
     });
 
@@ -86,7 +92,7 @@ export const announcementSetupHandler = async (
       { guildId },
     );
     await interaction.reply({
-      content: '',
+      content: tl.fail,
       flags: [MessageFlags.Ephemeral],
     });
   }

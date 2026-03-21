@@ -12,6 +12,7 @@ import { enhancedLogger, invalidateGuildMenuCache, LogCategory } from '../utils'
 import { notifyGuildLeave } from '../utils/api/guildWebhook';
 import { deleteAllGuildData } from '../utils/database/guildQueries';
 import { invalidateRulesCache } from './rulesReaction';
+import { invalidateStarboardCache } from './starboardReaction';
 
 export default {
   name: 'guildDelete',
@@ -33,6 +34,7 @@ export default {
       // Invalidate in-memory caches for this guild
       invalidateRulesCache(guildId);
       invalidateGuildMenuCache(guildId);
+      invalidateStarboardCache(guildId);
 
       // Delete all guild data from database
       const deletionResult = await deleteAllGuildData(guildId);
@@ -65,8 +67,11 @@ export default {
         // BotStatus clearing is best-effort
       }
 
-      // Notify API (fire-and-forget)
-      notifyGuildLeave(guildId).catch(() => {});
+      // Notify API (fire-and-forget) — skip for dev guild
+      if (guildId !== process.env.DEV_GUILD_ID) {
+        // Intentional: fire-and-forget API notification
+        notifyGuildLeave(guildId).catch(() => {});
+      }
 
       // Log final bot statistics
       enhancedLogger.info(

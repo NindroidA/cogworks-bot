@@ -7,10 +7,6 @@
 
 import { type Channel, ChannelType, type Guild, type GuildMember, type Role } from 'discord.js';
 
-// ============================================================================
-// Types & Interfaces
-// ============================================================================
-
 /**
  * Standard validation result format
  */
@@ -20,10 +16,6 @@ export interface ValidationResult {
   /** Error message if validation failed */
   error?: string;
 }
-
-// ============================================================================
-// Discord Entity Validators
-// ============================================================================
 
 /**
  * Validates a Discord channel with optional type checking
@@ -88,10 +80,6 @@ export function validateMember(member: GuildMember | null | undefined): Validati
   return { valid: true };
 }
 
-// ============================================================================
-// Emoji Validators
-// ============================================================================
-
 /**
  * Validates that a string is a valid emoji for Discord reactions.
  * Accepts standard Unicode emoji or custom Discord emoji format.
@@ -117,10 +105,6 @@ export function validateEmoji(emoji: string): ValidationResult {
     error: 'Invalid emoji. Use a standard emoji or custom Discord emoji (<:name:id>).',
   };
 }
-
-// ============================================================================
-// String Validators
-// ============================================================================
 
 /**
  * Validates a string with optional length constraints

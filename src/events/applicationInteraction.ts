@@ -11,7 +11,6 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { AppDataSource } from '../typeorm';
 import { Application } from '../typeorm/entities/application/Application';
 import { ApplicationConfig } from '../typeorm/entities/application/ApplicationConfig';
 import { Position } from '../typeorm/entities/application/Position';
@@ -28,17 +27,19 @@ import {
   RateLimits,
   rateLimiter,
 } from '../utils';
+import { lazyRepo } from '../utils/database/lazyRepo';
 import { applicationCloseEvent } from './application/close';
 
 const tl = lang.application;
 const pl = lang.application.position;
-const applicationRepo = AppDataSource.getRepository(Application);
-const applicationConfigRepo = AppDataSource.getRepository(ApplicationConfig);
-const positionRepo = AppDataSource.getRepository(Position);
-const savedRoleRepo = AppDataSource.getRepository(SavedRole);
+const applicationRepo = lazyRepo(Application);
+const applicationConfigRepo = lazyRepo(ApplicationConfig);
+const positionRepo = lazyRepo(Position);
+const savedRoleRepo = lazyRepo(SavedRole);
 
 export const handleApplicationInteraction = async (client: Client, interaction: Interaction) => {
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
   // applicationConfig is loaded lazily — only fetched when actually needed
   let applicationConfig:
     | import('../typeorm/entities/application/ApplicationConfig').ApplicationConfig

@@ -20,11 +20,7 @@ import {
   type ModalSubmitInteraction,
 } from 'discord.js';
 import { E } from './emojis';
-import { logger } from './logger';
-
-// ============================================================================
-// Enums & Types
-// ============================================================================
+import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
 
 /**
  * Error severity levels
@@ -188,22 +184,26 @@ export function logError(errorInfo: ErrorInfo): void {
   // Log based on severity
   switch (severity) {
     case ErrorSeverity.LOW:
-      logger(fullMessage, 'WARN');
+      enhancedLogger.warn(fullMessage, LogCategory.ERROR, context);
       break;
     case ErrorSeverity.MEDIUM:
     case ErrorSeverity.HIGH:
     case ErrorSeverity.CRITICAL:
-      logger(fullMessage, 'ERROR');
-      if (error instanceof Error) {
-        logger(`Stack: ${error.stack}`, 'ERROR');
-      }
+      enhancedLogger.error(
+        fullMessage,
+        error instanceof Error ? error : undefined,
+        LogCategory.ERROR,
+        context,
+      );
       break;
   }
 
-  // For critical errors, could send to monitoring service (Sentry, etc.)
   if (severity === ErrorSeverity.CRITICAL) {
-    // TODO: Send to error monitoring service
-    logger(`${E.alert} CRITICAL ERROR - Immediate attention required!`, 'ERROR');
+    enhancedLogger.error(
+      `${E.alert} CRITICAL ERROR - Immediate attention required!`,
+      error instanceof Error ? error : undefined,
+      LogCategory.ERROR,
+    );
   }
 }
 
@@ -236,10 +236,8 @@ export async function handleInteractionError(
   customMessage?: string,
 ): Promise<void> {
   try {
-    // Classify error
     const { category, severity } = classifyError(error);
 
-    // Build error info
     const errorInfo: ErrorInfo = {
       category,
       severity,
@@ -253,10 +251,8 @@ export async function handleInteractionError(
       },
     };
 
-    // Log error
     logError(errorInfo);
 
-    // Send user-friendly message
     const errorEmbed = createDetailedErrorEmbed(errorInfo);
 
     if (interaction.replied || interaction.deferred) {
@@ -272,8 +268,16 @@ export async function handleInteractionError(
     }
   } catch (followUpError) {
     // Last resort - just log it
-    logger(`Failed to handle interaction error: ${followUpError}`, 'ERROR');
-    logger(`Original error: ${error}`, 'ERROR');
+    enhancedLogger.error(
+      `Failed to handle interaction error: ${followUpError}`,
+      followUpError instanceof Error ? followUpError : undefined,
+      LogCategory.ERROR,
+    );
+    enhancedLogger.error(
+      `Original error: ${error}`,
+      error instanceof Error ? error : undefined,
+      LogCategory.ERROR,
+    );
   }
 }
 
@@ -318,7 +322,11 @@ export function setupGlobalErrorHandlers(
   onFatalShutdown?: (signal: string) => Promise<void>,
 ): void {
   process.on('unhandledRejection', (reason, promise) => {
-    logger(`${E.alert} Unhandled Promise Rejection!`, 'ERROR');
+    enhancedLogger.error(
+      `${E.alert} Unhandled Promise Rejection!`,
+      reason instanceof Error ? reason : undefined,
+      LogCategory.ERROR,
+    );
     logError({
       category: ErrorCategory.UNKNOWN,
       severity: ErrorSeverity.HIGH,
@@ -331,7 +339,7 @@ export function setupGlobalErrorHandlers(
   });
 
   process.on('uncaughtException', error => {
-    logger(`${E.alert} Uncaught Exception!`, 'ERROR');
+    enhancedLogger.error(`${E.alert} Uncaught Exception!`, error, LogCategory.ERROR);
     logError({
       category: ErrorCategory.UNKNOWN,
       severity: ErrorSeverity.CRITICAL,

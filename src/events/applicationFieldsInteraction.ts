@@ -18,7 +18,8 @@ import { enhancedLogger, LogCategory } from '../utils';
  * Uses `appfield_` prefix to avoid collision with ticket `field_` prefix
  */
 export const applicationFieldsInteraction = async (_client: Client, interaction: Interaction) => {
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
 
   try {
     // Handle button interactions for field management

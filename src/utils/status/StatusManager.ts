@@ -5,12 +5,19 @@ import {
   type PresenceStatusData,
   type TextChannel,
 } from 'discord.js';
+import { IsNull } from 'typeorm';
 import { lang } from '../../lang';
 import { AppDataSource } from '../../typeorm';
-import { BotStatus, type StatusLevel } from '../../typeorm/entities/status';
+import {
+  BotStatus,
+  type IncidentLevel,
+  StatusIncident,
+  type StatusLevel,
+} from '../../typeorm/entities/status';
 import { Colors } from '../colors';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { truncateWithNotice } from '../validation/inputSanitizer';
+import { invalidateStatusBannerCache } from './statusBanner';
 
 const tl = lang.status;
 
@@ -73,6 +80,12 @@ export class StatusManager {
     await this.statusRepo.save(status);
     await this.updatePresence(status);
     await this.postToStatusChannel(status);
+    invalidateStatusBannerCache();
+
+    // Create incident record for non-operational statuses
+    if (level !== 'operational') {
+      await this.createIncident(level, message || 'Status changed', systems);
+    }
 
     enhancedLogger.info(`Status manually set to ${level}`, LogCategory.SYSTEM, {
       level,
@@ -99,6 +112,10 @@ export class StatusManager {
     await this.statusRepo.save(status);
     await this.updatePresence(status);
     await this.postResolutionToStatusChannel(resolutionMessage);
+    invalidateStatusBannerCache();
+
+    // Resolve any open incidents
+    await this.resolveOpenIncidents(userId);
 
     enhancedLogger.info('Status cleared to operational', LogCategory.SYSTEM, {
       userId,
@@ -126,6 +143,14 @@ export class StatusManager {
 
     await this.statusRepo.save(status);
     await this.updatePresence(status);
+    invalidateStatusBannerCache();
+
+    // Auto-create/resolve incidents
+    if (level === 'operational') {
+      await this.resolveOpenIncidents(null);
+    } else {
+      await this.createIncident(level, 'Auto-detected status change');
+    }
 
     enhancedLogger.info(`Status auto-set to ${level}`, LogCategory.SYSTEM, {
       level,
@@ -188,6 +213,55 @@ export class StatusManager {
         ],
         status: 'online',
       });
+    }
+  }
+
+  /** Create a new incident record */
+  private async createIncident(
+    level: IncidentLevel,
+    message: string,
+    systems?: string[],
+  ): Promise<void> {
+    try {
+      const incidentRepo = AppDataSource.getRepository(StatusIncident);
+      const incident = incidentRepo.create({
+        level,
+        message,
+        affectedSystems: systems || null,
+      });
+      await incidentRepo.save(incident);
+    } catch (error) {
+      enhancedLogger.error(
+        'Failed to create incident record',
+        error as Error,
+        LogCategory.DATABASE,
+      );
+    }
+  }
+
+  /** Resolve all open incidents */
+  private async resolveOpenIncidents(resolvedBy: string | null): Promise<void> {
+    try {
+      const incidentRepo = AppDataSource.getRepository(StatusIncident);
+      const openIncidents = await incidentRepo.find({
+        where: { resolvedAt: IsNull() },
+      });
+
+      if (openIncidents.length === 0) return;
+
+      const now = new Date();
+      for (const incident of openIncidents) {
+        incident.resolvedAt = now;
+        incident.resolvedBy = resolvedBy;
+      }
+
+      await incidentRepo.save(openIncidents);
+    } catch (error) {
+      enhancedLogger.error(
+        'Failed to resolve open incidents',
+        error as Error,
+        LogCategory.DATABASE,
+      );
     }
   }
 

@@ -27,8 +27,8 @@ export class BaitChannelLog {
   @Column()
   actionTaken: string; // 'banned', 'kicked', 'whitelisted', 'deleted-in-time', 'failed'
 
-  @Column({ nullable: true })
-  failureReason: string;
+  @Column({ type: 'varchar', nullable: true })
+  failureReason: string | null;
 
   // Smart detection data
   @Column({ type: 'float' })
@@ -63,17 +63,17 @@ export class BaitChannelLog {
     phishingUrl: boolean;
     attachmentOnly: boolean;
     joinBurst: boolean;
-  };
+  } | null;
 
   // Override tracking (Plan 06)
   @Column({ default: false })
   overridden: boolean;
 
-  @Column({ nullable: true })
-  overriddenBy: string;
+  @Column({ type: 'varchar', nullable: true })
+  overriddenBy: string | null;
 
-  @Column({ nullable: true })
-  overriddenAt: Date;
+  @Column({ type: 'datetime', nullable: true })
+  overriddenAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

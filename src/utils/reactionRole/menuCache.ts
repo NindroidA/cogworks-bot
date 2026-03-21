@@ -1,10 +1,9 @@
-import { AppDataSource } from '../../typeorm';
+import { lazyRepo } from '../database/lazyRepo';
 import { ReactionRoleMenu, type ReactionRoleOption } from '../../typeorm/entities/reactionRole';
 
-const menuRepo = AppDataSource.getRepository(ReactionRoleMenu);
+const menuRepo = lazyRepo(ReactionRoleMenu);
 
-// TTL for cache entries (30 minutes)
-const CACHE_TTL_MS = 30 * 60 * 1000;
+import { CACHE_TTL } from '../constants';
 
 // In-memory cache: Map<messageId, { menu, cachedAt }>
 const menuCache = new Map<string, { menu: ReactionRoleMenu; cachedAt: number }>();
@@ -29,7 +28,7 @@ export async function getCachedMenu(
   const cached = menuCache.get(messageId);
   if (cached) {
     // Check TTL — evict stale entries
-    if (Date.now() - cached.cachedAt > CACHE_TTL_MS) {
+    if (Date.now() - cached.cachedAt > CACHE_TTL.REACTION_ROLE_MENU) {
       menuCache.delete(messageId);
       emojiIndex.delete(messageId);
     } else if (cached.menu.guildId === guildId) {

@@ -1,4 +1,4 @@
-import type { Client, DMChannel, GuildChannel } from 'discord.js';
+import type { DMChannel, GuildChannel } from 'discord.js';
 import { AppDataSource } from '../typeorm';
 import { AnnouncementConfig } from '../typeorm/entities/announcement/AnnouncementConfig';
 import { ApplicationConfig } from '../typeorm/entities/application/ApplicationConfig';
@@ -16,7 +16,7 @@ import { invalidateRulesCache } from './rulesReaction';
 
 export default {
   name: 'channelDelete',
-  async execute(channel: DMChannel | GuildChannel, client: Client) {
+  async execute(channel: DMChannel | GuildChannel, client: ExtendedClient) {
     // Ignore DM channels
     if (!('guild' in channel)) return;
 
@@ -42,7 +42,7 @@ export default {
           changed = true;
         }
         if (config.categoryId === channelId) {
-          config.categoryId = '' as typeof config.categoryId;
+          config.categoryId = null;
           changed = true;
         }
         if (changed) {
@@ -84,7 +84,7 @@ export default {
           changed = true;
         }
         if (config.categoryId === channelId) {
-          config.categoryId = '' as typeof config.categoryId;
+          config.categoryId = null;
           changed = true;
         }
         if (changed) {
@@ -122,19 +122,19 @@ export default {
         let changed = false;
         if (config.channelId === channelId) {
           config.enabled = false;
-          config.channelId = '' as typeof config.channelId;
-          config.channelMessageId = '' as typeof config.channelMessageId;
+          config.channelId = '';
+          config.channelMessageId = null;
           changed = true;
         }
         if (config.logChannelId === channelId) {
-          config.logChannelId = '' as typeof config.logChannelId;
-          config.logChannelMessageId = '' as typeof config.logChannelMessageId;
+          config.logChannelId = null;
+          config.logChannelMessageId = null;
           changed = true;
         }
         if (changed) {
           await repo.save(config);
           // Clear bait manager cache
-          const { baitChannelManager } = client as ExtendedClient;
+          const { baitChannelManager } = client;
           baitChannelManager?.clearConfigCache(guildId);
           enhancedLogger.info('Updated BaitChannelConfig for deleted channel', LogCategory.SYSTEM, {
             guildId,

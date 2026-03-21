@@ -5,7 +5,8 @@
  * Uses in-memory Map with automatic cleanup
  */
 
-import { logger } from '../logger';
+import { INTERVALS } from '../constants';
+import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
 /**
  * Rate limit entry with timestamp and count
@@ -43,12 +44,9 @@ class RateLimiter {
 
   constructor() {
     // Clean up expired entries every 5 minutes
-    this.cleanupInterval = setInterval(
-      () => {
-        this.cleanup();
-      },
-      5 * 60 * 1000,
-    );
+    this.cleanupInterval = setInterval(() => {
+      this.cleanup();
+    }, INTERVALS.RATE_LIMIT_CLEANUP);
   }
 
   /**
@@ -66,7 +64,10 @@ class RateLimiter {
     if (this.isDevMode) {
       // Only log once per session to avoid spam
       if (!this.devModeLogged) {
-        logger('⚠️ Rate limiter running in dev mode - all limits bypassed', 'INFO');
+        enhancedLogger.info(
+          'Rate limiter running in dev mode - all limits bypassed',
+          LogCategory.SYSTEM,
+        );
         this.devModeLogged = true;
       }
       return { allowed: true };
@@ -109,23 +110,11 @@ class RateLimiter {
     return { allowed: true };
   }
 
-  /**
-   * Reset rate limit for a specific key
-   *
-   * @param key - Unique identifier to reset
-   */
   public reset(key: string): void {
     this.limits.delete(key);
-    logger(`Rate limit reset for key: ${key}`, 'INFO');
+    enhancedLogger.debug(`Rate limit reset for key: ${key}`, LogCategory.SYSTEM);
   }
 
-  /**
-   * Get remaining attempts for a key
-   *
-   * @param key - Unique identifier
-   * @param maxAttempts - Maximum attempts allowed
-   * @returns Number of remaining attempts
-   */
   public getRemaining(key: string, maxAttempts: number): number {
     const entry = this.limits.get(key);
     if (!entry || Date.now() >= entry.resetTime) {
@@ -134,12 +123,6 @@ class RateLimiter {
     return Math.max(0, maxAttempts - entry.count);
   }
 
-  /**
-   * Get time until reset for a key
-   *
-   * @param key - Unique identifier
-   * @returns Seconds until reset, or 0 if not limited
-   */
   public getResetTime(key: string): number {
     const entry = this.limits.get(key);
     if (!entry) return 0;
@@ -150,9 +133,6 @@ class RateLimiter {
     return Math.ceil((entry.resetTime - now) / 1000);
   }
 
-  /**
-   * Clean up expired entries
-   */
   private cleanup(): void {
     const now = Date.now();
     let removed = 0;
@@ -165,16 +145,13 @@ class RateLimiter {
     }
 
     if (removed > 0) {
-      logger(`Rate limiter cleanup: removed ${removed} expired entries`, 'INFO');
+      enhancedLogger.debug(
+        `Rate limiter cleanup: removed ${removed} expired entries`,
+        LogCategory.SYSTEM,
+      );
     }
   }
 
-  /**
-   * Format seconds into human-readable time
-   *
-   * @param seconds - Seconds to format
-   * @returns Formatted string
-   */
   private formatTime(seconds: number): string {
     if (seconds < 60) {
       return `${seconds} second${seconds !== 1 ? 's' : ''}`;
@@ -194,17 +171,18 @@ class RateLimiter {
     return `${hours} hour${hours !== 1 ? 's' : ''} and ${remainingMinutes} minute${remainingMinutes !== 1 ? 's' : ''}`;
   }
 
-  /**
-   * Stop the cleanup interval
-   */
   public destroy(): void {
     clearInterval(this.cleanupInterval);
     this._isDevMode = null; // Reset cached dev mode for next check cycle
   }
 
   /**
-   * Get current stats for monitoring
+   * Get the raw size of the internal limits Map (for memory watchdog tracking).
    */
+  public getSize(): number {
+    return this.limits.size;
+  }
+
   public getStats(): { activeEntries: number; totalLimits: number } {
     const now = Date.now();
     let active = 0;
@@ -326,30 +304,18 @@ export const RateLimits = {
  * Helper function to create rate limit keys
  */
 export const createRateLimitKey = {
-  /**
-   * Create key for user-specific limit
-   */
   user: (userId: string, action: string): string => {
     return `user:${userId}:${action}`;
   },
 
-  /**
-   * Create key for guild-specific limit
-   */
   guild: (guildId: string, action: string): string => {
     return `guild:${guildId}:${action}`;
   },
 
-  /**
-   * Create key for user within guild
-   */
   userGuild: (userId: string, guildId: string, action: string): string => {
     return `user:${userId}:guild:${guildId}:${action}`;
   },
 
-  /**
-   * Create key for global user limit
-   */
   globalUser: (userId: string): string => {
     return `global:user:${userId}`;
   },

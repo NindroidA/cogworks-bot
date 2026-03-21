@@ -1,0 +1,114 @@
+{
+  "setup": {
+    "cmdDescrp": "Configure the XP & leveling system",
+    "enabled": "XP system has been **enabled** for this server.",
+    "disabled": "XP system has been **disabled** for this server.",
+    "alreadyEnabled": "XP system is already enabled.",
+    "alreadyDisabled": "XP system is already disabled.",
+    "configUpdated": "XP configuration updated successfully.",
+    "configTitle": "XP Configuration",
+    "roleRewardAdded": "Role reward added: Level **{0}** grants <@&{1}>.",
+    "roleRewardRemoved": "Role reward for level **{0}** has been removed.",
+    "roleRewardNotFound": "No role reward found for level **{0}**.",
+    "roleRewardExists": "A role reward already exists for level **{0}**. Remove it first.",
+    "roleRewardListTitle": "Role Rewards",
+    "roleRewardListEmpty": "No role rewards configured.",
+    "channelIgnored": "Channel {0} is now ignored for XP.",
+    "channelUnignored": "Channel {0} is no longer ignored for XP.",
+    "channelAlreadyIgnored": "Channel {0} is already ignored.",
+    "channelNotIgnored": "Channel {0} is not currently ignored.",
+    "multiplierSet": "XP multiplier for {0} set to **{1}x**.",
+    "multiplierRemoved": "XP multiplier removed from {0}.",
+    "multiplierNotFound": "No multiplier set for {0}.",
+    "importPlaceholder": "MEE6 import will be available via the Bot Data Migration System."
+  },
+  "builder": {
+    "cmdDescrp": "XP system management commands",
+    "xpSetupDescrp": "Configure the XP & leveling system",
+    "enable": "Enable the XP system",
+    "disable": "Disable the XP system",
+    "config": {
+      "descrp": "Configure XP settings",
+      "setting": "The setting to configure",
+      "value": "The new value for the setting",
+      "settingXpRate": "XP per message (min-max, e.g. 15-25)",
+      "settingCooldown": "Cooldown between XP gains (seconds)",
+      "settingVoiceXp": "XP per voice minute",
+      "settingLevelUpChannel": "Channel for level-up announcements",
+      "settingLevelUpMessage": "Level-up message template ({user} and {level} placeholders)"
+    },
+    "roleReward": {
+      "descrp": "Manage role rewards for reaching levels",
+      "add": "Add a role reward for a level",
+      "remove": "Remove a role reward",
+      "list": "List all role rewards",
+      "level": "The level threshold for this reward",
+      "role": "The role to grant at this level",
+      "removeOnDelevel": "Remove the role if user drops below this level"
+    },
+    "ignoreChannel": {
+      "descrp": "Manage ignored channels for XP",
+      "add": "Ignore a channel for XP",
+      "remove": "Stop ignoring a channel for XP",
+      "channel": "The channel to ignore/unignore"
+    },
+    "multiplier": {
+      "descrp": "Manage channel XP multipliers",
+      "set": "Set an XP multiplier for a channel",
+      "remove": "Remove an XP multiplier from a channel",
+      "channel": "The channel to set/remove a multiplier for",
+      "value": "Multiplier value (e.g. 1.5, 2, 0.5)"
+    },
+    "import": {
+      "descrp": "Import XP data from MEE6",
+      "mee6": "Import XP data from MEE6 leaderboard"
+    },
+    "admin": {
+      "cmdDescrp": "XP administration commands",
+      "set": "Set a user's XP to a specific value",
+      "reset": "Reset a user's XP to zero",
+      "resetAll": "Reset all XP data for this server",
+      "user": "The user to modify",
+      "xpAmount": "The XP value to set"
+    },
+    "rank": {
+      "cmdDescrp": "View your XP rank or another user's rank",
+      "user": "The user to view (defaults to yourself)"
+    },
+    "leaderboard": {
+      "cmdDescrp": "View the server XP leaderboard",
+      "page": "Page number (10 per page)"
+    }
+  },
+  "rank": {
+    "title": "Rank Card",
+    "noData": "No XP data found for this user. Start chatting to earn XP!",
+    "noDataOther": "No XP data found for {0}."
+  },
+  "leaderboard": {
+    "title": "XP Leaderboard",
+    "empty": "No XP data yet. Start chatting to earn XP!",
+    "footer": "Page {0} of {1}",
+    "entry": "**#{0}** <@{1}> — Level **{2}** | **{3}** XP"
+  },
+  "admin": {
+    "xpSet": "Set **{0}**'s XP to **{1}** (Level {2}).",
+    "xpReset": "Reset **{0}**'s XP to 0.",
+    "xpResetAll": "All XP data has been reset for this server.",
+    "xpResetAllConfirm": "Are you sure you want to reset **all** XP data? This action cannot be undone. Type `CONFIRM` to proceed.",
+    "xpResetAllCancelled": "XP reset cancelled.",
+    "noXpData": "No XP data found for {0}."
+  },
+  "levelUp": {
+    "default": "Congrats {user}, you reached **Level {level}**!"
+  },
+  "errors": {
+    "notConfigured": "XP system is not configured. An admin can enable it with `/xp-setup enable`.",
+    "disabled": "XP system is currently disabled.",
+    "notFound": "XP data not found.",
+    "invalidXpRange": "Invalid XP range. Min must be less than or equal to max.",
+    "invalidMultiplier": "Multiplier must be between 0.1 and 10.",
+    "invalidCooldown": "Cooldown must be between 0 and 3600 seconds.",
+    "maxRoleRewards": "Maximum of 25 role rewards per server."
+  }
+}

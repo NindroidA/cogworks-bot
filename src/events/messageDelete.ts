@@ -1,4 +1,4 @@
-import type { Client, Message, PartialMessage } from 'discord.js';
+import type { Message, PartialMessage } from 'discord.js';
 import { AppDataSource } from '../typeorm';
 import { ApplicationConfig } from '../typeorm/entities/application/ApplicationConfig';
 import { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
@@ -12,7 +12,7 @@ import { invalidateRulesCache } from './rulesReaction';
 
 export default {
   name: 'messageDelete',
-  async execute(message: Message | PartialMessage, client: Client) {
+  async execute(message: Message | PartialMessage, client: ExtendedClient) {
     if (!message.guild) return;
 
     const guildId = message.guild.id;
@@ -24,7 +24,7 @@ export default {
     if (message.author && message.author.id !== client.user?.id) return;
 
     // Bait channel manager check (existing behavior)
-    const { baitChannelManager } = client as ExtendedClient;
+    const { baitChannelManager } = client;
     if (baitChannelManager) {
       await baitChannelManager.handleMessageDelete(messageId, guildId);
     }
@@ -82,11 +82,11 @@ export default {
 
           let changed = false;
           if (config.channelMessageId === messageId) {
-            config.channelMessageId = '' as typeof config.channelMessageId;
+            config.channelMessageId = null;
             changed = true;
           }
           if (config.logChannelMessageId === messageId) {
-            config.logChannelMessageId = '' as typeof config.logChannelMessageId;
+            config.logChannelMessageId = null;
             changed = true;
           }
           if (changed) {

@@ -1,5 +1,4 @@
 import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { SavedRole } from '../../../typeorm/entities/SavedRole';
 import {
   createRateLimitKey,
@@ -11,9 +10,10 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.addRole;
-const savedRoleRepo = AppDataSource.getRepository(SavedRole);
+const savedRoleRepo = lazyRepo(SavedRole);
 
 export const roleAddHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   // Require admin permissions
@@ -44,7 +44,8 @@ export const roleAddHandler = async (interaction: ChatInputCommandInteraction<Ca
   }
 
   const subCommand = interaction.options.getSubcommand(); // 'staff' or 'admin'
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
   const role = interaction.options.getRole('role_id')!.toString() || '';
   const alias = interaction.options.getString('alias') || '';
   const roleFinder = await savedRoleRepo.findOneBy({ guildId, role });

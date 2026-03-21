@@ -9,7 +9,7 @@ export const announcementSetup = new SlashCommandBuilder()
   .setDescription(tl.cmdDescrp)
   .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
   .addRoleOption(option =>
-    option.setName('minecraft-role').setDescription(tl.mcRole).setRequired(true),
+    option.setName('announcement-role').setDescription(tl.announcementRole).setRequired(true),
   )
   .addChannelOption(option =>
     option.setName('default-channel').setDescription(tl.defaultChannel).setRequired(true),

@@ -125,6 +125,10 @@ export async function migrateTicketTagsHandler(
           const mergedTags = [...existingTags, tagId];
 
           // Apply merged tags to forum post
+          if (!archived.messageId) {
+            skipped++;
+            continue;
+          }
           await applyForumTags(forumChannel, archived.messageId, mergedTags);
 
           // Update database with merged tags

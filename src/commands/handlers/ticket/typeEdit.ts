@@ -11,7 +11,13 @@ import {
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, handleInteractionError, LogCategory, lang } from '../../../utils';
+import {
+  enhancedLogger,
+  handleInteractionError,
+  LogCategory,
+  lang,
+  sanitizeUserInput,
+} from '../../../utils';
 import { buildTypeConfirmationEmbed } from './typeAdd';
 
 const tl = lang.ticket.customTypes.typeEdit;
@@ -134,10 +140,11 @@ export async function typeEditModalHandler(
     const guildId = interaction.guild.id;
 
     // Get modal inputs
-    const displayName = interaction.fields.getTextInputValue('displayName').trim();
+    const displayName = sanitizeUserInput(interaction.fields.getTextInputValue('displayName'));
     const emoji = interaction.fields.getTextInputValue('emoji')?.trim() || null;
     const colorInput = interaction.fields.getTextInputValue('color')?.trim() || '#0099ff';
-    const description = interaction.fields.getTextInputValue('description')?.trim() || null;
+    const description =
+      sanitizeUserInput(interaction.fields.getTextInputValue('description')) || null;
 
     // Validate hex color
     if (!/^#[0-9A-Fa-f]{6}$/.test(colorInput)) {

@@ -1,6 +1,7 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity()
+@Index(['guildId'])
 export class AnnouncementLog {
   @PrimaryGeneratedColumn()
   id: number;

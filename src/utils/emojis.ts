@@ -18,10 +18,6 @@
  * ```
  */
 
-// ============================================================================
-// Emoji Constants
-// ============================================================================
-
 export const Emoji = {
   // Status indicators
   status: {
@@ -145,10 +141,6 @@ export const Emoji = {
   },
 } as const;
 
-// ============================================================================
-// Shorthand Access
-// ============================================================================
-
 /**
  * Shorthand emoji access for the most commonly used emojis
  * Prefer this for inline usage: `${E.ok} Success!`
@@ -235,10 +227,6 @@ export const E = {
   exclaim: Emoji.decorative.exclaim,
 } as const;
 
-// ============================================================================
-// Wrapper Functions (add emoji prefix to strings)
-// ============================================================================
-
 /**
  * Emoji wrapper functions that prepend emojis to strings
  * Useful for adding consistent emoji prefixes to lang strings
@@ -280,10 +268,6 @@ export const em = {
   with: (emoji: string, text: string) => `${emoji} ${text}`,
 };
 
-// ============================================================================
-// LANGF Integration Helper
-// ============================================================================
-
 /**
  * Creates an emoji-prefixed formatted string
  * Use when you need both emoji prefix AND template formatting
@@ -302,10 +286,6 @@ export function emLANGF(emoji: string, template: string, ...args: (string | numb
   return `${emoji} ${formatted}`;
 }
 
-// ============================================================================
-// Type Helpers
-// ============================================================================
-
 export type EmojiCategory = keyof typeof Emoji;
 export type StatusEmoji = keyof typeof Emoji.status;
 export type ActionEmoji = keyof typeof Emoji.action;
@@ -317,9 +297,5 @@ export type StatsEmoji = keyof typeof Emoji.stats;
 export type SystemEmoji = keyof typeof Emoji.system;
 export type DecorativeEmoji = keyof typeof Emoji.decorative;
 export type TicketTypeEmoji = keyof typeof Emoji.ticketTypes;
-
-// ============================================================================
-// Default Export
-// ============================================================================
 
 export default Emoji;

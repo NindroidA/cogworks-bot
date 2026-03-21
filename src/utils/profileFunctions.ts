@@ -9,10 +9,6 @@ import { ActivityType, type Client } from 'discord.js';
 import pjson from '../../package.json';
 import { lang } from '../lang';
 
-// ============================================================================
-// Status Functions
-// ============================================================================
-
 /**
  * Sets the bot's custom status/presence
  * @param client - The Discord client instance

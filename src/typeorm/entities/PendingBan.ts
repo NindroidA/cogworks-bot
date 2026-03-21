@@ -22,8 +22,8 @@ export class PendingBan {
   @Column({ type: 'int', default: 0 })
   suspicionScore: number;
 
-  @Column({ nullable: true })
-  warningMessageId: string;
+  @Column({ type: 'varchar', nullable: true })
+  warningMessageId: string | null;
 
   @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;

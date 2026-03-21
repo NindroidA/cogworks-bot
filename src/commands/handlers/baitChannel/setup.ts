@@ -1,4 +1,5 @@
 import {
+  ChannelType,
   type ChatInputCommandInteraction,
   type Client,
   EmbedBuilder,
@@ -6,15 +7,20 @@ import {
   TextChannel,
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
-import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
+import {
+  type BaitActionType,
+  BaitChannelConfig,
+} from '../../../typeorm/entities/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
 import {
   enhancedLogger,
   handleInteractionError,
+  LANGF,
   LogCategory,
   lang,
   safeDbOperation,
 } from '../../../utils';
+import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
 
@@ -41,8 +47,8 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
         guildId: interaction.guildId!,
         channelId: channel.id,
         gracePeriodSeconds: gracePeriod,
-        actionType: action,
-        logChannelId: logChannel?.id || undefined,
+        actionType: action as BaitActionType,
+        logChannelId: logChannel?.id ?? null,
       });
     } else {
       // Check if channel is changing - if so, delete old message
@@ -61,12 +67,12 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
           // Old channel/message may not exist anymore - that's fine
         }
         // Clear the old message ID since it's deleted or gone
-        config.channelMessageId = undefined as unknown as string;
+        config.channelMessageId = null;
       }
 
       config.channelId = channel.id;
       config.gracePeriodSeconds = gracePeriod;
-      config.actionType = action;
+      config.actionType = action as BaitActionType;
       if (logChannel) config.logChannelId = logChannel.id;
     }
 
@@ -158,5 +164,172 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
     });
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.setup);
+  }
+};
+
+export const handleBaitChannelAddChannel = async (
+  client: Client,
+  interaction: ChatInputCommandInteraction,
+) => {
+  try {
+    const channel = interaction.options.getChannel('channel', true);
+
+    // Validate text channel
+    if (channel.type !== ChannelType.GuildText) {
+      await interaction.reply({
+        content: 'Please select a text channel.',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    const configRepo = AppDataSource.getRepository(BaitChannelConfig);
+    const config = await safeDbOperation(
+      () => configRepo.findOne({ where: { guildId: interaction.guildId! } }),
+      'Find bait channel config',
+    );
+
+    if (!config) {
+      await interaction.reply({
+        content: tl.setupFirst,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    // Build current channel list from channelIds or legacy channelId
+    const currentChannels: string[] = config.channelIds?.length
+      ? [...config.channelIds]
+      : config.channelId
+        ? [config.channelId]
+        : [];
+
+    // Validate max 3 channels
+    if (currentChannels.length >= 3) {
+      await interaction.reply({
+        content: tl.multiChannel.maxReached,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    // Check for duplicate
+    if (currentChannels.includes(channel.id)) {
+      await interaction.reply({
+        content: LANGF(tl.multiChannel.alreadyAdded, channel.id),
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    // Add channel
+    currentChannels.push(channel.id);
+    config.channelIds = currentChannels;
+    // Keep legacy channelId in sync with first channel
+    config.channelId = currentChannels[0];
+
+    await safeDbOperation(() => configRepo.save(config), 'Save bait channel config');
+
+    // Clear cache
+    const { baitChannelManager } = client as ExtendedClient;
+    if (baitChannelManager) {
+      baitChannelManager.clearConfigCache(interaction.guildId!);
+    }
+
+    const channelList = currentChannels.map(id => `<#${id}>`).join(', ');
+    const embed = new EmbedBuilder()
+      .setColor(Colors.status.success)
+      .setTitle(tl.multiChannel.title)
+      .setDescription(LANGF(tl.multiChannel.added, channel.id))
+      .addFields({
+        name: tl.multiChannel.channelsLabel,
+        value: channelList,
+      });
+
+    await interaction.reply({
+      embeds: [embed],
+      flags: [MessageFlags.Ephemeral],
+    });
+  } catch (error) {
+    await handleInteractionError(interaction, error, tl.error.addChannel);
+  }
+};
+
+export const handleBaitChannelRemoveChannel = async (
+  client: Client,
+  interaction: ChatInputCommandInteraction,
+) => {
+  try {
+    const channel = interaction.options.getChannel('channel', true);
+
+    const configRepo = AppDataSource.getRepository(BaitChannelConfig);
+    const config = await safeDbOperation(
+      () => configRepo.findOne({ where: { guildId: interaction.guildId! } }),
+      'Find bait channel config',
+    );
+
+    if (!config) {
+      await interaction.reply({
+        content: tl.setupFirst,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    // Build current channel list
+    const currentChannels: string[] = config.channelIds?.length
+      ? [...config.channelIds]
+      : config.channelId
+        ? [config.channelId]
+        : [];
+
+    // Must keep at least 1 channel
+    if (currentChannels.length <= 1) {
+      await interaction.reply({
+        content: tl.multiChannel.mustKeepOne,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    // Check channel is in the list
+    if (!currentChannels.includes(channel.id)) {
+      await interaction.reply({
+        content: LANGF(tl.multiChannel.notInList, channel.id),
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    // Remove channel
+    const updatedChannels = currentChannels.filter(id => id !== channel.id);
+    config.channelIds = updatedChannels;
+    // Keep legacy channelId in sync with first channel
+    config.channelId = updatedChannels[0];
+
+    await safeDbOperation(() => configRepo.save(config), 'Save bait channel config');
+
+    // Clear cache
+    const { baitChannelManager } = client as ExtendedClient;
+    if (baitChannelManager) {
+      baitChannelManager.clearConfigCache(interaction.guildId!);
+    }
+
+    const channelList = updatedChannels.map(id => `<#${id}>`).join(', ');
+    const embed = new EmbedBuilder()
+      .setColor(Colors.status.success)
+      .setTitle(tl.multiChannel.title)
+      .setDescription(LANGF(tl.multiChannel.removed, channel.id))
+      .addFields({
+        name: tl.multiChannel.channelsLabel,
+        value: channelList,
+      });
+
+    await interaction.reply({
+      embeds: [embed],
+      flags: [MessageFlags.Ephemeral],
+    });
+  } catch (error) {
+    await handleInteractionError(interaction, error, tl.error.removeChannel);
   }
 };

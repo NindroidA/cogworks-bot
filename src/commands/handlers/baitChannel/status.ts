@@ -26,7 +26,15 @@ export const statusHandler = async (_client: Client, interaction: ChatInputComma
       return;
     }
 
-    const channel = await interaction.guild!.channels.fetch(config.channelId).catch(() => null);
+    // Build channel list from channelIds or legacy channelId
+    const baitChannelIds = config.channelIds?.length
+      ? config.channelIds
+      : config.channelId
+        ? [config.channelId]
+        : [];
+    const channelMentions =
+      baitChannelIds.map(id => `<#${id}>`).join(', ') || tl.status.channelNotFound;
+
     const logChannel = config.logChannelId
       ? await interaction.guild!.channels.fetch(config.logChannelId).catch(() => null)
       : null;
@@ -41,8 +49,8 @@ export const statusHandler = async (_client: Client, interaction: ChatInputComma
           inline: true,
         },
         {
-          name: 'Channel',
-          value: channel ? `<#${channel.id}>` : tl.status.channelNotFound,
+          name: baitChannelIds.length > 1 ? 'Channels' : 'Channel',
+          value: channelMentions,
           inline: true,
         },
         { name: 'Action Type', value: config.actionType, inline: true },
@@ -98,6 +106,15 @@ export const statusHandler = async (_client: Client, interaction: ChatInputComma
       embed.addFields({
         name: tl.status.whitelist,
         value: whitelistInfo.join('\n'),
+      });
+    }
+
+    // Show test mode status
+    if (config.testMode) {
+      embed.addFields({
+        name: 'Test Mode',
+        value: 'Enabled — detections are logged but no real actions taken',
+        inline: true,
       });
     }
 

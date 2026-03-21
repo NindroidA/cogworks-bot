@@ -5,16 +5,11 @@
  * Sends a welcome message with setup instructions.
  */
 
-import { type Client, EmbedBuilder, type Guild, REST, Routes, type TextChannel } from 'discord.js';
+import { type Client, EmbedBuilder, type Guild, Routes, type TextChannel } from 'discord.js';
 import { commands } from '../commands/commandList';
 import { Colors, enhancedLogger, LogCategory, lang } from '../utils';
 import { notifyGuildJoin } from '../utils/api/guildWebhook';
-
-const rest = new REST({ version: '10' }).setToken(
-  process.env.RELEASE === 'dev' ? process.env.DEV_BOT_TOKEN! : process.env.BOT_TOKEN!,
-);
-const CLIENT_ID =
-  process.env.RELEASE === 'dev' ? process.env.DEV_CLIENT_ID! : process.env.CLIENT_ID!;
+import { CLIENT_ID, rest } from '../utils/restClient';
 
 const tl = lang.general.welcome;
 
@@ -96,8 +91,11 @@ export default {
         `Sent welcome message in ${guild.name} (#${targetChannel.name})`,
         LogCategory.SYSTEM,
       );
-      // Notify API (fire-and-forget)
-      notifyGuildJoin(guild.id, guild.name, guild.memberCount).catch(() => {});
+      // Notify API (fire-and-forget) — skip for dev guild
+      if (guild.id !== process.env.DEV_GUILD_ID) {
+        // Intentional: fire-and-forget API notification
+        notifyGuildJoin(guild.id, guild.name, guild.memberCount).catch(() => {});
+      }
     } catch (error) {
       enhancedLogger.error(
         `Error handling guild create for ${guild.name}: ${(error as Error).message}`,

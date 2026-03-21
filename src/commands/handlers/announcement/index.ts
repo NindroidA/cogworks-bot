@@ -1,15 +1,23 @@
 /**
- * Announcement Handler (Modernized)
- * Delegates to the new modernized handler with template system and preview
+ * Announcement Handler Router
+ * Routes to template CRUD or send handler based on subcommand group.
  */
 
 import type { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
-import { announcementHandler as modernAnnouncementHandler } from './handler';
+import { announcementHandler as sendHandler } from './handler';
+import { templateHandler } from './templates';
 
 export const announcementHandler = async (
   client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ) => {
-  // Delegate to modernized handler
-  await modernAnnouncementHandler(client, interaction);
+  const subcommandGroup = interaction.options.getSubcommandGroup(false);
+
+  if (subcommandGroup === 'template') {
+    await templateHandler(client, interaction);
+    return;
+  }
+
+  // send subcommand and legacy subcommands
+  await sendHandler(client, interaction);
 };

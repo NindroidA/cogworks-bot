@@ -182,6 +182,51 @@
       "default": "(default)"
     }
   },
+  "manageTags": {
+    "add": {
+      "success": "Tag **{0}** added to {1}.",
+      "limitReached": "Maximum {0} {1} tags reached. Remove one first.",
+      "duplicate": "A {0} tag named '{1}' already exists.",
+      "discordLimit": "Discord forum tag limit (20) reached. Remove some tags first."
+    },
+    "remove": {
+      "success": "Tag **{0}** removed.",
+      "isDefault": "Default tags cannot be removed. Use `/memory-setup tag-edit` to rename them instead.",
+      "notFound": "Tag not found."
+    },
+    "edit": {
+      "success": "Tag **{0}** updated.",
+      "notFound": "Tag not found.",
+      "noChanges": "Provide at least one of name or emoji to update."
+    },
+    "list": {
+      "title": "Memory Tags",
+      "empty": "No tags configured for this channel.",
+      "footer": "Category: {0}/{1} | Status: {2}/{3}"
+    },
+    "reset": {
+      "confirm": "Reset all tags to defaults? Custom tags will be removed.",
+      "success": "Tags reset to defaults."
+    },
+    "selectChannel": "Which memory channel should this apply to?",
+    "noCustomTags": "No custom tags to remove.",
+    "autocomplete": {
+      "noTags": "No tags found"
+    }
+  },
+  "setupBuilder": {
+    "tagAdd": "Add a custom tag to a memory channel",
+    "tagRemove": "Remove a custom tag from a memory channel",
+    "tagEdit": "Edit a tag on a memory channel",
+    "tagList": "List all tags on a memory channel",
+    "tagReset": "Reset tags to defaults on a memory channel",
+    "tagName": "Name for the tag (max 20 characters)",
+    "tagType": "Type of tag (category or status)",
+    "tagEmoji": "Emoji for the tag",
+    "tagOption": "Select a tag",
+    "tagNewName": "New name for the tag",
+    "channelOption": "Memory channel (required if multiple channels)"
+  },
   "defaultTags": {
     "category": {
       "bug": "Bug",

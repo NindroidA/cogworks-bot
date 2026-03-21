@@ -18,10 +18,6 @@ import {
 } from 'discord.js';
 import { lang } from '../lang';
 
-// ============================================================================
-// Types & Interfaces
-// ============================================================================
-
 /**
  * Collector configuration options
  */
@@ -43,10 +39,6 @@ export type ButtonCollectorCallback = (interaction: ButtonInteraction) => Promis
 export type RoleSelectCollectorCallback = (
   interaction: RoleSelectMenuInteraction,
 ) => Promise<void> | void;
-
-// ============================================================================
-// Button Collector
-// ============================================================================
 
 /**
  * Creates a button collector with standard configuration
@@ -108,10 +100,6 @@ export function createButtonCollector(
   return collector;
 }
 
-// ============================================================================
-// Role Select Collector
-// ============================================================================
-
 /**
  * Creates a role select menu collector with standard configuration
  * @param message - The message to collect interactions from
@@ -156,10 +144,6 @@ export function createRoleSelectCollector(
 
   return collector;
 }
-
-// ============================================================================
-// Modal Timeout Notifier
-// ============================================================================
 
 /**
  * Notify the user that a modal/form timed out.

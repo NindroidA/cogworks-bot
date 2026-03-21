@@ -2,15 +2,18 @@ import type { Client } from 'discord.js';
 import { invalidateRulesCache } from '../../../events/rulesReaction';
 import type { BaitChannelManager } from '../../baitChannelManager';
 import { invalidateGuildMenuCache } from '../../reactionRole/menuCache';
+import { ApiError } from '../apiError';
 import type { RouteHandler } from '../router';
 
-type ClientWithBaitManager = Client & { baitChannelManager?: BaitChannelManager };
+type ClientWithBaitManager = Client & {
+  baitChannelManager?: BaitChannelManager;
+};
 
 export function registerConfigHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // POST /internal/guilds/:guildId/config/refresh
   routes.set('POST /config/refresh', async (guildId, body) => {
     const configType = body.configType as string;
-    if (!configType) return { error: 'configType is required' };
+    if (!configType) throw ApiError.badRequest('configType is required');
 
     switch (configType) {
       case 'baitChannel': {

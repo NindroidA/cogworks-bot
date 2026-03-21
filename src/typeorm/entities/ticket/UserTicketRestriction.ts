@@ -23,8 +23,8 @@ export class UserTicketRestriction {
   @Column()
   typeId: string;
 
-  @Column({ nullable: true })
-  restrictedBy: string;
+  @Column({ type: 'varchar', nullable: true })
+  restrictedBy: string | null;
 
   @Column({ type: 'text', nullable: true })
   reason: string | null;

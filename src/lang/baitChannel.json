@@ -68,6 +68,27 @@
       "action": "Add, remove, list, or reset keywords",
       "keyword": "The keyword to add or remove",
       "weight": "Keyword weight 1-10 (default: 5, higher = more suspicious)"
+    },
+    "override": {
+      "descrp": "Override a detection action for a user",
+      "user": "The user whose most recent detection to override"
+    },
+    "addChannel": {
+      "descrp": "Add an additional bait channel (up to 3)",
+      "channel": "The text channel to add as a bait channel"
+    },
+    "removeChannel": {
+      "descrp": "Remove a bait channel",
+      "channel": "The bait channel to remove"
+    },
+    "testMode": {
+      "descrp": "Toggle test mode (detects but does not ban/kick/timeout)",
+      "enabled": "Enable or disable test mode"
+    },
+    "summary": {
+      "descrp": "Enable or disable weekly summary digest",
+      "enabled": "Enable or disable weekly summary",
+      "channel": "Channel to send the summary (defaults to log channel)"
     }
   },
   "status": {
@@ -109,7 +130,26 @@
     "whitelisted": "Whitelisted",
     "avgSuspicion": "Avg Suspicion",
     "recentDetections": "Recent Detections",
-    "none": "None"
+    "none": "None",
+    "overrideRate": "Override Rate",
+    "scoreDistribution": "Score Distribution",
+    "topFlags": "Top Detection Flags",
+    "timedOut": "Timed Out",
+    "loggedOnly": "Logged Only",
+    "overridden": "Overridden"
+  },
+  "override": {
+    "title": "Detection Override",
+    "success": "Successfully overridden the most recent detection for {0}.",
+    "noEntry": "No actionable detection found for this user.",
+    "alreadyOverridden": "The most recent detection for this user has already been overridden.",
+    "logOnlyCannotOverride": "Log-only detections cannot be overridden (no action was taken).",
+    "user": "User",
+    "action": "Original Action",
+    "score": "Suspicion Score",
+    "overriddenBy": "Overridden By",
+    "detectedAt": "Detected At",
+    "error": "Failed to override detection"
   },
   "whitelist": {
     "added": "Added {0} to whitelist",
@@ -189,6 +229,29 @@
       "cancelled": "Keyword reset cancelled."
     }
   },
+  "testMode": {
+    "enabled": "Test mode **enabled** — detections will be logged but no ban/kick/timeout actions will be taken.",
+    "disabled": "Test mode **disabled** — detections will now execute real actions.",
+    "title": "Test Mode Updated",
+    "logPrefix": "[TEST MODE] ",
+    "gracePeriodNote": "\n\n**Test Mode Active** — No real action will be taken."
+  },
+  "multiChannel": {
+    "added": "Added <#{0}> as a bait channel",
+    "removed": "Removed <#{0}> from bait channels",
+    "maxReached": "Maximum of 3 bait channels reached. Remove one first.",
+    "alreadyAdded": "<#{0}> is already configured as a bait channel.",
+    "notInList": "<#{0}> is not configured as a bait channel.",
+    "mustKeepOne": "Cannot remove the last bait channel. Use `/baitchannel toggle` to disable instead.",
+    "title": "Bait Channel Updated",
+    "channelsLabel": "Configured Channels"
+  },
+  "weeklySummary": {
+    "title": "Weekly Summary Settings",
+    "enabled": "Weekly summary digest is now **enabled**. A summary will be sent every Sunday at midnight UTC.",
+    "disabled": "Weekly summary digest is now **disabled**.",
+    "channelLabel": "Summary Channel"
+  },
   "error": {
     "fetchStatus": "Failed to fetch bait channel status",
     "toggle": "Failed to toggle bait channel",
@@ -196,6 +259,11 @@
     "fetchStats": "Failed to fetch bait channel statistics",
     "updateWhitelist": "Failed to update whitelist",
     "updateDetection": "Failed to update detection settings",
-    "keywords": "Failed to manage keywords"
+    "keywords": "Failed to manage keywords",
+    "override": "Failed to override detection",
+    "testMode": "Failed to update test mode",
+    "addChannel": "Failed to add bait channel",
+    "removeChannel": "Failed to remove bait channel",
+    "weeklySummary": "Failed to update weekly summary settings"
   }
 }

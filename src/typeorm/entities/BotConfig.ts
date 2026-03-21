@@ -1,9 +1,8 @@
-import { Column, Entity, Index, PrimaryColumn } from 'typeorm';
+import { Column, Entity, PrimaryColumn } from 'typeorm';
 
 @Entity({ name: 'bot_configs' })
-@Index(['guildId'])
 export class BotConfig {
-  @PrimaryColumn({ unique: true })
+  @PrimaryColumn()
   guildId: string;
 
   @Column()

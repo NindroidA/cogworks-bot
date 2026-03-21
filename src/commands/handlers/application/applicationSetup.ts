@@ -7,7 +7,6 @@ import {
   MessageFlags,
   type TextChannel,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
 import { Position } from '../../../typeorm/entities/application/Position';
@@ -23,13 +22,14 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 import type { ConfigItem } from '../../../utils/setup/configStatusEmbed';
 import { buildApplicationMessage } from './applicationPosition';
 
 const tl = lang.application.setup;
-const applicationConfigRepo = AppDataSource.getRepository(ApplicationConfig);
-const archivedApplicationConfigRepo = AppDataSource.getRepository(ArchivedApplicationConfig);
-const positionRepo = AppDataSource.getRepository(Position);
+const applicationConfigRepo = lazyRepo(ApplicationConfig);
+const archivedApplicationConfigRepo = lazyRepo(ArchivedApplicationConfig);
+const positionRepo = lazyRepo(Position);
 
 export const applicationSetupHandler = async (
   _client: Client,

@@ -5,9 +5,9 @@ import {
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { Position } from '../../../typeorm/entities/application/Position';
 import { handleInteractionError, lang } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 import {
   handleAddFieldModal as coreHandleAddFieldModal,
   handleFieldButton as coreHandleFieldButton,
@@ -63,7 +63,7 @@ export function stopFieldSessionCleanup(): void {
   clearInterval(fieldSessionCleanupInterval);
 }
 
-const positionRepo = AppDataSource.getRepository(Position);
+const positionRepo = lazyRepo(Position);
 
 /** Config for application field manager */
 const appFieldConfig: FieldManagerConfig<Position> = {

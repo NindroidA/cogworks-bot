@@ -13,11 +13,12 @@ import { SavedRole } from '../../typeorm/entities/SavedRole';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
 import { enhancedLogger, extractIdFromMention, LogCategory, lang } from '../../utils';
+import { lazyRepo } from '../../utils/database/lazyRepo';
 
 const tl = lang.ticket.adminOnly;
-const ticketRepo = AppDataSource.getRepository(Ticket);
-const savedRoleRepo = AppDataSource.getRepository(SavedRole);
-const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
+const ticketRepo = lazyRepo(Ticket);
+const savedRoleRepo = lazyRepo(SavedRole);
+const ticketConfigRepo = lazyRepo(TicketConfig);
 
 export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonInteraction) => {
   const channel = interaction.channel as TextChannel;
@@ -87,6 +88,7 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
 
   // edit the channel's initial welcome message to not include the admin only button
   const messageId = ticket.messageId;
+  if (!messageId) return;
   const msg = channel.messages.fetch(messageId);
 
   // close ticket button

@@ -1,5 +1,4 @@
 import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import {
   createRateLimitKey,
@@ -11,11 +10,13 @@ import {
   RateLimits,
   rateLimiter,
   requireAdmin,
+  sanitizeUserInput,
   updateMenuMessage,
 } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.reactionRole;
-const menuRepo = AppDataSource.getRepository(ReactionRoleMenu);
+const menuRepo = lazyRepo(ReactionRoleMenu);
 
 export async function reactionRoleEditHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
@@ -27,12 +28,13 @@ export async function reactionRoleEditHandler(interaction: ChatInputCommandInter
     return;
   }
 
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
   const guild = interaction.guild;
   if (!guild) return;
 
   const menuId = parseInt(interaction.options.getString('menu', true), 10);
-  const newName = interaction.options.getString('name');
+  const newName = sanitizeUserInput(interaction.options.getString('name')) || null;
   const newDescription = interaction.options.getString('description');
   const newMode = interaction.options.getString('mode') as 'normal' | 'unique' | 'lock' | null;
 
@@ -71,7 +73,7 @@ export async function reactionRoleEditHandler(interaction: ChatInputCommandInter
 
     // Apply changes
     if (newName) menu.name = newName;
-    if (newDescription !== null) menu.description = newDescription || null;
+    if (newDescription !== null) menu.description = sanitizeUserInput(newDescription) || null;
     if (newMode) menu.mode = newMode;
 
     await menuRepo.save(menu);

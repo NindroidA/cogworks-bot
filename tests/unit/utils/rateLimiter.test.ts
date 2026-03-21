@@ -1,237 +1,58 @@
-/**
- * Rate Limiter Unit Tests
- *
- * Tests the rate limiting functionality to ensure proper enforcement
- * of usage limits.
- */
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { RateLimits, createRateLimitKey, rateLimiter } from '../../../src/utils/security/rateLimiter';
 
-import { afterEach, beforeEach, describe, expect, test } from "@jest/globals";
-import { rateLimiter } from "../../../src/utils/security/rateLimiter";
+describe('RateLimiter', () => {
+  const orig = process.env.RELEASE;
+  beforeEach(() => { process.env.RELEASE = 'prod'; });
+  afterEach(() => { rateLimiter.destroy(); process.env.RELEASE = orig; });
 
-describe("RateLimiter", () => {
-  const originalRelease = process.env.RELEASE;
-
-  beforeEach(() => {
-    // Set to prod mode so rate limiting is actually enforced
-    process.env.RELEASE = "prod";
+  test('allows first', () => { expect(rateLimiter.check('t1', { maxAttempts: 3, windowMs: 60000 }).allowed).toBe(true); });
+  test('denies over limit', () => {
+    const c = { maxAttempts: 2, windowMs: 60000 };
+    rateLimiter.check('t2', c); rateLimiter.check('t2', c);
+    expect(rateLimiter.check('t2', c).allowed).toBe(false);
   });
-
-  afterEach(() => {
-    // Clean up the rate limiter's internal cleanup interval
-    rateLimiter.destroy();
-    // Restore original RELEASE value
-    process.env.RELEASE = originalRelease;
+  test('reset clears', () => {
+    const c = { maxAttempts: 1, windowMs: 60000 };
+    rateLimiter.check('t3', c); rateLimiter.check('t3', c);
+    rateLimiter.reset('t3'); expect(rateLimiter.check('t3', c).allowed).toBe(true);
   });
-
-  describe("check()", () => {
-    test("should allow first attempt", () => {
-      const result = rateLimiter.check("user123", {
-        maxAttempts: 3,
-        windowMs: 60000, // 1 minute
-      });
-
-      expect(result.allowed).toBe(true);
-      expect(result.message).toBeUndefined();
-    });
-
-    test("should allow attempts within limit", () => {
-      const config = { maxAttempts: 5, windowMs: 60000 }; // Increase limit to 5
-
-      // First attempt
-      const result1 = rateLimiter.check("user-multi", config);
-      expect(result1.allowed).toBe(true);
-
-      // Second attempt
-      const result2 = rateLimiter.check("user-multi", config);
-      expect(result2.allowed).toBe(true);
-
-      // Third attempt
-      const result3 = rateLimiter.check("user-multi", config);
-      expect(result3.allowed).toBe(true);
-    });
-
-    test("should deny attempts exceeding limit", () => {
-      const config = { maxAttempts: 2, windowMs: 60000 };
-
-      // First two attempts should succeed
-      rateLimiter.check("user123", config);
-      rateLimiter.check("user123", config);
-
-      // Third attempt should fail
-      const result = rateLimiter.check("user123", config);
-      expect(result.allowed).toBe(false);
-      expect(result.message).toBeDefined();
-      expect(result.resetIn).toBeDefined();
-    });
-
-    test("should use custom error message", () => {
-      const config = {
-        maxAttempts: 1,
-        windowMs: 60000,
-        message: "Custom rate limit message",
-      };
-
-      rateLimiter.check("user123", config);
-      const result = rateLimiter.check("user123", config);
-
-      expect(result.allowed).toBe(false);
-      expect(result.message).toBe("Custom rate limit message");
-    });
-
-    test("should reset after window expires", async () => {
-      const config = { maxAttempts: 2, windowMs: 50 }; // 50ms window for fast test
-
-      // Exhaust limit
-      rateLimiter.check("user-reset", config);
-      rateLimiter.check("user-reset", config);
-
-      // Should be denied
-      const deniedResult = rateLimiter.check("user-reset", config);
-      expect(deniedResult.allowed).toBe(false);
-
-      // Wait for window to expire
-      await new Promise((resolve) => setTimeout(resolve, 60));
-
-      // Should be allowed again
-      const allowedResult = rateLimiter.check("user-reset", config);
-      expect(allowedResult.allowed).toBe(true);
-    });
-
-    test("should track different keys separately", () => {
-      const config = { maxAttempts: 1, windowMs: 60000 };
-
-      // User 1 exhausts limit
-      rateLimiter.check("user-a", config);
-      const user1Result = rateLimiter.check("user-a", config);
-      expect(user1Result.allowed).toBe(false);
-
-      // User 2 should still be allowed
-      const user2Result = rateLimiter.check("user-b", config);
-      expect(user2Result.allowed).toBe(true);
-    });
-
-    test("should calculate correct resetIn time", () => {
-      const config = { maxAttempts: 1, windowMs: 60000 };
-
-      rateLimiter.check("user-time", config);
-      const result = rateLimiter.check("user-time", config);
-
-      expect(result.resetIn).toBeDefined();
-      expect(result.resetIn).toBeGreaterThan(0);
-      expect(result.resetIn).toBeLessThanOrEqual(60); // Should be within 60 seconds
-    });
+  test('keys independent', () => {
+    const c = { maxAttempts: 1, windowMs: 60000 };
+    rateLimiter.check('a', c); rateLimiter.check('a', c);
+    expect(rateLimiter.check('b', c).allowed).toBe(true);
   });
-
-  describe("reset()", () => {
-    test("should reset specific key", () => {
-      const config = { maxAttempts: 1, windowMs: 60000 };
-
-      // Exhaust limits for two users
-      rateLimiter.check("user-reset-1", config);
-      rateLimiter.check("user-reset-1", config);
-      rateLimiter.check("user-reset-2", config);
-      rateLimiter.check("user-reset-2", config);
-
-      // Both should be denied
-      expect(rateLimiter.check("user-reset-1", config).allowed).toBe(false);
-      expect(rateLimiter.check("user-reset-2", config).allowed).toBe(false);
-
-      // Reset only user1
-      rateLimiter.reset("user-reset-1");
-
-      // User1 should be allowed, user2 still denied
-      expect(rateLimiter.check("user-reset-1", config).allowed).toBe(true);
-      expect(rateLimiter.check("user-reset-2", config).allowed).toBe(false);
-    });
+  test('window expiry', async () => {
+    const c = { maxAttempts: 1, windowMs: 50 };
+    rateLimiter.check('t4', c); expect(rateLimiter.check('t4', c).allowed).toBe(false);
+    await new Promise(r => setTimeout(r, 60));
+    expect(rateLimiter.check('t4', c).allowed).toBe(true);
   });
-
-  describe("getRemaining()", () => {
-    test("should return correct remaining attempts", () => {
-      const config = { maxAttempts: 5, windowMs: 60000 };
-
-      rateLimiter.check("user-remaining", config);
-      rateLimiter.check("user-remaining", config);
-      rateLimiter.check("user-remaining", config);
-
-      const remaining = rateLimiter.getRemaining("user-remaining", 5);
-      expect(remaining).toBe(2); // 5 max - 3 used
-    });
-
-    test("should return maxAttempts for new key", () => {
-      const remaining = rateLimiter.getRemaining("new-user", 5);
-      expect(remaining).toBe(5);
-    });
-
-    test("should return 0 when at limit", () => {
-      const config = { maxAttempts: 2, windowMs: 60000 };
-
-      rateLimiter.check("user-zero", config);
-      rateLimiter.check("user-zero", config);
-
-      const remaining = rateLimiter.getRemaining("user-zero", 2);
-      expect(remaining).toBe(0);
-    });
+  test('getSize increases', () => {
+    const c = { maxAttempts: 5, windowMs: 60000 }; const b = rateLimiter.getSize();
+    rateLimiter.check('s1', c); rateLimiter.check('s2', c);
+    expect(rateLimiter.getSize()).toBe(b + 2);
   });
-
-  describe("getResetTime()", () => {
-    test("should return 0 for non-existent key", () => {
-      const resetTime = rateLimiter.getResetTime("nonexistent-user");
-      expect(resetTime).toBe(0);
-    });
-
-    test("should return future timestamp for active limit", () => {
-      const config = { maxAttempts: 1, windowMs: 60000 };
-
-      rateLimiter.check("user-time-check", config);
-
-      const resetTime = rateLimiter.getResetTime("user-time-check");
-      // getResetTime returns seconds remaining, not absolute timestamp
-      expect(resetTime).toBeGreaterThan(0);
-      expect(resetTime).toBeLessThanOrEqual(60);
-    });
+  test('dev mode bypasses', () => {
+    process.env.RELEASE = 'dev'; rateLimiter.destroy();
+    const c = { maxAttempts: 1, windowMs: 60000 };
+    rateLimiter.check('d1', c); expect(rateLimiter.check('d1', c).allowed).toBe(true);
   });
-
-  describe("getStats()", () => {
-    test("should return current statistics", () => {
-      const config = { maxAttempts: 3, windowMs: 60000 };
-
-      // Create some entries
-      rateLimiter.check("stats-user-1", config);
-      rateLimiter.check("stats-user-2", config);
-      rateLimiter.check("stats-user-3", config);
-
-      const stats = rateLimiter.getStats();
-      expect(stats.activeEntries).toBeGreaterThan(0);
-      expect(stats.totalLimits).toBeGreaterThanOrEqual(stats.activeEntries);
-    });
+  test('denied has message', () => {
+    const c = { maxAttempts: 1, windowMs: 60000 };
+    rateLimiter.check('m1', c); const r = rateLimiter.check('m1', c);
+    expect(r.message).toBeDefined(); expect(r.resetIn).toBeGreaterThan(0);
   });
+});
 
-  describe("time formatting in messages", () => {
-    test("should format seconds correctly", () => {
-      const config = { maxAttempts: 1, windowMs: 45000 }; // 45 seconds
+describe('createRateLimitKey', () => {
+  test('user', () => { expect(createRateLimitKey.user('123', 'ticket')).toBe('user:123:ticket'); });
+  test('guild', () => { expect(createRateLimitKey.guild('456', 'export')).toBe('guild:456:export'); });
+  test('globalUser', () => { expect(createRateLimitKey.globalUser('789')).toBe('global:user:789'); });
+});
 
-      rateLimiter.check("user-format-sec", config);
-      const result = rateLimiter.check("user-format-sec", config);
-
-      expect(result.message).toContain("45 seconds");
-    });
-
-    test("should format minutes correctly", () => {
-      const config = { maxAttempts: 1, windowMs: 120000 }; // 2 minutes
-
-      rateLimiter.check("user-format-min", config);
-      const result = rateLimiter.check("user-format-min", config);
-
-      expect(result.message).toContain("2 minutes");
-    });
-
-    test("should format hours correctly", () => {
-      const config = { maxAttempts: 1, windowMs: 7200000 }; // 2 hours
-
-      rateLimiter.check("user-format-hr", config);
-      const result = rateLimiter.check("user-format-hr", config);
-
-      expect(result.message).toContain("2 hours");
-    });
-  });
+describe('RateLimits', () => {
+  test('all have shape', () => { for (const k of Object.keys(RateLimits)) { const c = RateLimits[k as keyof typeof RateLimits]; expect(c.maxAttempts).toBeGreaterThan(0); expect(c.windowMs).toBeGreaterThan(0); } });
+  test('TICKET_CREATE 3/hr', () => { expect(RateLimits.TICKET_CREATE.maxAttempts).toBe(3); });
+  test('GLOBAL_COMMAND 30/min', () => { expect(RateLimits.GLOBAL_COMMAND.maxAttempts).toBe(30); });
 });

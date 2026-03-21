@@ -14,9 +14,12 @@ import { detectionHandler } from './detection';
 import { dmNotifyHandler } from './dmNotify';
 import { escalationHandler } from './escalation';
 import { handleKeywords } from './keywords';
-import { setupHandler } from './setup';
+import { overrideHandler } from './override';
+import { handleBaitChannelAddChannel, handleBaitChannelRemoveChannel, setupHandler } from './setup';
 import { statsHandler } from './stats';
 import { statusHandler } from './status';
+import { summaryHandler } from './summary';
+import { testModeHandler } from './testMode';
 import { toggleHandler } from './toggle';
 import { whitelistHandler } from './whitelist';
 
@@ -35,7 +38,8 @@ export const baitChannelHandler = async (
       return;
     }
 
-    const guildId = interaction.guildId || '';
+    if (!interaction.guildId) return;
+    const guildId = interaction.guildId;
     const subcommand = interaction.options.getSubcommand();
 
     // Rate limit check (guild-scoped: 10 bait channel operations per hour)
@@ -97,6 +101,26 @@ export const baitChannelHandler = async (
 
       case 'keywords':
         await handleKeywords(client, interaction);
+        break;
+
+      case 'override':
+        await overrideHandler(client, interaction);
+        break;
+
+      case 'add-channel':
+        await handleBaitChannelAddChannel(client, interaction);
+        break;
+
+      case 'remove-channel':
+        await handleBaitChannelRemoveChannel(client, interaction);
+        break;
+
+      case 'test-mode':
+        await testModeHandler(client, interaction);
+        break;
+
+      case 'summary':
+        await summaryHandler(client, interaction);
         break;
 
       default:

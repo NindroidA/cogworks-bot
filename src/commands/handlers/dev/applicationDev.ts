@@ -48,6 +48,7 @@ export async function deleteArchivedApplicationHandler(
     // Try to delete the forum post
     let forumPostDeleted = false;
     try {
+      if (!archivedApp.messageId) throw new Error('No messageId');
       const channel = await interaction.client.channels.fetch(archivedApp.messageId);
       if (channel?.isThread()) {
         await channel.delete();
@@ -112,6 +113,10 @@ export async function deleteAllArchivedApplicationsHandler(
     // Delete forum posts
     for (const app of archivedApps) {
       try {
+        if (!app.messageId) {
+          postsFailed++;
+          continue;
+        }
         const channel = await interaction.client.channels.fetch(app.messageId);
         if (channel?.isThread()) {
           await channel.delete();

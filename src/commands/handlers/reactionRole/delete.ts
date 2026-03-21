@@ -8,7 +8,6 @@ import {
   MessageFlags,
   type TextChannel,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import {
   enhancedLogger,
@@ -17,20 +16,25 @@ import {
   lang,
   requireAdmin,
 } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.reactionRole;
-const menuRepo = AppDataSource.getRepository(ReactionRoleMenu);
+const menuRepo = lazyRepo(ReactionRoleMenu);
 
 export async function reactionRoleDeleteHandler(
   interaction: ChatInputCommandInteraction<CacheType>,
 ) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
-    await interaction.reply({ content: adminCheck.message, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: adminCheck.message,
+      flags: [MessageFlags.Ephemeral],
+    });
     return;
   }
 
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
   const guild = interaction.guild;
   if (!guild) return;
 
@@ -39,7 +43,10 @@ export async function reactionRoleDeleteHandler(
   try {
     const menu = await menuRepo.findOne({ where: { id: menuId, guildId } });
     if (!menu) {
-      await interaction.reply({ content: tl.errors.menuNotFound, flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({
+        content: tl.errors.menuNotFound,
+        flags: [MessageFlags.Ephemeral],
+      });
       return;
     }
 
@@ -105,7 +112,10 @@ export async function reactionRoleDeleteHandler(
       }
     } catch {
       // Timeout
-      await interaction.editReply({ content: lang.errors.timeout, components: [] });
+      await interaction.editReply({
+        content: lang.errors.timeout,
+        components: [],
+      });
     }
   } catch (error) {
     enhancedLogger.error(
@@ -114,6 +124,9 @@ export async function reactionRoleDeleteHandler(
       LogCategory.COMMAND_EXECUTION,
       { guildId },
     );
-    await interaction.reply({ content: tl.delete.error, flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      content: tl.delete.error,
+      flags: [MessageFlags.Ephemeral],
+    });
   }
 }

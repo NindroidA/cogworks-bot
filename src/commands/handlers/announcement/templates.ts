@@ -1,256 +1,593 @@
 /**
- * Announcement Templates System
- * Provides pre-built and custom announcement templates with embed support
+ * Announcement Template CRUD Commands
+ *
+ * Handles: create, edit, delete, list, preview, reset
  */
 
-import { type ColorResolvable, EmbedBuilder } from 'discord.js';
-import { lang } from '../../../utils';
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  type ButtonInteraction,
+  ButtonStyle,
+  type CacheType,
+  type ChatInputCommandInteraction,
+  type Client,
+  ComponentType,
+  EmbedBuilder,
+  MessageFlags,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+} from 'discord.js';
+import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
+import { AnnouncementTemplate } from '../../../typeorm/entities/announcement/AnnouncementTemplate';
+import { enhancedLogger, lang, requireAdmin, sanitizeUserInput } from '../../../utils';
+import { DEFAULT_ANNOUNCEMENT_TEMPLATES } from '../../../utils/announcement/defaultTemplates';
+import {
+  detectDynamicPlaceholders,
+  renderPreview,
+} from '../../../utils/announcement/templateEngine';
+import { validateHexColor } from '../../../utils/api/helpers';
+import { MAX } from '../../../utils/constants';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 
-const tpl = lang.announcement.templates;
+const templateRepo = lazyRepo(AnnouncementTemplate);
+const configRepo = lazyRepo(AnnouncementConfig);
 
-// Template parameter types
-export type TemplateParams =
-  | { duration: 'short' | 'long'; customMessage?: string }
-  | { duration: 'short' | 'long'; timestamp: number; customMessage?: string }
-  | { version: string; timestamp: number; customMessage?: string }
-  | { version: string; customMessage?: string }
-  | { customMessage?: string }
-  | {
-      title?: string;
-      description: string;
-      color?: string;
-      fields?: Array<{ name: string; value: string; inline?: boolean }>;
-      footer?: string;
-      timestamp?: boolean;
-    }
-  | Record<string, unknown>;
+const TEMPLATE_NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
 
-interface AnnouncementTemplate {
-  id: string;
-  name: string;
-  description: string;
-  color: ColorResolvable;
-  buildEmbed: (
-    params: TemplateParams,
-    mentionRole?: string,
-  ) => {
-    embeds: EmbedBuilder[];
-    content?: string;
-  };
+/**
+ * Seed default templates for a guild if none exist.
+ */
+export async function seedDefaultTemplates(guildId: string): Promise<number> {
+  const count = await templateRepo.count({ where: { guildId } });
+  if (count > 0) return 0;
+
+  const templates = DEFAULT_ANNOUNCEMENT_TEMPLATES.map(t => templateRepo.create({ ...t, guildId }));
+  await templateRepo.save(templates);
+  return templates.length;
 }
 
-const BUILT_IN_TEMPLATES: Record<string, AnnouncementTemplate> = {
-  maintenance: {
-    id: 'maintenance',
-    name: 'Maintenance (Immediate)',
-    description: 'Announce immediate server maintenance',
-    color: 0xffa500,
-    buildEmbed: (params: TemplateParams, mentionRole?: string) => {
-      const p = params as { duration: 'short' | 'long'; customMessage?: string };
-      const tl = lang.announcement.maintenance;
-      const isShort = p.duration === 'short';
-      const durationText = isShort ? tpl.durationShort : tpl.durationLong;
-      const defaultMessage = isShort ? tl.duration.short.msg : tl.duration.long.msg;
+/**
+ * Main template subcommand router.
+ */
+export async function templateHandler(
+  client: Client,
+  interaction: ChatInputCommandInteraction<CacheType>,
+): Promise<void> {
+  const subcommand = interaction.options.getSubcommand();
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
+  const tl = lang.announcement;
 
-      const embed = new EmbedBuilder()
-        .setTitle(`🔧 ${tpl.maintenanceTitle}`)
-        .setDescription(p.customMessage || defaultMessage)
-        .setColor(0xffa500)
-        .addFields(
-          { name: `⏱️ ${tpl.expectedDuration}`, value: durationText, inline: true },
-          { name: `📅 ${tpl.starting}`, value: tpl.startingValue, inline: true },
-        )
-        .setFooter({ text: tpl.timezoneFooter });
-
-      return { embeds: [embed], content: mentionRole };
-    },
-  },
-
-  maintenanceScheduled: {
-    id: 'maintenanceScheduled',
-    name: 'Maintenance (Scheduled)',
-    description: 'Announce scheduled server maintenance',
-    color: 0xffa500,
-    buildEmbed: (params: TemplateParams, mentionRole?: string) => {
-      const p = params as { duration: 'short' | 'long'; timestamp: number; customMessage?: string };
-      const isShort = p.duration === 'short';
-      const durationText = isShort ? tpl.durationShort : tpl.durationLong;
-
-      const embed = new EmbedBuilder()
-        .setTitle(`🔧 ${tpl.scheduledMaintenanceTitle}`)
-        .setDescription(p.customMessage || tpl.scheduledDefaultMsg)
-        .setColor(0xffa500)
-        .addFields(
-          { name: `⏱️ ${tpl.expectedDuration}`, value: durationText, inline: true },
-          { name: `📅 ${tpl.scheduledTime}`, value: `<t:${p.timestamp}:F>`, inline: false },
-          { name: `🕐 ${tpl.relativeTime}`, value: `<t:${p.timestamp}:R>`, inline: false },
-        )
-        .setFooter({ text: tpl.timezoneFooter });
-
-      return { embeds: [embed], content: mentionRole };
-    },
-  },
-
-  backOnline: {
-    id: 'backOnline',
-    name: 'Back Online',
-    description: 'Announce server is back online',
-    color: 0x00ff00,
-    buildEmbed: (params: TemplateParams, mentionRole?: string) => {
-      const p = params as { customMessage?: string };
-      const tl = lang.announcement['back-online'];
-
-      const embed = new EmbedBuilder()
-        .setTitle(`✅ ${tpl.backOnlineTitle}`)
-        .setDescription(p.customMessage || tl.success)
-        .setColor(0x00ff00)
-        .addFields(
-          { name: `🎮 ${tpl.status}`, value: tpl.statusOnline, inline: true },
-          {
-            name: `⏰ ${tpl.downtimeComplete}`,
-            value: `<t:${Math.floor(Date.now() / 1000)}:R>`,
-            inline: true,
-          },
-        )
-        .setFooter({ text: tpl.timezoneFooter });
-
-      return { embeds: [embed], content: mentionRole };
-    },
-  },
-
-  updateScheduled: {
-    id: 'updateScheduled',
-    name: 'Update (Scheduled)',
-    description: 'Announce scheduled server update',
-    color: 0x5865f2,
-    buildEmbed: (params: TemplateParams, mentionRole?: string) => {
-      const p = params as { version: string; timestamp: number; customMessage?: string };
-      const tl = lang.announcement['update-scheduled'];
-      const defaultMessage = `The server will be updating to **${p.version}** later today. ${tl.msg}`;
-
-      const embed = new EmbedBuilder()
-        .setTitle(`📦 ${tpl.updateScheduledTitle}`)
-        .setDescription(p.customMessage || defaultMessage)
-        .setColor(0x5865f2)
-        .addFields(
-          { name: `📌 ${tpl.version}`, value: p.version, inline: true },
-          { name: `📅 ${tpl.scheduledTime}`, value: `<t:${p.timestamp}:F>`, inline: false },
-          { name: `🕐 ${tpl.relativeTime}`, value: `<t:${p.timestamp}:R>`, inline: false },
-        )
-        .setFooter({ text: tpl.timezoneFooter });
-
-      return { embeds: [embed], content: mentionRole };
-    },
-  },
-
-  updateComplete: {
-    id: 'updateComplete',
-    name: 'Update Complete',
-    description: 'Announce completed server update',
-    color: 0x00ff00,
-    buildEmbed: (params: TemplateParams, mentionRole?: string) => {
-      const p = params as { version: string; customMessage?: string };
-      const tl = lang.announcement['update-complete'];
-      const defaultMessage = `The server has been successfully updated to **version ${p.version}**!\n\n${tl.msg}`;
-
-      const embed = new EmbedBuilder()
-        .setTitle(`✅ ${tpl.updateCompleteTitle}`)
-        .setDescription(p.customMessage || defaultMessage)
-        .setColor(0x00ff00)
-        .addFields(
-          { name: `📌 ${tpl.newVersion}`, value: p.version, inline: true },
-          { name: `🎮 ${tpl.status}`, value: tpl.statusOnline, inline: true },
-          {
-            name: `⏰ ${tpl.updated}`,
-            value: `<t:${Math.floor(Date.now() / 1000)}:R>`,
-            inline: false,
-          },
-        )
-        .setFooter({ text: tpl.timezoneFooter });
-
-      return { embeds: [embed], content: mentionRole };
-    },
-  },
-
-  custom: {
-    id: 'custom',
-    name: 'Custom Announcement',
-    description: 'Create a custom announcement with your own content',
-    color: 0x5865f2,
-    buildEmbed: (params: TemplateParams, mentionRole?: string) => {
-      const p = params as {
-        title?: string;
-        description: string;
-        color?: string;
-        fields?: Array<{ name: string; value: string; inline?: boolean }>;
-        footer?: string;
-        timestamp?: boolean;
-      };
-
-      const embed = new EmbedBuilder()
-        .setDescription(p.description)
-        .setTimestamp(p.timestamp ? new Date() : null);
-
-      if (p.title) embed.setTitle(p.title);
-      if (p.color) {
-        const colorValue = p.color.startsWith('#')
-          ? parseInt(p.color.slice(1), 16)
-          : parseInt(p.color, 16);
-        embed.setColor(colorValue);
-      } else {
-        embed.setColor(0x5865f2);
-      }
-      if (p.fields && p.fields.length > 0) embed.addFields(p.fields);
-      if (p.footer) embed.setFooter({ text: p.footer });
-
-      return { embeds: [embed], content: mentionRole };
-    },
-  },
-};
-
-export function getTemplate(templateId: string): AnnouncementTemplate | null {
-  return BUILT_IN_TEMPLATES[templateId] || null;
-}
-
-export function validateTemplateParams(
-  templateId: string,
-  params: TemplateParams,
-): { valid: boolean; errors: string[] } {
-  const errors: string[] = [];
-
-  switch (templateId) {
-    case 'maintenance':
-    case 'maintenanceScheduled': {
-      const p = params as { duration?: string; timestamp?: number };
-      if (!p.duration || !['short', 'long'].includes(p.duration)) {
-        errors.push('Duration must be "short" or "long"');
-      }
-      if (templateId === 'maintenanceScheduled' && !p.timestamp) {
-        errors.push('Timestamp is required for scheduled maintenance');
-      }
-      break;
-    }
-    case 'updateScheduled': {
-      const p = params as { version?: string; timestamp?: number };
-      if (!p.version) errors.push('Version is required');
-      if (!p.timestamp) errors.push('Timestamp is required');
-      break;
-    }
-    case 'updateComplete': {
-      const p = params as { version?: string };
-      if (!p.version) errors.push('Version is required');
-      break;
-    }
-    case 'custom': {
-      const p = params as { description?: string };
-      if (!p.description) errors.push('Description is required');
-      break;
-    }
-    case 'backOnline':
-      break;
-    default:
-      errors.push(`Unknown template: ${templateId}`);
+  // Permission check
+  const adminCheck = requireAdmin(interaction);
+  if (!adminCheck.allowed) {
+    await interaction.reply({
+      content: adminCheck.message,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
   }
 
-  return { valid: errors.length === 0, errors };
+  switch (subcommand) {
+    case 'create':
+      await handleCreate(interaction, guildId);
+      break;
+    case 'edit':
+      await handleEdit(interaction, guildId);
+      break;
+    case 'delete':
+      await handleDelete(interaction, guildId);
+      break;
+    case 'list':
+      await handleList(interaction, guildId);
+      break;
+    case 'preview':
+      await handlePreview(client, interaction, guildId);
+      break;
+    case 'reset':
+      await handleReset(interaction, guildId);
+      break;
+    default:
+      await interaction.reply({
+        content: lang.errors.unknownSubcommand,
+        flags: [MessageFlags.Ephemeral],
+      });
+  }
+}
+
+// ============================================================================
+// Create
+// ============================================================================
+
+async function handleCreate(
+  interaction: ChatInputCommandInteraction<CacheType>,
+  guildId: string,
+): Promise<void> {
+  const tl = lang.announcement.template;
+
+  // Check limit
+  const count = await templateRepo.count({ where: { guildId } });
+  if (count >= MAX.ANNOUNCEMENT_TEMPLATES) {
+    await interaction.reply({
+      content: tl.create.limitReached,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  const modal = new ModalBuilder()
+    .setCustomId(`announcement_tpl_create_${Date.now()}`)
+    .setTitle('Create Announcement Template')
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('name')
+          .setLabel('Template Name (lowercase, hyphens)')
+          .setStyle(TextInputStyle.Short)
+          .setMaxLength(50)
+          .setRequired(true)
+          .setPlaceholder('e.g., weekly-update'),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('display_name')
+          .setLabel('Display Name')
+          .setStyle(TextInputStyle.Short)
+          .setMaxLength(100)
+          .setRequired(true)
+          .setPlaceholder('e.g., Weekly Update'),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('title')
+          .setLabel('Embed Title')
+          .setStyle(TextInputStyle.Short)
+          .setMaxLength(256)
+          .setRequired(true)
+          .setPlaceholder('e.g., Weekly Server Update'),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('body')
+          .setLabel('Embed Body (supports {placeholders})')
+          .setStyle(TextInputStyle.Paragraph)
+          .setMaxLength(4000)
+          .setRequired(true)
+          .setPlaceholder('Use {version}, {time}, {duration}, {user}, {role}, {server}, {channel}'),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('color')
+          .setLabel('Color (hex, e.g., #5865F2)')
+          .setStyle(TextInputStyle.Short)
+          .setMaxLength(7)
+          .setRequired(false)
+          .setPlaceholder('#5865F2'),
+      ),
+    );
+
+  await interaction.showModal(modal);
+
+  const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(() => null);
+  if (!modalInteraction) return;
+
+  const name = modalInteraction.fields.getTextInputValue('name').toLowerCase().trim();
+  const displayName = sanitizeUserInput(modalInteraction.fields.getTextInputValue('display_name'));
+  const title = sanitizeUserInput(modalInteraction.fields.getTextInputValue('title'));
+  const body = sanitizeUserInput(modalInteraction.fields.getTextInputValue('body'));
+  const colorInput = modalInteraction.fields.getTextInputValue('color').trim() || '#5865F2';
+
+  // Validate name
+  if (!TEMPLATE_NAME_RE.test(name)) {
+    await modalInteraction.reply({
+      content: tl.create.invalidName,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  // Validate color
+  const colorError = validateHexColor(colorInput);
+  if (colorError) {
+    await modalInteraction.reply({
+      content: tl.create.invalidColor,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  // Check for duplicate name
+  const existing = await templateRepo.findOneBy({ guildId, name });
+  if (existing) {
+    await modalInteraction.reply({
+      content: tl.create.duplicate,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  const template = templateRepo.create({
+    guildId,
+    name,
+    displayName,
+    title,
+    body,
+    color: colorInput.toUpperCase(),
+    isDefault: false,
+    createdBy: interaction.user.id,
+  });
+
+  await templateRepo.save(template);
+
+  // Show preview of the created template
+  const preview = renderPreview(template, interaction.guild, interaction.user);
+
+  await modalInteraction.reply({
+    content: tl.create.success,
+    embeds: preview.embeds,
+    flags: [MessageFlags.Ephemeral],
+  });
+
+  enhancedLogger.command(`Template '${name}' created`, interaction.user.id, guildId);
+}
+
+// ============================================================================
+// Edit
+// ============================================================================
+
+async function handleEdit(
+  interaction: ChatInputCommandInteraction<CacheType>,
+  guildId: string,
+): Promise<void> {
+  const tl = lang.announcement.template;
+  const templateName = interaction.options.getString('template', true);
+
+  const template = await templateRepo.findOneBy({
+    guildId,
+    name: templateName,
+  });
+  if (!template) {
+    await interaction.reply({
+      content: tl.edit.notFound,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  const modal = new ModalBuilder()
+    .setCustomId(`announcement_tpl_edit_${Date.now()}`)
+    .setTitle(`Edit: ${template.displayName}`)
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('display_name')
+          .setLabel('Display Name')
+          .setStyle(TextInputStyle.Short)
+          .setMaxLength(100)
+          .setRequired(true)
+          .setValue(template.displayName),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('title')
+          .setLabel('Embed Title')
+          .setStyle(TextInputStyle.Short)
+          .setMaxLength(256)
+          .setRequired(true)
+          .setValue(template.title),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('body')
+          .setLabel('Embed Body (supports {placeholders})')
+          .setStyle(TextInputStyle.Paragraph)
+          .setMaxLength(4000)
+          .setRequired(true)
+          .setValue(template.body),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('color')
+          .setLabel('Color (hex, e.g., #5865F2)')
+          .setStyle(TextInputStyle.Short)
+          .setMaxLength(7)
+          .setRequired(false)
+          .setValue(template.color),
+      ),
+    );
+
+  await interaction.showModal(modal);
+
+  const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(() => null);
+  if (!modalInteraction) return;
+
+  const displayName = sanitizeUserInput(modalInteraction.fields.getTextInputValue('display_name'));
+  const title = sanitizeUserInput(modalInteraction.fields.getTextInputValue('title'));
+  const body = sanitizeUserInput(modalInteraction.fields.getTextInputValue('body'));
+  const colorInput = modalInteraction.fields.getTextInputValue('color').trim() || template.color;
+
+  // Validate color
+  const colorError = validateHexColor(colorInput);
+  if (colorError) {
+    await modalInteraction.reply({
+      content: tl.create.invalidColor,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  template.displayName = displayName;
+  template.title = title;
+  template.body = body;
+  template.color = colorInput.toUpperCase();
+
+  await templateRepo.save(template);
+
+  const preview = renderPreview(template, interaction.guild, interaction.user);
+
+  await modalInteraction.reply({
+    content: tl.edit.success,
+    embeds: preview.embeds,
+    flags: [MessageFlags.Ephemeral],
+  });
+
+  enhancedLogger.command(`Template '${templateName}' edited`, interaction.user.id, guildId);
+}
+
+// ============================================================================
+// Delete
+// ============================================================================
+
+async function handleDelete(
+  interaction: ChatInputCommandInteraction<CacheType>,
+  guildId: string,
+): Promise<void> {
+  const tl = lang.announcement.template;
+  const templateName = interaction.options.getString('template', true);
+
+  const template = await templateRepo.findOneBy({
+    guildId,
+    name: templateName,
+  });
+  if (!template) {
+    await interaction.reply({
+      content: tl.delete.notFound,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  if (template.isDefault) {
+    await interaction.reply({
+      content: tl.delete.isDefault,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  // Confirmation
+  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('announcement_tpl_delete_confirm')
+      .setLabel(lang.general.buttons.confirm)
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId('announcement_tpl_delete_cancel')
+      .setLabel(lang.general.buttons.cancel)
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  await interaction.reply({
+    content: `Are you sure you want to delete template **${template.displayName}** (\`${template.name}\`)?`,
+    components: [buttons],
+    flags: [MessageFlags.Ephemeral],
+  });
+
+  try {
+    const btn = await interaction.channel?.awaitMessageComponent({
+      filter: (i: ButtonInteraction) =>
+        i.user.id === interaction.user.id &&
+        (i.customId === 'announcement_tpl_delete_confirm' ||
+          i.customId === 'announcement_tpl_delete_cancel'),
+      componentType: ComponentType.Button,
+      time: 60_000,
+    });
+
+    if (!btn || btn.customId === 'announcement_tpl_delete_cancel') {
+      if (btn) {
+        await btn.update({ content: lang.errors.cancelled, components: [] });
+      }
+      return;
+    }
+
+    await templateRepo.remove(template);
+
+    await btn.update({
+      content: tl.delete.success,
+      components: [],
+    });
+
+    enhancedLogger.command(`Template '${templateName}' deleted`, interaction.user.id, guildId);
+  } catch {
+    // Timeout
+  }
+}
+
+// ============================================================================
+// List
+// ============================================================================
+
+async function handleList(
+  interaction: ChatInputCommandInteraction<CacheType>,
+  guildId: string,
+): Promise<void> {
+  const tl = lang.announcement.template;
+
+  const templates = await templateRepo.find({
+    where: { guildId },
+    order: { isDefault: 'DESC', name: 'ASC' },
+  });
+
+  if (templates.length === 0) {
+    await interaction.reply({
+      content: tl.list.empty,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  const embed = new EmbedBuilder().setTitle(tl.list.title).setColor(0x5865f2);
+
+  for (const tmpl of templates.slice(0, 25)) {
+    const placeholders = detectDynamicPlaceholders(tmpl);
+    const placeholderText =
+      placeholders.length > 0 ? placeholders.map(p => `\`{${p.name}}\``).join(', ') : 'None';
+    const defaultBadge = tmpl.isDefault ? ' (default)' : '';
+
+    embed.addFields({
+      name: `${tmpl.displayName}${defaultBadge}`,
+      value: `Name: \`${tmpl.name}\` | Color: ${tmpl.color} | Placeholders: ${placeholderText}`,
+      inline: false,
+    });
+  }
+
+  embed.setFooter({
+    text: `${templates.length}/${MAX.ANNOUNCEMENT_TEMPLATES} templates`,
+  });
+
+  await interaction.reply({
+    embeds: [embed],
+    flags: [MessageFlags.Ephemeral],
+  });
+}
+
+// ============================================================================
+// Preview
+// ============================================================================
+
+async function handlePreview(
+  _client: Client,
+  interaction: ChatInputCommandInteraction<CacheType>,
+  guildId: string,
+): Promise<void> {
+  const tl = lang.announcement.template;
+  const templateName = interaction.options.getString('template', true);
+
+  const template = await templateRepo.findOneBy({
+    guildId,
+    name: templateName,
+  });
+  if (!template) {
+    await interaction.reply({
+      content: tl.edit.notFound,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  // Get role for preview
+  const config = await configRepo.findOneBy({ guildId });
+  const roleId = config?.defaultRoleId || config?.minecraftRoleId;
+
+  const preview = renderPreview(template, interaction.guild, interaction.user, roleId);
+
+  await interaction.reply({
+    content: `**Preview of \`${template.name}\`** (placeholders filled with example values)`,
+    embeds: preview.embeds,
+    flags: [MessageFlags.Ephemeral],
+  });
+}
+
+// ============================================================================
+// Reset
+// ============================================================================
+
+async function handleReset(
+  interaction: ChatInputCommandInteraction<CacheType>,
+  guildId: string,
+): Promise<void> {
+  const tl = lang.announcement.template;
+
+  // Confirmation
+  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('announcement_tpl_reset_confirm')
+      .setLabel(lang.general.buttons.confirm)
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId('announcement_tpl_reset_cancel')
+      .setLabel(lang.general.buttons.cancel)
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  await interaction.reply({
+    content: tl.reset.confirm,
+    components: [buttons],
+    flags: [MessageFlags.Ephemeral],
+  });
+
+  try {
+    const btn = await interaction.channel?.awaitMessageComponent({
+      filter: (i: ButtonInteraction) =>
+        i.user.id === interaction.user.id &&
+        (i.customId === 'announcement_tpl_reset_confirm' ||
+          i.customId === 'announcement_tpl_reset_cancel'),
+      componentType: ComponentType.Button,
+      time: 60_000,
+    });
+
+    if (!btn || btn.customId === 'announcement_tpl_reset_cancel') {
+      if (btn) {
+        await btn.update({ content: lang.errors.cancelled, components: [] });
+      }
+      return;
+    }
+
+    // Delete all templates for this guild
+    await templateRepo.delete({ guildId });
+
+    // Re-seed defaults
+    const seeded = await seedDefaultTemplates(guildId);
+
+    await btn.update({
+      content: `${tl.reset.success} ${seeded} templates seeded.`,
+      components: [],
+    });
+
+    enhancedLogger.command('Templates reset to defaults', interaction.user.id, guildId);
+  } catch {
+    // Timeout
+  }
+}
+
+/**
+ * Autocomplete handler for template name selection.
+ */
+export async function templateAutocomplete(
+  interaction: {
+    guildId: string | null;
+    options: { getFocused: () => string };
+  },
+  respond: (choices: Array<{ name: string; value: string }>) => Promise<void>,
+): Promise<void> {
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
+  const focused = interaction.options.getFocused().toLowerCase();
+
+  const templates = await templateRepo.find({
+    where: { guildId },
+    order: { isDefault: 'DESC', name: 'ASC' },
+  });
+
+  const filtered = templates
+    .filter(t => t.name.includes(focused) || t.displayName.toLowerCase().includes(focused))
+    .slice(0, 25)
+    .map(t => ({
+      name: `${t.displayName}${t.isDefault ? ' (default)' : ''}`,
+      value: t.name,
+    }));
+
+  await respond(filtered);
 }

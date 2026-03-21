@@ -59,7 +59,9 @@ export async function bulkCloseTicketsHandler(
     for (const ticket of openTickets) {
       try {
         // Try to delete the channel
-        const channel = await interaction.guild.channels.fetch(ticket.channelId).catch(() => null);
+        const channel = ticket.channelId
+          ? await interaction.guild.channels.fetch(ticket.channelId).catch(() => null)
+          : null;
 
         if (channel) {
           await channel.delete('[DEV] Bulk close tickets');
@@ -136,6 +138,7 @@ export async function deleteArchivedTicketHandler(
     // Try to delete the forum post
     let forumPostDeleted = false;
     try {
+      if (!archivedTicket.messageId) throw new Error('No messageId');
       const channel = await interaction.client.channels.fetch(archivedTicket.messageId);
       if (channel?.isThread()) {
         await channel.delete();
@@ -202,6 +205,10 @@ export async function deleteAllArchivedTicketsHandler(
     // Delete forum posts
     for (const ticket of archivedTickets) {
       try {
+        if (!ticket.messageId) {
+          postsFailed++;
+          continue;
+        }
         const channel = await interaction.client.channels.fetch(ticket.messageId);
         if (channel?.isThread()) {
           await channel.delete();

@@ -22,6 +22,7 @@ import type { JoinVelocityTracker } from './baitChannel/joinVelocityTracker';
 import { analyzeUrls } from './baitChannel/urlAnalyzer';
 import { analyzeUsername } from './baitChannel/usernameAnalyzer';
 import { Colors } from './colors';
+import { CACHE_TTL, INTERVALS } from './constants';
 import { ErrorCategory, ErrorSeverity, logError } from './errorHandler';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
 
@@ -62,12 +63,6 @@ interface SuspicionAnalysis {
   };
   reasons: string[];
 }
-
-// Config cache TTL: 5 minutes
-const CONFIG_CACHE_TTL_MS = 5 * 60 * 1000;
-
-// Activity buffer flush interval: 30 seconds
-const ACTIVITY_FLUSH_INTERVAL_MS = 30_000;
 
 interface CachedConfig {
   config: BaitChannelConfig;
@@ -224,9 +219,15 @@ export class BaitChannelManager {
         return;
       }
 
-      if (message.channelId !== config.channelId) {
+      // Multi-channel support: check channelIds array with legacy channelId fallback
+      const baitChannels = config.channelIds?.length
+        ? config.channelIds
+        : config.channelId
+          ? [config.channelId]
+          : [];
+      if (!baitChannels.includes(message.channelId)) {
         enhancedLogger.debug(
-          `Message in ${message.channelId}, bait channel is ${config.channelId}`,
+          `Message in ${message.channelId}, bait channels are [${baitChannels.join(', ')}]`,
           LogCategory.SYSTEM,
         );
         return;
@@ -500,59 +501,48 @@ export class BaitChannelManager {
     return { score, flags, reasons };
   }
 
-  private async isWhitelisted(member: GuildMember, config: BaitChannelConfig): Promise<boolean> {
+  private checkWhitelist(
+    member: GuildMember,
+    config: BaitChannelConfig,
+  ): { whitelisted: boolean; reason: string } {
     // Server owner cannot be kicked/banned - always whitelist
     if (member.id === member.guild.ownerId) {
-      return true;
+      return { whitelisted: true, reason: 'User is the Server Owner' };
     }
 
     // Check whitelisted users
     if (config.whitelistedUsers?.includes(member.id)) {
-      return true;
+      return { whitelisted: true, reason: 'User is in manual whitelist' };
     }
 
     // Check whitelisted roles
-    const hasWhitelistedRole = member.roles.cache.some(role =>
+    const whitelistedRole = member.roles.cache.find(role =>
       config.whitelistedRoles?.includes(role.id),
     );
-    if (hasWhitelistedRole) return true;
+    if (whitelistedRole) {
+      return {
+        whitelisted: true,
+        reason: `User has whitelisted role: @${whitelistedRole.name}`,
+      };
+    }
 
     // Admins are whitelisted unless disableAdminWhitelist is enabled (for testing)
     if (
       !config.disableAdminWhitelist &&
       member.permissions.has(PermissionFlagsBits.Administrator)
     ) {
-      return true;
+      return { whitelisted: true, reason: 'User is an Administrator' };
     }
 
-    return false;
+    return { whitelisted: false, reason: '' };
+  }
+
+  private async isWhitelisted(member: GuildMember, config: BaitChannelConfig): Promise<boolean> {
+    return this.checkWhitelist(member, config).whitelisted;
   }
 
   private getWhitelistReason(member: GuildMember, config: BaitChannelConfig): string {
-    // Server owner - cannot be kicked/banned
-    if (member.id === member.guild.ownerId) {
-      return 'User is the Server Owner';
-    }
-
-    // Check user whitelist first
-    if (config.whitelistedUsers?.includes(member.id)) {
-      return 'User is in manual whitelist';
-    }
-
-    // Check role whitelist
-    const whitelistedRole = member.roles.cache.find(role =>
-      config.whitelistedRoles?.includes(role.id),
-    );
-    if (whitelistedRole) {
-      return `User has whitelisted role: @${whitelistedRole.name}`;
-    }
-
-    // Must be admin
-    if (member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return 'User is an Administrator';
-    }
-
-    return 'User is whitelisted';
+    return this.checkWhitelist(member, config).reason;
   }
 
   private determineAction(score: number, config: BaitChannelConfig): string {
@@ -638,10 +628,15 @@ export class BaitChannelManager {
             : 'logged';
 
     // Build warning message with suspicion details
+    const isTestMode = config.testMode === true;
+    const warningTitle = isTestMode ? '[TEST MODE] URGENT WARNING' : 'URGENT WARNING';
+    const warningDescription = isTestMode
+      ? `${config.warningMessage}\n\n**Test Mode Active** — No real action will be taken.`
+      : config.warningMessage;
     const warningEmbed = new EmbedBuilder()
-      .setColor(Colors.status.error)
-      .setTitle('URGENT WARNING')
-      .setDescription(config.warningMessage)
+      .setColor(isTestMode ? Colors.status.info : Colors.status.error)
+      .setTitle(warningTitle)
+      .setDescription(warningDescription)
       .addFields(
         {
           name: '⏰ Action Required',
@@ -815,18 +810,19 @@ export class BaitChannelManager {
   private async purgeUserMessages(
     guild: Guild,
     userId: string,
-    baitChannelId: string,
+    baitChannelIds: string[],
   ): Promise<PurgeResult> {
     let totalDeleted = 0;
     let channelCount = 0;
 
     try {
+      const skipChannels = new Set(baitChannelIds);
       const channels = guild.channels.cache.filter(
         ch =>
           (ch.type === ChannelType.GuildText ||
             ch.type === ChannelType.GuildAnnouncement ||
             ch.type === ChannelType.GuildVoice) &&
-          ch.id !== baitChannelId,
+          !skipChannels.has(ch.id),
       );
 
       for (const [, channel] of channels) {
@@ -954,120 +950,146 @@ export class BaitChannelManager {
       });
     }
 
+    // Test mode: still delete message but skip ban/kick/timeout and purge
+    const isTestMode = config.testMode === true;
+
     // Step 2: Send DM notification BEFORE action (user must still be in server)
-    const dmSent = await this.sendDmNotification(member, resolvedAction, config, analysis);
+    let dmSent = false;
+    if (!isTestMode) {
+      dmSent = await this.sendDmNotification(member, resolvedAction, config, analysis);
+    }
 
-    // Step 3: Execute the resolved action
-    try {
-      switch (resolvedAction) {
-        case 'ban':
-          await member.ban({
-            reason: `${config.banReason} (${reason})`,
-            deleteMessageSeconds: config.deleteUserMessages
-              ? config.deleteMessageDays * 24 * 60 * 60
-              : 0,
-          });
-          enhancedLogger.info(
-            `Banned user ${member.user.tag} (Score: ${analysis.score})`,
-            LogCategory.SECURITY,
-            {
-              userId: member.id,
-              score: analysis.score,
-              action: 'ban',
-              guildId: message.guild!.id,
-            },
-          );
-          break;
-
-        case 'kick':
-          await member.kick(`${config.banReason} (${reason})`);
-          enhancedLogger.info(
-            `Kicked user ${member.user.tag} (Score: ${analysis.score})`,
-            LogCategory.SECURITY,
-            {
-              userId: member.id,
-              score: analysis.score,
-              action: 'kick',
-              guildId: message.guild!.id,
-            },
-          );
-          break;
-
-        case 'timeout': {
-          const timeoutMs = (config.timeoutDurationMinutes ?? 60) * 60 * 1000;
-          await member.timeout(timeoutMs, `${config.banReason} (${reason})`);
-          enhancedLogger.info(
-            `Timed out user ${member.user.tag} for ${config.timeoutDurationMinutes ?? 60}min (Score: ${analysis.score})`,
-            LogCategory.SECURITY,
-            {
-              userId: member.id,
-              score: analysis.score,
-              action: 'timeout',
-              guildId: message.guild!.id,
-            },
-          );
-          break;
-        }
-
-        case 'log-only':
-          enhancedLogger.info(
-            `Logged user ${member.user.tag} (Score: ${analysis.score}) - no action taken`,
-            LogCategory.SECURITY,
-            {
-              userId: member.id,
-              score: analysis.score,
-              action: 'log-only',
-              guildId: message.guild!.id,
-            },
-          );
-          actionTaken = 'logged';
-          break;
-
-        default:
-          enhancedLogger.warn(`Unknown action type: ${resolvedAction}`, LogCategory.ERROR, {
-            actionType: resolvedAction,
-            guildId: message.guild!.id,
-          });
-      }
-    } catch (error) {
-      const err = error as Error;
-      actionResult = 'failed';
-      failureReason = err.message;
-      actionTaken = 'failed';
-
-      enhancedLogger.error(
-        `Failed to execute action ${resolvedAction} for ${member.user.tag}`,
-        err,
-        LogCategory.ERROR,
+    // Step 3: Execute the resolved action (skip in test mode)
+    if (isTestMode) {
+      actionTaken = `test-${resolvedAction}`;
+      enhancedLogger.info(
+        `[TEST MODE] Would have executed ${resolvedAction} on ${member.user.tag} (Score: ${analysis.score})`,
+        LogCategory.SECURITY,
         {
           userId: member.id,
-          action: resolvedAction,
+          score: analysis.score,
+          action: `test-${resolvedAction}`,
           guildId: message.guild!.id,
         },
       );
+    } else {
+      try {
+        switch (resolvedAction) {
+          case 'ban':
+            await member.ban({
+              reason: `${config.banReason} (${reason})`,
+              deleteMessageSeconds: config.deleteUserMessages
+                ? config.deleteMessageDays * 24 * 60 * 60
+                : 0,
+            });
+            enhancedLogger.info(
+              `Banned user ${member.user.tag} (Score: ${analysis.score})`,
+              LogCategory.SECURITY,
+              {
+                userId: member.id,
+                score: analysis.score,
+                action: 'ban',
+                guildId: message.guild!.id,
+              },
+            );
+            break;
 
-      logError({
-        category: ErrorCategory.DISCORD_API,
-        severity: ErrorSeverity.HIGH,
-        message: `Failed to execute bait channel action: ${resolvedAction}`,
-        error,
-        context: {
-          userId: member.id,
-          guildId: message.guild!.id,
-          action: resolvedAction,
-        },
-      });
+          case 'kick':
+            await member.kick(`${config.banReason} (${reason})`);
+            enhancedLogger.info(
+              `Kicked user ${member.user.tag} (Score: ${analysis.score})`,
+              LogCategory.SECURITY,
+              {
+                userId: member.id,
+                score: analysis.score,
+                action: 'kick',
+                guildId: message.guild!.id,
+              },
+            );
+            break;
+
+          case 'timeout': {
+            const timeoutMs = (config.timeoutDurationMinutes ?? 60) * 60 * 1000;
+            await member.timeout(timeoutMs, `${config.banReason} (${reason})`);
+            enhancedLogger.info(
+              `Timed out user ${member.user.tag} for ${config.timeoutDurationMinutes ?? 60}min (Score: ${analysis.score})`,
+              LogCategory.SECURITY,
+              {
+                userId: member.id,
+                score: analysis.score,
+                action: 'timeout',
+                guildId: message.guild!.id,
+              },
+            );
+            break;
+          }
+
+          case 'log-only':
+            enhancedLogger.info(
+              `Logged user ${member.user.tag} (Score: ${analysis.score}) - no action taken`,
+              LogCategory.SECURITY,
+              {
+                userId: member.id,
+                score: analysis.score,
+                action: 'log-only',
+                guildId: message.guild!.id,
+              },
+            );
+            actionTaken = 'logged';
+            break;
+
+          default:
+            enhancedLogger.warn(`Unknown action type: ${resolvedAction}`, LogCategory.ERROR, {
+              actionType: resolvedAction,
+              guildId: message.guild!.id,
+            });
+        }
+      } catch (error) {
+        const err = error as Error;
+        actionResult = 'failed';
+        failureReason = err.message;
+        actionTaken = 'failed';
+
+        enhancedLogger.error(
+          `Failed to execute action ${resolvedAction} for ${member.user.tag}`,
+          err,
+          LogCategory.ERROR,
+          {
+            userId: member.id,
+            action: resolvedAction,
+            guildId: message.guild!.id,
+          },
+        );
+
+        logError({
+          category: ErrorCategory.DISCORD_API,
+          severity: ErrorSeverity.HIGH,
+          message: `Failed to execute bait channel action: ${resolvedAction}`,
+          error,
+          context: {
+            userId: member.id,
+            guildId: message.guild!.id,
+            action: resolvedAction,
+          },
+        });
+      }
     }
 
-    // Step 4: Purge user messages (ban, or timeout with deleteUserMessages)
+    // Step 4: Purge user messages (ban, or timeout with deleteUserMessages) — skip in test mode
     let purgeResult: PurgeResult | undefined;
+    const baitChannelIds = config.channelIds?.length
+      ? config.channelIds
+      : config.channelId
+        ? [config.channelId]
+        : [];
     if (
+      !isTestMode &&
       actionResult === 'success' &&
       config.deleteUserMessages &&
       (resolvedAction === 'ban' || resolvedAction === 'timeout') &&
       message.guild
     ) {
-      purgeResult = await this.purgeUserMessages(message.guild, member.id, config.channelId);
+      purgeResult = await this.purgeUserMessages(message.guild, member.id, baitChannelIds);
     }
 
     // Step 4b: Detect repeat offenders (for ban/kick actions only)
@@ -1221,12 +1243,25 @@ export class BaitChannelManager {
         .catch(() => null)) as TextChannel | null;
       if (!logChannel) return;
 
-      // Different display for success vs failure
+      // Check if this is a test mode action
+      const isTestMode = config.testMode === true;
+
+      // Different display for success vs failure vs test mode
       let actionEmoji: string;
       let actionText: string;
       let color: ColorResolvable;
 
-      if (actionResult === 'failed') {
+      if (isTestMode) {
+        const textMap: Record<string, string> = {
+          ban: 'Would Ban',
+          kick: 'Would Kick',
+          timeout: `Would Timeout (${config.timeoutDurationMinutes ?? 60} min)`,
+          'log-only': 'Logged (No action)',
+        };
+        actionEmoji = '';
+        actionText = textMap[resolvedAction] || 'Detection logged';
+        color = Colors.status.info; // Informational color for test mode
+      } else if (actionResult === 'failed') {
         actionEmoji = '';
         actionText = `${resolvedAction === 'ban' ? 'Ban' : resolvedAction === 'kick' ? 'Kick' : resolvedAction === 'timeout' ? 'Timeout' : 'Action'} FAILED`;
         color = Colors.status.neutral; // Gray for failure
@@ -1257,14 +1292,17 @@ export class BaitChannelManager {
                 : Colors.status.warning;
       }
 
+      const testPrefix = isTestMode ? '[TEST MODE] ' : '';
       const description =
         actionResult === 'failed'
           ? `**${member.user.tag}** triggered the bait channel but the action failed`
-          : `**${member.user.tag}** triggered the bait channel`;
+          : isTestMode
+            ? `**${member.user.tag}** triggered the bait channel (test mode — no real action taken)`
+            : `**${member.user.tag}** triggered the bait channel`;
 
       const embed = new EmbedBuilder()
         .setColor(color)
-        .setTitle(`${actionEmoji} Bait Channel ${actionText}`)
+        .setTitle(`${testPrefix}${actionEmoji} Bait Channel ${actionText}`)
         .setDescription(description)
         .addFields(
           {
@@ -1479,7 +1517,7 @@ export class BaitChannelManager {
     try {
       // Check cache first (with TTL)
       const cached = this.configCache.get(guildId);
-      if (cached && Date.now() - cached.cachedAt < CONFIG_CACHE_TTL_MS) {
+      if (cached && Date.now() - cached.cachedAt < CACHE_TTL.BAIT_CONFIG) {
         return cached.config;
       }
 
@@ -1509,7 +1547,7 @@ export class BaitChannelManager {
 
   private async getKeywords(guildId: string): Promise<BaitKeyword[]> {
     const cached = this.keywordCache.get(guildId);
-    if (cached && Date.now() - cached.cachedAt < CONFIG_CACHE_TTL_MS) {
+    if (cached && Date.now() - cached.cachedAt < CACHE_TTL.BAIT_CONFIG) {
       return cached.keywords;
     }
 
@@ -1618,7 +1656,7 @@ export class BaitChannelManager {
           context: {},
         });
       });
-    }, ACTIVITY_FLUSH_INTERVAL_MS);
+    }, INTERVALS.ACTIVITY_FLUSH);
   }
 
   stopActivityFlush(): void {
@@ -1626,5 +1664,17 @@ export class BaitChannelManager {
       clearInterval(this.activityFlushInterval);
       this.activityFlushInterval = null;
     }
+  }
+
+  /**
+   * Returns a snapshot of tracked Map sizes for memory watchdog monitoring.
+   */
+  getTrackedMaps(): Record<string, number> {
+    return {
+      configCache: this.configCache.size,
+      pendingBans: this.pendingBans.size,
+      activityBuffer: this.activityBuffer.size,
+      keywordCache: this.keywordCache.size,
+    };
   }
 }

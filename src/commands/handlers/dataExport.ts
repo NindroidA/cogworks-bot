@@ -9,11 +9,15 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
+import { MoreThanOrEqual } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
 // Import all entities
 import { AuditLog } from '../../typeorm/entities/AuditLog';
+import { AnalyticsConfig } from '../../typeorm/entities/analytics/AnalyticsConfig';
+import { AnalyticsSnapshot } from '../../typeorm/entities/analytics/AnalyticsSnapshot';
 import { AnnouncementConfig } from '../../typeorm/entities/announcement/AnnouncementConfig';
 import { AnnouncementLog } from '../../typeorm/entities/announcement/AnnouncementLog';
+import { AnnouncementTemplate } from '../../typeorm/entities/announcement/AnnouncementTemplate';
 import { Application } from '../../typeorm/entities/application/Application';
 import { ApplicationConfig } from '../../typeorm/entities/application/ApplicationConfig';
 import { ArchivedApplication } from '../../typeorm/entities/application/ArchivedApplication';
@@ -23,13 +27,22 @@ import { BaitChannelConfig } from '../../typeorm/entities/BaitChannelConfig';
 import { BaitChannelLog } from '../../typeorm/entities/BaitChannelLog';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
 import { BaitKeyword } from '../../typeorm/entities/bait/BaitKeyword';
+import { JoinEvent } from '../../typeorm/entities/bait/JoinEvent';
+import { EventConfig } from '../../typeorm/entities/event/EventConfig';
+import { EventReminder } from '../../typeorm/entities/event/EventReminder';
+import { EventTemplate } from '../../typeorm/entities/event/EventTemplate';
+import { ImportLog } from '../../typeorm/entities/import/ImportLog';
 import { MemoryConfig } from '../../typeorm/entities/memory/MemoryConfig';
 import { MemoryItem } from '../../typeorm/entities/memory/MemoryItem';
 import { MemoryTag } from '../../typeorm/entities/memory/MemoryTag';
+import { OnboardingCompletion } from '../../typeorm/entities/onboarding/OnboardingCompletion';
+import { OnboardingConfig } from '../../typeorm/entities/onboarding/OnboardingConfig';
 import { PendingBan } from '../../typeorm/entities/PendingBan';
 import { ReactionRoleMenu } from '../../typeorm/entities/reactionRole/ReactionRoleMenu';
 import { RulesConfig } from '../../typeorm/entities/rules/RulesConfig';
 import { SavedRole } from '../../typeorm/entities/SavedRole';
+import { StarboardConfig } from '../../typeorm/entities/starboard/StarboardConfig';
+import { StarboardEntry } from '../../typeorm/entities/starboard/StarboardEntry';
 import { BotStatus } from '../../typeorm/entities/status/BotStatus';
 import { ArchivedTicket } from '../../typeorm/entities/ticket/ArchivedTicket';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
@@ -38,6 +51,9 @@ import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
 import { UserTicketRestriction } from '../../typeorm/entities/ticket/UserTicketRestriction';
 import { UserActivity } from '../../typeorm/entities/UserActivity';
+import { XPConfig } from '../../typeorm/entities/xp/XPConfig';
+import { XPRoleReward } from '../../typeorm/entities/xp/XPRoleReward';
+import { XPUser } from '../../typeorm/entities/xp/XPUser';
 import {
   createRateLimitKey,
   enhancedLogger,
@@ -126,7 +142,22 @@ export const dataExportHandler = async (
       botStatus,
       userActivity,
       auditLogs,
+      announcementTemplates,
       baitKeywords,
+      importLogs,
+      joinEvents,
+      starboardConfig,
+      starboardEntries,
+      xpConfig,
+      xpUsers,
+      xpRoleRewards,
+      eventConfig,
+      eventTemplates,
+      eventReminders,
+      analyticsConfig,
+      analyticsSnapshots,
+      onboardingConfig,
+      onboardingCompletions,
     ] = await Promise.all([
       AppDataSource.getRepository(BotConfig).find({ where: { guildId } }),
       AppDataSource.getRepository(BaitChannelConfig).find({
@@ -167,6 +198,9 @@ export const dataExportHandler = async (
       }),
       AppDataSource.getRepository(PendingBan).find({ where: { guildId } }),
       AppDataSource.getRepository(AnnouncementLog).find({ where: { guildId } }),
+      AppDataSource.getRepository(AnnouncementTemplate).find({
+        where: { guildId },
+      }),
       AppDataSource.getRepository(MemoryConfig).find({ where: { guildId } }),
       AppDataSource.getRepository(MemoryItem).find({ where: { guildId } }),
       AppDataSource.getRepository(MemoryTag).find({ where: { guildId } }),
@@ -174,6 +208,36 @@ export const dataExportHandler = async (
       AppDataSource.getRepository(UserActivity).find({ where: { guildId } }),
       AppDataSource.getRepository(AuditLog).find({ where: { guildId } }),
       AppDataSource.getRepository(BaitKeyword).find({ where: { guildId } }),
+      AppDataSource.getRepository(ImportLog).find({ where: { guildId } }),
+      AppDataSource.getRepository(JoinEvent).find({
+        where: {
+          guildId,
+          joinedAt: MoreThanOrEqual(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)),
+        },
+      }),
+      AppDataSource.getRepository(StarboardConfig).find({
+        where: { guildId },
+      }),
+      AppDataSource.getRepository(StarboardEntry).find({
+        where: { guildId },
+      }),
+      // New v3 features
+      AppDataSource.getRepository(XPConfig).find({ where: { guildId } }),
+      AppDataSource.getRepository(XPUser).find({ where: { guildId } }),
+      AppDataSource.getRepository(XPRoleReward).find({ where: { guildId } }),
+      AppDataSource.getRepository(EventConfig).find({ where: { guildId } }),
+      AppDataSource.getRepository(EventTemplate).find({ where: { guildId } }),
+      AppDataSource.getRepository(EventReminder).find({ where: { guildId } }),
+      AppDataSource.getRepository(AnalyticsConfig).find({ where: { guildId } }),
+      AppDataSource.getRepository(AnalyticsSnapshot).find({
+        where: { guildId },
+      }),
+      AppDataSource.getRepository(OnboardingConfig).find({
+        where: { guildId },
+      }),
+      AppDataSource.getRepository(OnboardingCompletion).find({
+        where: { guildId },
+      }),
     ]);
 
     const exportData: Record<string, unknown[]> = {
@@ -198,6 +262,7 @@ export const dataExportHandler = async (
       reactionRoleOptions: reactionRoleMenus.flatMap(m => m.options || []),
       pendingBans,
       announcementLogs,
+      announcementTemplates,
       memoryConfig,
       memoryItems,
       memoryTags,
@@ -205,6 +270,20 @@ export const dataExportHandler = async (
       userActivity,
       auditLogs,
       baitKeywords,
+      importLogs,
+      joinEvents,
+      starboardConfig,
+      starboardEntries,
+      xpConfig,
+      xpUsers,
+      xpRoleRewards,
+      eventConfig,
+      eventTemplates,
+      eventReminders,
+      analyticsConfig,
+      analyticsSnapshots,
+      onboardingConfig,
+      onboardingCompletions,
     };
 
     // Calculate total records

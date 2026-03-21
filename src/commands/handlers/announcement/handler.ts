@@ -1,6 +1,8 @@
 /**
- * Modernized Announcement Handler
- * Features: Template system, preview before sending, embed support
+ * Announcement Handler
+ *
+ * Supports both legacy subcommands (maintenance, back-online, etc.) and the
+ * new template-based send flow (/announcement send <template>).
  */
 
 import {
@@ -14,12 +16,16 @@ import {
   ComponentType,
   type EmbedBuilder,
   MessageFlags,
+  ModalBuilder,
+  type ModalSubmitInteraction,
   NewsChannel,
   TextChannel,
+  TextInputBuilder,
+  TextInputStyle,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
 import { AnnouncementLog } from '../../../typeorm/entities/announcement/AnnouncementLog';
+import { AnnouncementTemplate } from '../../../typeorm/entities/announcement/AnnouncementTemplate';
 import {
   createRateLimitKey,
   enhancedLogger,
@@ -31,13 +37,29 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
-import { getTemplate, type TemplateParams, validateTemplateParams } from './templates';
+import {
+  detectDynamicPlaceholders,
+  renderTemplate,
+  type TemplatePlaceholderParams,
+} from '../../../utils/announcement/templateEngine';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { sanitizeUserInput } from '../../../utils/validation/inputSanitizer';
 
-const announcementConfigRepo = AppDataSource.getRepository(AnnouncementConfig);
-const announcementLogRepo = AppDataSource.getRepository(AnnouncementLog);
+const announcementConfigRepo = lazyRepo(AnnouncementConfig);
+const announcementLogRepo = lazyRepo(AnnouncementLog);
+const templateRepo = lazyRepo(AnnouncementTemplate);
+
+// Map legacy subcommand names to default template names
+const LEGACY_TEMPLATE_MAP: Record<string, string> = {
+  maintenance: 'maintenance',
+  'maintenance-scheduled': 'maintenance-scheduled',
+  'back-online': 'back-online',
+  'update-scheduled': 'update-scheduled',
+  'update-complete': 'update-complete',
+};
 
 /**
- * Main announcement handler with preview functionality
+ * Main announcement handler
  */
 export const announcementHandler = async (
   client: Client,
@@ -46,40 +68,33 @@ export const announcementHandler = async (
   const tl = lang.announcement;
   const tlErr = lang.errors;
   const subCommand = interaction.options.getSubcommand();
-  const guildId = interaction.guildId || '';
+  const subcommandGroup = interaction.options.getSubcommandGroup(false);
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
 
   try {
-    // Permission check - admin only
+    // Permission check
     const permissionCheck = requireAdmin(interaction);
     if (!permissionCheck.allowed) {
       await interaction.reply({
         content: permissionCheck.message,
         flags: [MessageFlags.Ephemeral],
       });
-      enhancedLogger.warn(
-        `Unauthorized announcement attempt by user ${interaction.user.id} in guild ${guildId}`,
-        LogCategory.COMMAND_EXECUTION,
-      );
       return;
     }
 
-    // Rate limit check (5 announcements per hour per user)
+    // Rate limit
     const rateLimitKey = createRateLimitKey.user(interaction.user.id, 'announcement-create');
     const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.ANNOUNCEMENT_CREATE);
-
     if (!rateCheck.allowed) {
       await interaction.reply({
         content: LANGF(tlErr.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
         flags: [MessageFlags.Ephemeral],
       });
-      enhancedLogger.warn(
-        `Rate limit exceeded for announcement creation by user ${interaction.user.id}`,
-        LogCategory.COMMAND_EXECUTION,
-      );
       return;
     }
 
-    // Check if announcement module is configured
+    // Config check
     const config = await announcementConfigRepo.findOneBy({ guildId });
     if (!config) {
       await interaction.reply({
@@ -89,56 +104,25 @@ export const announcementHandler = async (
       return;
     }
 
-    // Get target channel (from option or use default)
-    const targetChannelOption = interaction.options.getChannel('channel');
-    const targetChannel = targetChannelOption
-      ? targetChannelOption
-      : await client.channels.fetch(config.defaultChannelId);
+    // Route: template subcommand group is handled by templateHandler
+    // This handler only handles 'send' and legacy subcommands
 
-    if (
-      !targetChannel ||
-      !(targetChannel instanceof TextChannel || targetChannel instanceof NewsChannel)
-    ) {
-      await interaction.reply({
-        content: tl.setup.invalidChannel,
-        flags: [MessageFlags.Ephemeral],
-      });
+    if (subCommand === 'send') {
+      await handleTemplateSend(client, interaction, config, guildId);
       return;
     }
 
-    // Build announcement data based on subcommand
-    const announcementData = await buildAnnouncementData(interaction, subCommand, config);
-    if (!announcementData) return; // Error was already handled
-
-    // Get the template
-    const template = getTemplate(announcementData.templateId);
-    if (!template) {
-      await interaction.reply({
-        content: lang.errors.unknownTemplate,
-        flags: [MessageFlags.Ephemeral],
-      });
+    // Legacy subcommands map to default templates
+    const legacyTemplateName = LEGACY_TEMPLATE_MAP[subCommand];
+    if (legacyTemplateName) {
+      await handleLegacySend(client, interaction, config, guildId, subCommand, legacyTemplateName);
       return;
     }
 
-    // Validate parameters
-    const validation = validateTemplateParams(announcementData.templateId, announcementData.params);
-    if (!validation.valid) {
-      await interaction.reply({
-        content: LANGF(
-          lang.errors.invalidParameters,
-          validation.errors.map(e => `• ${e}`).join('\n'),
-        ),
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    // Build the embed/content
-    const mentionRole = `<@&${config.minecraftRoleId}>`;
-    const messageData = template.buildEmbed(announcementData.params, mentionRole);
-
-    // Show preview with Send/Cancel buttons
-    await showPreview(interaction, targetChannel, messageData, announcementData, config);
+    await interaction.reply({
+      content: tlErr.unknownSubcommand,
+      flags: [MessageFlags.Ephemeral],
+    });
   } catch (error) {
     enhancedLogger.error(tl.error + error, undefined, LogCategory.COMMAND_EXECUTION);
     if (!interaction.replied && !interaction.deferred) {
@@ -151,131 +135,305 @@ export const announcementHandler = async (
 };
 
 /**
- * Build announcement data from interaction
+ * Handle the new /announcement send <template> flow
  */
-async function buildAnnouncementData(
+async function handleTemplateSend(
+  client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
-  subCommand: string,
-  _config: AnnouncementConfig,
-): Promise<{
-  templateId: string;
-  params: TemplateParams;
-  announcementType: string;
-  scheduledTime?: Date | null;
-  version?: string | null;
-} | null> {
+  config: AnnouncementConfig,
+  guildId: string,
+): Promise<void> {
   const tl = lang.announcement;
+  const templateName = interaction.options.getString('template', true);
+  const messageOverride = interaction.options.getString('message');
 
-  switch (subCommand) {
-    case 'maintenance': {
-      const duration = interaction.options.getString('duration', true) as 'short' | 'long';
-      const customMessage = interaction.options.getString('message') || undefined;
-      return {
-        templateId: 'maintenance',
-        params: { duration, customMessage },
-        announcementType: `maintenance_${duration}`,
-      };
+  const template = await templateRepo.findOneBy({
+    guildId,
+    name: templateName,
+  });
+  if (!template) {
+    await interaction.reply({
+      content: tl.send.templateNotFound,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  // Target channel
+  const targetChannel = await resolveTargetChannel(client, interaction, config);
+  if (!targetChannel) return;
+
+  // Check for dynamic placeholders
+  const dynamicPlaceholders = detectDynamicPlaceholders(template);
+
+  const params: TemplatePlaceholderParams = {};
+
+  if (dynamicPlaceholders.length > 0) {
+    // Open modal to collect placeholder values
+    const modal = new ModalBuilder()
+      .setCustomId(`announcement_send_params_${Date.now()}`)
+      .setTitle(`${template.displayName} - Parameters`);
+
+    // Build modal fields for needed placeholders (max 5 modal fields)
+    const fields = dynamicPlaceholders.slice(0, 5);
+    for (const placeholder of fields) {
+      const row = new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(placeholder.name)
+          .setLabel(placeholder.description)
+          .setStyle(TextInputStyle.Short)
+          .setRequired(placeholder.name !== 'duration')
+          .setPlaceholder(placeholder.example),
+      );
+      modal.addComponents(row);
     }
 
-    case 'maintenance-scheduled': {
-      const timeInput = interaction.options.getString('time', true);
-      const duration = interaction.options.getString('duration', true) as 'short' | 'long';
-      const customMessage = interaction.options.getString('message') || undefined;
+    await interaction.showModal(modal);
 
-      const scheduledTime = parseTimeInput(timeInput);
-      if (!scheduledTime) {
-        await interaction.reply({
-          content: tl.invalidTime,
-          flags: [MessageFlags.Ephemeral],
-        });
-        return null;
+    const modalInteraction = await interaction
+      .awaitModalSubmit({ time: 300_000 })
+      .catch(() => null);
+    if (!modalInteraction) return;
+
+    // Extract values from modal
+    for (const placeholder of fields) {
+      const value = modalInteraction.fields.getTextInputValue(placeholder.name).trim();
+      if (!value) continue;
+
+      if (placeholder.name === 'version') {
+        params.version = value;
+      } else if (placeholder.name === 'duration') {
+        params.duration = value;
+      } else if (placeholder.name === 'time' || placeholder.name === 'time_relative') {
+        // Try parsing as a time input, otherwise treat as unix timestamp
+        const parsed = parseTimeInput(value);
+        if (parsed) {
+          params.time = Math.floor(parsed.getTime() / 1000);
+        } else {
+          const unix = Number.parseInt(value, 10);
+          if (!Number.isNaN(unix)) {
+            params.time = unix;
+          }
+        }
       }
-
-      const timestamp = Math.floor(scheduledTime.getTime() / 1000);
-      return {
-        templateId: 'maintenanceScheduled',
-        params: { duration, timestamp, customMessage },
-        announcementType: `maintenance_scheduled_${duration}`,
-        scheduledTime,
-      };
     }
 
-    case 'back-online': {
-      const customMessage = interaction.options.getString('message') || undefined;
-      return {
-        templateId: 'backOnline',
-        params: { customMessage },
-        announcementType: 'back_online',
-      };
-    }
-
-    case 'update-scheduled': {
-      const version = interaction.options.getString('version', true);
-      const timeInput = interaction.options.getString('time', true);
-      const customMessage = interaction.options.getString('message') || undefined;
-
-      const scheduledTime = parseTimeInput(timeInput);
-      if (!scheduledTime) {
-        await interaction.reply({
-          content: tl.invalidTime,
-          flags: [MessageFlags.Ephemeral],
-        });
-        return null;
-      }
-
-      const timestamp = Math.floor(scheduledTime.getTime() / 1000);
-      return {
-        templateId: 'updateScheduled',
-        params: { version, timestamp, customMessage },
-        announcementType: 'update_scheduled',
-        scheduledTime,
-        version,
-      };
-    }
-
-    case 'update-complete': {
-      const version = interaction.options.getString('version', true);
-      const customMessage = interaction.options.getString('message') || undefined;
-      return {
-        templateId: 'updateComplete',
-        params: { version, customMessage },
-        announcementType: 'update_complete',
-        version,
-      };
-    }
-
-    default:
-      await interaction.reply({
-        content: lang.errors.unknownSubcommand,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return null;
+    // Use modal interaction for the rest
+    await sendWithPreview(
+      modalInteraction,
+      targetChannel,
+      template,
+      config,
+      guildId,
+      params,
+      messageOverride,
+    );
+  } else {
+    // No dynamic placeholders — show preview directly
+    params.channelId = targetChannel.id;
+    await sendWithPreviewFromInteraction(
+      interaction,
+      targetChannel,
+      template,
+      config,
+      guildId,
+      params,
+      messageOverride,
+    );
   }
 }
 
 /**
- * Show preview of announcement with Send/Cancel buttons
+ * Handle legacy subcommands by mapping to default templates.
  */
-async function showPreview(
+async function handleLegacySend(
+  client: Client,
+  interaction: ChatInputCommandInteraction<CacheType>,
+  config: AnnouncementConfig,
+  guildId: string,
+  subCommand: string,
+  templateName: string,
+): Promise<void> {
+  const tl = lang.announcement;
+
+  // Load template from DB
+  const template = await templateRepo.findOneBy({
+    guildId,
+    name: templateName,
+  });
+
+  // If not found in DB (templates not seeded yet), we still need to work
+  if (!template) {
+    await interaction.reply({
+      content: tl.send.noTemplates,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  const targetChannel = await resolveTargetChannel(client, interaction, config);
+  if (!targetChannel) return;
+
+  // Build params from legacy options
+  const params: TemplatePlaceholderParams = {};
+  const customMessage = interaction.options.getString('message') || undefined;
+
+  switch (subCommand) {
+    case 'maintenance': {
+      const duration = interaction.options.getString('duration', true);
+      params.duration = duration === 'short' ? '5-10 minutes' : 'up to 1 hour or more';
+      break;
+    }
+    case 'maintenance-scheduled': {
+      const timeInput = interaction.options.getString('time', true);
+      const duration = interaction.options.getString('duration', true);
+      const scheduledTime = parseTimeInput(timeInput);
+      if (!scheduledTime) {
+        await interaction.reply({
+          content: tl.invalidTime,
+          flags: [MessageFlags.Ephemeral],
+        });
+        return;
+      }
+      params.time = Math.floor(scheduledTime.getTime() / 1000);
+      params.duration = duration === 'short' ? '5-10 minutes' : 'up to 1 hour or more';
+      break;
+    }
+    case 'update-scheduled': {
+      const version = interaction.options.getString('version', true);
+      const timeInput = interaction.options.getString('time', true);
+      const scheduledTime = parseTimeInput(timeInput);
+      if (!scheduledTime) {
+        await interaction.reply({
+          content: tl.invalidTime,
+          flags: [MessageFlags.Ephemeral],
+        });
+        return;
+      }
+      params.version = version;
+      params.time = Math.floor(scheduledTime.getTime() / 1000);
+      break;
+    }
+    case 'update-complete': {
+      const version = interaction.options.getString('version', true);
+      params.version = version;
+      break;
+    }
+    case 'back-online':
+      // No params needed
+      break;
+  }
+
+  params.channelId = targetChannel.id;
+  await sendWithPreviewFromInteraction(
+    interaction,
+    targetChannel,
+    template,
+    config,
+    guildId,
+    params,
+    customMessage,
+  );
+}
+
+/**
+ * Resolve the target channel from options or config default.
+ */
+async function resolveTargetChannel(
+  client: Client,
+  interaction: ChatInputCommandInteraction<CacheType>,
+  config: AnnouncementConfig,
+): Promise<TextChannel | NewsChannel | null> {
+  const tl = lang.announcement;
+  const targetChannelOption = interaction.options.getChannel('channel');
+  const targetChannel = targetChannelOption
+    ? targetChannelOption
+    : await client.channels.fetch(config.defaultChannelId);
+
+  if (
+    !targetChannel ||
+    !(targetChannel instanceof TextChannel || targetChannel instanceof NewsChannel)
+  ) {
+    await interaction.reply({
+      content: tl.setup.invalidChannel,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return null;
+  }
+
+  return targetChannel;
+}
+
+/**
+ * Show preview with Send/Cancel buttons from a ChatInputCommandInteraction.
+ */
+async function sendWithPreviewFromInteraction(
   interaction: ChatInputCommandInteraction<CacheType>,
   targetChannel: TextChannel | NewsChannel,
-  messageData: { embeds: EmbedBuilder[]; content?: string },
-  announcementData: {
-    templateId: string;
-    params: TemplateParams;
-    announcementType: string;
-    scheduledTime?: Date | null;
-    version?: string | null;
-  },
+  template: AnnouncementTemplate,
   config: AnnouncementConfig,
+  guildId: string,
+  params: TemplatePlaceholderParams,
+  messageOverride?: string | null,
 ): Promise<void> {
-  const guildId = interaction.guildId || '';
+  const roleId = config.defaultRoleId || config.minecraftRoleId;
+
+  // If messageOverride, replace body
+  const renderTemplate_ = messageOverride
+    ? { ...template, body: sanitizeUserInput(messageOverride) }
+    : template;
+
+  const messageData = renderTemplate(
+    renderTemplate_ as AnnouncementTemplate,
+    params,
+    interaction.guild,
+    interaction.user,
+    roleId,
+  );
+
+  await showPreviewAndSend(
+    interaction,
+    targetChannel,
+    messageData,
+    template.name,
+    config,
+    guildId,
+    params,
+    roleId,
+  );
+}
+
+/**
+ * Show preview with Send/Cancel buttons from a modal submit interaction.
+ */
+async function sendWithPreview(
+  modalInteraction: ModalSubmitInteraction<CacheType>,
+  targetChannel: TextChannel | NewsChannel,
+  template: AnnouncementTemplate,
+  config: AnnouncementConfig,
+  guildId: string,
+  params: TemplatePlaceholderParams,
+  messageOverride?: string | null,
+): Promise<void> {
+  const roleId = config.defaultRoleId || config.minecraftRoleId;
+
+  const renderTemplate_ = messageOverride
+    ? { ...template, body: sanitizeUserInput(messageOverride) }
+    : template;
+
+  const messageData = renderTemplate(
+    renderTemplate_ as AnnouncementTemplate,
+    params,
+    modalInteraction.guild,
+    modalInteraction.user,
+    roleId,
+  );
 
   // Create preview buttons
   const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId('announcement_send')
-      .setLabel(`📢 ${lang.announcement.templates.sendButton}`)
+      .setLabel(lang.announcement.templates.sendButton)
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId('announcement_cancel')
@@ -283,22 +441,113 @@ async function showPreview(
       .setStyle(ButtonStyle.Secondary),
   );
 
-  // Send preview
-  await interaction.reply({
-    content: `**📋 Preview** (will be sent to ${targetChannel})\n━━━━━━━━━━━━━━━━━━`,
+  await modalInteraction.reply({
+    content: `**Preview** (will be sent to ${targetChannel})\n---`,
     embeds: messageData.embeds,
     components: [buttons],
     flags: [MessageFlags.Ephemeral],
   });
 
-  // Wait for button click (2 minutes timeout)
+  try {
+    const buttonInteraction = await modalInteraction.channel?.awaitMessageComponent({
+      filter: (i: ButtonInteraction) =>
+        i.user.id === modalInteraction.user.id &&
+        (i.customId === 'announcement_send' || i.customId === 'announcement_cancel'),
+      componentType: ComponentType.Button,
+      time: 120_000,
+    });
+
+    if (!buttonInteraction || buttonInteraction.customId === 'announcement_cancel') {
+      await buttonInteraction?.update({
+        content: lang.errors.cancelled,
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+
+    await buttonInteraction.deferUpdate();
+
+    for (const embed of messageData.embeds) {
+      embed.setTimestamp(new Date());
+    }
+
+    const sentMessage = await targetChannel.send({
+      content: messageData.content,
+      embeds: messageData.embeds,
+      allowedMentions: roleId ? { roles: [roleId] } : undefined,
+    });
+
+    if (targetChannel instanceof NewsChannel) {
+      try {
+        await sentMessage.crosspost();
+      } catch (publishError) {
+        enhancedLogger.warn(
+          lang.announcement.publish.fail + publishError,
+          LogCategory.COMMAND_EXECUTION,
+        );
+      }
+    }
+
+    // Log
+    const newLog = new AnnouncementLog();
+    newLog.guildId = guildId;
+    newLog.channelId = targetChannel.id;
+    newLog.messageId = sentMessage.id;
+    newLog.type = template.name;
+    newLog.sentBy = modalInteraction.user.id;
+    newLog.scheduledTime = params.time ? new Date(params.time * 1000) : null;
+    newLog.version = params.version || null;
+    await announcementLogRepo.save(newLog);
+
+    await buttonInteraction.editReply({
+      content: `Announcement sent to ${targetChannel}!`,
+      embeds: [],
+      components: [],
+    });
+  } catch {
+    // Timeout
+  }
+}
+
+/**
+ * Show preview and handle send/cancel from a standard interaction.
+ */
+async function showPreviewAndSend(
+  interaction: ChatInputCommandInteraction<CacheType>,
+  targetChannel: TextChannel | NewsChannel,
+  messageData: { embeds: EmbedBuilder[]; content?: string },
+  templateName: string,
+  config: AnnouncementConfig,
+  guildId: string,
+  params: TemplatePlaceholderParams,
+  roleId?: string | null,
+): Promise<void> {
+  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('announcement_send')
+      .setLabel(lang.announcement.templates.sendButton)
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('announcement_cancel')
+      .setLabel(lang.general.buttons.cancel)
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  await interaction.reply({
+    content: `**Preview** (will be sent to ${targetChannel})\n---`,
+    embeds: messageData.embeds,
+    components: [buttons],
+    flags: [MessageFlags.Ephemeral],
+  });
+
   try {
     const buttonInteraction = await interaction.channel?.awaitMessageComponent({
       filter: (i: ButtonInteraction) =>
         i.user.id === interaction.user.id &&
         (i.customId === 'announcement_send' || i.customId === 'announcement_cancel'),
       componentType: ComponentType.Button,
-      time: 120000, // 2 minutes
+      time: 120_000,
     });
 
     if (!buttonInteraction) return;
@@ -312,10 +561,8 @@ async function showPreview(
       return;
     }
 
-    // Send the announcement
     await buttonInteraction.deferUpdate();
 
-    // Set timestamp to confirm time (not preview build time)
     for (const embed of messageData.embeds) {
       embed.setTimestamp(new Date());
     }
@@ -323,17 +570,12 @@ async function showPreview(
     const sentMessage = await targetChannel.send({
       content: messageData.content,
       embeds: messageData.embeds,
-      allowedMentions: { roles: [config.minecraftRoleId] },
+      allowedMentions: roleId ? { roles: [roleId] } : undefined,
     });
 
-    // Try to publish if it's a news channel
     if (targetChannel instanceof NewsChannel) {
       try {
         await sentMessage.crosspost();
-        enhancedLogger.info(
-          `${lang.announcement.publish.success} ${targetChannel.name}`,
-          LogCategory.COMMAND_EXECUTION,
-        );
       } catch (publishError) {
         enhancedLogger.warn(
           lang.announcement.publish.fail + publishError,
@@ -342,34 +584,27 @@ async function showPreview(
       }
     }
 
-    // Log the announcement
     const newLog = new AnnouncementLog();
     newLog.guildId = guildId;
     newLog.channelId = targetChannel.id;
     newLog.messageId = sentMessage.id;
-    newLog.type = announcementData.announcementType;
+    newLog.type = templateName;
     newLog.sentBy = interaction.user.id;
-    newLog.scheduledTime = announcementData.scheduledTime || null;
-    newLog.version = announcementData.version || null;
-
+    newLog.scheduledTime = params.time ? new Date(params.time * 1000) : null;
+    newLog.version = params.version || null;
     await announcementLogRepo.save(newLog);
 
-    // Update preview with success message
     await buttonInteraction.editReply({
-      content: `✅ Announcement sent to ${targetChannel}!`,
+      content: `Announcement sent to ${targetChannel}!`,
       embeds: [],
       components: [],
     });
 
     enhancedLogger.info(
-      `User ${interaction.user.username} sent ${announcementData.announcementType} announcement`,
+      `User ${interaction.user.username} sent ${templateName} announcement`,
       LogCategory.COMMAND_EXECUTION,
     );
-  } catch (error) {
-    // Timeout or error
-    enhancedLogger.warn(
-      `Announcement preview timed out or error occurred: ${error}`,
-      LogCategory.COMMAND_EXECUTION,
-    );
+  } catch {
+    // Timeout
   }
 }

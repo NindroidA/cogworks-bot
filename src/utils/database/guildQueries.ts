@@ -6,7 +6,7 @@
  */
 
 import type { FindManyOptions, FindOneOptions, FindOptionsWhere, Repository } from 'typeorm';
-import { logger } from '../logger';
+import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
 /**
  * Safely find one entity scoped to a specific guild
@@ -32,9 +32,10 @@ export async function findOneByGuild<T extends { guildId: string }>(
       where: { guildId } as FindOptionsWhere<T>,
     });
   } catch (error) {
-    logger(
+    enhancedLogger.error(
       `Error in findOneByGuild for ${repo.metadata.name}: ${(error as Error).message}`,
-      'ERROR',
+      error instanceof Error ? error : undefined,
+      LogCategory.DATABASE,
     );
     return null;
   }
@@ -73,9 +74,10 @@ export async function findManyByGuild<T extends { guildId: string }>(
       } as FindOptionsWhere<T>,
     });
   } catch (error) {
-    logger(
+    enhancedLogger.error(
       `Error in findManyByGuild for ${repo.metadata.name}: ${(error as Error).message}`,
-      'ERROR',
+      error instanceof Error ? error : undefined,
+      LogCategory.DATABASE,
     );
     return [];
   }
@@ -112,7 +114,11 @@ export async function countByGuild<T extends { guildId: string }>(
       } as FindOptionsWhere<T>,
     });
   } catch (error) {
-    logger(`Error in countByGuild for ${repo.metadata.name}: ${(error as Error).message}`, 'ERROR');
+    enhancedLogger.error(
+      `Error in countByGuild for ${repo.metadata.name}: ${(error as Error).message}`,
+      error instanceof Error ? error : undefined,
+      LogCategory.DATABASE,
+    );
     return 0;
   }
 }
@@ -142,9 +148,10 @@ export async function deleteByGuild<T extends { guildId: string }>(
 
     return { affected: result.affected || 0 };
   } catch (error) {
-    logger(
+    enhancedLogger.error(
       `Error in deleteByGuild for ${repo.metadata.name}: ${(error as Error).message}`,
-      'ERROR',
+      error instanceof Error ? error : undefined,
+      LogCategory.DATABASE,
     );
     return { affected: 0 };
   }
@@ -206,11 +213,32 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     );
     const { PendingBan } = await import('../../typeorm/entities/PendingBan');
     const { AnnouncementLog } = await import('../../typeorm/entities/announcement/AnnouncementLog');
+    const { AnnouncementTemplate } = await import(
+      '../../typeorm/entities/announcement/AnnouncementTemplate'
+    );
     const { AuditLog } = await import('../../typeorm/entities/AuditLog');
     const { MemoryConfig } = await import('../../typeorm/entities/memory/MemoryConfig');
     const { MemoryItem } = await import('../../typeorm/entities/memory/MemoryItem');
     const { MemoryTag } = await import('../../typeorm/entities/memory/MemoryTag');
     const { BaitKeyword } = await import('../../typeorm/entities/bait/BaitKeyword');
+    const { ImportLog } = await import('../../typeorm/entities/import/ImportLog');
+    const { JoinEvent } = await import('../../typeorm/entities/bait/JoinEvent');
+    const { StarboardConfig } = await import('../../typeorm/entities/starboard/StarboardConfig');
+    const { StarboardEntry } = await import('../../typeorm/entities/starboard/StarboardEntry');
+    const { XPConfig } = await import('../../typeorm/entities/xp/XPConfig');
+    const { XPUser } = await import('../../typeorm/entities/xp/XPUser');
+    const { XPRoleReward } = await import('../../typeorm/entities/xp/XPRoleReward');
+    const { EventConfig } = await import('../../typeorm/entities/event/EventConfig');
+    const { EventTemplate } = await import('../../typeorm/entities/event/EventTemplate');
+    const { EventReminder } = await import('../../typeorm/entities/event/EventReminder');
+    const { AnalyticsConfig } = await import('../../typeorm/entities/analytics/AnalyticsConfig');
+    const { AnalyticsSnapshot } = await import(
+      '../../typeorm/entities/analytics/AnalyticsSnapshot'
+    );
+    const { OnboardingConfig } = await import('../../typeorm/entities/onboarding/OnboardingConfig');
+    const { OnboardingCompletion } = await import(
+      '../../typeorm/entities/onboarding/OnboardingCompletion'
+    );
 
     const details: Record<string, number> = {};
     let total = 0;
@@ -234,8 +262,54 @@ export async function deleteAllGuildData(guildId: string): Promise<{
         name: 'AnnouncementLog',
         repo: AppDataSource.getRepository(AnnouncementLog),
       },
+      {
+        name: 'AnnouncementTemplate',
+        repo: AppDataSource.getRepository(AnnouncementTemplate),
+      },
       { name: 'AuditLog', repo: AppDataSource.getRepository(AuditLog) },
       { name: 'BaitKeyword', repo: AppDataSource.getRepository(BaitKeyword) },
+      { name: 'ImportLog', repo: AppDataSource.getRepository(ImportLog) },
+      { name: 'JoinEvent', repo: AppDataSource.getRepository(JoinEvent) },
+      {
+        name: 'StarboardEntry',
+        repo: AppDataSource.getRepository(StarboardEntry),
+      },
+      {
+        name: 'StarboardConfig',
+        repo: AppDataSource.getRepository(StarboardConfig),
+      },
+      // XP system
+      { name: 'XPRoleReward', repo: AppDataSource.getRepository(XPRoleReward) },
+      { name: 'XPUser', repo: AppDataSource.getRepository(XPUser) },
+      { name: 'XPConfig', repo: AppDataSource.getRepository(XPConfig) },
+      // Events
+      {
+        name: 'EventReminder',
+        repo: AppDataSource.getRepository(EventReminder),
+      },
+      {
+        name: 'EventTemplate',
+        repo: AppDataSource.getRepository(EventTemplate),
+      },
+      { name: 'EventConfig', repo: AppDataSource.getRepository(EventConfig) },
+      // Analytics
+      {
+        name: 'AnalyticsSnapshot',
+        repo: AppDataSource.getRepository(AnalyticsSnapshot),
+      },
+      {
+        name: 'AnalyticsConfig',
+        repo: AppDataSource.getRepository(AnalyticsConfig),
+      },
+      // Onboarding
+      {
+        name: 'OnboardingCompletion',
+        repo: AppDataSource.getRepository(OnboardingCompletion),
+      },
+      {
+        name: 'OnboardingConfig',
+        repo: AppDataSource.getRepository(OnboardingConfig),
+      },
       // Original entities
       { name: 'BotConfig', repo: AppDataSource.getRepository(BotConfig) },
       { name: 'TicketConfig', repo: AppDataSource.getRepository(TicketConfig) },
@@ -296,9 +370,10 @@ export async function deleteAllGuildData(guildId: string): Promise<{
       details,
     };
   } catch (error) {
-    logger(
+    enhancedLogger.error(
       `Error in deleteAllGuildData for guildId ${guildId}: ${(error as Error).message}`,
-      'ERROR',
+      error instanceof Error ? error : undefined,
+      LogCategory.DATABASE,
     );
 
     return {
@@ -334,9 +409,10 @@ export async function verifyGuildExists(guildId: string): Promise<boolean> {
 
     return config !== null;
   } catch (error) {
-    logger(
+    enhancedLogger.error(
       `Error in verifyGuildExists for guildId ${guildId}: ${(error as Error).message}`,
-      'ERROR',
+      error instanceof Error ? error : undefined,
+      LogCategory.DATABASE,
     );
     return false;
   }

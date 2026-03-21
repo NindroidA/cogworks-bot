@@ -9,7 +9,6 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
   createRateLimitKey,
@@ -22,7 +21,9 @@ import {
   RateLimits,
   rateLimiter,
   requireAdmin,
+  sanitizeUserInput,
 } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveMemoryConfig } from './channelPicker';
 import {
   createDefaultSelectionState,
@@ -31,8 +32,8 @@ import {
 } from './tagSelection';
 
 const tl = lang.memory;
-const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
-const memoryItemRepo = AppDataSource.getRepository(MemoryItem);
+const memoryTagRepo = lazyRepo(MemoryTag);
+const memoryItemRepo = lazyRepo(MemoryItem);
 
 export const memoryAddHandler = async (interaction: ChatInputCommandInteraction) => {
   const startTime = Date.now();
@@ -155,8 +156,10 @@ async function handleModalSubmit(
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
   try {
-    const title = interaction.fields.getTextInputValue('memory_title');
-    const description = interaction.fields.getTextInputValue('memory_description');
+    const title = sanitizeUserInput(interaction.fields.getTextInputValue('memory_title'));
+    const description = sanitizeUserInput(
+      interaction.fields.getTextInputValue('memory_description'),
+    );
 
     const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
     if (!forum) {

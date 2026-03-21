@@ -1,6 +1,6 @@
 # Privacy Policy for Cogworks Bot
 
-**Last Updated:** `March 15, 2026`
+**Last Updated:** `March 19, 2026`
 
 ## 1. Introduction
 
@@ -36,6 +36,9 @@ Information you explicitly provide through:
 - **Rules Reactions**: Reaction acknowledgment tracking for role assignment
 - **Reaction Role Selections**: Role selections via reaction role menus
 - **Bot Status**: Operational status set by bot owner
+- **Announcement Templates**: Custom announcement templates created by admins (per-guild, admin-created content including template names, titles, descriptions, colors, and body text)
+- **Ticket Workflow Data**: Ticket status changes, staff assignment records, and status history (who changed status, when, and optional notes)
+- **Ticket Auto-Close Actions**: Automated status changes and warnings performed by the system when tickets are inactive beyond configured thresholds
 
 ## 3. How We Use Your Information
 
@@ -52,8 +55,12 @@ We use collected information for the following purposes:
 - **Outage Status System**: Bot operational status management with health check integration
 - **Bait Channel Anti-Bot System**: Detection and removal of automated bots
   - Detection flags and suspicion scores (account age, membership duration, message count)
-  - Action logging (ban, kick, log-only)
+  - Action logging (ban, kick, timeout, log-only)
   - Whitelist management for roles and users
+  - Join velocity detection: join timestamps and account creation dates are recorded to detect coordinated join bursts (retained for 30 days)
+  - Custom keyword storage: server administrators may configure custom detection keywords, stored per-server and not shared across servers
+  - Override tracking: when an administrator marks a detection as a false positive, the administrator's user ID and the override timestamp are recorded
+  - DM notifications: when enabled, the bot may send direct messages to users who trigger bait channel detection, informing them of the action taken
 
 ### 3.2 System Operations
 - **Error Logging**: Diagnosing and fixing technical issues
@@ -91,7 +98,12 @@ We use collected information for the following purposes:
 - **Reaction Role Menus**: Retained while Bot is active in server
 - **Bot Status**: Single record retained while Bot is active
 - **Bait Channel Logs**: Detection events retained for statistics and auditing
-- **Audit Logs**: Dashboard-triggered actions retained for 90 days, then auto-deleted
+- **Bait Channel Keywords**: Custom detection keywords retained while Bot is active in server
+- **Join Events**: Join timestamps retained for 30 days for velocity detection
+- **Audit Logs**: Dashboard-triggered actions retained for 90 days, then auto-deleted (dashboard is currently in beta)
+- **Announcement Templates**: Retained while Bot is active in server (deletable via `/announcement template delete` or `/announcement template reset`)
+- **Ticket Workflow History**: Status history retained with the ticket (max 50 entries per ticket)
+- **Ticket Assignment Records**: Retained with the ticket while Bot is active in server
 - **Configuration Data**: Retained while Bot is active in server
 - **Error Logs**: Retained for debugging purposes (personally identifiable information removed)
 
@@ -101,7 +113,7 @@ We use collected information for the following purposes:
 
 We may share data with:
 
-- **Cogworks API**: For integration with Nindroid Systems Homepage and Dashboard
+- **Cogworks API**: For integration with Nindroid Systems Homepage and Dashboard (beta)
   - Guild join/leave events (guild ID, name, member count) for dashboard sync
   - Dashboard-triggered action audit logs
 - **Discord**: As required for Bot functionality via Discord's API
@@ -126,6 +138,7 @@ You have the right to:
 To request data deletion, contact the bot owner. We will:
 - Remove your data from active systems within 30 days
 - Retain archived records only as required for server moderation
+- When the Bot is removed from a server, all server data is automatically deleted, including bait channel logs, custom keywords, join events, and override records
 
 ### 6.3 Opt-Out Options
 - **Leave Server**: Removes you from future data collection

@@ -1,14 +1,15 @@
 import type { AutocompleteInteraction } from 'discord.js';
 import { Like } from 'typeorm';
-import { AppDataSource } from '../../../typeorm';
 import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 
-const memoryItemRepo = AppDataSource.getRepository(MemoryItem);
-const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
+const memoryItemRepo = lazyRepo(MemoryItem);
+const memoryTagRepo = lazyRepo(MemoryTag);
 
 export async function memoryAutocomplete(interaction: AutocompleteInteraction) {
   const focused = interaction.options.getFocused(true);
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
 
   if (focused.name === 'thread') {
     const query = focused.value.toLowerCase();

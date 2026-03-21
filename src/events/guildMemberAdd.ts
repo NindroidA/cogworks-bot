@@ -1,4 +1,4 @@
-import type { Client, GuildMember } from 'discord.js';
+import type { GuildMember } from 'discord.js';
 import { AppDataSource } from '../typeorm';
 import { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
 import { JoinEvent } from '../typeorm/entities/bait/JoinEvent';
@@ -7,19 +7,24 @@ import { enhancedLogger, LogCategory } from '../utils';
 
 export default {
   name: 'guildMemberAdd',
-  async execute(member: GuildMember, client: Client) {
-    const extClient = client as ExtendedClient;
+  async execute(member: GuildMember, client: ExtendedClient) {
+    const extClient = client;
 
     // Only track joins for guilds with bait channel enabled
     const configRepo = AppDataSource.getRepository(BaitChannelConfig);
     let config: BaitChannelConfig | null;
     try {
-      config = await configRepo.findOne({ where: { guildId: member.guild.id } });
+      config = await configRepo.findOne({
+        where: { guildId: member.guild.id },
+      });
     } catch {
       return; // DB error — skip silently
     }
 
     if (!config?.enabled) return;
+
+    // Skip join tracking for dev guild to avoid polluting analytics
+    if (process.env.DEV_GUILD_ID && member.guild.id === process.env.DEV_GUILD_ID) return;
 
     // Record in-memory for burst detection
     if (extClient.joinVelocityTracker) {

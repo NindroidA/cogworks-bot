@@ -4,22 +4,41 @@
  * Shared TypeScript type definitions used across the bot.
  */
 
-// ============================================================================
-// Status Types
-// ============================================================================
+import type { CacheType, ChatInputCommandInteraction } from 'discord.js';
 
-/** Possible states for a support ticket */
-export type TicketStatus = 'created' | 'opened' | 'closed' | 'adminOnly' | 'error';
+/**
+ * Extracts and narrows `interaction.guildId` to a non-null string.
+ * Throws if the interaction was invoked outside a guild (DM context).
+ *
+ * Use this instead of `interaction.guildId!` to get type-safe narrowing:
+ * ```ts
+ * const guildId = getGuildId(interaction);
+ * // guildId is `string`, not `string | null`
+ * ```
+ */
+export function getGuildId(interaction: ChatInputCommandInteraction<CacheType>): string {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    throw new Error('Command must be used in a guild');
+  }
+  return guildId;
+}
 
-/** Possible states for a staff application */
-export type ApplicationStatus = 'created' | 'opened' | 'closed' | 'accepted' | 'rejected' | 'error';
+/** Possible states for a support ticket (includes workflow custom statuses via string) */
+export type TicketStatus = 'created' | 'opened' | 'closed' | 'adminOnly' | 'error' | (string & {});
+
+/** Possible states for a staff application (includes workflow custom statuses via string) */
+export type ApplicationStatus =
+  | 'created'
+  | 'opened'
+  | 'closed'
+  | 'accepted'
+  | 'rejected'
+  | 'error'
+  | (string & {});
 
 /** Types of saved roles that can be managed */
 export type SavedRoleTypes = 'staff' | 'admin';
-
-// ============================================================================
-// Configuration Interfaces
-// ============================================================================
 
 /**
  * Options for downloading and archiving Discord data

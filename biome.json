@@ -23,7 +23,8 @@
         "noUnusedVariables": "warn"
       },
       "suspicious": {
-        "noExplicitAny": "off"
+        "noExplicitAny": "off",
+        "noMisleadingCharacterClass": "off"
       },
       "style": {
         "noNonNullAssertion": "off"

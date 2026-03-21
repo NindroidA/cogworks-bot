@@ -10,30 +10,30 @@ export class ArchivedTicket {
   @Column()
   guildId: string;
 
-  @Column({ nullable: true })
-  messageId: string;
+  @Column({ type: 'varchar', nullable: true })
+  messageId: string | null;
 
   @Column()
   createdBy: string;
 
-  @Column({ nullable: true })
-  ticketType: string;
+  @Column({ type: 'varchar', nullable: true })
+  ticketType: string | null;
 
-  @Column({ nullable: true })
-  customTypeId: string;
+  @Column({ type: 'varchar', nullable: true })
+  customTypeId: string | null;
 
   @Column({ type: 'simple-json', nullable: true })
-  forumTagIds: string[];
+  forumTagIds: string[] | null;
 
   @Column({ default: false })
   isEmailTicket: boolean;
 
-  @Column({ nullable: true })
-  emailSender: string;
+  @Column({ type: 'varchar', nullable: true })
+  emailSender: string | null;
 
-  @Column({ nullable: true })
-  emailSenderName: string;
+  @Column({ type: 'varchar', nullable: true })
+  emailSenderName: string | null;
 
-  @Column({ nullable: true })
-  emailSubject: string;
+  @Column({ type: 'varchar', nullable: true })
+  emailSubject: string | null;
 }

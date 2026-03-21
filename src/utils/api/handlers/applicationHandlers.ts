@@ -1,17 +1,18 @@
 import fs from 'node:fs';
 import type { Client, ForumChannel, ForumThreadChannel, GuildTextBasedChannel } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { Application } from '../../../typeorm/entities/application/Application';
 import { ArchivedApplication } from '../../../typeorm/entities/application/ArchivedApplication';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
+import { lazyRepo } from '../../database/lazyRepo';
 import { fetchMessagesAndSaveToFile } from '../../fetchAllMessages';
+import { ApiError } from '../apiError';
 import { extractId } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
-const applicationRepo = AppDataSource.getRepository(Application);
-const archivedAppConfigRepo = AppDataSource.getRepository(ArchivedApplicationConfig);
-const archivedAppRepo = AppDataSource.getRepository(ArchivedApplication);
+const applicationRepo = lazyRepo(Application);
+const archivedAppConfigRepo = lazyRepo(ArchivedApplicationConfig);
+const archivedAppRepo = lazyRepo(ArchivedApplication);
 
 export function registerApplicationHandlers(
   client: Client,
@@ -21,16 +22,18 @@ export function registerApplicationHandlers(
   routes.set('POST /applications/:id/approve', async (guildId, body, url) => {
     const appId = extractId(url, 'applications');
     const approvedBy = body.approvedBy as string;
-    if (!approvedBy) return { error: 'approvedBy is required' };
+    if (!approvedBy) throw ApiError.badRequest('approvedBy is required');
 
     const app = await applicationRepo.findOneBy({ guildId, id: appId });
-    if (!app) return { error: 'Application not found' };
-    if (app.status === 'closed') return { error: 'Application already closed' };
+    if (!app) throw ApiError.notFound('Application not found');
+    if (app.status === 'closed') throw ApiError.conflict('Application already closed');
 
     await applicationRepo.update({ id: app.id, guildId }, { status: 'accepted' });
 
     // Send approval message in channel if accessible
-    const channel = await client.channels.fetch(app.channelId).catch(() => null);
+    const channel = app.channelId
+      ? await client.channels.fetch(app.channelId).catch(() => null)
+      : null;
     if (channel?.isTextBased()) {
       const message = (body.message as string) || 'Your application has been approved.';
       await (channel as GuildTextBasedChannel).send(
@@ -48,15 +51,17 @@ export function registerApplicationHandlers(
   routes.set('POST /applications/:id/deny', async (guildId, body, url) => {
     const appId = extractId(url, 'applications');
     const deniedBy = body.deniedBy as string;
-    if (!deniedBy) return { error: 'deniedBy is required' };
+    if (!deniedBy) throw ApiError.badRequest('deniedBy is required');
 
     const app = await applicationRepo.findOneBy({ guildId, id: appId });
-    if (!app) return { error: 'Application not found' };
-    if (app.status === 'closed') return { error: 'Application already closed' };
+    if (!app) throw ApiError.notFound('Application not found');
+    if (app.status === 'closed') throw ApiError.conflict('Application already closed');
 
     await applicationRepo.update({ id: app.id, guildId }, { status: 'rejected' });
 
-    const channel = await client.channels.fetch(app.channelId).catch(() => null);
+    const channel = app.channelId
+      ? await client.channels.fetch(app.channelId).catch(() => null)
+      : null;
     if (channel?.isTextBased()) {
       const reason = (body.reason as string) || 'No reason provided.';
       await (channel as GuildTextBasedChannel).send(
@@ -74,15 +79,17 @@ export function registerApplicationHandlers(
   routes.set('POST /applications/:id/archive', async (guildId, body, url) => {
     const appId = extractId(url, 'applications');
     const app = await applicationRepo.findOneBy({ guildId, id: appId });
-    if (!app) return { error: 'Application not found' };
+    if (!app) throw ApiError.notFound('Application not found');
 
     const archivedConfig = await archivedAppConfigRepo.findOneBy({ guildId });
-    if (!archivedConfig) return { error: 'Archive config not found' };
+    if (!archivedConfig) throw ApiError.notFound('Archive config not found');
 
     // Mark closed
     await applicationRepo.update({ id: app.id, guildId }, { status: 'closed' });
 
-    const channel = await client.channels.fetch(app.channelId).catch(() => null);
+    const channel = app.channelId
+      ? await client.channels.fetch(app.channelId).catch(() => null)
+      : null;
     if (!channel || !channel.isTextBased()) {
       return { success: true, archived: false };
     }
@@ -121,7 +128,7 @@ export function registerApplicationHandlers(
             messageId: newPost.id,
           }),
         );
-      } else {
+      } else if (existingArchive.messageId) {
         const post = (await forumChannel.threads.fetch(
           existingArchive.messageId,
         )) as ForumThreadChannel;

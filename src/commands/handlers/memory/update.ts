@@ -10,7 +10,6 @@ import {
   type StringSelectMenuInteraction,
   type ThreadChannel,
 } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
   Colors,
@@ -24,11 +23,12 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveConfigFromThread } from './channelPicker';
 
 const tl = lang.memory;
-const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
-const memoryItemRepo = AppDataSource.getRepository(MemoryItem);
+const memoryTagRepo = lazyRepo(MemoryTag);
+const memoryItemRepo = lazyRepo(MemoryItem);
 
 export const memoryUpdateHandler = async (interaction: ChatInputCommandInteraction) => {
   const startTime = Date.now();

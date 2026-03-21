@@ -1,15 +1,16 @@
 import type { Client, TextChannel } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole/ReactionRoleMenu';
 import { ReactionRoleOption } from '../../../typeorm/entities/reactionRole/ReactionRoleOption';
+import { lazyRepo } from '../../database/lazyRepo';
 import { buildMenuEmbed, updateMenuMessage } from '../../reactionRole/menuBuilder';
 import { invalidateGuildMenuCache } from '../../reactionRole/menuCache';
+import { ApiError } from '../apiError';
 import { extractId, isValidSnowflake } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
-const menuRepo = AppDataSource.getRepository(ReactionRoleMenu);
-const optionRepo = AppDataSource.getRepository(ReactionRoleOption);
+const menuRepo = lazyRepo(ReactionRoleMenu);
+const optionRepo = lazyRepo(ReactionRoleOption);
 
 export function registerReactionRoleHandlers(
   client: Client,
@@ -20,16 +21,16 @@ export function registerReactionRoleHandlers(
     const channelId = body.channelId as string;
     const title = body.title as string;
     if (!channelId || !title) {
-      return { error: 'channelId and title are required' };
+      throw ApiError.badRequest('channelId and title are required');
     }
-    if (!isValidSnowflake(channelId)) return { error: 'Invalid channelId format' };
+    if (!isValidSnowflake(channelId)) throw ApiError.badRequest('Invalid channelId format');
 
     const guild = client.guilds.cache.get(guildId);
-    if (!guild) return { error: 'Guild not found' };
+    if (!guild) throw ApiError.notFound('Guild not found');
 
     const channel = await guild.channels.fetch(channelId).catch(() => null);
     if (!channel || !channel.isTextBased()) {
-      return { error: 'Channel not found or not a text channel' };
+      throw ApiError.notFound('Channel not found or not a text channel');
     }
 
     const mode = (body.mode as 'normal' | 'unique' | 'lock') || 'normal';
@@ -94,13 +95,13 @@ export function registerReactionRoleHandlers(
       where: { guildId, id: menuId },
       relations: ['options'],
     });
-    if (!menu) return { error: 'Menu not found' };
+    if (!menu) throw ApiError.notFound('Menu not found');
 
     const guild = client.guilds.cache.get(guildId);
-    if (!guild) return { error: 'Guild not found' };
+    if (!guild) throw ApiError.notFound('Guild not found');
 
     const success = await updateMenuMessage(menu, guild);
-    if (!success) return { error: 'Failed to rebuild menu message' };
+    if (!success) throw ApiError.badRequest('Failed to rebuild menu message');
 
     invalidateGuildMenuCache(guildId);
 

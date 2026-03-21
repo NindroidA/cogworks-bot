@@ -860,7 +860,7 @@ describe("handleTicketInteraction", () => {
   // ticket_type_ping_toggle button
   // -------------------------------------------------------------------------
   describe("ticket_type_ping_toggle button", () => {
-    test("should reply ephemerally when guildId is empty", async () => {
+    test("should return early when guildId is empty", async () => {
       const interaction = makeButtonInteraction(
         "ticket_type_ping_toggle:type123",
         {
@@ -870,11 +870,8 @@ describe("handleTicketInteraction", () => {
 
       await handleTicketInteraction(mockClient, interaction as never);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
-        expect.objectContaining({
-          flags: expect.arrayContaining([MessageFlags.Ephemeral]),
-        }),
-      );
+      // With empty guildId, handler returns early (no reply sent)
+      expect(interaction.reply).not.toHaveBeenCalled();
     });
 
     test("should reply ephemerally when the ticket type is not found", async () => {

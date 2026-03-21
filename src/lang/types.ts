@@ -589,6 +589,140 @@ export interface LangTicket {
     typeRequired: string;
     typeNotFound: string;
   };
+  workflow: {
+    notEnabled: string;
+    statusChanged: string;
+    assigned: string;
+    unassigned: string;
+    notInTicket: string;
+    ticketNotFound: string;
+    sameStatus: string;
+    invalidStatus: string;
+    noAssignment: string;
+    autoCloseWarning: string;
+    autoClosed: string;
+    enabled: string;
+    disabled: string;
+    alreadyEnabled: string;
+    alreadyDisabled: string;
+    statusAdded: string;
+    statusRemoved: string;
+    statusInUse: string;
+    cannotRemoveRequired: string;
+    statusExists: string;
+    maxStatuses: string;
+    invalidStatusId: string;
+    autoCloseEnabled: string;
+    autoCloseDisabled: string;
+    autoCloseAlreadyEnabled: string;
+    autoCloseAlreadyDisabled: string;
+    autoCloseRequiresWorkflow: string;
+  };
+  sla: {
+    enabled: string;
+    enabledNoChannel: string;
+    disabled: string;
+    alreadyEnabled: string;
+    alreadyDisabled: string;
+    requiresWorkflow: string;
+    perTypeSet: string;
+    perTypeRemoved: string;
+    perTypeNotFound: string;
+    breachAlert: string;
+    breachAlertTitle: string;
+    statsTitle: string;
+    statsAvgResponse: string;
+    statsComplianceRate: string;
+    statsBreachCount: string;
+    statsTotalTickets: string;
+    statsNoData: string;
+    statsMinutes: string;
+    statsPercent: string;
+  };
+  routing: {
+    requiresWorkflow: string;
+    notEnabled: string;
+    enabled: string;
+    disabled: string;
+    alreadyEnabled: string;
+    alreadyDisabled: string;
+    ruleAdded: string;
+    ruleRemoved: string;
+    ruleNotFound: string;
+    ruleDuplicate: string;
+    maxRules: string;
+    strategySet: string;
+    invalidStrategy: string;
+    noRules: string;
+    noOnlineStaff: string;
+    allAtCapacity: string;
+    autoAssigned: string;
+    statsTitle: string;
+    statsStrategy: string;
+    statsOpenTickets: string;
+    statsAssigned: string;
+    statsRules: string;
+    statsWorkload: string;
+  };
+  info: {
+    title: string;
+    createdBy: string;
+    status: string;
+    assignedTo: string;
+    lastActivity: string;
+    ticketType: string;
+    history: string;
+    noHistory: string;
+    unassigned: string;
+  };
+  builder: {
+    status: {
+      descrp: string;
+      statusOption: string;
+    };
+    assign: {
+      descrp: string;
+      userOption: string;
+    };
+    unassign: {
+      descrp: string;
+    };
+    info: {
+      descrp: string;
+    };
+    workflowEnable: string;
+    workflowDisable: string;
+    statusAdd: string;
+    statusRemove: string;
+    statusIdOption: string;
+    statusLabelOption: string;
+    statusEmojiOption: string;
+    statusSelectOption: string;
+    autoCloseEnable: string;
+    autoCloseDisable: string;
+    autoCloseDaysOption: string;
+    autoCloseWarningOption: string;
+    autoCloseStatusOption: string;
+    routingEnable: string;
+    routingDisable: string;
+    routingRuleAdd: string;
+    routingRuleRemove: string;
+    routingStrategy: string;
+    routingStats: string;
+    routingTypeOption: string;
+    routingRoleOption: string;
+    routingMaxOpenOption: string;
+    routingStrategyOption: string;
+    slaEnable: string;
+    slaDisable: string;
+    slaPerType: string;
+    slaStats: string;
+    slaTargetOption: string;
+    slaBreachChannelOption: string;
+    slaTypeOption: string;
+    slaMinutesOption: string;
+    slaDaysOption: string;
+  };
 }
 
 export interface LangApplication {
@@ -711,6 +845,76 @@ export interface LangApplication {
       noPositions: string;
     };
   };
+  workflow: {
+    notEnabled: string;
+    notInApplication: string;
+    applicationNotFound: string;
+    statusChanged: string;
+    sameStatus: string;
+    invalidStatus: string;
+    claimed: string;
+    alreadyClaimed: string;
+    noteAdded: string;
+    noteTooLong: string;
+    noNotes: string;
+    enabled: string;
+    disabled: string;
+    alreadyEnabled: string;
+    alreadyDisabled: string;
+    statusAdded: string;
+    statusRemoved: string;
+    statusInUse: string;
+    cannotRemoveRequired: string;
+    statusExists: string;
+    maxStatuses: string;
+    invalidStatusId: string;
+    checkNoApplication: string;
+    checkTitle: string;
+    checkPosition: string;
+    checkStatus: string;
+    checkSubmittedAt: string;
+    checkReviewedBy: string;
+    checkUnassigned: string;
+  };
+  workflowInfo: {
+    title: string;
+    createdBy: string;
+    status: string;
+    reviewer: string;
+    position: string;
+    history: string;
+    noHistory: string;
+    unassigned: string;
+    notesTitle: string;
+    noteEntry: string;
+  };
+  workflowBuilder: {
+    status: {
+      descrp: string;
+      statusOption: string;
+    };
+    note: {
+      descrp: string;
+      textOption: string;
+    };
+    claim: {
+      descrp: string;
+    };
+    info: {
+      descrp: string;
+    };
+    check: {
+      descrp: string;
+    };
+    workflowEnable: string;
+    workflowDisable: string;
+    statusAdd: string;
+    statusRemove: string;
+    statusIdOption: string;
+    statusLabelOption: string;
+    statusEmojiOption: string;
+    statusSelectOption: string;
+  };
 }
 
 export interface LangRoles {
@@ -754,6 +958,7 @@ export interface LangAnnouncement {
   setup: {
     cmdDescrp: string;
     mcRole: string;
+    announcementRole: string;
     defaultChannel: string;
     success: string;
     configured: string;
@@ -817,6 +1022,40 @@ export interface LangAnnouncement {
   success: string;
   error: string;
   fail: string;
+  template: {
+    create: {
+      success: string;
+      limitReached: string;
+      duplicate: string;
+      invalidName: string;
+      invalidColor: string;
+    };
+    edit: {
+      success: string;
+      notFound: string;
+    };
+    delete: {
+      success: string;
+      notFound: string;
+      isDefault: string;
+    };
+    list: {
+      title: string;
+      empty: string;
+      footer: string;
+    };
+    preview: {
+      title: string;
+    };
+    reset: {
+      confirm: string;
+      success: string;
+    };
+  };
+  send: {
+    templateNotFound: string;
+    noTemplates: string;
+  };
   templates: {
     maintenanceTitle: string;
     scheduledMaintenanceTitle: string;
@@ -914,6 +1153,27 @@ export interface LangBaitChannel {
       keyword: string;
       weight: string;
     };
+    override: {
+      descrp: string;
+      user: string;
+    };
+    addChannel: {
+      descrp: string;
+      channel: string;
+    };
+    removeChannel: {
+      descrp: string;
+      channel: string;
+    };
+    testMode: {
+      descrp: string;
+      enabled: string;
+    };
+    summary: {
+      descrp: string;
+      enabled: string;
+      channel: string;
+    };
   };
   status: {
     title: string;
@@ -955,6 +1215,25 @@ export interface LangBaitChannel {
     avgSuspicion: string;
     recentDetections: string;
     none: string;
+    overrideRate: string;
+    scoreDistribution: string;
+    topFlags: string;
+    timedOut: string;
+    loggedOnly: string;
+    overridden: string;
+  };
+  override: {
+    title: string;
+    success: string;
+    noEntry: string;
+    alreadyOverridden: string;
+    logOnlyCannotOverride: string;
+    user: string;
+    action: string;
+    score: string;
+    overriddenBy: string;
+    detectedAt: string;
+    error: string;
   };
   whitelist: {
     added: string;
@@ -1034,6 +1313,29 @@ export interface LangBaitChannel {
       cancelled: string;
     };
   };
+  testMode: {
+    enabled: string;
+    disabled: string;
+    title: string;
+    logPrefix: string;
+    gracePeriodNote: string;
+  };
+  multiChannel: {
+    added: string;
+    removed: string;
+    maxReached: string;
+    alreadyAdded: string;
+    notInList: string;
+    mustKeepOne: string;
+    title: string;
+    channelsLabel: string;
+  };
+  weeklySummary: {
+    title: string;
+    enabled: string;
+    disabled: string;
+    channelLabel: string;
+  };
   error: {
     fetchStatus: string;
     toggle: string;
@@ -1042,6 +1344,11 @@ export interface LangBaitChannel {
     updateWhitelist: string;
     updateDetection: string;
     keywords: string;
+    override: string;
+    testMode: string;
+    addChannel: string;
+    removeChannel: string;
+    weeklySummary: string;
   };
 }
 
@@ -1256,6 +1563,51 @@ export interface LangMemory {
       empty: string;
       default: string;
     };
+  };
+  manageTags: {
+    add: {
+      success: string;
+      limitReached: string;
+      duplicate: string;
+      discordLimit: string;
+    };
+    remove: {
+      success: string;
+      isDefault: string;
+      notFound: string;
+    };
+    edit: {
+      success: string;
+      notFound: string;
+      noChanges: string;
+    };
+    list: {
+      title: string;
+      empty: string;
+      footer: string;
+    };
+    reset: {
+      confirm: string;
+      success: string;
+    };
+    selectChannel: string;
+    noCustomTags: string;
+    autocomplete: {
+      noTags: string;
+    };
+  };
+  setupBuilder: {
+    tagAdd: string;
+    tagRemove: string;
+    tagEdit: string;
+    tagList: string;
+    tagReset: string;
+    tagName: string;
+    tagType: string;
+    tagEmoji: string;
+    tagOption: string;
+    tagNewName: string;
+    channelOption: string;
   };
   defaultTags: {
     category: {
@@ -1473,6 +1825,24 @@ export interface LangStatus {
     view: {
       descrp: string;
     };
+    history: {
+      descrp: string;
+      days: string;
+    };
+    subscribe: {
+      descrp: string;
+      channel: string;
+    };
+    unsubscribe: {
+      descrp: string;
+    };
+    monitor: {
+      descrp: string;
+      set: {
+        descrp: string;
+        url: string;
+      };
+    };
   };
   ownerOnly: string;
   set: {
@@ -1517,6 +1887,32 @@ export interface LangStatus {
     statusUpdate: string;
     resolved: string;
     resolvedMessage: string;
+  };
+  history: {
+    title: string;
+    noIncidents: string;
+    incidentEntry: string;
+    started: string;
+    resolved: string;
+    resolvedBy: string;
+    duration: string;
+    ongoing: string;
+    error: string;
+  };
+  subscribe: {
+    success: string;
+    removed: string;
+    notSubscribed: string;
+    error: string;
+  };
+  monitor: {
+    set: string;
+    cleared: string;
+    invalid: string;
+    error: string;
+  };
+  banner: {
+    warning: string;
   };
 }
 
@@ -1571,6 +1967,70 @@ export interface LangRulesSetup {
   };
 }
 
+export interface LangStarboard {
+  setup: {
+    success: string;
+    disabled: string;
+    enabled: string;
+    alreadyEnabled: string;
+    notConfigured: string;
+    channelRequired: string;
+    thresholdRange: string;
+    configUpdated: string;
+  };
+  ignore: {
+    added: string;
+    removed: string;
+    notIgnored: string;
+  };
+  stats: {
+    title: string;
+    totalStarred: string;
+    topMessage: string;
+    noEntries: string;
+  };
+  random: {
+    noEntries: string;
+    title: string;
+  };
+  errors: {
+    selfStar: string;
+    botMessage: string;
+    nsfwChannel: string;
+  };
+  builder: {
+    cmdDescrp: string;
+    setup: {
+      descrp: string;
+      channel: string;
+      emoji: string;
+      threshold: string;
+    };
+    config: {
+      descrp: string;
+      setting: string;
+      value: string;
+    };
+    ignore: {
+      descrp: string;
+      channel: string;
+    };
+    unignore: {
+      descrp: string;
+      channel: string;
+    };
+    stats: {
+      descrp: string;
+    };
+    toggle: {
+      descrp: string;
+    };
+    random: {
+      descrp: string;
+    };
+  };
+}
+
 /**
  * Main language interface combining all modules
  */
@@ -1597,5 +2057,48 @@ export interface Language {
   memory: LangMemory;
   rules: LangRulesSetup;
   reactionRole: LangReactionRole;
+  starboard: LangStarboard;
   status: LangStatus;
+  import: LangImport;
+  xp: LangXP;
+  onboarding: LangOnboarding;
+  automod: LangAutomod;
+  event: LangEvent;
+  analytics: LangAnalytics;
+}
+
+// New feature lang types — loosely typed to avoid maintaining duplicate type definitions
+// These match arbitrary JSON structures from lang files
+export type LangXP = Record<string, any>;
+export type LangOnboarding = Record<string, any>;
+export type LangAutomod = Record<string, any>;
+export type LangEvent = Record<string, any>;
+export type LangAnalytics = Record<string, any>;
+
+export interface LangImport {
+  commands: {
+    importStarted: string;
+    importComplete: string;
+    importFailed: string;
+    importCancelled: string;
+    importAlreadyRunning: string;
+    importCooldown: string;
+    noImportRunning: string;
+    dryRunComplete: string;
+    csvRequired: string;
+    csvInvalidFormat: string;
+    mee6LeaderboardNotPublic: string;
+    statusTitle: string;
+    historyTitle: string;
+    noHistory: string;
+    cmdDescrp: string;
+    mee6Descrp: string;
+    csvDescrp: string;
+    statusDescrp: string;
+    historyDescrp: string;
+    cancelDescrp: string;
+    overwriteOption: string;
+    dryRunOption: string;
+    attachmentOption: string;
+  };
 }

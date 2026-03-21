@@ -89,6 +89,97 @@ const userRestrict = new SlashCommandSubcommandBuilder()
       .setAutocomplete(true),
   );
 
+const tlw = lang.ticket.builder;
+
+const ticketStatus = new SlashCommandSubcommandBuilder()
+  .setName('status')
+  .setDescription(tlw.status.descrp)
+  .addStringOption(option =>
+    option
+      .setName('status')
+      .setDescription(tlw.status.statusOption)
+      .setRequired(true)
+      .setAutocomplete(true),
+  );
+
+const ticketAssign = new SlashCommandSubcommandBuilder()
+  .setName('assign')
+  .setDescription(tlw.assign.descrp)
+  .addUserOption(option =>
+    option.setName('user').setDescription(tlw.assign.userOption).setRequired(true),
+  );
+
+const ticketUnassign = new SlashCommandSubcommandBuilder()
+  .setName('unassign')
+  .setDescription(tlw.unassign.descrp);
+
+const ticketInfo = new SlashCommandSubcommandBuilder()
+  .setName('info')
+  .setDescription(tlw.info.descrp);
+
+const workflowEnable = new SlashCommandSubcommandBuilder()
+  .setName('workflow-enable')
+  .setDescription(tlw.workflowEnable);
+
+const workflowDisable = new SlashCommandSubcommandBuilder()
+  .setName('workflow-disable')
+  .setDescription(tlw.workflowDisable);
+
+const workflowStatusAdd = new SlashCommandSubcommandBuilder()
+  .setName('workflow-add-status')
+  .setDescription(tlw.statusAdd)
+  .addStringOption(option =>
+    option.setName('id').setDescription(tlw.statusIdOption).setRequired(true),
+  )
+  .addStringOption(option =>
+    option.setName('label').setDescription(tlw.statusLabelOption).setRequired(true),
+  )
+  .addStringOption(option =>
+    option.setName('emoji').setDescription(tlw.statusEmojiOption).setRequired(false),
+  );
+
+const workflowStatusRemove = new SlashCommandSubcommandBuilder()
+  .setName('workflow-remove-status')
+  .setDescription(tlw.statusRemove)
+  .addStringOption(option =>
+    option
+      .setName('status')
+      .setDescription(tlw.statusSelectOption)
+      .setRequired(true)
+      .setAutocomplete(true),
+  );
+
+const autoCloseEnable = new SlashCommandSubcommandBuilder()
+  .setName('autoclose-enable')
+  .setDescription(tlw.autoCloseEnable)
+  .addIntegerOption(option =>
+    option
+      .setName('days')
+      .setDescription(tlw.autoCloseDaysOption)
+      .setRequired(false)
+      .setMinValue(1)
+      .setMaxValue(90),
+  )
+  .addIntegerOption(option =>
+    option
+      .setName('warning-hours')
+      .setDescription(tlw.autoCloseWarningOption)
+      .setRequired(false)
+      .setMinValue(1)
+      .setMaxValue(72),
+  )
+  .addStringOption(option =>
+    option
+      .setName('status')
+      .setDescription(tlw.autoCloseStatusOption)
+      .setRequired(false)
+      .setAutocomplete(true),
+  );
+
+const autoCloseDisable = new SlashCommandSubcommandBuilder()
+  .setName('autoclose-disable')
+  .setDescription(tlw.autoCloseDisable);
+
 const tls = lang.ticket.settings;
 const settings = new SlashCommandSubcommandBuilder()
   .setName('settings')
@@ -125,4 +216,14 @@ export const ticket = new SlashCommandBuilder()
   .addSubcommand(emailImport)
   .addSubcommand(userRestrict)
   .addSubcommand(settings)
+  .addSubcommand(ticketStatus)
+  .addSubcommand(ticketAssign)
+  .addSubcommand(ticketUnassign)
+  .addSubcommand(ticketInfo)
+  .addSubcommand(workflowEnable)
+  .addSubcommand(workflowDisable)
+  .addSubcommand(workflowStatusAdd)
+  .addSubcommand(workflowStatusRemove)
+  .addSubcommand(autoCloseEnable)
+  .addSubcommand(autoCloseDisable)
   .toJSON();

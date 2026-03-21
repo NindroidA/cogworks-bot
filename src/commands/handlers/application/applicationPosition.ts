@@ -21,9 +21,10 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { getTemplate } from './applicationTemplates';
 
-const positionRepo = AppDataSource.getRepository(Position);
+const positionRepo = lazyRepo(Position);
 const pl = lang.application.position;
 
 export const applicationPositionHandler = async (
@@ -31,7 +32,8 @@ export const applicationPositionHandler = async (
   interaction: ChatInputCommandInteraction<CacheType>,
 ) => {
   const subCommand = interaction.options.getSubcommand();
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
 
   // Permission check - admin only
   const permissionCheck = requireAdmin(interaction);
@@ -462,7 +464,8 @@ export async function buildApplicationMessage(positions: Position[]) {
  * Autocomplete handler for position selection
  */
 export async function applicationPositionAutocomplete(interaction: AutocompleteInteraction) {
-  const guildId = interaction.guildId || '';
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
   const focused = interaction.options.getFocused().toLowerCase();
 
   try {

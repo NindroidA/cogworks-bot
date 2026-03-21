@@ -7,20 +7,21 @@ import {
   type GuildTextBasedChannel,
   MessageFlags,
 } from 'discord.js';
-import { AppDataSource } from '../../typeorm';
 import { Application } from '../../typeorm/entities/application/Application';
 import { ArchivedApplication } from '../../typeorm/entities/application/ArchivedApplication';
 import { ArchivedApplicationConfig } from '../../typeorm/entities/application/ArchivedApplicationConfig';
 import { enhancedLogger, LogCategory, lang } from '../../utils';
+import { lazyRepo } from '../../utils/database/lazyRepo';
 import { fetchMessagesAndSaveToFile } from '../../utils/fetchAllMessages';
 
 const tl = lang.application.close;
-const applicationRepo = AppDataSource.getRepository(Application);
-const archivedApplicationRepo = AppDataSource.getRepository(ArchivedApplication);
-const archivedApplicationConfigRepo = AppDataSource.getRepository(ArchivedApplicationConfig);
+const applicationRepo = lazyRepo(Application);
+const archivedApplicationRepo = lazyRepo(ArchivedApplication);
+const archivedApplicationConfigRepo = lazyRepo(ArchivedApplicationConfig);
 
 export const applicationCloseEvent = async (client: Client, interaction: ButtonInteraction) => {
-  const guildId = interaction.guildId || ''; // guild where the event was initiated
+  if (!interaction.guildId) return;
+  const guildId = interaction.guildId;
   const channel = interaction.channel as GuildTextBasedChannel; // text channel the event was initiated
   const channelId = interaction.channelId || '';
   const transcriptPath = process.env.TEMP_STORAGE_PATH || 'temp/'; // path to temporarily save transcripts
@@ -139,7 +140,7 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
       await archivedApplicationRepo.save(newArchivedApplication);
 
       // if transcript channel DOES exist, just add the transcript to the channel
-    } else {
+    } else if (transcriptChannel.messageId) {
       const existMsg = transcriptChannel.messageId; // existing message in the thread
       const post = (await forumChannel.threads.fetch(existMsg)) as ForumThreadChannel; // existing thread
       await post.send({ files: files });
@@ -187,5 +188,5 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
   });
 
   // delete the channel
-  await channel.delete(application.channelId);
+  await channel.delete(application.channelId ?? undefined);
 };

@@ -1,0 +1,212 @@
+{
+  "builder": {
+    "cmdDescrp": "Manage Discord AutoMod rules, templates, and backups",
+    "rule": {
+      "descrp": "Manage AutoMod rules",
+      "create": {
+        "descrp": "Create a new AutoMod rule",
+        "name": "Rule name",
+        "type": "Rule type",
+        "typeKeyword": "Keyword Filter",
+        "typeMentionSpam": "Mention Spam",
+        "typeSpam": "Spam Filter"
+      },
+      "edit": {
+        "descrp": "Edit an existing AutoMod rule",
+        "rule": "The rule to edit"
+      },
+      "delete": {
+        "descrp": "Delete an AutoMod rule",
+        "rule": "The rule to delete"
+      },
+      "list": {
+        "descrp": "List all AutoMod rules"
+      }
+    },
+    "template": {
+      "descrp": "Apply a preset AutoMod template",
+      "apply": {
+        "descrp": "Apply a template to set up AutoMod rules",
+        "template": "Template to apply"
+      }
+    },
+    "backup": {
+      "descrp": "Backup all AutoMod rules as JSON",
+      "backup": {
+        "descrp": "Export all AutoMod rules as a JSON file"
+      },
+      "restore": {
+        "descrp": "Restore AutoMod rules from a JSON attachment",
+        "file": "JSON file with AutoMod rules"
+      }
+    },
+    "keyword": {
+      "descrp": "Manage keywords in an AutoMod rule",
+      "add": {
+        "descrp": "Add a keyword to an AutoMod rule",
+        "rule": "The rule to add the keyword to",
+        "keyword": "The keyword to add"
+      },
+      "remove": {
+        "descrp": "Remove a keyword from an AutoMod rule",
+        "rule": "The rule to remove the keyword from",
+        "keyword": "The keyword to remove"
+      }
+    },
+    "regex": {
+      "descrp": "Manage regex patterns in an AutoMod rule",
+      "add": {
+        "descrp": "Add a regex pattern to an AutoMod rule",
+        "rule": "The rule to add the pattern to",
+        "pattern": "The regex pattern to add (max 75 characters)"
+      },
+      "remove": {
+        "descrp": "Remove a regex pattern from an AutoMod rule",
+        "rule": "The rule to remove the pattern from",
+        "pattern": "The regex pattern to remove"
+      }
+    },
+    "exempt": {
+      "descrp": "Manage exemptions for an AutoMod rule",
+      "add": {
+        "descrp": "Add a role or channel exemption to an AutoMod rule",
+        "rule": "The rule to add the exemption to",
+        "role": "Role to exempt",
+        "channel": "Channel to exempt"
+      },
+      "remove": {
+        "descrp": "Remove a role or channel exemption from an AutoMod rule",
+        "rule": "The rule to remove the exemption from",
+        "role": "Role to un-exempt",
+        "channel": "Channel to un-exempt"
+      }
+    }
+  },
+  "rule": {
+    "create": {
+      "title": "AutoMod Rule Created",
+      "success": "AutoMod rule **{0}** has been created.",
+      "error": "Failed to create AutoMod rule.",
+      "limitReached": "This server has reached the maximum of 6 AutoMod rules. Delete a rule before creating a new one.",
+      "nameRequired": "Please provide a name for the rule."
+    },
+    "edit": {
+      "modalTitle": "Edit AutoMod Rule",
+      "nameLabel": "Rule Name",
+      "namePlaceholder": "Enter a new name for this rule",
+      "title": "AutoMod Rule Updated",
+      "success": "AutoMod rule **{0}** has been updated.",
+      "error": "Failed to update AutoMod rule.",
+      "notFound": "AutoMod rule not found. It may have been deleted."
+    },
+    "delete": {
+      "title": "AutoMod Rule Deleted",
+      "success": "AutoMod rule **{0}** has been deleted.",
+      "error": "Failed to delete AutoMod rule.",
+      "notFound": "AutoMod rule not found. It may have already been deleted.",
+      "confirmTitle": "Confirm Rule Deletion",
+      "confirmMessage": "Are you sure you want to delete the AutoMod rule **{0}**? This cannot be undone."
+    },
+    "list": {
+      "title": "AutoMod Rules",
+      "empty": "No AutoMod rules configured. Use `/automod rule create` or `/automod template apply` to get started.",
+      "footer": "{0}/6 rules configured",
+      "keywordFilter": "Keyword Filter",
+      "mentionSpam": "Mention Spam",
+      "spamFilter": "Spam Filter",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "keywords": "Keywords: {0}",
+      "regexPatterns": "Regex Patterns: {0}",
+      "mentionLimit": "Mention Limit: {0}",
+      "exemptRoles": "Exempt Roles: {0}",
+      "exemptChannels": "Exempt Channels: {0}",
+      "actions": "Actions: {0}"
+    }
+  },
+  "template": {
+    "title": "AutoMod Template Applied",
+    "success": "Applied the **{0}** template. {1} rule(s) created.",
+    "error": "Failed to apply AutoMod template.",
+    "notFound": "Template not found. Available templates: anti-spam, anti-phishing, family-friendly, gaming.",
+    "wouldExceedLimit": "Applying this template would exceed the 6-rule limit. This template creates {0} rule(s), but you only have {1} slot(s) available. Delete some rules first.",
+    "partialSuccess": "Applied the **{0}** template partially. {1} of {2} rules created (hit 6-rule limit).",
+    "templates": {
+      "antiSpam": "Anti-Spam",
+      "antiPhishing": "Anti-Phishing",
+      "familyFriendly": "Family-Friendly",
+      "gaming": "Gaming"
+    }
+  },
+  "backup": {
+    "title": "AutoMod Backup",
+    "success": "AutoMod rules have been exported. Check your DMs for the backup file.",
+    "empty": "No AutoMod rules to backup.",
+    "dmFailed": "Could not send backup via DM. Please enable DMs from server members.",
+    "error": "Failed to backup AutoMod rules.",
+    "fileName": "automod-backup-{0}.json"
+  },
+  "restore": {
+    "title": "AutoMod Rules Restored",
+    "success": "Successfully restored {0} AutoMod rule(s).",
+    "error": "Failed to restore AutoMod rules.",
+    "noAttachment": "Please attach a JSON file containing AutoMod rules.",
+    "invalidJson": "The attached file is not valid JSON. Please use a backup file created with `/automod backup`.",
+    "invalidFormat": "The backup file format is invalid. Please use a backup file created with `/automod backup`.",
+    "wouldExceedLimit": "Restoring would create {0} rule(s), but you only have {1} slot(s) available. Delete some rules first.",
+    "confirmTitle": "Confirm AutoMod Restore",
+    "confirmMessage": "This will create {0} new AutoMod rule(s). Existing rules will NOT be deleted. Continue?"
+  },
+  "keyword": {
+    "add": {
+      "success": "Added keyword `{0}` to rule **{1}**.",
+      "limitReached": "This rule has reached the maximum of 1,000 keywords.",
+      "alreadyExists": "Keyword `{0}` already exists in this rule.",
+      "ruleNotKeyword": "This rule is not a keyword filter. Keywords can only be added to keyword filter rules."
+    },
+    "remove": {
+      "success": "Removed keyword `{0}` from rule **{1}**.",
+      "notFound": "Keyword `{0}` was not found in this rule.",
+      "ruleNotKeyword": "This rule is not a keyword filter."
+    },
+    "error": "Failed to manage AutoMod keywords."
+  },
+  "regex": {
+    "add": {
+      "success": "Added regex pattern `{0}` to rule **{1}**.",
+      "limitReached": "This rule has reached the maximum of 10 regex patterns.",
+      "tooLong": "Regex patterns must be 75 characters or fewer. Your pattern is {0} characters.",
+      "alreadyExists": "This regex pattern already exists in this rule.",
+      "ruleNotKeyword": "Regex patterns can only be added to keyword filter rules.",
+      "invalid": "Invalid regex pattern. Please check the syntax."
+    },
+    "remove": {
+      "success": "Removed regex pattern `{0}` from rule **{1}**.",
+      "notFound": "Regex pattern not found in this rule.",
+      "ruleNotKeyword": "This rule is not a keyword filter."
+    },
+    "error": "Failed to manage AutoMod regex patterns."
+  },
+  "exempt": {
+    "add": {
+      "success": "Added exemption to rule **{0}**.",
+      "alreadyExempt": "This role or channel is already exempt from this rule.",
+      "specifyRoleOrChannel": "Please specify a role or channel to exempt."
+    },
+    "remove": {
+      "success": "Removed exemption from rule **{0}**.",
+      "notExempt": "This role or channel is not exempt from this rule.",
+      "specifyRoleOrChannel": "Please specify a role or channel to un-exempt."
+    },
+    "error": "Failed to manage AutoMod exemptions."
+  },
+  "error": {
+    "ruleNotFound": "AutoMod rule not found. It may have been deleted.",
+    "noPermission": "The bot needs **Manage Guild** permission to manage AutoMod rules.",
+    "fetchFailed": "Failed to fetch AutoMod rules from Discord.",
+    "general": "Failed to execute AutoMod command."
+  },
+  "autocomplete": {
+    "noRules": "No AutoMod rules found"
+  }
+}

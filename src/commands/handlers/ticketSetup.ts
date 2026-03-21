@@ -10,7 +10,6 @@ import {
   MessageFlags,
   type TextChannel,
 } from 'discord.js';
-import { AppDataSource } from '../../typeorm';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
 import {
@@ -25,11 +24,12 @@ import {
   rateLimiter,
   requireAdmin,
 } from '../../utils';
+import { lazyRepo } from '../../utils/database/lazyRepo';
 import type { ConfigItem } from '../../utils/setup/configStatusEmbed';
 
 const tl = lang.ticketSetup;
-const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
-const archivedTicketConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
+const ticketConfigRepo = lazyRepo(TicketConfig);
+const archivedTicketConfigRepo = lazyRepo(ArchivedTicketConfig);
 
 export const ticketSetupHandler = async (
   _client: Client,
