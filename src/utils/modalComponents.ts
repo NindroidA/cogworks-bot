@@ -55,7 +55,7 @@ export function checkboxGroup(
   required?: boolean,
 ): APICheckboxGroupComponent {
   // Discord requires required=false when min_values is 0
-  const isRequired = required ?? (minValues === 0 ? false : true);
+  const isRequired = required ?? minValues !== 0;
   const component: APICheckboxGroupComponent = {
     type: ComponentType.CheckboxGroup,
     custom_id: customId,

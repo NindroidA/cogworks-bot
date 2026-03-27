@@ -4,11 +4,6 @@ on:
   pull_request:
   push:
     branches: [main]
-    paths-ignore:
-      - 'CHANGELOG.md'
-      - 'README.md'
-      - 'docs/**'
-      - '*.md'
 
 concurrency:
   group: ci-${{ github.ref }}

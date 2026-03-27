@@ -1,45 +1,16 @@
 name: Deploy to Production
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - 'CHANGELOG.md'
-      - 'README.md'
-      - 'docs/**'
-      - '*.md'
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-    name: Build and Test
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Type check
-        run: bun run build
-
-      - name: Lint and format
-        run: bun run check
-
-      - name: Run tests
-        run: bun test
-
   deploy:
-    needs: build-and-test
     runs-on: ubuntu-latest
     name: Build and Deploy
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
 
     steps:
       - name: Checkout code
@@ -71,26 +42,13 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
-            # Load the new image
             gunzip -c /tmp/cogworks-bot.tar.gz | docker load
-
-            # Clean up the transferred file
             rm /tmp/cogworks-bot.tar.gz
-
-            # Navigate to docker directory and restart the service
             cd /opt/docker
-
-            # Stop and remove old container if exists
             docker-compose stop cogworks 2>/dev/null || true
             docker-compose rm -f cogworks 2>/dev/null || true
-
-            # Start with new image
             docker-compose up -d cogworks
-
-            # Prune old images
             docker image prune -f
-
-            # Show status
             docker-compose ps cogworks
 
       - name: Verify deployment
@@ -101,11 +59,8 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
-            # Wait for container to be healthy
             echo "Waiting for health check..."
             sleep 15
-
-            # Check if container is running
             if docker-compose -f /opt/docker/docker-compose.yml ps cogworks | grep -q "Up"; then
               echo "Deployment successful!"
               docker-compose -f /opt/docker/docker-compose.yml logs --tail=20 cogworks
@@ -114,3 +69,126 @@ jobs:
               docker-compose -f /opt/docker/docker-compose.yml logs --tail=50 cogworks
               exit 1
             fi
+
+  update-badges:
+    runs-on: ubuntu-latest
+    name: Update LOC Badge
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Count TypeScript lines
+        id: count
+        run: |
+          LINES=$(find src -name "*.ts" -exec cat {} + | wc -l | tr -d ' ')
+          FORMATTED=$(printf "%'d" "$LINES")
+          echo "lines=$FORMATTED" >> "$GITHUB_OUTPUT"
+
+      - name: Update badge JSON
+        env:
+          LINE_COUNT: ${{ steps.count.outputs.lines }}
+        run: |
+          cat > .github/badges/loc.json << EOF
+          {
+            "schemaVersion": 1,
+            "label": "lines of code",
+            "message": "${LINE_COUNT} lines",
+            "color": "7C3AED"
+          }
+          EOF
+
+      - name: Commit badge update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/badges/loc.json
+          git diff --staged --quiet && exit 0
+          git commit -m "chore: update TypeScript LOC badge [skip ci]"
+          git push
+
+  send-changelog:
+    runs-on: ubuntu-latest
+    name: Discord Changelog
+    needs: deploy
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract and format changelog
+        id: changelog
+        run: |
+          VERSION=$(grep -oE '## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          VERSION="v${VERSION:-Latest}"
+
+          CHANGELOG=$(awk '
+            BEGIN { found=0; in_section=0 }
+            /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ {
+              if (found) exit;
+              found=1;
+              next;
+            }
+            found && /^### / {
+              in_section=1;
+              print;
+              next;
+            }
+            found && in_section && /^- / { print; next }
+            found && in_section && /^  / { next }
+            found && in_section && /\S/ && !/^  / { print }
+          ' CHANGELOG.md)
+
+          QUOTES=(
+            "Yippee! New working cogs!"
+            "Fresh gears, who dis?"
+            "My cogs have been oiled!"
+            "Beep boop"
+            "Another day, another cog in the machine"
+            "SPINNY COGS!"
+            "Turning the wheels of progress"
+            "Let's get spinning!"
+            "Squeaky clean ;)"
+            "Vibing with better cogs!"
+            "Oops, I did it again"
+            "Oops All Cogs!"
+            "Whoops, you found the secret cog stash!"
+            "I stole more cogs from the factory"
+            "EXPLOSION OF COGS! (Don't worry, they're all new and shiny)"
+            "Another one"
+            "Cog go brrrrrrr"
+            "Cog in the works?"
+          )
+          QUOTE="${QUOTES[$((RANDOM % ${#QUOTES[@]}))]}"
+
+          REPO_URL="https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md"
+          HEADER="# Cogworks Bot ${VERSION}"
+          SUBHEADER="> ${QUOTE}"
+          FOOTER="-# [View full changelog](${REPO_URL})"
+
+          MESSAGE=$(printf '%s\n\n%s\n\n%s\n\n%s' "$HEADER" "$SUBHEADER" "$CHANGELOG" "$FOOTER")
+
+          if [ ${#MESSAGE} -gt 1950 ]; then
+            TRUNCATED="${MESSAGE:0:1850}"
+            TRUNCATED=$(echo "$TRUNCATED" | head -n -1)
+            MESSAGE=$(printf '%s\n\n...\n\n%s' "$TRUNCATED" "$FOOTER")
+          fi
+
+          {
+            echo "version=$VERSION"
+            echo "content<<CHANGELOG_EOF"
+            echo "$MESSAGE"
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send to Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          CHANGELOG_CONTENT: ${{ steps.changelog.outputs.content }}
+        run: |
+          jq -n --arg content "${CHANGELOG_CONTENT}" '{content: $content, flags: 4}' > payload.json
+          curl -H "Content-Type: application/json" \
+               -d @payload.json \
+               "$DISCORD_WEBHOOK"
