@@ -1,10 +1,4 @@
-import type {
-  Client,
-  MessageReaction,
-  PartialMessageReaction,
-  PartialUser,
-  User,
-} from 'discord.js';
+import type { Client, MessageReaction, PartialMessageReaction, PartialUser, User } from 'discord.js';
 import { enhancedLogger, getCachedMenu, getOptionByEmoji, LogCategory, lang } from '../utils';
 import { ReactionCooldown } from '../utils/reactionCooldown';
 
@@ -95,7 +89,17 @@ export async function handleReactionRoleAdd(
         }
       }
       if (reactionRemovals.length > 0) {
-        await Promise.allSettled(reactionRemovals);
+        const results = await Promise.allSettled(reactionRemovals);
+        for (const result of results) {
+          if (result.status === 'rejected') {
+            enhancedLogger.debug('Failed to remove reaction in unique mode', LogCategory.SYSTEM, {
+              guildId,
+              userId: user.id,
+              menuId: menu.id,
+              error: String(result.reason),
+            });
+          }
+        }
       }
 
       enhancedLogger.debug(tl.roleAssigned, LogCategory.SYSTEM, {

@@ -11,7 +11,11 @@
     "Cogito ergo cog",
     "Just a cog in the machine",
     "Gears grinding, vibes thriving",
-    "Currently overthinking at over 9000 RPM"
+    "Currently overthinking at over 9000 RPM",
+    "WHAT GOES AROUND",
+    "Where I stop, nobody knows",
+    "What goes around comes around, my friend",
+    "Cog for a cog"
   ],
   "descriptionMsg": "A special lil bot made by a special lil Nindroid :3",
   "fatalError": "There was a fatal error! Please contact your admin!",
@@ -99,7 +103,6 @@
     "cmdDescrp": "Support Cogworks development",
     "title": "Support Cogworks",
     "description": "If you enjoy using Cogworks, consider buying me a coffee! Your support helps keep the bot running and development active.",
-    "linkTitle": "Buy Me a Coffee",
     "footer": "Thank you for your support!"
   },
   "server": {
@@ -114,5 +117,16 @@
     "description": "Manage your server from the web dashboard. Sign in with Discord to access tickets, applications, announcements, and more.",
     "buttonLabel": "Open Dashboard",
     "footer": "Sign in with Discord for automatic access"
+  },
+  "contextMenu": {
+    "baitManagerUnavailable": "Bait channel manager is not available.",
+    "userNotMember": "User is not a member of this server.",
+    "ticketNotConfigured": "Ticket system is not configured. Run `/ticket-setup` first.",
+    "noTicketTypes": "No ticket types are configured for this server.",
+    "selectRoleAndChannel": "Please select both a role and a channel."
+  },
+  "setup": {
+    "noSystemsSelected": "No systems selected. Setup cancelled.",
+    "saveError": "An error occurred while saving. Some settings may have been saved."
   }
 }

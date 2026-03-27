@@ -182,25 +182,15 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     const { AppDataSource } = await import('../../typeorm');
     const { BotConfig } = await import('../../typeorm/entities/BotConfig');
     const { TicketConfig } = await import('../../typeorm/entities/ticket/TicketConfig');
-    const { ArchivedTicketConfig } = await import(
-      '../../typeorm/entities/ticket/ArchivedTicketConfig'
-    );
+    const { ArchivedTicketConfig } = await import('../../typeorm/entities/ticket/ArchivedTicketConfig');
     const { Ticket } = await import('../../typeorm/entities/ticket/Ticket');
     const { ArchivedTicket } = await import('../../typeorm/entities/ticket/ArchivedTicket');
-    const { ApplicationConfig } = await import(
-      '../../typeorm/entities/application/ApplicationConfig'
-    );
-    const { ArchivedApplicationConfig } = await import(
-      '../../typeorm/entities/application/ArchivedApplicationConfig'
-    );
+    const { ApplicationConfig } = await import('../../typeorm/entities/application/ApplicationConfig');
+    const { ArchivedApplicationConfig } = await import('../../typeorm/entities/application/ArchivedApplicationConfig');
     const { Application } = await import('../../typeorm/entities/application/Application');
-    const { ArchivedApplication } = await import(
-      '../../typeorm/entities/application/ArchivedApplication'
-    );
+    const { ArchivedApplication } = await import('../../typeorm/entities/application/ArchivedApplication');
     const { Position } = await import('../../typeorm/entities/application/Position');
-    const { AnnouncementConfig } = await import(
-      '../../typeorm/entities/announcement/AnnouncementConfig'
-    );
+    const { AnnouncementConfig } = await import('../../typeorm/entities/announcement/AnnouncementConfig');
     const { BaitChannelConfig } = await import('../../typeorm/entities/BaitChannelConfig');
     const { BaitChannelLog } = await import('../../typeorm/entities/BaitChannelLog');
     const { SavedRole } = await import('../../typeorm/entities/SavedRole');
@@ -208,14 +198,10 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     const { RulesConfig } = await import('../../typeorm/entities/rules');
     const { ReactionRoleMenu } = await import('../../typeorm/entities/reactionRole');
     const { CustomTicketType } = await import('../../typeorm/entities/ticket/CustomTicketType');
-    const { UserTicketRestriction } = await import(
-      '../../typeorm/entities/ticket/UserTicketRestriction'
-    );
+    const { UserTicketRestriction } = await import('../../typeorm/entities/ticket/UserTicketRestriction');
     const { PendingBan } = await import('../../typeorm/entities/PendingBan');
     const { AnnouncementLog } = await import('../../typeorm/entities/announcement/AnnouncementLog');
-    const { AnnouncementTemplate } = await import(
-      '../../typeorm/entities/announcement/AnnouncementTemplate'
-    );
+    const { AnnouncementTemplate } = await import('../../typeorm/entities/announcement/AnnouncementTemplate');
     const { AuditLog } = await import('../../typeorm/entities/AuditLog');
     const { MemoryConfig } = await import('../../typeorm/entities/memory/MemoryConfig');
     const { MemoryItem } = await import('../../typeorm/entities/memory/MemoryItem');
@@ -232,13 +218,10 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     const { EventTemplate } = await import('../../typeorm/entities/event/EventTemplate');
     const { EventReminder } = await import('../../typeorm/entities/event/EventReminder');
     const { AnalyticsConfig } = await import('../../typeorm/entities/analytics/AnalyticsConfig');
-    const { AnalyticsSnapshot } = await import(
-      '../../typeorm/entities/analytics/AnalyticsSnapshot'
-    );
+    const { AnalyticsSnapshot } = await import('../../typeorm/entities/analytics/AnalyticsSnapshot');
     const { OnboardingConfig } = await import('../../typeorm/entities/onboarding/OnboardingConfig');
-    const { OnboardingCompletion } = await import(
-      '../../typeorm/entities/onboarding/OnboardingCompletion'
-    );
+    const { SetupState } = await import('../../typeorm/entities/SetupState');
+    const { OnboardingCompletion } = await import('../../typeorm/entities/onboarding/OnboardingCompletion');
 
     const details: Record<string, number> = {};
     let total = 0;
@@ -350,6 +333,7 @@ export async function deleteAllGuildData(guildId: string): Promise<{
       },
       { name: 'SavedRole', repo: AppDataSource.getRepository(SavedRole) },
       { name: 'UserActivity', repo: AppDataSource.getRepository(UserActivity) },
+      { name: 'SetupState', repo: AppDataSource.getRepository(SetupState) },
       { name: 'RulesConfig', repo: AppDataSource.getRepository(RulesConfig) },
       {
         name: 'ReactionRoleMenu',

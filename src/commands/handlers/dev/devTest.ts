@@ -6,12 +6,7 @@
  * multiple users, time-based checks, member joins, etc.)
  */
 
-import {
-  type ChatInputCommandInteraction,
-  type Client,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { AnalyticsSnapshot } from '../../../typeorm/entities/analytics/AnalyticsSnapshot';
 import { StarboardConfig } from '../../../typeorm/entities/starboard/StarboardConfig';
@@ -39,10 +34,7 @@ const ticketConfigRepo = lazyRepo(TicketConfig);
 const analyticsSnapshotRepo = lazyRepo(AnalyticsSnapshot);
 const statusIncidentRepo = lazyRepo(StatusIncident);
 
-export async function devTestHandler(
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function devTestHandler(client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   // Bot owner only
   const ownerCheck = requireBotOwner(interaction.user.id);
   if (!ownerCheck.allowed) {
@@ -194,9 +186,7 @@ async function handleStarboardSimulate(
     // Update existing
     entry.starCount = count;
     if (entry.starboardMessageId) {
-      const starMsg = await starboardChannel.messages
-        .fetch(entry.starboardMessageId)
-        .catch(() => null);
+      const starMsg = await starboardChannel.messages.fetch(entry.starboardMessageId).catch(() => null);
       if (starMsg) {
         await starMsg.edit({ embeds: [embed] });
       }
@@ -229,10 +219,7 @@ async function handleStarboardSimulate(
 
 // ─── XP ─────────────────────────────────────────────────────────────────────
 
-async function handleXpGrant(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function handleXpGrant(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const user = interaction.options.getUser('user', true);
   const amount = interaction.options.getInteger('amount', true);
 
@@ -258,10 +245,7 @@ async function handleXpGrant(
   });
 }
 
-async function handleXpForceLevelup(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function handleXpForceLevelup(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const user = interaction.options.getUser('user', true);
 
   let xpUser = await xpUserRepo.findOneBy({ guildId, userId: user.id });
@@ -303,10 +287,7 @@ async function handleXpForceLevelup(
   });
 }
 
-async function handleXpSimulateVoice(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function handleXpSimulateVoice(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const user = interaction.options.getUser('user', true);
   const minutes = interaction.options.getInteger('minutes', true);
 
@@ -339,21 +320,13 @@ async function handleXpSimulateVoice(
 
 // ─── SLA ────────────────────────────────────────────────────────────────────
 
-async function handleSlaForceCheck(
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+async function handleSlaForceCheck(client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
   await checkAndAlertSlaBreaches(client);
-  await interaction.editReply(
-    '✅ SLA breach check completed. Check the breach channel for any alerts.',
-  );
+  await interaction.editReply('✅ SLA breach check completed. Check the breach channel for any alerts.');
 }
 
-async function handleSlaBackdateTicket(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function handleSlaBackdateTicket(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const ticketId = interaction.options.getInteger('ticket-id', true);
   const minutesAgo = interaction.options.getInteger('minutes-ago', true);
 
@@ -398,36 +371,26 @@ async function handleOnboardingTrigger(interaction: ChatInputCommandInteraction)
   if (success) {
     await interaction.editReply('✅ Onboarding flow sent to your DMs. Check your direct messages.');
   } else {
-    await interaction.editReply(
-      '❌ Onboarding failed. Either not configured, no steps, or DMs are closed.',
-    );
+    await interaction.editReply('❌ Onboarding failed. Either not configured, no steps, or DMs are closed.');
   }
 }
 
 // ─── Analytics ──────────────────────────────────────────────────────────────
 
-async function handleAnalyticsFlush(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function handleAnalyticsFlush(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
   try {
     const { activityTracker } = await import('../../../utils/analytics/activityTracker');
     const memberCount = interaction.guild?.memberCount ?? 0;
     await activityTracker.flushSnapshot(guildId, memberCount);
-    await interaction.editReply(
-      '✅ Analytics counters flushed to snapshot. Check `/insights overview`.',
-    );
+    await interaction.editReply('✅ Analytics counters flushed to snapshot. Check `/insights overview`.');
   } catch (error) {
     await interaction.editReply(`❌ Flush failed: ${(error as Error).message}`);
   }
 }
 
-async function handleAnalyticsSeed(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function handleAnalyticsSeed(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const days = interaction.options.getInteger('days') || 30;
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
@@ -485,23 +448,15 @@ async function handleAnalyticsSeed(
 
 // ─── Event Reminders ────────────────────────────────────────────────────────
 
-async function handleReminderForceCheck(
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+async function handleReminderForceCheck(client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
   await checkAndSendReminders(client);
-  await interaction.editReply(
-    '✅ Event reminder check completed. Check the reminder channel for any due reminders.',
-  );
+  await interaction.editReply('✅ Event reminder check completed. Check the reminder channel for any due reminders.');
 }
 
 // ─── Smart Routing ──────────────────────────────────────────────────────────
 
-async function handleRoutingSimulate(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function handleRoutingSimulate(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const ticketType = interaction.options.getString('ticket-type', true);
   const guild = interaction.guild;
   if (!guild) return;
@@ -563,10 +518,7 @@ async function handleRoutingSimulate(
 
 // ─── Import/Seed XP ─────────────────────────────────────────────────────────
 
-async function handleImportSeedXp(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function handleImportSeedXp(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const count = interaction.options.getInteger('count') || 10;
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
@@ -602,9 +554,7 @@ async function handleImportSeedXp(
     seeded++;
   }
 
-  await interaction.editReply(
-    `✅ Seeded XP data for **${seeded}** members. Check \`/leaderboard\` and \`/rank\`.`,
-  );
+  await interaction.editReply(`✅ Seeded XP data for **${seeded}** members. Check \`/leaderboard\` and \`/rank\`.`);
 }
 
 // ─── Status Incidents ───────────────────────────────────────────────────────
@@ -628,10 +578,7 @@ async function handleStatusCreateIncident(interaction: ChatInputCommandInteracti
 
 // ─── Cleanup ────────────────────────────────────────────────────────────────
 
-async function handleCleanupTestData(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function handleCleanupTestData(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
   const results: string[] = [];

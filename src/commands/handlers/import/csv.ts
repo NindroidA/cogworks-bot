@@ -82,7 +82,11 @@ export const csvImportHandler = async (interaction: ChatInputCommandInteraction)
   enhancedLogger.info(
     `CSV import initiated by ${interaction.user.tag} for guild ${guildId}`,
     LogCategory.COMMAND_EXECUTION,
-    { overwrite, dryRun, fileSize: attachment.size },
+    {
+      overwrite,
+      dryRun,
+      fileSize: attachment.size,
+    },
   );
 
   await interaction.editReply({
@@ -98,8 +102,7 @@ export const csvImportHandler = async (interaction: ChatInputCommandInteraction)
     const embed = new EmbedBuilder()
       .setTitle('CSV Import — Dry Run')
       .setDescription(LANGF(tl.dryRunComplete, result.imported, result.skipped, result.failed))
-      .setColor(0x3498db)
-      .setTimestamp();
+      .setColor(0x3498db);
 
     if (result.errors.length > 0) {
       embed.addFields({
@@ -121,8 +124,7 @@ export const csvImportHandler = async (interaction: ChatInputCommandInteraction)
         name: 'Duration',
         value: `${(result.durationMs / 1000).toFixed(1)}s`,
         inline: true,
-      })
-      .setTimestamp();
+      });
 
     if (result.errors.length > 0) {
       embed.addFields({

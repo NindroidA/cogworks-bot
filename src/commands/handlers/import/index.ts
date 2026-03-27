@@ -4,13 +4,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
-import {
-  enhancedLogger,
-  handleInteractionError,
-  LogCategory,
-  lang,
-  requireAdmin,
-} from '../../../utils';
+import { enhancedLogger, handleInteractionError, LogCategory, lang, requireAdmin } from '../../../utils';
 import { csvImportHandler } from './csv';
 import { mee6ImportHandler } from './mee6';
 import { importStatusHandler } from './status';

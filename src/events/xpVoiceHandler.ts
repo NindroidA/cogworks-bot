@@ -26,37 +26,41 @@ export default {
    * @param _client - Extended client instance
    */
   async execute(oldState: VoiceState, newState: VoiceState, _client: ExtendedClient) {
-    // Only process guild events
-    const guild = newState.guild || oldState.guild;
-    if (!guild) return;
+    try {
+      // Only process guild events
+      const guild = newState.guild || oldState.guild;
+      if (!guild) return;
 
-    // Ignore bots
-    const userId = newState.member?.id || oldState.member?.id;
-    if (!userId) return;
-    if (newState.member?.user.bot || oldState.member?.user.bot) return;
+      // Ignore bots
+      const userId = newState.member?.id || oldState.member?.id;
+      if (!userId) return;
+      if (newState.member?.user.bot || oldState.member?.user.bot) return;
 
-    const guildId = guild.id;
+      const guildId = guild.id;
 
-    // Check if XP and voice XP are enabled (cached)
-    const config = await getXPConfig(guildId);
-    if (!config?.enabled || !config.voiceXpEnabled) return;
+      // Check if XP and voice XP are enabled (cached)
+      const config = await getXPConfig(guildId);
+      if (!config?.enabled || !config.voiceXpEnabled) return;
 
-    const wasInVoice = !!oldState.channelId;
-    const isInVoice = !!newState.channelId;
+      const wasInVoice = !!oldState.channelId;
+      const isInVoice = !!newState.channelId;
 
-    // User joined a voice channel
-    if (!wasInVoice && isInVoice) {
-      await handleVoiceJoin(guildId, userId);
-      return;
+      // User joined a voice channel
+      if (!wasInVoice && isInVoice) {
+        await handleVoiceJoin(guildId, userId);
+        return;
+      }
+
+      // User left a voice channel
+      if (wasInVoice && !isInVoice) {
+        await handleVoiceLeave(guildId, userId, config.xpPerVoiceMinute);
+        return;
+      }
+
+      // User switched channels — no XP change needed, session continues
+    } catch (error) {
+      enhancedLogger.error('XP voice handler failed', error as Error, LogCategory.ERROR);
     }
-
-    // User left a voice channel
-    if (wasInVoice && !isInVoice) {
-      await handleVoiceLeave(guildId, userId, config.xpPerVoiceMinute);
-      return;
-    }
-
-    // User switched channels — no XP change needed, session continues
   },
 };
 
@@ -73,11 +77,9 @@ async function handleVoiceJoin(guildId: string, userId: string) {
     xpUser.lastVoiceJoinedAt = new Date();
     await userRepo.save(xpUser);
   } catch (error) {
-    enhancedLogger.debug(
-      `Failed to record voice join for ${userId} in guild ${guildId}`,
-      LogCategory.SYSTEM,
-      { error: (error as Error).message },
-    );
+    enhancedLogger.debug(`Failed to record voice join for ${userId} in guild ${guildId}`, LogCategory.SYSTEM, {
+      error: (error as Error).message,
+    });
   }
 }
 
@@ -123,10 +125,8 @@ async function handleVoiceLeave(guildId: string, userId: string, xpPerVoiceMinut
       // because voice disconnects don't have a natural message channel context.
     }
   } catch (error) {
-    enhancedLogger.debug(
-      `Failed to award voice XP for ${userId} in guild ${guildId}`,
-      LogCategory.SYSTEM,
-      { error: (error as Error).message },
-    );
+    enhancedLogger.debug(`Failed to award voice XP for ${userId} in guild ${guildId}`, LogCategory.SYSTEM, {
+      error: (error as Error).message,
+    });
   }
 }

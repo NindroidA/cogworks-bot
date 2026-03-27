@@ -10,9 +10,7 @@ const tl = lang.starboard;
 /**
  * Handle /starboard ignore <channel>
  */
-export const starboardIgnoreHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-): Promise<void> => {
+export const starboardIgnoreHandler = async (interaction: ChatInputCommandInteraction<CacheType>): Promise<void> => {
   try {
     const adminCheck = requireAdmin(interaction);
     if (!adminCheck.allowed) {
@@ -55,9 +53,7 @@ export const starboardIgnoreHandler = async (
 /**
  * Handle /starboard unignore <channel>
  */
-export const starboardUnignoreHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-): Promise<void> => {
+export const starboardUnignoreHandler = async (interaction: ChatInputCommandInteraction<CacheType>): Promise<void> => {
   try {
     const adminCheck = requireAdmin(interaction);
     if (!adminCheck.allowed) {

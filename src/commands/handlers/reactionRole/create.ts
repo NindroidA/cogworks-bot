@@ -1,21 +1,13 @@
-import {
-  type CacheType,
-  type ChatInputCommandInteraction,
-  MessageFlags,
-  type TextChannel,
-} from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, MessageFlags, type TextChannel } from 'discord.js';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import {
   buildMenuEmbed,
-  createRateLimitKey,
   enhancedLogger,
-  LANGF,
+  guardAdminRateLimit,
   LogCategory,
   lang,
   MAX,
   RateLimits,
-  rateLimiter,
-  requireAdmin,
   sanitizeUserInput,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -23,31 +15,16 @@ import { lazyRepo } from '../../../utils/database/lazyRepo';
 const tl = lang.reactionRole;
 const menuRepo = lazyRepo(ReactionRoleMenu);
 
-export async function reactionRoleCreateHandler(
-  interaction: ChatInputCommandInteraction<CacheType>,
-) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+export async function reactionRoleCreateHandler(interaction: ChatInputCommandInteraction<CacheType>) {
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'reactionrole-create',
+    limit: RateLimits.ANNOUNCEMENT_SETUP,
+    scope: 'guild',
+  });
+  if (!guard.allowed) return;
 
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
-
-  // Rate limit (5 per hour per guild)
-  const rateLimitKey = createRateLimitKey.guild(guildId, 'reactionrole-create');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.ANNOUNCEMENT_SETUP);
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
 
   // Check max menus per guild (25)
   const menuCount = await menuRepo.count({ where: { guildId } });
@@ -98,12 +75,9 @@ export async function reactionRoleCreateHandler(
       userId: interaction.user.id,
     });
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to create reaction role menu',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    enhancedLogger.error('Failed to create reaction role menu', error as Error, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+    });
     await interaction.reply({
       content: tl.create.error,
       flags: [MessageFlags.Ephemeral],

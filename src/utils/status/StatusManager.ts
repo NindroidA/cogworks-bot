@@ -1,19 +1,8 @@
-import {
-  ActivityType,
-  type Client,
-  EmbedBuilder,
-  type PresenceStatusData,
-  type TextChannel,
-} from 'discord.js';
+import { ActivityType, type Client, EmbedBuilder, type PresenceStatusData, type TextChannel } from 'discord.js';
 import { IsNull } from 'typeorm';
 import { lang } from '../../lang';
 import { AppDataSource } from '../../typeorm';
-import {
-  BotStatus,
-  type IncidentLevel,
-  StatusIncident,
-  type StatusLevel,
-} from '../../typeorm/entities/status';
+import { BotStatus, type IncidentLevel, StatusIncident, type StatusLevel } from '../../typeorm/entities/status';
 import { Colors } from '../colors';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { truncateWithNotice } from '../validation/inputSanitizer';
@@ -21,14 +10,13 @@ import { invalidateStatusBannerCache } from './statusBanner';
 
 const tl = lang.status;
 
-const STATUS_PRESENCE_MAP: Record<StatusLevel, { status: PresenceStatusData; activity?: string }> =
-  {
-    operational: { status: 'online' },
-    degraded: { status: 'idle', activity: tl.presence.degraded },
-    'partial-outage': { status: 'idle', activity: tl.presence['partial-outage'] },
-    'major-outage': { status: 'dnd', activity: tl.presence['major-outage'] },
-    maintenance: { status: 'idle', activity: tl.presence.maintenance },
-  };
+const STATUS_PRESENCE_MAP: Record<StatusLevel, { status: PresenceStatusData; activity?: string }> = {
+  operational: { status: 'online' },
+  degraded: { status: 'idle', activity: tl.presence.degraded },
+  'partial-outage': { status: 'idle', activity: tl.presence['partial-outage'] },
+  'major-outage': { status: 'dnd', activity: tl.presence['major-outage'] },
+  maintenance: { status: 'idle', activity: tl.presence.maintenance },
+};
 
 export class StatusManager {
   private client: Client;
@@ -61,12 +49,7 @@ export class StatusManager {
   }
 
   /** Set bot status (manual) */
-  async setStatus(
-    level: StatusLevel,
-    userId: string,
-    message?: string,
-    systems?: string[],
-  ): Promise<BotStatus> {
+  async setStatus(level: StatusLevel, userId: string, message?: string, systems?: string[]): Promise<BotStatus> {
     const status = await this.getStatus();
 
     status.level = level;
@@ -205,10 +188,7 @@ export class StatusManager {
           {
             name: 'Status',
             type: ActivityType.Custom,
-            state:
-              lang.general.presenceMessages[
-                Math.floor(Math.random() * lang.general.presenceMessages.length)
-              ],
+            state: lang.general.presenceMessages[Math.floor(Math.random() * lang.general.presenceMessages.length)],
           },
         ],
         status: 'online',
@@ -217,11 +197,7 @@ export class StatusManager {
   }
 
   /** Create a new incident record */
-  private async createIncident(
-    level: IncidentLevel,
-    message: string,
-    systems?: string[],
-  ): Promise<void> {
+  private async createIncident(level: IncidentLevel, message: string, systems?: string[]): Promise<void> {
     try {
       const incidentRepo = AppDataSource.getRepository(StatusIncident);
       const incident = incidentRepo.create({
@@ -231,11 +207,7 @@ export class StatusManager {
       });
       await incidentRepo.save(incident);
     } catch (error) {
-      enhancedLogger.error(
-        'Failed to create incident record',
-        error as Error,
-        LogCategory.DATABASE,
-      );
+      enhancedLogger.error('Failed to create incident record', error as Error, LogCategory.DATABASE);
     }
   }
 
@@ -257,11 +229,7 @@ export class StatusManager {
 
       await incidentRepo.save(openIncidents);
     } catch (error) {
-      enhancedLogger.error(
-        'Failed to resolve open incidents',
-        error as Error,
-        LogCategory.DATABASE,
-      );
+      enhancedLogger.error('Failed to resolve open incidents', error as Error, LogCategory.DATABASE);
     }
   }
 
@@ -282,10 +250,7 @@ export class StatusManager {
             ? Colors.status.error
             : Colors.status.warning;
 
-      const embed = new EmbedBuilder()
-        .setTitle(`${tl.channel.statusUpdate}: ${levelLabel}`)
-        .setColor(color)
-        .setTimestamp();
+      const embed = new EmbedBuilder().setTitle(`${tl.channel.statusUpdate}: ${levelLabel}`).setColor(color);
 
       if (status.message) {
         embed.setDescription(status.message);
@@ -316,16 +281,11 @@ export class StatusManager {
       const embed = new EmbedBuilder()
         .setTitle(`✅ ${tl.channel.resolved}`)
         .setDescription(message || tl.channel.resolvedMessage)
-        .setColor(Colors.status.success)
-        .setTimestamp();
+        .setColor(Colors.status.success);
 
       await (channel as TextChannel).send({ embeds: [embed] });
     } catch (error) {
-      enhancedLogger.error(
-        'Failed to post resolution to status channel',
-        error as Error,
-        LogCategory.SYSTEM,
-      );
+      enhancedLogger.error('Failed to post resolution to status channel', error as Error, LogCategory.SYSTEM);
     }
   }
 }

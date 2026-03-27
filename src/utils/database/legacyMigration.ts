@@ -64,11 +64,7 @@ interface LegacyMigrationRunnerOptions {
  * Process items with at most `limit` concurrent promises.
  * Zero dependencies, bounded memory.
  */
-export async function asyncPool<T>(
-  limit: number,
-  items: T[],
-  fn: (item: T) => Promise<void>,
-): Promise<void> {
+export async function asyncPool<T>(limit: number, items: T[], fn: (item: T) => Promise<void>): Promise<void> {
   const executing = new Set<Promise<void>>();
   for (const item of items) {
     const p = fn(item).then(() => {
@@ -140,10 +136,7 @@ export class LegacyMigrationRunner {
           }
 
           if (this.dryRun) {
-            enhancedLogger.info(
-              `[DRY RUN] Would migrate guild ${guildId} for '${migration.id}'`,
-              LogCategory.DATABASE,
-            );
+            enhancedLogger.info(`[DRY RUN] Would migrate guild ${guildId} for '${migration.id}'`, LogCategory.DATABASE);
             entry.guildsProcessed++;
             return;
           }

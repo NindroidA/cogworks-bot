@@ -1,11 +1,4 @@
-import type {
-  Client,
-  MessageReaction,
-  PartialMessageReaction,
-  PartialUser,
-  TextChannel,
-  User,
-} from 'discord.js';
+import type { Client, MessageReaction, PartialMessageReaction, PartialUser, TextChannel, User } from 'discord.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { StarboardConfig } from '../typeorm/entities/starboard/StarboardConfig';
 import { StarboardEntry } from '../typeorm/entities/starboard/StarboardEntry';
@@ -66,8 +59,7 @@ function buildStarboardEmbed(
       iconURL: authorAvatarUrl || undefined,
     })
     .setColor(getStarColor(starCount))
-    .setFooter({ text: `\u2B50 ${starCount} | #${channelName}` })
-    .setTimestamp();
+    .setFooter({ text: `\u2B50 ${starCount} | #${channelName}` });
 
   if (content) {
     embed.setDescription(content.slice(0, 4096));
@@ -151,9 +143,7 @@ export async function handleStarboardReactionAdd(
       originalMessageId: message.id,
     });
 
-    const starboardChannel = message.guild.channels.cache.get(config.channelId) as
-      | TextChannel
-      | undefined;
+    const starboardChannel = message.guild.channels.cache.get(config.channelId) as TextChannel | undefined;
     if (!starboardChannel) {
       enhancedLogger.warn('Starboard channel not found, disabling starboard', LogCategory.SYSTEM, {
         guildId,
@@ -170,8 +160,7 @@ export async function handleStarboardReactionAdd(
     const authorAvatarUrl = message.author?.displayAvatarURL() || null;
     const content = message.content || null;
     const attachmentUrl = message.attachments.first()?.url || null;
-    const channelName =
-      'name' in message.channel ? (message.channel.name as string) : message.channelId;
+    const channelName = 'name' in message.channel ? (message.channel.name as string) : message.channelId;
 
     if (existingEntry) {
       // Update star count
@@ -180,9 +169,7 @@ export async function handleStarboardReactionAdd(
 
       // Update the starboard message embed
       try {
-        const starboardMsg = await starboardChannel.messages.fetch(
-          existingEntry.starboardMessageId,
-        );
+        const starboardMsg = await starboardChannel.messages.fetch(existingEntry.starboardMessageId);
         const { embed, row } = buildStarboardEmbed(
           existingEntry.content,
           authorTag,
@@ -227,12 +214,9 @@ export async function handleStarboardReactionAdd(
       await entryRepo.save(entry);
     }
   } catch (error) {
-    enhancedLogger.error(
-      'Error handling starboard reaction add',
-      error as Error,
-      LogCategory.SYSTEM,
-      { messageId: reaction.message.id },
-    );
+    enhancedLogger.error('Error handling starboard reaction add', error as Error, LogCategory.SYSTEM, {
+      messageId: reaction.message.id,
+    });
   }
 }
 
@@ -294,9 +278,7 @@ export async function handleStarboardReactionRemove(
     await entryRepo.save(existingEntry);
 
     // Update the starboard message embed
-    const starboardChannel = message.guild.channels.cache.get(config.channelId) as
-      | TextChannel
-      | undefined;
+    const starboardChannel = message.guild.channels.cache.get(config.channelId) as TextChannel | undefined;
     if (!starboardChannel) return;
 
     try {
@@ -304,8 +286,7 @@ export async function handleStarboardReactionRemove(
       const messageLink = `https://discord.com/channels/${guildId}/${message.channelId}/${message.id}`;
       const authorTag = message.author?.tag || '[Unknown]';
       const authorAvatarUrl = message.author?.displayAvatarURL() || null;
-      const channelName =
-        'name' in message.channel ? (message.channel.name as string) : message.channelId;
+      const channelName = 'name' in message.channel ? (message.channel.name as string) : message.channelId;
 
       const { embed, row } = buildStarboardEmbed(
         existingEntry.content,
@@ -321,11 +302,8 @@ export async function handleStarboardReactionRemove(
       // Starboard message may have been deleted — ignore
     }
   } catch (error) {
-    enhancedLogger.error(
-      'Error handling starboard reaction remove',
-      error as Error,
-      LogCategory.SYSTEM,
-      { messageId: reaction.message.id },
-    );
+    enhancedLogger.error('Error handling starboard reaction remove', error as Error, LogCategory.SYSTEM, {
+      messageId: reaction.message.id,
+    });
   }
 }

@@ -1,11 +1,5 @@
 import type { CacheType, ChatInputCommandInteraction } from 'discord.js';
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags } from 'discord.js';
 import { StarboardEntry } from '../../../typeorm/entities/starboard';
 import { handleInteractionError, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -16,9 +10,7 @@ const tl = lang.starboard;
 /**
  * Handle /starboard random
  */
-export const starboardRandomHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-): Promise<void> => {
+export const starboardRandomHandler = async (interaction: ChatInputCommandInteraction<CacheType>): Promise<void> => {
   try {
     const guildId = interaction.guildId!;
     const count = await entryRepo.count({ where: { guildId } });
@@ -64,10 +56,7 @@ export const starboardRandomHandler = async (
     }
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setLabel('Jump to Original')
-        .setStyle(ButtonStyle.Link)
-        .setURL(messageLink),
+      new ButtonBuilder().setLabel('Jump to Original').setStyle(ButtonStyle.Link).setURL(messageLink),
     );
 
     await interaction.reply({

@@ -1,9 +1,4 @@
-import type {
-  ButtonInteraction,
-  Client,
-  Interaction,
-  StringSelectMenuInteraction,
-} from 'discord.js';
+import type { ButtonInteraction, Client, Interaction, StringSelectMenuInteraction } from 'discord.js';
 import {
   handleAddFieldModal,
   handleFieldButton,

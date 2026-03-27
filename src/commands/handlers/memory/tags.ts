@@ -17,16 +17,13 @@ import {
 import { MemoryTag, type MemoryTagType } from '../../../typeorm/entities/memory';
 import {
   Colors,
-  createRateLimitKey,
   E,
   enhancedLogger,
-  healthMonitor,
+  guardAdminRateLimit,
   LogCategory,
   lang,
   notifyModalTimeout,
   RateLimits,
-  rateLimiter,
-  requireAdmin,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveMemoryConfig } from './channelPicker';
@@ -35,31 +32,15 @@ const tl = lang.memory;
 const memoryTagRepo = lazyRepo(MemoryTag);
 
 export const memoryTagsHandler = async (interaction: ChatInputCommandInteraction) => {
-  const startTime = Date.now();
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'memory-tags',
+    limit: RateLimits.MEMORY_OPERATION,
+    scope: 'userGuild',
+  });
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
-  const userId = interaction.user.id;
   const action = interaction.options.getString('action', true);
-
-  // Rate limit check
-  const rateLimitKey = createRateLimitKey.userGuild(userId, guildId, 'memory-tags');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.MEMORY_OPERATION);
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: rateCheck.message!,
-      flags: [MessageFlags.Ephemeral],
-    });
-    healthMonitor.recordCommand('memory tags', Date.now() - startTime, true);
-    return;
-  }
 
   // Check if memory system is configured
   const config = await resolveMemoryConfig(interaction, guildId);
@@ -87,9 +68,7 @@ async function handleAddTag(
   forumChannelId: string,
   memoryConfigId: number,
 ) {
-  const modal = new ModalBuilder()
-    .setCustomId('memory_tag_add_modal')
-    .setTitle(tl.tags.add.modalTitle);
+  const modal = new ModalBuilder().setCustomId('memory_tag_add_modal').setTitle(tl.tags.add.modalTitle);
 
   const nameInput = new TextInputBuilder()
     .setCustomId('tag_name')
@@ -191,9 +170,7 @@ async function handleAddTagSubmit(
 
     const updatedForum = await forum.setAvailableTags([...currentTags, newForumTag]);
 
-    const discordTag = updatedForum.availableTags.find(
-      t => t.name === name && !currentTags.find(ct => ct.id === t.id),
-    );
+    const discordTag = updatedForum.availableTags.find(t => t.name === name && !currentTags.find(ct => ct.id === t.id));
 
     const newTag = memoryTagRepo.create({
       guildId,
@@ -286,11 +263,7 @@ async function handleEditTag(
   });
 }
 
-async function showEditModal(
-  interaction: StringSelectMenuInteraction,
-  guildId: string,
-  forumChannelId: string,
-) {
+async function showEditModal(interaction: StringSelectMenuInteraction, guildId: string, forumChannelId: string) {
   const tagId = parseInt(interaction.values[0], 10);
   const tag = await memoryTagRepo.findOneBy({ id: tagId, guildId });
 
@@ -302,9 +275,7 @@ async function showEditModal(
     return;
   }
 
-  const modal = new ModalBuilder()
-    .setCustomId(`memory_tag_edit_modal_${tagId}`)
-    .setTitle(tl.tags.edit.modalTitle);
+  const modal = new ModalBuilder().setCustomId(`memory_tag_edit_modal_${tagId}`).setTitle(tl.tags.edit.modalTitle);
 
   const nameInput = new TextInputBuilder()
     .setCustomId('tag_name')
@@ -332,8 +303,7 @@ async function showEditModal(
   try {
     const modalSubmit = await interaction.awaitModalSubmit({
       time: 300000,
-      filter: i =>
-        i.customId === `memory_tag_edit_modal_${tagId}` && i.user.id === interaction.user.id,
+      filter: i => i.customId === `memory_tag_edit_modal_${tagId}` && i.user.id === interaction.user.id,
     });
 
     await handleEditTagSubmit(modalSubmit, tagId, guildId, forumChannelId);
@@ -465,11 +435,7 @@ async function handleRemoveTag(
   });
 }
 
-async function confirmRemoveTag(
-  interaction: StringSelectMenuInteraction,
-  guildId: string,
-  forumChannelId: string,
-) {
+async function confirmRemoveTag(interaction: StringSelectMenuInteraction, guildId: string, forumChannelId: string) {
   const tagId = parseInt(interaction.values[0], 10);
   const tag = await memoryTagRepo.findOneBy({ id: tagId, guildId });
 
@@ -539,7 +505,9 @@ async function confirmRemoveTag(
           `Memory tag remove error: ${error}`,
           error instanceof Error ? error : undefined,
           LogCategory.COMMAND_EXECUTION,
-          { guildId },
+          {
+            guildId,
+          },
         );
         await i.update({
           content: `${E.error} ${tl.tags.remove.error}`,
@@ -563,11 +531,7 @@ async function confirmRemoveTag(
   });
 }
 
-async function handleListTags(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-  memoryConfigId: number,
-) {
+async function handleListTags(interaction: ChatInputCommandInteraction, guildId: string, memoryConfigId: number) {
   const categoryTags = await memoryTagRepo.find({
     where: { guildId, memoryConfigId, tagType: 'category' },
   });
@@ -583,9 +547,7 @@ async function handleListTags(
     return;
   }
 
-  const embed = new EmbedBuilder()
-    .setTitle(`${E.list} ${tl.tags.list.title}`)
-    .setColor(Colors.brand.primary);
+  const embed = new EmbedBuilder().setTitle(`${E.list} ${tl.tags.list.title}`).setColor(Colors.brand.primary);
 
   if (categoryTags.length > 0) {
     const categoryList = categoryTags

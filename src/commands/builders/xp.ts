@@ -7,10 +7,7 @@ export const rank = new SlashCommandBuilder()
   .setName('rank')
   .setDescription("View your XP rank or another user's rank")
   .addUserOption(option =>
-    option
-      .setName('user')
-      .setDescription('The user to view (defaults to yourself)')
-      .setRequired(false),
+    option.setName('user').setDescription('The user to view (defaults to yourself)').setRequired(false),
   )
   .toJSON();
 
@@ -21,11 +18,7 @@ export const leaderboard = new SlashCommandBuilder()
   .setName('leaderboard')
   .setDescription('View the server XP leaderboard')
   .addIntegerOption(option =>
-    option
-      .setName('page')
-      .setDescription('Page number (10 per page)')
-      .setRequired(false)
-      .setMinValue(1),
+    option.setName('page').setDescription('Page number (10 per page)').setRequired(false).setMinValue(1),
   )
   .toJSON();
 
@@ -40,9 +33,7 @@ export const xpAdmin = new SlashCommandBuilder()
     sub
       .setName('set')
       .setDescription("Set a user's XP to a specific value")
-      .addUserOption(option =>
-        option.setName('user').setDescription('The user to modify').setRequired(true),
-      )
+      .addUserOption(option => option.setName('user').setDescription('The user to modify').setRequired(true))
       .addIntegerOption(option =>
         option.setName('xp').setDescription('The XP value to set').setRequired(true).setMinValue(0),
       ),
@@ -51,11 +42,7 @@ export const xpAdmin = new SlashCommandBuilder()
     sub
       .setName('reset')
       .setDescription("Reset a user's XP to zero")
-      .addUserOption(option =>
-        option.setName('user').setDescription('The user to reset').setRequired(true),
-      ),
+      .addUserOption(option => option.setName('user').setDescription('The user to reset').setRequired(true)),
   )
-  .addSubcommand(sub =>
-    sub.setName('reset-all').setDescription('Reset all XP data for this server'),
-  )
+  .addSubcommand(sub => sub.setName('reset-all').setDescription('Reset all XP data for this server'))
   .toJSON();

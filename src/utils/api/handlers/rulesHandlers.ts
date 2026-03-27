@@ -3,7 +3,7 @@ import { invalidateRulesCache } from '../../../events/rulesReaction';
 import { RulesConfig } from '../../../typeorm/entities/rules/RulesConfig';
 import { lazyRepo } from '../../database/lazyRepo';
 import { ApiError } from '../apiError';
-import { isValidSnowflake } from '../helpers';
+import { isValidSnowflake, optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
@@ -12,12 +12,9 @@ const rulesConfigRepo = lazyRepo(RulesConfig);
 export function registerRulesHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // POST /internal/guilds/:guildId/rules/setup
   routes.set('POST /rules/setup', async (guildId, body) => {
-    const channelId = body.channelId as string;
-    const messageContent = body.messageContent as string;
-    const roleId = body.roleId as string;
-    if (!channelId || !messageContent || !roleId) {
-      throw ApiError.badRequest('channelId, messageContent, and roleId are required');
-    }
+    const channelId = requireString(body, 'channelId');
+    const messageContent = requireString(body, 'messageContent');
+    const roleId = requireString(body, 'roleId');
     if (!isValidSnowflake(channelId)) throw ApiError.badRequest('Invalid channelId format');
     if (!isValidSnowflake(roleId)) throw ApiError.badRequest('Invalid roleId format');
 
@@ -29,7 +26,7 @@ export function registerRulesHandlers(client: Client, routes: Map<string, RouteH
       throw ApiError.notFound('Channel not found or not a text channel');
     }
 
-    const emoji = (body.emoji as string) || '✅';
+    const emoji = optionalString(body, 'emoji') ?? '✅';
 
     // Post rules message
     const rulesMessage = await (channel as TextChannel).send(messageContent);
@@ -58,7 +55,8 @@ export function registerRulesHandlers(client: Client, routes: Map<string, RouteH
     // Invalidate cache
     invalidateRulesCache(guildId);
 
-    await writeAuditLog(guildId, 'rules.setup', body.triggeredBy as string, {
+    const triggeredBy = optionalString(body, 'triggeredBy');
+    await writeAuditLog(guildId, 'rules.setup', triggeredBy, {
       messageId: rulesMessage.id,
     });
     return { success: true, messageId: rulesMessage.id };

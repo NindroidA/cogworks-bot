@@ -4,10 +4,7 @@ import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 /**
  * Safely fetch a guild channel, returning null if it doesn't exist or can't be accessed.
  */
-export async function safeChannelFetch(
-  guild: Guild,
-  channelId: string,
-): Promise<GuildBasedChannel | null> {
+export async function safeChannelFetch(guild: Guild, channelId: string): Promise<GuildBasedChannel | null> {
   try {
     return await guild.channels.fetch(channelId);
   } catch {
@@ -22,10 +19,7 @@ export async function safeChannelFetch(
 /**
  * Safely fetch a message from a text-based channel, returning null if not found.
  */
-export async function safeMessageFetch(
-  channel: GuildBasedChannel,
-  messageId: string,
-): Promise<Message | null> {
+export async function safeMessageFetch(channel: GuildBasedChannel, messageId: string): Promise<Message | null> {
   try {
     if (!channel.isTextBased()) return null;
     return await channel.messages.fetch(messageId);
@@ -43,11 +37,7 @@ export async function safeMessageFetch(
  * Returns true if the message was deleted or was already gone (goal = "message no longer exists").
  * Returns false only on unexpected errors.
  */
-export async function cleanupOldMessage(
-  guild: Guild,
-  channelId: string,
-  messageId: string,
-): Promise<boolean> {
+export async function cleanupOldMessage(guild: Guild, channelId: string, messageId: string): Promise<boolean> {
   if (!channelId || !messageId) return true;
 
   try {

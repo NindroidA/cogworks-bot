@@ -8,7 +8,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { enhancedLogger, handleInteractionError, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LogCategory, lang, requireAdmin } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { updateApplicationMessage } from './applicationPosition';
 
@@ -19,10 +19,17 @@ const positionRepo = lazyRepo(Position);
  * Handler for /application position edit command
  * Shows modal for editing an existing position
  */
-export async function applicationEditHandler(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function applicationEditHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
+    const adminCheck = requireAdmin(interaction);
+    if (!adminCheck.allowed) {
+      await interaction.reply({
+        content: adminCheck.message ?? '',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     if (!interaction.guild) {
       await interaction.reply({
         content: lang.general.cmdGuildNotFound,
@@ -118,8 +125,7 @@ export async function applicationEditModalHandler(
     const title = interaction.fields.getTextInputValue('title').trim();
     const description = interaction.fields.getTextInputValue('description')?.trim() || '';
     const emoji = interaction.fields.getTextInputValue('emoji')?.trim() || null;
-    const ageGateInput =
-      interaction.fields.getTextInputValue('age_gate')?.trim().toLowerCase() || 'no';
+    const ageGateInput = interaction.fields.getTextInputValue('age_gate')?.trim().toLowerCase() || 'no';
 
     const ageGateEnabled = ageGateInput === 'yes' || ageGateInput === 'true';
 
@@ -143,15 +149,11 @@ export async function applicationEditModalHandler(
 
     await positionRepo.save(position);
 
-    enhancedLogger.info(
-      `Position edited: "${title}" (ID: ${positionId})`,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        userId: interaction.user.id,
-        guildId,
-        positionId,
-      },
-    );
+    enhancedLogger.info(`Position edited: "${title}" (ID: ${positionId})`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      positionId,
+    });
 
     await interaction.reply({
       content: `✅ ${pl.edit.success}\n\n**Title:** ${title}\n**Emoji:** ${emoji || '📝'}\n**Age Gate:** ${ageGateEnabled ? 'Enabled 🔞' : 'Disabled'}`,

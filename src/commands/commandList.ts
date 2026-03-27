@@ -9,10 +9,13 @@ import { announcement } from './builders/announcement';
 import { announcementSetup } from './builders/announcementSetup';
 import { application } from './builders/application';
 import { applicationSetup } from './builders/applicationSetup';
+import { archive } from './builders/archive';
 import { automodCommand } from './builders/automod';
 import { baitChannelCommand } from './builders/baitChannel';
+import { botReset } from './builders/botReset';
 import { botSetup } from './builders/botSetup';
 import { coffee } from './builders/coffee';
+import { contextMenuCommands } from './builders/contextMenus';
 import { dashboard } from './builders/dashboard';
 import { dataExport } from './builders/dataExport';
 import { dev } from './builders/dev';
@@ -70,9 +73,14 @@ const baseCommands = [
   automodCommand, // AutoMod integration
   event, // scheduled events manager
   insights, // server analytics & insights
+  botReset, // factory reset / offboarding
+  archive, // archive cleanup and export
 ];
 
 const IS_DEV = (process.env.RELEASE || 'prod').toLowerCase().trim() === 'dev';
 
 // Dev-only commands (only registered when running the dev bot)
-export const commands = IS_DEV ? [...baseCommands, devTest, devSuite] : baseCommands;
+const slashCommands = IS_DEV ? [...baseCommands, devTest, devSuite] : baseCommands;
+
+// All commands: slash + context menu
+export const commands = [...slashCommands, ...contextMenuCommands];

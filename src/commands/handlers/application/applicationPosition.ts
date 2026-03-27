@@ -11,16 +11,7 @@ import {
 import { AppDataSource } from '../../../typeorm';
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
 import { Position } from '../../../typeorm/entities/application/Position';
-import {
-  createRateLimitKey,
-  enhancedLogger,
-  LANGF,
-  LogCategory,
-  lang,
-  RateLimits,
-  rateLimiter,
-  requireAdmin,
-} from '../../../utils';
+import { enhancedLogger, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { getTemplate } from './applicationTemplates';
 
@@ -35,39 +26,12 @@ export const applicationPositionHandler = async (
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
 
-  // Permission check - admin only
-  const permissionCheck = requireAdmin(interaction);
-  if (!permissionCheck.allowed) {
-    await interaction.reply({
-      content: permissionCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    enhancedLogger.warn(
-      `Unauthorized application position operation attempt by user ${interaction.user.id} in guild ${guildId}`,
-      LogCategory.SECURITY,
-      { userId: interaction.user.id, guildId },
-    );
-    return;
-  }
-
-  // Rate limit check (15 position operations per hour per guild)
-  const rateLimitKey = createRateLimitKey.guild(guildId, 'application-position');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.APPLICATION_POSITION);
-
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
-      flags: [MessageFlags.Ephemeral],
-    });
-    enhancedLogger.warn(
-      `Rate limit exceeded for application position in guild ${guildId}`,
-      LogCategory.SECURITY,
-      {
-        guildId,
-      },
-    );
-    return;
-  }
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'application-position',
+    limit: RateLimits.APPLICATION_POSITION,
+    scope: 'guild',
+  });
+  if (!guard.allowed) return;
 
   if (subCommand === 'add') {
     const title = interaction.options.getString('title');
@@ -135,16 +99,12 @@ export const applicationPositionHandler = async (
         flags: [MessageFlags.Ephemeral],
       });
 
-      enhancedLogger.info(
-        `Position added: "${finalTitle}" (ID: ${newPosition.id})`,
-        LogCategory.COMMAND_EXECUTION,
-        {
-          userId: interaction.user.id,
-          guildId,
-          positionId: newPosition.id,
-          template: template || 'custom',
-        },
-      );
+      enhancedLogger.info(`Position added: "${finalTitle}" (ID: ${newPosition.id})`, LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+        guildId,
+        positionId: newPosition.id,
+        template: template || 'custom',
+      });
 
       // update the application channel message
       await updateApplicationMessage(interaction.client, guildId);
@@ -153,7 +113,10 @@ export const applicationPositionHandler = async (
         'Failed to add position',
         error instanceof Error ? error : new Error(String(error)),
         LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId },
+        {
+          userId: interaction.user.id,
+          guildId,
+        },
       );
       await interaction.reply({
         content: pl.failAdd,
@@ -209,7 +172,10 @@ export const applicationPositionHandler = async (
         'Failed to remove position',
         error instanceof Error ? error : new Error(String(error)),
         LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId },
+        {
+          userId: interaction.user.id,
+          guildId,
+        },
       );
       await interaction.reply({
         content: pl.failRemove,
@@ -244,7 +210,11 @@ export const applicationPositionHandler = async (
       enhancedLogger.info(
         `Position toggled: "${position.title}" -> ${position.isActive ? 'active' : 'inactive'}`,
         LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId, positionId },
+        {
+          userId: interaction.user.id,
+          guildId,
+          positionId,
+        },
       );
 
       // update the application channel message
@@ -254,7 +224,10 @@ export const applicationPositionHandler = async (
         'Failed to toggle position',
         error instanceof Error ? error : new Error(String(error)),
         LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId },
+        {
+          userId: interaction.user.id,
+          guildId,
+        },
       );
       await interaction.reply({
         content: pl.failToggle,
@@ -295,7 +268,10 @@ export const applicationPositionHandler = async (
         'Failed to list positions',
         error instanceof Error ? error : new Error(String(error)),
         LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId },
+        {
+          userId: interaction.user.id,
+          guildId,
+        },
       );
       await interaction.reply({
         content: pl.failList,
@@ -348,11 +324,10 @@ export const applicationPositionHandler = async (
         flags: [MessageFlags.Ephemeral],
       });
 
-      enhancedLogger.info(
-        `Positions reindexed: ${positions.length} positions`,
-        LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId },
-      );
+      enhancedLogger.info(`Positions reindexed: ${positions.length} positions`, LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+        guildId,
+      });
 
       // Update the application channel message
       await updateApplicationMessage(interaction.client, guildId);
@@ -361,7 +336,10 @@ export const applicationPositionHandler = async (
         'Failed to reindex positions',
         error instanceof Error ? error : new Error(String(error)),
         LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId },
+        {
+          userId: interaction.user.id,
+          guildId,
+        },
       );
       await interaction.reply({
         content: pl.failReindex,
@@ -426,12 +404,7 @@ export async function buildApplicationMessage(positions: Position[]) {
 
   // Track emoji usage for duplicate button style cycling
   const emojiUsageCount = new Map<string, number>();
-  const styleCycle = [
-    ButtonStyle.Primary,
-    ButtonStyle.Secondary,
-    ButtonStyle.Success,
-    ButtonStyle.Danger,
-  ];
+  const styleCycle = [ButtonStyle.Primary, ButtonStyle.Secondary, ButtonStyle.Success, ButtonStyle.Danger];
 
   for (const position of positions) {
     const emoji = position.emoji || '📝';
@@ -475,18 +448,14 @@ export async function applicationPositionAutocomplete(interaction: AutocompleteI
     });
 
     const filtered = positions
-      .filter(
-        pos => pos.title.toLowerCase().includes(focused) || pos.id.toString().includes(focused),
-      )
+      .filter(pos => pos.title.toLowerCase().includes(focused) || pos.id.toString().includes(focused))
       .slice(0, 25)
       .map(pos => ({
         name: `#${pos.displayOrder} ${pos.emoji || '📝'} ${pos.title} (ID: ${pos.id})${pos.isActive ? '' : ' [inactive]'}`,
         value: pos.id.toString(),
       }));
 
-    await interaction.respond(
-      filtered.length > 0 ? filtered : [{ name: pl.autocomplete.noPositions, value: '0' }],
-    );
+    await interaction.respond(filtered.length > 0 ? filtered : [{ name: pl.autocomplete.noPositions, value: '0' }]);
   } catch {
     await interaction.respond([]);
   }

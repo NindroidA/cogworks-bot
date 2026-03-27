@@ -8,7 +8,7 @@ import {
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang, requireAdmin } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeRemove;
 
@@ -18,6 +18,15 @@ const tl = lang.ticket.customTypes.typeRemove;
  */
 export async function typeRemoveHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
+    const adminCheck = requireAdmin(interaction);
+    if (!adminCheck.allowed) {
+      await interaction.reply({
+        content: adminCheck.message ?? '',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     if (!interaction.guild) {
       enhancedLogger.warn('Type-remove handler: guild not found', LogCategory.COMMAND_EXECUTION, {
         userId: interaction.user.id,
@@ -32,11 +41,11 @@ export async function typeRemoveHandler(interaction: ChatInputCommandInteraction
     const guildId = interaction.guild.id;
     const typeId = interaction.options.getString('type', true);
 
-    enhancedLogger.debug(
-      `Command: /ticket type-remove type=${typeId}`,
-      LogCategory.COMMAND_EXECUTION,
-      { userId: interaction.user.id, guildId, typeId },
-    );
+    enhancedLogger.debug(`Command: /ticket type-remove type=${typeId}`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      typeId,
+    });
 
     const typeRepo = AppDataSource.getRepository(CustomTicketType);
 
@@ -45,11 +54,11 @@ export async function typeRemoveHandler(interaction: ChatInputCommandInteraction
     });
 
     if (!ticketType) {
-      enhancedLogger.warn(
-        `Type-remove: type '${typeId}' not found`,
-        LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId, typeId },
-      );
+      enhancedLogger.warn(`Type-remove: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+        guildId,
+        typeId,
+      });
       await interaction.reply({
         content: tl.notFound,
         flags: [MessageFlags.Ephemeral],
@@ -95,11 +104,11 @@ export async function typeRemoveHandler(interaction: ChatInputCommandInteraction
             components: [],
           });
 
-          enhancedLogger.info(
-            `Ticket type deleted: ${ticketType.typeId}`,
-            LogCategory.COMMAND_EXECUTION,
-            { guildId, typeId: ticketType.typeId, userId: interaction.user.id },
-          );
+          enhancedLogger.info(`Ticket type deleted: ${ticketType.typeId}`, LogCategory.COMMAND_EXECUTION, {
+            guildId,
+            typeId: ticketType.typeId,
+            userId: interaction.user.id,
+          });
         } catch {
           await i.update({
             content: tl.error,

@@ -64,29 +64,10 @@ const STEAM_LOOKALIKES = [
 ];
 
 // Suspicious TLDs (only flagged when combined with suspicious path keywords)
-const SUSPICIOUS_TLDS = new Set([
-  '.xyz',
-  '.tk',
-  '.ml',
-  '.cf',
-  '.ga',
-  '.gq',
-  '.top',
-  '.buzz',
-  '.click',
-]);
+const SUSPICIOUS_TLDS = new Set(['.xyz', '.tk', '.ml', '.cf', '.ga', '.gq', '.top', '.buzz', '.click']);
 
 // Suspicious path keywords (trigger phishing flag only with suspicious TLD)
-const SUSPICIOUS_PATH_KEYWORDS = [
-  'nitro',
-  'gift',
-  'free',
-  'login',
-  'verify',
-  'claim',
-  'reward',
-  'steam',
-];
+const SUSPICIOUS_PATH_KEYWORDS = ['nitro', 'gift', 'free', 'login', 'verify', 'claim', 'reward', 'steam'];
 
 /**
  * Parse hostname from a URL string safely.

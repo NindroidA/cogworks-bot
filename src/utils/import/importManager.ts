@@ -142,7 +142,11 @@ export class ImportManager {
         `Import failed for guild ${guildId}`,
         error instanceof Error ? error : undefined,
         LogCategory.COMMAND_EXECUTION,
-        { guildId, source, dataType },
+        {
+          guildId,
+          source,
+          dataType,
+        },
       );
 
       importLog.status = 'failed';

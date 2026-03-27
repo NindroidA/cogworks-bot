@@ -20,7 +20,7 @@ jobs:
           VERSION=$(grep -oE '## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
           VERSION="v${VERSION:-Latest}"
 
-          # Extract the first changelog section (between first and second ## [version])
+          # Extract the first changelog section — top-level items only (skip nested sub-bullets)
           CHANGELOG=$(awk '
             BEGIN { found=0; in_section=0 }
 
@@ -38,8 +38,14 @@ jobs:
               next;
             }
 
-            # Print content within sections (skip blank lines to avoid extra Discord spacing)
-            found && in_section && /\S/ { print }
+            # Print only first-level bullets (- Item) — skip nested bullets (  - Sub-item)
+            found && in_section && /^- / { print; next }
+
+            # Skip nested bullets and other indented content
+            found && in_section && /^  / { next }
+
+            # Print non-indented non-blank lines (e.g., paragraphs)
+            found && in_section && /\S/ && !/^  / { print }
 
           ' CHANGELOG.md)
 

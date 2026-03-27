@@ -10,7 +10,6 @@
  * - Graceful degradation
  */
 
-import axios, { type AxiosError, type AxiosInstance } from 'axios';
 import type { Client } from 'discord.js';
 import { version } from '../../package.json';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
@@ -19,23 +18,23 @@ import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
  * Bot stats data sent to API (v1.3.0 format)
  */
 interface BotStatsPayload {
-  botId: string; // client.user.id
-  username: string; // client.user.username
-  guilds: number; // Number of guilds
-  users: number; // Number of users
-  uptime: number; // Process uptime in seconds
-  memoryUsage: number; // Heap memory usage in bytes
-  version: string; // Bot version
-  environment: string; // 'production' or 'development'
+  botId: string;
+  username: string;
+  guilds: number;
+  users: number;
+  uptime: number;
+  memoryUsage: number;
+  version: string;
+  environment: string;
 }
 
 /**
  * Circuit breaker states
  */
 enum CircuitState {
-  CLOSED = 'CLOSED', // Normal operation
-  OPEN = 'OPEN', // Too many failures, blocking requests
-  HALF_OPEN = 'HALF_OPEN', // Testing if service recovered
+  CLOSED = 'CLOSED',
+  OPEN = 'OPEN',
+  HALF_OPEN = 'HALF_OPEN',
 }
 
 /**
@@ -58,8 +57,8 @@ interface APIMetrics {
  */
 interface RetryConfig {
   maxRetries: number;
-  baseDelay: number; // Initial delay in ms
-  maxDelay: number; // Maximum delay in ms
+  baseDelay: number;
+  maxDelay: number;
   backoffMultiplier: number;
 }
 
@@ -67,22 +66,18 @@ interface RetryConfig {
  * Circuit breaker configuration
  */
 interface CircuitBreakerConfig {
-  failureThreshold: number; // Number of failures before opening
-  resetTimeout: number; // Time in ms before attempting half-open
-  halfOpenMaxAttempts: number; // Max requests to test in half-open state
+  failureThreshold: number;
+  resetTimeout: number;
+  halfOpenMaxAttempts: number;
 }
 
 /**
  * Enhanced connector class for communicating with API.
- * Features:
- * - Retry logic with exponential backoff
- * - Circuit breaker pattern for fault tolerance
- * - Health monitoring and metrics
- * - Request/response logging
- * - Graceful degradation
+ * Uses native fetch — no external HTTP library needed.
  */
 export class APIConnector {
-  private apiClient: AxiosInstance;
+  private readonly baseURL: string;
+  private readonly headers: Record<string, string>;
   private statsInterval: NodeJS.Timeout | null = null;
   private healthCheckInterval: NodeJS.Timeout | null = null;
   private isConnected: boolean = false;
@@ -108,87 +103,79 @@ export class APIConnector {
   // Configuration
   private readonly retryConfig: RetryConfig = {
     maxRetries: 3,
-    baseDelay: 1000, // 1 second
-    maxDelay: 30000, // 30 seconds
+    baseDelay: 1000,
+    maxDelay: 30000,
     backoffMultiplier: 2,
   };
 
   private readonly circuitBreakerConfig: CircuitBreakerConfig = {
     failureThreshold: 5,
-    resetTimeout: 60000, // 1 minute
+    resetTimeout: 60000,
     halfOpenMaxAttempts: 3,
   };
 
-  /**
-   * Initialize the API connector.
-   *
-   * @param {string} apiUrl Base URL of the API
-   * @param {string} botToken Cogworks Bot token for authentication
-   */
   constructor(apiUrl: string, botToken: string) {
-    this.apiClient = axios.create({
-      baseURL: apiUrl,
-      timeout: 10000,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${botToken}`,
-      },
-    });
+    this.baseURL = apiUrl;
+    this.headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${botToken}`,
+    };
+  }
 
-    // Add response interceptor for logging and metrics
-    this.apiClient.interceptors.response.use(
-      response => {
-        this.recordSuccess(response.config.url || 'unknown');
-        return response;
-      },
-      (error: AxiosError) => {
-        this.recordFailure(error.config?.url || 'unknown', error);
-        return Promise.reject(error);
-      },
-    );
+  /**
+   * Make an HTTP request using native fetch.
+   */
+  private async request<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
+    const url = `${this.baseURL}${path}`;
+    const options: RequestInit = {
+      method,
+      headers: this.headers,
+      signal: AbortSignal.timeout(10000), // 10s timeout
+    };
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(url, options);
+
+    if (!response.ok) {
+      const error = new Error(`API ${method} ${path} failed: ${response.status} ${response.statusText}`) as Error & {
+        status: number;
+      };
+      error.status = response.status;
+      throw error;
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (contentType?.includes('application/json')) {
+      return (await response.json()) as T;
+    }
+    return undefined as T;
   }
 
   /**
    * Register the bot with API with retry logic.
-   * Sends initial bot data and establishes connection.
-   *
-   * @param {Client} client Discord.js client instance
    */
   async registerBot(client: Client): Promise<void> {
     try {
-      // Verify API is accessible
-      await this.makeRequestWithRetry(() => this.apiClient.get('/health'));
+      await this.makeRequestWithRetry(() => this.request('GET', '/health'));
 
-      // Send initial bot registration data
       const botData = this.createBotStatsPayload(client);
-      await this.makeRequestWithRetry(() => this.apiClient.post('/v2/cogworks/register', botData));
+      await this.makeRequestWithRetry(() => this.request('POST', '/v2/cogworks/register', botData));
 
       this.isConnected = true;
       this.startHealthCheck();
       enhancedLogger.info('Bot registered with API', LogCategory.API);
     } catch {
-      enhancedLogger.error(
-        'Failed to register bot with API',
-        new Error('API registration failed'),
-        LogCategory.API,
-      );
+      enhancedLogger.error('Failed to register bot with API', new Error('API registration failed'), LogCategory.API);
       this.isConnected = false;
-      // Don't throw - allow bot to continue without API
     }
   }
 
   /**
    * Make an HTTP request with retry logic and exponential backoff.
-   *
-   * @param requestFn Function that makes the axios request
-   * @param retryCount Current retry attempt
-   * @returns Promise with the response
    */
-  private async makeRequestWithRetry<T>(
-    requestFn: () => Promise<T>,
-    retryCount: number = 0,
-  ): Promise<T> {
-    // Check circuit breaker
+  private async makeRequestWithRetry<T>(requestFn: () => Promise<T>, retryCount: number = 0): Promise<T> {
     if (!this.canMakeRequest()) {
       throw new Error('Circuit breaker is OPEN - API is unavailable');
     }
@@ -200,15 +187,15 @@ export class APIConnector {
     try {
       const response = await requestFn();
 
-      // Update metrics
       const duration = Date.now() - startTime;
       this.updateAverageResponseTime(duration);
+      this.recordSuccess();
 
       return response;
     } catch (error) {
       this.metrics.totalRetries++;
+      this.recordFailure(error as Error);
 
-      // Check if we should retry
       if (retryCount < this.retryConfig.maxRetries && this.shouldRetry(error as Error)) {
         const delay = this.calculateBackoff(retryCount);
         enhancedLogger.warn(
@@ -220,137 +207,88 @@ export class APIConnector {
         return this.makeRequestWithRetry(requestFn, retryCount + 1);
       }
 
-      // All retries exhausted
       throw error;
     }
   }
 
-  /**
-   * Check if circuit breaker allows requests
-   */
   private canMakeRequest(): boolean {
     const now = Date.now();
-
     switch (this.circuitState) {
       case CircuitState.CLOSED:
         return true;
-
       case CircuitState.OPEN:
-        // Check if enough time has passed to try half-open
         if (now - this.circuitStateChangedAt >= this.circuitBreakerConfig.resetTimeout) {
           this.transitionToHalfOpen();
           return true;
         }
         return false;
-
       case CircuitState.HALF_OPEN:
-        // Allow limited requests in half-open state
         return this.halfOpenAttempts < this.circuitBreakerConfig.halfOpenMaxAttempts;
-
       default:
         return false;
     }
   }
 
-  /**
-   * Determine if an error is retryable
-   */
   private shouldRetry(error: Error): boolean {
-    const axiosError = error as AxiosError;
-
-    // Don't retry on 4xx errors (client errors)
-    if (
-      axiosError.response?.status &&
-      axiosError.response.status >= 400 &&
-      axiosError.response.status < 500
-    ) {
+    const status = (error as Error & { status?: number }).status;
+    // Don't retry on 4xx client errors
+    if (status && status >= 400 && status < 500) {
       return false;
     }
-
-    // Retry on network errors, timeouts, and 5xx errors
     return true;
   }
 
-  /**
-   * Calculate exponential backoff delay
-   */
   private calculateBackoff(retryCount: number): number {
     const delay = Math.min(
       this.retryConfig.baseDelay * this.retryConfig.backoffMultiplier ** retryCount,
       this.retryConfig.maxDelay,
     );
-
-    // Add jitter to prevent thundering herd
     const jitter = Math.random() * 0.3 * delay;
     return Math.floor(delay + jitter);
   }
 
-  /**
-   * Sleep for specified milliseconds
-   */
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  /**
-   * Record successful API request
-   */
-  private recordSuccess(endpoint: string): void {
+  private recordSuccess(): void {
     this.metrics.successfulRequests++;
     this.metrics.lastSuccessTime = Date.now();
     this.metrics.consecutiveFailures = 0;
 
-    // Circuit breaker logic
     if (this.circuitState === CircuitState.HALF_OPEN) {
       this.halfOpenAttempts++;
-
-      // If we've had enough successful attempts, close the circuit
       if (this.halfOpenAttempts >= this.circuitBreakerConfig.halfOpenMaxAttempts) {
         this.transitionToClosed();
       }
     }
-
-    enhancedLogger.debug(
-      `API Success: ${endpoint} (${this.metrics.successfulRequests}/${this.metrics.totalRequests})`,
-      LogCategory.API,
-    );
   }
 
-  /**
-   * Record failed API request
-   */
-  private recordFailure(endpoint: string, error: AxiosError): void {
+  private recordFailure(error: Error): void {
     this.metrics.failedRequests++;
     this.metrics.lastErrorTime = Date.now();
     this.metrics.consecutiveFailures++;
 
-    const status = error.response?.status || 'network error';
+    const status = (error as Error & { status?: number }).status || 'network error';
     enhancedLogger.warn(
-      `API Failure: ${endpoint} (${status}) - ${this.metrics.consecutiveFailures} consecutive failures`,
+      `API Failure (${status}) - ${this.metrics.consecutiveFailures} consecutive failures`,
       LogCategory.API,
       {
-        endpoint,
         status,
         consecutiveFailures: this.metrics.consecutiveFailures,
       },
     );
 
-    // Circuit breaker logic
     if (this.circuitState === CircuitState.HALF_OPEN) {
-      // Failed in half-open, go back to open
       this.transitionToOpen();
     } else if (
       this.circuitState === CircuitState.CLOSED &&
       this.metrics.consecutiveFailures >= this.circuitBreakerConfig.failureThreshold
     ) {
-      // Too many failures, open the circuit
       this.transitionToOpen();
     }
   }
 
-  /**
-   * Transition circuit breaker to CLOSED state
-   */
   private transitionToClosed(): void {
     enhancedLogger.info('Circuit Breaker: CLOSED (API healthy)', LogCategory.API);
     this.circuitState = CircuitState.CLOSED;
@@ -359,22 +297,13 @@ export class APIConnector {
     this.metrics.consecutiveFailures = 0;
   }
 
-  /**
-   * Transition circuit breaker to OPEN state
-   */
   private transitionToOpen(): void {
-    enhancedLogger.warn(
-      'Circuit Breaker: OPEN (API unhealthy, blocking requests)',
-      LogCategory.API,
-    );
+    enhancedLogger.warn('Circuit Breaker: OPEN (API unhealthy, blocking requests)', LogCategory.API);
     this.circuitState = CircuitState.OPEN;
     this.circuitStateChangedAt = Date.now();
     this.halfOpenAttempts = 0;
   }
 
-  /**
-   * Transition circuit breaker to HALF_OPEN state
-   */
   private transitionToHalfOpen(): void {
     enhancedLogger.info('Circuit Breaker: HALF-OPEN (testing API recovery)', LogCategory.API);
     this.circuitState = CircuitState.HALF_OPEN;
@@ -382,18 +311,11 @@ export class APIConnector {
     this.halfOpenAttempts = 0;
   }
 
-  /**
-   * Update average response time metric
-   */
   private updateAverageResponseTime(duration: number): void {
-    const totalDuration =
-      this.metrics.averageResponseTime * (this.metrics.successfulRequests - 1) + duration;
+    const totalDuration = this.metrics.averageResponseTime * (this.metrics.successfulRequests - 1) + duration;
     this.metrics.averageResponseTime = totalDuration / this.metrics.successfulRequests;
   }
 
-  /**
-   * Start periodic health checks
-   */
   private startHealthCheck(): void {
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
@@ -408,17 +330,11 @@ export class APIConnector {
       } catch {
         // Silent fail for health checks
       }
-    }, 300000); // Check every 5 minutes
+    }, 300000);
 
     enhancedLogger.info('Started API health monitoring (5m interval)', LogCategory.API);
   }
 
-  /**
-   * Start periodic stats synchronization with API.
-   * Sends updated bot statistics every 5 minutes with retry logic.
-   *
-   * @param {Client} client - Discord.js client instance
-   */
   startStatsSync(client: Client): void {
     if (this.statsInterval) {
       clearInterval(this.statsInterval);
@@ -428,23 +344,16 @@ export class APIConnector {
       try {
         if (client.isReady() && this.isConnected) {
           const stats = this.createBotStatsPayload(client);
-          await this.makeRequestWithRetry(() => this.apiClient.put('/v2/cogworks/stats', stats));
+          await this.makeRequestWithRetry(() => this.request('PUT', '/v2/cogworks/stats', stats));
         }
       } catch {
-        // Don't throw - just log the error and continue
         enhancedLogger.warn('Failed to sync stats with API', LogCategory.API);
       }
-    }, 300000); // 5 minutes
+    }, 300000);
 
     enhancedLogger.info('Started stats synchronization (5m interval)', LogCategory.API);
   }
 
-  /**
-   * Create bot stats payload for API communication (v1.3.0 format)
-   *
-   * @param {Client} client Discord.js client instance
-   * @returns {BotStatsPayload} Formatted bot statistics
-   */
   private createBotStatsPayload(client: Client): BotStatsPayload {
     return {
       botId: client.user?.id || 'unknown',
@@ -458,19 +367,11 @@ export class APIConnector {
     };
   }
 
-  /**
-   * Send a command execution log to API with retry logic.
-   * Useful for tracking bot usage through the API.
-   *
-   * @param {string} commandName Name of the executed command
-   * @param {string} guildId Guild where command was executed
-   * @param {string} userId User who executed the command
-   */
   async logCommand(commandName: string, guildId: string, userId: string): Promise<void> {
     try {
       if (this.isConnected) {
         await this.makeRequestWithRetry(() =>
-          this.apiClient.post('/v2/cogworks/command-log', {
+          this.request('POST', '/v2/cogworks/command-log', {
             command: commandName,
             guildId,
             userId,
@@ -479,63 +380,37 @@ export class APIConnector {
         );
       }
     } catch {
-      // Silent fail for command logging - not critical
       enhancedLogger.warn('Failed to log command to API', LogCategory.API);
     }
   }
 
-  /**
-   * Get current API connection status.
-   *
-   * @returns {boolean} True if connected to API
-   */
   isConnectedToAPI(): boolean {
     return this.isConnected && this.circuitState !== CircuitState.OPEN;
   }
 
-  /**
-   * Manually trigger a stats sync with retry logic.
-   *
-   * @param {Client} client Discord.js client instance
-   */
   async syncStats(client: Client): Promise<void> {
     if (client.isReady() && this.isConnected) {
       const stats = this.createBotStatsPayload(client);
-      await this.makeRequestWithRetry(() => this.apiClient.put('/v2/cogworks/stats', stats));
+      await this.makeRequestWithRetry(() => this.request('PUT', '/v2/cogworks/stats', stats));
     }
   }
 
-  /**
-   * Test connection to API with circuit breaker awareness.
-   *
-   * @returns {Promise<boolean>} True if API is accessible
-   */
   async testConnection(): Promise<boolean> {
     try {
       if (!this.canMakeRequest()) {
         return false;
       }
-      await this.makeRequestWithRetry(() => this.apiClient.get('/health'));
+      await this.makeRequestWithRetry(() => this.request('GET', '/health'));
       return true;
     } catch {
       return false;
     }
   }
 
-  /**
-   * Get current API metrics for monitoring.
-   *
-   * @returns {APIMetrics} Current API statistics
-   */
   getMetrics(): APIMetrics {
     return { ...this.metrics };
   }
 
-  /**
-   * Get circuit breaker state.
-   *
-   * @returns Circuit breaker state and info
-   */
   getCircuitBreakerStatus(): {
     state: CircuitState;
     stateChangedAt: number;
@@ -550,21 +425,12 @@ export class APIConnector {
     };
   }
 
-  /**
-   * Reset circuit breaker and metrics (admin function).
-   * Use with caution!
-   */
   resetCircuitBreaker(): void {
     this.transitionToClosed();
     enhancedLogger.info('Circuit breaker manually reset', LogCategory.API);
   }
 
-  /**
-   * Disconnect from API.
-   * Stops stats sync, health checks, and cleans up resources.
-   */
   async disconnect(): Promise<void> {
-    // Stop intervals
     if (this.statsInterval) {
       clearInterval(this.statsInterval);
       this.statsInterval = null;
@@ -575,11 +441,10 @@ export class APIConnector {
       this.healthCheckInterval = null;
     }
 
-    // Notify API of disconnect
     if (this.isConnected) {
       try {
         await this.makeRequestWithRetry(() =>
-          this.apiClient.post('/v2/cogworks/disconnect', {
+          this.request('POST', '/v2/cogworks/disconnect', {
             timestamp: new Date().toISOString(),
             metrics: this.metrics,
           }),
@@ -591,14 +456,9 @@ export class APIConnector {
 
     this.isConnected = false;
     enhancedLogger.info('Disconnected from API', LogCategory.API);
-
-    // Log final metrics
     this.logMetricsSummary();
   }
 
-  /**
-   * Log metrics summary (useful for debugging and monitoring).
-   */
   private logMetricsSummary(): void {
     const successRate =
       this.metrics.totalRequests > 0

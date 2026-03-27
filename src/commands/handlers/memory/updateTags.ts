@@ -1,28 +1,9 @@
-import type {
-  ChatInputCommandInteraction,
-  ForumChannel,
-  MessageComponentInteraction,
-  ThreadChannel,
-} from 'discord.js';
+import type { ChatInputCommandInteraction, ForumChannel, MessageComponentInteraction, ThreadChannel } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import { MemoryConfig, MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
-import {
-  createRateLimitKey,
-  E,
-  enhancedLogger,
-  healthMonitor,
-  LogCategory,
-  lang,
-  RateLimits,
-  rateLimiter,
-  requireAdmin,
-} from '../../../utils';
+import { E, enhancedLogger, guardAdminRateLimit, healthMonitor, LogCategory, lang, RateLimits } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
-import {
-  createDefaultSelectionState,
-  runTagSelectionCollector,
-  type TagSelectionState,
-} from './tagSelection';
+import { createDefaultSelectionState, runTagSelectionCollector, type TagSelectionState } from './tagSelection';
 
 const tl = lang.memory;
 const memoryConfigRepo = lazyRepo(MemoryConfig);
@@ -31,22 +12,14 @@ const memoryItemRepo = lazyRepo(MemoryItem);
 
 export const memoryUpdateTagsHandler = async (interaction: ChatInputCommandInteraction) => {
   const startTime = Date.now();
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({ content: adminCheck.message, flags: [MessageFlags.Ephemeral] });
-    return;
-  }
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'memory-update-tags',
+    limit: RateLimits.MEMORY_OPERATION,
+    scope: 'userGuild',
+  });
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
-  const userId = interaction.user.id;
-
-  const rateLimitKey = createRateLimitKey.userGuild(userId, guildId, 'memory-update-tags');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.MEMORY_OPERATION);
-  if (!rateCheck.allowed) {
-    await interaction.reply({ content: rateCheck.message!, flags: [MessageFlags.Ephemeral] });
-    healthMonitor.recordCommand('memory update-tags', Date.now() - startTime, true);
-    return;
-  }
 
   const threadId = interaction.options.getString('thread', true);
 
@@ -61,7 +34,10 @@ export const memoryUpdateTagsHandler = async (interaction: ChatInputCommandInter
   }
 
   // Resolve config from memory item's memoryConfigId
-  const config = await memoryConfigRepo.findOneBy({ guildId, id: memoryItem.memoryConfigId });
+  const config = await memoryConfigRepo.findOneBy({
+    guildId,
+    id: memoryItem.memoryConfigId,
+  });
   if (!config) {
     await interaction.reply({
       content: `${E.error} ${tl.errors.notConfigured}`,
@@ -72,10 +48,18 @@ export const memoryUpdateTagsHandler = async (interaction: ChatInputCommandInter
 
   // Get available tags scoped by memoryConfigId
   const categoryTags = await memoryTagRepo.find({
-    where: { guildId, memoryConfigId: memoryItem.memoryConfigId, tagType: 'category' },
+    where: {
+      guildId,
+      memoryConfigId: memoryItem.memoryConfigId,
+      tagType: 'category',
+    },
   });
   const statusTags = await memoryTagRepo.find({
-    where: { guildId, memoryConfigId: memoryItem.memoryConfigId, tagType: 'status' },
+    where: {
+      guildId,
+      memoryConfigId: memoryItem.memoryConfigId,
+      tagType: 'status',
+    },
   });
 
   if (categoryTags.length === 0 || statusTags.length === 0) {
@@ -110,15 +94,7 @@ export const memoryUpdateTagsHandler = async (interaction: ChatInputCommandInter
       description: `Updating tags for: **${memoryItem.title}**`,
     },
     async (i: MessageComponentInteraction) => {
-      await applyTagUpdate(
-        i,
-        selectionState,
-        guildId,
-        config.forumChannelId,
-        threadId,
-        memoryItem,
-        startTime,
-      );
+      await applyTagUpdate(i, selectionState, guildId, config.forumChannelId, threadId, memoryItem, startTime);
     },
   );
 };
@@ -137,7 +113,9 @@ async function applyTagUpdate(
   try {
     const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
     if (!forum) {
-      await interaction.editReply({ content: `${E.error} ${tl.errors.forumNotFound}` });
+      await interaction.editReply({
+        content: `${E.error} ${tl.errors.forumNotFound}`,
+      });
       return;
     }
 
@@ -145,7 +123,9 @@ async function applyTagUpdate(
     try {
       thread = (await interaction.guild!.channels.fetch(threadId)) as ThreadChannel;
     } catch {
-      await interaction.editReply({ content: `${E.error} ${tl.quickUpdate.threadNotFound}` });
+      await interaction.editReply({
+        content: `${E.error} ${tl.quickUpdate.threadNotFound}`,
+      });
       return;
     }
 
@@ -186,9 +166,13 @@ async function applyTagUpdate(
       `Memory update-tags error: ${error}`,
       error instanceof Error ? error : undefined,
       LogCategory.COMMAND_EXECUTION,
-      { guildId },
+      {
+        guildId,
+      },
     );
-    await interaction.editReply({ content: `${E.error} ${tl.quickUpdate.tagsError}` });
+    await interaction.editReply({
+      content: `${E.error} ${tl.quickUpdate.tagsError}`,
+    });
     healthMonitor.recordCommand('memory update-tags', Date.now() - startTime, true);
   }
 }

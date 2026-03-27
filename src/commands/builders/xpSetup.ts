@@ -78,11 +78,7 @@ export const xpSetup = new SlashCommandBuilder()
       .setName('role-reward-remove')
       .setDescription('Remove a role reward')
       .addIntegerOption(option =>
-        option
-          .setName('level')
-          .setDescription('The level to remove the reward from')
-          .setRequired(true)
-          .setMinValue(1),
+        option.setName('level').setDescription('The level to remove the reward from').setRequired(true).setMinValue(1),
       ),
   )
   // role-reward list
@@ -146,7 +142,5 @@ export const xpSetup = new SlashCommandBuilder()
       ),
   )
   // import mee6
-  .addSubcommand(sub =>
-    sub.setName('import-mee6').setDescription('Import XP data from MEE6 leaderboard'),
-  )
+  .addSubcommand(sub => sub.setName('import-mee6').setDescription('Import XP data from MEE6 leaderboard'))
   .toJSON();

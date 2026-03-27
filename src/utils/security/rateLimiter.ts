@@ -19,7 +19,7 @@ interface RateLimitEntry {
 /**
  * Rate limit configuration
  */
-interface RateLimitConfig {
+export interface RateLimitConfig {
   maxAttempts: number;
   windowMs: number;
   message?: string;
@@ -56,18 +56,12 @@ class RateLimiter {
    * @param config - Rate limit configuration
    * @returns Object with allowed status and optional message
    */
-  public check(
-    key: string,
-    config: RateLimitConfig,
-  ): { allowed: boolean; message?: string; resetIn?: number } {
+  public check(key: string, config: RateLimitConfig): { allowed: boolean; message?: string; resetIn?: number } {
     // Check if we're in dev mode - bypass rate limits
     if (this.isDevMode) {
       // Only log once per session to avoid spam
       if (!this.devModeLogged) {
-        enhancedLogger.info(
-          'Rate limiter running in dev mode - all limits bypassed',
-          LogCategory.SYSTEM,
-        );
+        enhancedLogger.info('Rate limiter running in dev mode - all limits bypassed', LogCategory.SYSTEM);
         this.devModeLogged = true;
       }
       return { allowed: true };
@@ -145,10 +139,7 @@ class RateLimiter {
     }
 
     if (removed > 0) {
-      enhancedLogger.debug(
-        `Rate limiter cleanup: removed ${removed} expired entries`,
-        LogCategory.SYSTEM,
-      );
+      enhancedLogger.debug(`Rate limiter cleanup: removed ${removed} expired entries`, LogCategory.SYSTEM);
     }
   }
 
@@ -211,22 +202,19 @@ export const RateLimits = {
   TICKET_CREATE: {
     maxAttempts: 3,
     windowMs: 60 * 60 * 1000, // 1 hour
-    message:
-      '⏱️ You can only create 3 tickets per hour. Please wait before creating another ticket.',
+    message: '⏱️ You can only create 3 tickets per hour. Please wait before creating another ticket.',
   },
 
   APPLICATION_CREATE: {
     maxAttempts: 2,
     windowMs: 24 * 60 * 60 * 1000, // 24 hours
-    message:
-      '⏱️ You can only submit 2 applications per day. Please wait before submitting another application.',
+    message: '⏱️ You can only submit 2 applications per day. Please wait before submitting another application.',
   },
 
   ANNOUNCEMENT_CREATE: {
     maxAttempts: 5,
     windowMs: 60 * 60 * 1000, // 1 hour
-    message:
-      '⏱️ You can only create 5 announcements per hour. Please wait before creating another announcement.',
+    message: '⏱️ You can only create 5 announcements per hour. Please wait before creating another announcement.',
   },
 
   ROLE_SAVE: {
@@ -239,57 +227,49 @@ export const RateLimits = {
   BOT_SETUP: {
     maxAttempts: 5,
     windowMs: 60 * 60 * 1000, // 1 hour
-    message:
-      '⏱️ Bot setup can only be modified 5 times per hour. Please wait before making more changes.',
+    message: '⏱️ Bot setup can only be modified 5 times per hour. Please wait before making more changes.',
   },
 
   DATA_EXPORT: {
     maxAttempts: 1,
     windowMs: 24 * 60 * 60 * 1000, // 24 hours
-    message:
-      '⏱️ Data export can only be requested once per day. Please wait before exporting again.',
+    message: '⏱️ Data export can only be requested once per day. Please wait before exporting again.',
   },
 
   TICKET_SETUP: {
     maxAttempts: 10,
     windowMs: 60 * 60 * 1000, // 1 hour
-    message:
-      '⏱️ Ticket setup can only be modified 10 times per hour. Please wait before making more changes.',
+    message: '⏱️ Ticket setup can only be modified 10 times per hour. Please wait before making more changes.',
   },
 
   APPLICATION_SETUP: {
     maxAttempts: 10,
     windowMs: 60 * 60 * 1000, // 1 hour
-    message:
-      '⏱️ Application setup can only be modified 10 times per hour. Please wait before making more changes.',
+    message: '⏱️ Application setup can only be modified 10 times per hour. Please wait before making more changes.',
   },
 
   APPLICATION_POSITION: {
     maxAttempts: 15,
     windowMs: 60 * 60 * 1000, // 1 hour
-    message:
-      '⏱️ Position management can only be modified 15 times per hour. Please wait before making more changes.',
+    message: '⏱️ Position management can only be modified 15 times per hour. Please wait before making more changes.',
   },
 
   ANNOUNCEMENT_SETUP: {
     maxAttempts: 5,
     windowMs: 60 * 60 * 1000, // 1 hour
-    message:
-      '⏱️ Announcement setup can only be modified 5 times per hour. Please wait before making more changes.',
+    message: '⏱️ Announcement setup can only be modified 5 times per hour. Please wait before making more changes.',
   },
 
   BAIT_CHANNEL: {
     maxAttempts: 10,
     windowMs: 60 * 60 * 1000, // 1 hour
-    message:
-      '⏱️ Bait channel commands can only be used 10 times per hour. Please wait before making more changes.',
+    message: '⏱️ Bait channel commands can only be used 10 times per hour. Please wait before making more changes.',
   },
 
   MEMORY_OPERATION: {
     maxAttempts: 20,
     windowMs: 60 * 60 * 1000, // 1 hour
-    message:
-      '⏱️ Memory operations can only be performed 20 times per hour. Please wait before making more changes.',
+    message: '⏱️ Memory operations can only be performed 20 times per hour. Please wait before making more changes.',
   },
 
   // Global limits (per user across all guilds)

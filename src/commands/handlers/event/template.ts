@@ -21,7 +21,7 @@ import {
 } from 'discord.js';
 import eventLang from '../../../lang/event.json';
 import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
-import { enhancedLogger, LogCategory, lang, requireAdmin, sanitizeUserInput } from '../../../utils';
+import { enhancedLogger, LogCategory, lang, notifyModalTimeout, requireAdmin, sanitizeUserInput } from '../../../utils';
 import { MAX } from '../../../utils/constants';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
@@ -36,7 +36,7 @@ const tl = eventLang.template;
  * Main template subcommand router.
  */
 export async function eventTemplateHandler(
-  client: Client,
+  _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
   const subcommand = interaction.options.getSubcommand();
@@ -77,10 +77,7 @@ export async function eventTemplateHandler(
 // Create
 // ============================================================================
 
-async function handleCreate(
-  interaction: ChatInputCommandInteraction<CacheType>,
-  guildId: string,
-): Promise<void> {
+async function handleCreate(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
   const count = await templateRepo.count({ where: { guildId } });
   if (count >= MAX_EVENT_TEMPLATES) {
     await interaction.reply({
@@ -143,14 +140,16 @@ async function handleCreate(
 
   await interaction.showModal(modal);
 
-  const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(() => null);
+  const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
+    await notifyModalTimeout(interaction);
+    return null;
+  });
   if (!modalInteraction) return;
 
   const name = modalInteraction.fields.getTextInputValue('name').toLowerCase().trim();
   const title = sanitizeUserInput(modalInteraction.fields.getTextInputValue('title'));
   const description = modalInteraction.fields.getTextInputValue('description').trim() || null;
-  const typeInput =
-    modalInteraction.fields.getTextInputValue('type').trim().toLowerCase() || 'external';
+  const typeInput = modalInteraction.fields.getTextInputValue('type').trim().toLowerCase() || 'external';
   const durationInput = modalInteraction.fields.getTextInputValue('duration').trim() || '60';
 
   // Validate name
@@ -168,8 +167,7 @@ async function handleCreate(
 
   // Validate duration
   const duration = Number.parseInt(durationInput, 10);
-  const defaultDurationMinutes =
-    Number.isNaN(duration) || duration < 1 || duration > 1440 ? 60 : duration;
+  const defaultDurationMinutes = Number.isNaN(duration) || duration < 1 || duration > 1440 ? 60 : duration;
 
   // Check duplicate
   const existing = await templateRepo.findOneBy({ guildId, name });
@@ -201,14 +199,9 @@ async function handleCreate(
 
     enhancedLogger.command(`Event template '${name}' created`, interaction.user.id, guildId);
   } catch (error) {
-    enhancedLogger.error(
-      'Event template create failed',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        guildId,
-      },
-    );
+    enhancedLogger.error('Event template create failed', error as Error, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+    });
     await modalInteraction.reply({
       content: tl.create.error,
       flags: [MessageFlags.Ephemeral],
@@ -220,12 +213,12 @@ async function handleCreate(
 // Edit
 // ============================================================================
 
-async function handleEdit(
-  interaction: ChatInputCommandInteraction<CacheType>,
-  guildId: string,
-): Promise<void> {
+async function handleEdit(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
   const templateName = interaction.options.getString('template', true);
-  const template = await templateRepo.findOneBy({ guildId, name: templateName });
+  const template = await templateRepo.findOneBy({
+    guildId,
+    name: templateName,
+  });
 
   if (!template) {
     await interaction.reply({
@@ -288,7 +281,10 @@ async function handleEdit(
 
   await interaction.showModal(modal);
 
-  const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(() => null);
+  const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
+    await notifyModalTimeout(interaction);
+    return null;
+  });
   if (!modalInteraction) return;
 
   try {
@@ -321,14 +317,9 @@ async function handleEdit(
 
     enhancedLogger.command(`Event template '${templateName}' edited`, interaction.user.id, guildId);
   } catch (error) {
-    enhancedLogger.error(
-      'Event template edit failed',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        guildId,
-      },
-    );
+    enhancedLogger.error('Event template edit failed', error as Error, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+    });
     await modalInteraction.reply({
       content: tl.edit.error,
       flags: [MessageFlags.Ephemeral],
@@ -340,12 +331,12 @@ async function handleEdit(
 // Delete
 // ============================================================================
 
-async function handleDelete(
-  interaction: ChatInputCommandInteraction<CacheType>,
-  guildId: string,
-): Promise<void> {
+async function handleDelete(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
   const templateName = interaction.options.getString('template', true);
-  const template = await templateRepo.findOneBy({ guildId, name: templateName });
+  const template = await templateRepo.findOneBy({
+    guildId,
+    name: templateName,
+  });
 
   if (!template) {
     await interaction.reply({
@@ -395,11 +386,7 @@ async function handleDelete(
       components: [],
     });
 
-    enhancedLogger.command(
-      `Event template '${templateName}' deleted`,
-      interaction.user.id,
-      guildId,
-    );
+    enhancedLogger.command(`Event template '${templateName}' deleted`, interaction.user.id, guildId);
   } catch {
     // Timeout
   }
@@ -409,10 +396,7 @@ async function handleDelete(
 // List
 // ============================================================================
 
-async function handleList(
-  interaction: ChatInputCommandInteraction<CacheType>,
-  guildId: string,
-): Promise<void> {
+async function handleList(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
   const templates = await templateRepo.find({
     where: { guildId },
     order: { name: 'ASC' },

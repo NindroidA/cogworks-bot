@@ -5,8 +5,8 @@
  * Validates snowflake IDs and numeric values.
  */
 
+import { isValidSnowflake } from '../api/helpers';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
-import { validateSnowflake } from '../validation/inputSanitizer';
 import type { BotImporter, ImportOptions, ImportResult, RawXpRecord } from './types';
 
 const EXPECTED_HEADER = 'userId,xp,level,messages';
@@ -94,7 +94,7 @@ export class CsvImporter implements BotImporter {
       const [userId, xpStr, levelStr, messagesStr] = columns;
 
       // Validate snowflake ID
-      if (!validateSnowflake(userId)) {
+      if (!isValidSnowflake(userId)) {
         failed++;
         errors.push(`Row ${lineNumber}: Invalid user ID '${userId}'`);
         continue;

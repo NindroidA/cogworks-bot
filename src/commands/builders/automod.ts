@@ -1,8 +1,4 @@
-import {
-  PermissionFlagsBits,
-  SlashCommandBuilder,
-  SlashCommandSubcommandGroupBuilder,
-} from 'discord.js';
+import { PermissionFlagsBits, SlashCommandBuilder, SlashCommandSubcommandGroupBuilder } from 'discord.js';
 import { lang } from '../../utils';
 
 const tl = lang.automod.builder;
@@ -19,11 +15,7 @@ const ruleGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('create')
       .setDescription(tl.rule.create.descrp)
       .addStringOption(option =>
-        option
-          .setName('name')
-          .setDescription(tl.rule.create.name)
-          .setRequired(true)
-          .setMaxLength(100),
+        option.setName('name').setDescription(tl.rule.create.name).setRequired(true).setMaxLength(100),
       )
       .addStringOption(option =>
         option
@@ -42,11 +34,7 @@ const ruleGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('edit')
       .setDescription(tl.rule.edit.descrp)
       .addStringOption(option =>
-        option
-          .setName('rule')
-          .setDescription(tl.rule.edit.rule)
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName('rule').setDescription(tl.rule.edit.rule).setRequired(true).setAutocomplete(true),
       ),
   )
   .addSubcommand(sub =>
@@ -54,11 +42,7 @@ const ruleGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('delete')
       .setDescription(tl.rule.delete.descrp)
       .addStringOption(option =>
-        option
-          .setName('rule')
-          .setDescription(tl.rule.delete.rule)
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName('rule').setDescription(tl.rule.delete.rule).setRequired(true).setAutocomplete(true),
       ),
   )
   .addSubcommand(sub => sub.setName('list').setDescription(tl.rule.list.descrp));
@@ -100,9 +84,7 @@ const backupGroup = new SlashCommandSubcommandGroupBuilder()
     sub
       .setName('restore')
       .setDescription(tl.backup.restore.descrp)
-      .addAttachmentOption(option =>
-        option.setName('file').setDescription(tl.backup.restore.file).setRequired(true),
-      ),
+      .addAttachmentOption(option => option.setName('file').setDescription(tl.backup.restore.file).setRequired(true)),
   );
 
 /* =========================================================================
@@ -117,18 +99,10 @@ const keywordGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('add')
       .setDescription(tl.keyword.add.descrp)
       .addStringOption(option =>
-        option
-          .setName('rule')
-          .setDescription(tl.keyword.add.rule)
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName('rule').setDescription(tl.keyword.add.rule).setRequired(true).setAutocomplete(true),
       )
       .addStringOption(option =>
-        option
-          .setName('keyword')
-          .setDescription(tl.keyword.add.keyword)
-          .setRequired(true)
-          .setMaxLength(100),
+        option.setName('keyword').setDescription(tl.keyword.add.keyword).setRequired(true).setMaxLength(100),
       ),
   )
   .addSubcommand(sub =>
@@ -136,18 +110,10 @@ const keywordGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('remove')
       .setDescription(tl.keyword.remove.descrp)
       .addStringOption(option =>
-        option
-          .setName('rule')
-          .setDescription(tl.keyword.remove.rule)
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName('rule').setDescription(tl.keyword.remove.rule).setRequired(true).setAutocomplete(true),
       )
       .addStringOption(option =>
-        option
-          .setName('keyword')
-          .setDescription(tl.keyword.remove.keyword)
-          .setRequired(true)
-          .setMaxLength(100),
+        option.setName('keyword').setDescription(tl.keyword.remove.keyword).setRequired(true).setMaxLength(100),
       ),
   );
 
@@ -163,18 +129,10 @@ const regexGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('add')
       .setDescription(tl.regex.add.descrp)
       .addStringOption(option =>
-        option
-          .setName('rule')
-          .setDescription(tl.regex.add.rule)
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName('rule').setDescription(tl.regex.add.rule).setRequired(true).setAutocomplete(true),
       )
       .addStringOption(option =>
-        option
-          .setName('pattern')
-          .setDescription(tl.regex.add.pattern)
-          .setRequired(true)
-          .setMaxLength(75),
+        option.setName('pattern').setDescription(tl.regex.add.pattern).setRequired(true).setMaxLength(75),
       ),
   )
   .addSubcommand(sub =>
@@ -182,18 +140,10 @@ const regexGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('remove')
       .setDescription(tl.regex.remove.descrp)
       .addStringOption(option =>
-        option
-          .setName('rule')
-          .setDescription(tl.regex.remove.rule)
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName('rule').setDescription(tl.regex.remove.rule).setRequired(true).setAutocomplete(true),
       )
       .addStringOption(option =>
-        option
-          .setName('pattern')
-          .setDescription(tl.regex.remove.pattern)
-          .setRequired(true)
-          .setMaxLength(75),
+        option.setName('pattern').setDescription(tl.regex.remove.pattern).setRequired(true).setMaxLength(75),
       ),
   );
 
@@ -209,33 +159,19 @@ const exemptGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('add')
       .setDescription(tl.exempt.add.descrp)
       .addStringOption(option =>
-        option
-          .setName('rule')
-          .setDescription(tl.exempt.add.rule)
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName('rule').setDescription(tl.exempt.add.rule).setRequired(true).setAutocomplete(true),
       )
-      .addRoleOption(option =>
-        option.setName('role').setDescription(tl.exempt.add.role).setRequired(false),
-      )
-      .addChannelOption(option =>
-        option.setName('channel').setDescription(tl.exempt.add.channel).setRequired(false),
-      ),
+      .addRoleOption(option => option.setName('role').setDescription(tl.exempt.add.role).setRequired(false))
+      .addChannelOption(option => option.setName('channel').setDescription(tl.exempt.add.channel).setRequired(false)),
   )
   .addSubcommand(sub =>
     sub
       .setName('remove')
       .setDescription(tl.exempt.remove.descrp)
       .addStringOption(option =>
-        option
-          .setName('rule')
-          .setDescription(tl.exempt.remove.rule)
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName('rule').setDescription(tl.exempt.remove.rule).setRequired(true).setAutocomplete(true),
       )
-      .addRoleOption(option =>
-        option.setName('role').setDescription(tl.exempt.remove.role).setRequired(false),
-      )
+      .addRoleOption(option => option.setName('role').setDescription(tl.exempt.remove.role).setRequired(false))
       .addChannelOption(option =>
         option.setName('channel').setDescription(tl.exempt.remove.channel).setRequired(false),
       ),

@@ -1,9 +1,4 @@
-import {
-  type ChatInputCommandInteraction,
-  type Client,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import xpLang from '../../../lang/xp.json';
 import { XPConfig } from '../../../typeorm/entities/xp/XPConfig';
 import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
@@ -363,15 +358,13 @@ async function handleRoleRewardList(interaction: ChatInputCommandInteraction, gu
   }
 
   const lines = rewards.map(
-    r =>
-      `Level **${r.level}** — <@&${r.roleId}>${r.removeOnDelevel ? ' (removes on de-level)' : ''}`,
+    r => `Level **${r.level}** — <@&${r.roleId}>${r.removeOnDelevel ? ' (removes on de-level)' : ''}`,
   );
 
   const embed = new EmbedBuilder()
     .setColor(Colors.status.info)
     .setTitle(xpLang.setup.roleRewardListTitle)
-    .setDescription(lines.join('\n'))
-    .setTimestamp();
+    .setDescription(lines.join('\n'));
 
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
 }
@@ -400,10 +393,7 @@ async function handleIgnoreChannelAdd(interaction: ChatInputCommandInteraction, 
   });
 }
 
-async function handleIgnoreChannelRemove(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-) {
+async function handleIgnoreChannelRemove(interaction: ChatInputCommandInteraction, guildId: string) {
   const channel = interaction.options.getChannel('channel', true);
   const config = await getOrCreateConfig(guildId);
 
@@ -440,9 +430,7 @@ async function handleMultiplierSet(interaction: ChatInputCommandInteraction, gui
   invalidateXPConfigCache(guildId);
 
   await interaction.reply({
-    content: xpLang.setup.multiplierSet
-      .replace('{0}', `<#${channel.id}>`)
-      .replace('{1}', String(multiplier)),
+    content: xpLang.setup.multiplierSet.replace('{0}', `<#${channel.id}>`).replace('{1}', String(multiplier)),
     flags: [MessageFlags.Ephemeral],
   });
 }

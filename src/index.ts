@@ -1,9 +1,10 @@
-import { Client, GatewayIntentBits, Partials, Routes } from 'discord.js';
+import { Client, GatewayIntentBits, Options, Partials, Routes } from 'discord.js';
 import dotenv from 'dotenv';
 import 'reflect-metadata';
 import { commands } from './commands/commandList';
 import { handleSlashCommand } from './commands/commands';
 import { stopFieldSessionCleanup } from './commands/handlers/application/applicationFields';
+import { handleContextMenuCommand } from './commands/handlers/contextMenus';
 import { stopFieldDraftCleanup } from './commands/handlers/shared/fieldManagerCore';
 import { handleAutocomplete } from './events/autocomplete';
 import channelDeleteEvent from './events/channelDelete';
@@ -13,20 +14,25 @@ import guildMemberAddEvent from './events/guildMemberAdd';
 import { routeInteraction } from './events/interactionRouter';
 import messageCreateEvent from './events/messageCreate';
 import messageDeleteEvent from './events/messageDelete';
+import onboardingJoinEvent from './events/onboardingJoin';
 import {
   handleReactionRoleAdd,
   handleReactionRoleRemove,
   stopReactionRoleCooldownCleanup,
 } from './events/reactionRoleHandler';
+import roleDeleteEvent from './events/roleDelete';
+import { handleRulesReactionAdd, handleRulesReactionRemove, stopRulesCooldownCleanup } from './events/rulesReaction';
 import {
-  handleRulesReactionAdd,
-  handleRulesReactionRemove,
-  stopRulesCooldownCleanup,
-} from './events/rulesReaction';
-import {
-  handleStarboardReactionAdd,
-  handleStarboardReactionRemove,
-} from './events/starboardReaction';
+  guildScheduledEventCreate,
+  guildScheduledEventDelete,
+  guildScheduledEventUpdate,
+  guildScheduledEventUserAdd,
+  guildScheduledEventUserRemove,
+} from './events/scheduledEventHandlers';
+import { handleStarboardReactionAdd, handleStarboardReactionRemove } from './events/starboardReaction';
+import threadDeleteEvent from './events/threadDelete';
+import xpMessageHandler from './events/xpMessageHandler';
+import xpVoiceHandler from './events/xpVoiceHandler';
 import { AppDataSource } from './typeorm';
 import { BaitChannelConfig } from './typeorm/entities/BaitChannelConfig';
 import { BaitChannelLog } from './typeorm/entities/BaitChannelLog';
@@ -42,13 +48,14 @@ import {
   healthMonitor,
   healthServer,
   INTERVALS,
-  internalApiServer,
   LegacyMigrationRunner,
   LogCategory,
   lang,
   memoryWatchdog,
   rateLimiter,
 } from './utils';
+import { startSnapshotJob, stopSnapshotJob } from './utils/analytics/snapshotJob';
+import { internalApiServer } from './utils/api/internalApiServer';
 import { APIConnector } from './utils/apiConnector';
 import { JoinVelocityTracker } from './utils/baitChannel/joinVelocityTracker';
 import { checkAndSendWeeklySummaries } from './utils/baitChannel/weeklySummary';
@@ -112,18 +119,37 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildScheduledEvents,
   ],
   partials: [Partials.Message, Partials.Reaction, Partials.User],
+  makeCache: Options.cacheWithLimits({
+    ...Options.DefaultMakeCacheSettings,
+    MessageManager: 100,
+    ReactionManager: 0,
+    GuildMemberManager: {
+      maxSize: 200,
+      keepOverLimit: m => m.id === m.client.user!.id,
+    },
+  }),
+  sweepers: {
+    ...Options.DefaultSweeperSettings,
+    messages: { interval: 3_600, lifetime: 1_800 },
+    users: {
+      interval: 3_600,
+      filter: () => u => u.bot && u.id !== u.client.user!.id,
+    },
+  },
 });
 
 // Shared REST client (also used by guildCreate event handler)
 import { rest } from './utils/restClient';
 
 /* init API connector */
-const apiConnector = new APIConnector(
-  process.env.API_URL || 'http://localhost:3001', // default to localhost and port 3001 if not set
-  TOKEN, // bot token for authentication
-);
+if (!process.env.API_URL && !IS_DEV) {
+  enhancedLogger.warn('API_URL not set in production — guild webhooks will be disabled', LogCategory.SYSTEM);
+}
+const apiConnector = new APIConnector(process.env.API_URL || (IS_DEV ? 'http://localhost:3001' : ''), TOKEN);
 
 // Interval refs (set in clientReady, cleared on shutdown)
 let healthMonitorInterval: ReturnType<typeof setInterval> | null = null;
@@ -136,11 +162,9 @@ client.on('interactionCreate', async interaction => {
     client.emit('chatInputCommand', client, interaction);
   } else if (interaction.isAutocomplete()) {
     client.emit('autocomplete', client, interaction);
-  } else if (
-    interaction.isButton() ||
-    interaction.isStringSelectMenu() ||
-    interaction.isModalSubmit()
-  ) {
+  } else if (interaction.isMessageContextMenuCommand() || interaction.isUserContextMenuCommand()) {
+    await handleContextMenuCommand(client, interaction);
+  } else if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
     await routeInteraction(client, interaction);
   }
 });
@@ -151,19 +175,11 @@ client.on('autocomplete', handleAutocomplete); // handle autocomplete interactio
 
 // register reaction events (rules acknowledgment + reaction roles)
 client.on('messageReactionAdd', (reaction, user) => handleRulesReactionAdd(reaction, user, client));
-client.on('messageReactionRemove', (reaction, user) =>
-  handleRulesReactionRemove(reaction, user, client),
-);
+client.on('messageReactionRemove', (reaction, user) => handleRulesReactionRemove(reaction, user, client));
 client.on('messageReactionAdd', (reaction, user) => handleReactionRoleAdd(reaction, user, client));
-client.on('messageReactionRemove', (reaction, user) =>
-  handleReactionRoleRemove(reaction, user, client),
-);
-client.on('messageReactionAdd', (reaction, user) =>
-  handleStarboardReactionAdd(reaction, user, client),
-);
-client.on('messageReactionRemove', (reaction, user) =>
-  handleStarboardReactionRemove(reaction, user, client),
-);
+client.on('messageReactionRemove', (reaction, user) => handleReactionRoleRemove(reaction, user, client));
+client.on('messageReactionAdd', (reaction, user) => handleStarboardReactionAdd(reaction, user, client));
+client.on('messageReactionRemove', (reaction, user) => handleStarboardReactionRemove(reaction, user, client));
 
 // register message events
 // Note: These handlers accept ExtendedClient, which is safe because they only fire
@@ -176,11 +192,29 @@ client.on(messageDeleteEvent.name, message => messageDeleteEvent.execute(message
 client.on(guildCreateEvent.name, guild => guildCreateEvent.execute(guild, client));
 client.on(guildDeleteEvent.name, guild => guildDeleteEvent.execute(guild, client));
 
-// register channel lifecycle events
+// register channel/role/thread lifecycle events
 client.on(channelDeleteEvent.name, channel => channelDeleteEvent.execute(channel, extClient));
+client.on(roleDeleteEvent.name, role => roleDeleteEvent.execute(role, extClient));
+client.on(threadDeleteEvent.name, thread => threadDeleteEvent.execute(thread));
 
 // register member lifecycle events
 client.on(guildMemberAddEvent.name, member => guildMemberAddEvent.execute(member, extClient));
+
+// register onboarding join event (sends DM onboarding flow to new members)
+client.on(onboardingJoinEvent.name, member => onboardingJoinEvent.execute(member, extClient));
+
+// register XP event handlers
+client.on('messageCreate', message => xpMessageHandler.execute(message, extClient));
+client.on('voiceStateUpdate', (oldState, newState) => xpVoiceHandler.execute(oldState, newState, extClient));
+
+// register scheduled event handlers
+client.on(guildScheduledEventCreate.name, event => guildScheduledEventCreate.execute(event, client));
+client.on(guildScheduledEventUpdate.name, (oldEvent, newEvent) =>
+  guildScheduledEventUpdate.execute(oldEvent, newEvent, client),
+);
+client.on(guildScheduledEventDelete.name, event => guildScheduledEventDelete.execute(event, client));
+client.on(guildScheduledEventUserAdd.name, (event, user) => guildScheduledEventUserAdd.execute(event, user));
+client.on(guildScheduledEventUserRemove.name, (event, user) => guildScheduledEventUserRemove.execute(event, user));
 
 // once we ready, LEGGO
 client.once('clientReady', async () => {
@@ -189,7 +223,7 @@ client.once('clientReady', async () => {
 
   // THEN initialize health server
   healthServer.initialize(client);
-  const HEALTH_PORT = parseInt(process.env.HEALTH_PORT || '3000', 10);
+  const HEALTH_PORT = parseInt(process.env.HEALTH_PORT || '3003', 10);
   healthServer.start(HEALTH_PORT);
 
   // log that we logged in
@@ -203,9 +237,7 @@ client.once('clientReady', async () => {
 
   // log environment info
   console.log(tl.envSeparator);
-  console.log(
-    `${E.list} ${tl.envLabel}${IS_DEV ? `${E.wrench} ${tl.envDev}` : `${E.prod} ${tl.envProd}`}`,
-  );
+  console.log(`${E.list} ${tl.envLabel}${IS_DEV ? `${E.wrench} ${tl.envDev}` : `${E.prod} ${tl.envProd}`}`);
   console.log(`${E.bot} ${tl.botLabel}${client.user?.tag}`);
   console.log(`${E.id} ${tl.clientIdLabel}${CLIENT}`);
   console.log(tl.envSeparator);
@@ -281,10 +313,7 @@ client.once('clientReady', async () => {
   memoryWatchdog.trackMap('rateLimiter', () => rateLimiter.getSize());
   const baitMaps = (client as ExtendedClient).baitChannelManager.getTrackedMaps();
   for (const [name, _size] of Object.entries(baitMaps)) {
-    memoryWatchdog.trackMap(
-      `bait.${name}`,
-      () => (client as ExtendedClient).baitChannelManager.getTrackedMaps()[name],
-    );
+    memoryWatchdog.trackMap(`bait.${name}`, () => (client as ExtendedClient).baitChannelManager.getTrackedMaps()[name]);
   }
   memoryWatchdog.start();
   enhancedLogger.info('Memory watchdog started', LogCategory.SYSTEM);
@@ -303,17 +332,40 @@ client.once('clientReady', async () => {
     });
   }, INTERVALS.AUTO_CLOSE_CHECK);
 
-  enhancedLogger.info(
-    'Periodic health monitoring started (5 minute intervals)',
-    LogCategory.SYSTEM,
-  );
+  // Start daily analytics snapshot job (midnight UTC)
+  startSnapshotJob(client);
+  enhancedLogger.info('Analytics snapshot job scheduled', LogCategory.SYSTEM);
+
+  enhancedLogger.info('Periodic health monitoring started (5 minute intervals)', LogCategory.SYSTEM);
+
+  // Register commands for guilds the bot is in but have no BotConfig
+  // (e.g., after /bot-reset or if the bot was added while offline)
+  const botConfigRepo = AppDataSource.getRepository(BotConfig);
+  const configuredGuildIds = new Set((await botConfigRepo.find()).map(c => c.guildId));
+  const unconfiguredGuilds = client.guilds.cache.filter(g => !configuredGuildIds.has(g.id));
+  if (unconfiguredGuilds.size > 0) {
+    const results = await Promise.allSettled(
+      unconfiguredGuilds.map(guild =>
+        rest.put(Routes.applicationGuildCommands(CLIENT, guild.id), {
+          body: commands,
+        }),
+      ),
+    );
+    const registered = results.filter(r => r.status === 'fulfilled').length;
+    if (registered > 0) {
+      enhancedLogger.info(`Registered commands for ${registered} unconfigured guild(s)`, LogCategory.SYSTEM);
+    }
+  }
 
   // just a lil line for the console
   console.log(tl.line);
 });
 
 // Graceful shutdown handler
+let isShuttingDown = false;
 async function gracefulShutdown(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
   console.log(`${E.shutdown} ${tl.shuttingDown}`);
   enhancedLogger.info(`Received ${signal}, shutting down gracefully`, LogCategory.SYSTEM);
 
@@ -323,6 +375,7 @@ async function gracefulShutdown(signal: string) {
   stopReactionRoleCooldownCleanup();
   stopRulesCooldownCleanup();
   stopLogCleanup();
+  stopSnapshotJob();
   healthMonitor.stopPeriodicChecks();
   rateLimiter.destroy();
   memoryWatchdog.stop();
@@ -365,13 +418,18 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 // main function to do all the things
 async function main() {
   try {
-    // remove any global application commands we had in place (refresh it)
-    await rest.put(Routes.applicationCommands(CLIENT), {
-      body: [],
-    });
+    const startupStart = Date.now();
+
+    // remove any global application commands (skip in dev — saves ~2-5s API call)
+    if (!IS_DEV) {
+      await rest.put(Routes.applicationCommands(CLIENT), { body: [] });
+      console.log(`${E.ok} Global commands cleared (${Date.now() - startupStart}ms)`);
+    }
 
     // initialize typeORM shtuff
+    const dbStart = Date.now();
     await AppDataSource.initialize();
+    console.log(`${E.ok} Database connected (${Date.now() - dbStart}ms)`);
 
     // get all guild ids that have done the bot setup
     const botConfigRepo = AppDataSource.getRepository(BotConfig);
@@ -382,7 +440,14 @@ async function main() {
       try {
         await ensureDefaultTicketTypes(config.guildId);
       } catch (error) {
-        console.error(`Failed to ensure default ticket types for guild ${config.guildId}:`, error);
+        enhancedLogger.error(
+          `Failed to ensure default ticket types for guild ${config.guildId}`,
+          error as Error,
+          LogCategory.DATABASE,
+          {
+            guildId: config.guildId,
+          },
+        );
       }
     }
 
@@ -417,11 +482,9 @@ async function main() {
           }
         }
       } catch (error) {
-        enhancedLogger.warn(
-          'Legacy migration runner failed — continuing startup',
-          LogCategory.DATABASE,
-          { error: error instanceof Error ? error.message : String(error) },
-        );
+        enhancedLogger.warn('Legacy migration runner failed — continuing startup', LogCategory.DATABASE, {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -470,7 +533,9 @@ async function main() {
     });
 
     // log in
+    const loginStart = Date.now();
     await client.login(TOKEN);
+    console.log(`${E.ok} Logged in (${Date.now() - loginStart}ms, total: ${Date.now() - startupStart}ms)`);
     enhancedLogger.info('Bot logged in successfully', LogCategory.SYSTEM);
   } catch (error) {
     // if there's an error on startup, log it, and exit
@@ -481,4 +546,4 @@ async function main() {
 }
 
 // NOW LEGGOOOOOOO
-main();
+void main();

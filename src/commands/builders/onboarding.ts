@@ -14,20 +14,14 @@ export const onboarding = new SlashCommandBuilder()
       .setName('welcome-message')
       .setDescription(tl.config.welcomeMessage)
       .addStringOption(option =>
-        option
-          .setName('message')
-          .setDescription(tl.config.welcomeMessage)
-          .setRequired(true)
-          .setMaxLength(2000),
+        option.setName('message').setDescription(tl.config.welcomeMessage).setRequired(true).setMaxLength(2000),
       ),
   )
   .addSubcommand(sub =>
     sub
       .setName('completion-role')
       .setDescription(tl.config.completionRole)
-      .addRoleOption(option =>
-        option.setName('role').setDescription(tl.config.completionRole).setRequired(false),
-      ),
+      .addRoleOption(option => option.setName('role').setDescription(tl.config.completionRole).setRequired(false)),
   )
   .addSubcommand(sub =>
     sub
@@ -47,33 +41,19 @@ export const onboarding = new SlashCommandBuilder()
           ),
       )
       .addStringOption(option =>
-        option
-          .setName('title')
-          .setDescription(tl.step.titleOption)
-          .setRequired(true)
-          .setMaxLength(256),
+        option.setName('title').setDescription(tl.step.titleOption).setRequired(true).setMaxLength(256),
       )
       .addStringOption(option =>
-        option
-          .setName('description')
-          .setDescription(tl.step.descriptionOption)
-          .setRequired(true)
-          .setMaxLength(4000),
+        option.setName('description').setDescription(tl.step.descriptionOption).setRequired(true).setMaxLength(4000),
       )
-      .addBooleanOption(option =>
-        option.setName('required').setDescription(tl.step.requiredOption).setRequired(false),
-      ),
+      .addBooleanOption(option => option.setName('required').setDescription(tl.step.requiredOption).setRequired(false)),
   )
   .addSubcommand(sub =>
     sub
       .setName('step-remove')
       .setDescription(tl.step.removeDescrp)
       .addStringOption(option =>
-        option
-          .setName('step')
-          .setDescription(tl.step.stepOption)
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName('step').setDescription(tl.step.stepOption).setRequired(true).setAutocomplete(true),
       ),
   )
   .addSubcommand(sub => sub.setName('step-list').setDescription(tl.step.listDescrp))
@@ -83,8 +63,6 @@ export const onboarding = new SlashCommandBuilder()
     sub
       .setName('resend')
       .setDescription(tl.resend.descrp)
-      .addUserOption(option =>
-        option.setName('user').setDescription(tl.resend.userOption).setRequired(true),
-      ),
+      .addUserOption(option => option.setName('user').setDescription(tl.resend.userOption).setRequired(true)),
   )
   .toJSON();

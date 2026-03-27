@@ -1,6 +1,7 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ name: 'archived_application_configs' })
+@Index(['guildId'])
 export class ArchivedApplicationConfig {
   @PrimaryGeneratedColumn()
   id: number;
@@ -8,9 +9,9 @@ export class ArchivedApplicationConfig {
   @Column({ unique: true })
   guildId: string;
 
-  @Column()
+  @Column({ default: '' })
   messageId: string;
 
-  @Column()
+  @Column({ default: '' })
   channelId: string;
 }

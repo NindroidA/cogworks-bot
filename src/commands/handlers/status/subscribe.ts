@@ -1,9 +1,4 @@
-import {
-  type CacheType,
-  ChannelType,
-  type ChatInputCommandInteraction,
-  MessageFlags,
-} from 'discord.js';
+import { type CacheType, ChannelType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BotStatus } from '../../../typeorm/entities/status';
 import { enhancedLogger, LogCategory, lang, requireBotOwner } from '../../../utils';
@@ -58,11 +53,7 @@ export async function statusSubscribeHandler(
       channelId: channel.id,
     });
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to subscribe status channel',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-    );
+    enhancedLogger.error('Failed to subscribe status channel', error as Error, LogCategory.COMMAND_EXECUTION);
     await interaction.reply({
       content: tl.subscribe.error,
       flags: [MessageFlags.Ephemeral],
@@ -106,11 +97,7 @@ export async function statusUnsubscribeHandler(
       userId: interaction.user.id,
     });
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to unsubscribe status channel',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-    );
+    enhancedLogger.error('Failed to unsubscribe status channel', error as Error, LogCategory.COMMAND_EXECUTION);
     await interaction.reply({
       content: tl.subscribe.error,
       flags: [MessageFlags.Ephemeral],
@@ -161,11 +148,7 @@ export async function statusMonitorSetHandler(
       url,
     });
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to set monitor URL',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-    );
+    enhancedLogger.error('Failed to set monitor URL', error as Error, LogCategory.COMMAND_EXECUTION);
     await interaction.reply({
       content: tl.monitor.error,
       flags: [MessageFlags.Ephemeral],

@@ -1,9 +1,4 @@
-import {
-  type CacheType,
-  type ChatInputCommandInteraction,
-  type Client,
-  MessageFlags,
-} from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import onboardingLang from '../../../lang/onboarding.json';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
 import { enhancedLogger, LANGF } from '../../../utils';
@@ -15,10 +10,7 @@ const tl = onboardingLang;
 /**
  * Enable the onboarding flow.
  */
-export const enableHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const enableHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
 
   let config = await configRepo.findOneBy({ guildId });
@@ -58,10 +50,7 @@ export const enableHandler = async (
 /**
  * Disable the onboarding flow.
  */
-export const disableHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const disableHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
 
   const config = await configRepo.findOneBy({ guildId });
@@ -88,10 +77,7 @@ export const disableHandler = async (
 /**
  * Set the welcome message.
  */
-export const welcomeMessageHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const welcomeMessageHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
   const message = interaction.options.getString('message', true);
 
@@ -114,10 +100,7 @@ export const welcomeMessageHandler = async (
 /**
  * Set or clear the completion role.
  */
-export const completionRoleHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const completionRoleHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
   const role = interaction.options.getRole('role', false);
 

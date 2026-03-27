@@ -28,10 +28,7 @@ export interface ValidationResult {
  *   return await interaction.reply({ content: result.error, flags: [MessageFlags.Ephemeral] });
  * }
  */
-export function validateChannel(
-  channel: Channel | null | undefined,
-  expectedType?: ChannelType,
-): ValidationResult {
+export function validateChannel(channel: Channel | null | undefined, expectedType?: ChannelType): ValidationResult {
   if (!channel) {
     return { valid: false, error: 'Channel not found.' };
   }
@@ -94,8 +91,7 @@ export function validateEmoji(emoji: string): ValidationResult {
 
   // Unicode emoji: single emoji character (including compound emoji with ZWJ/variation selectors)
   // Strip variation selectors and ZWJ sequences, then check if it's a valid emoji
-  const emojiRegex =
-    /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
+  const emojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
   if (emojiRegex.test(emoji)) {
     return { valid: true };
   }
@@ -176,10 +172,7 @@ export function validateGuildId(guild: Guild | null | undefined): ValidationResu
  *   return await interaction.reply({ content: result.error, flags: [MessageFlags.Ephemeral] });
  * }
  */
-export function validateDateFormat(
-  dateString: string,
-  format: string = 'YYYY-MM-DD',
-): ValidationResult {
+export function validateDateFormat(dateString: string, format: string = 'YYYY-MM-DD'): ValidationResult {
   const date = new Date(dateString);
 
   if (Number.isNaN(date.getTime())) {

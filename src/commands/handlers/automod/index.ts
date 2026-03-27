@@ -6,17 +6,7 @@
  */
 
 import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import {
-  createRateLimitKey,
-  enhancedLogger,
-  handleInteractionError,
-  LANGF,
-  LogCategory,
-  lang,
-  RateLimits,
-  rateLimiter,
-  requireAdmin,
-} from '../../../utils';
+import { guardAdminRateLimit, handleInteractionError, lang, RateLimits } from '../../../utils';
 import { backupHandler } from './backup';
 import { keywordHandler } from './keyword';
 import { ruleHandler } from './rule';
@@ -24,38 +14,15 @@ import { templateHandler } from './template';
 
 export const automodHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
   try {
-    // Require admin permissions for all automod subcommands
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdminRateLimit(interaction, {
+      action: 'automod',
+      limit: RateLimits.BAIT_CHANNEL,
+      scope: 'guild',
+    });
+    if (!guard.allowed) return;
 
     if (!interaction.guildId || !interaction.guild) return;
-    const guildId = interaction.guildId;
     const subcommandGroup = interaction.options.getSubcommandGroup(true);
-
-    // Rate limit check (guild-scoped: 10 automod operations per hour)
-    const rateLimitKey = createRateLimitKey.guild(guildId, 'automod');
-    const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.BAIT_CHANNEL);
-
-    if (!rateCheck.allowed) {
-      await interaction.reply({
-        content: LANGF(
-          lang.errors.rateLimit,
-          Math.ceil((rateCheck.resetIn || 0) / 60000).toString(),
-        ),
-        flags: [MessageFlags.Ephemeral],
-      });
-      enhancedLogger.warn(
-        `Rate limit exceeded for automod command in guild ${guildId}`,
-        LogCategory.SECURITY,
-      );
-      return;
-    }
 
     switch (subcommandGroup) {
       case 'rule':
@@ -103,9 +70,7 @@ export async function handleAutomodAutocomplete(
     const rules = await interaction.guild.autoModerationRules.fetch();
     const focusedValue = interaction.options.getFocused().toLowerCase();
 
-    const filtered = focusedValue
-      ? rules.filter(r => r.name.toLowerCase().includes(focusedValue))
-      : rules;
+    const filtered = focusedValue ? rules.filter(r => r.name.toLowerCase().includes(focusedValue)) : rules;
 
     await interaction.respond(
       [...filtered.values()].slice(0, 25).map(r => ({

@@ -10,7 +10,7 @@ import {
 import { Application } from '../../typeorm/entities/application/Application';
 import { ArchivedApplication } from '../../typeorm/entities/application/ArchivedApplication';
 import { ArchivedApplicationConfig } from '../../typeorm/entities/application/ArchivedApplicationConfig';
-import { enhancedLogger, LogCategory, lang } from '../../utils';
+import { enhancedLogger, LogCategory, lang, verifiedChannelDelete } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
 import { fetchMessagesAndSaveToFile } from '../../utils/fetchAllMessages';
 
@@ -52,11 +52,10 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
 
   // Prevent duplicate close (double-click race condition)
   if (application.status === 'closed') {
-    enhancedLogger.warn(
-      'Application already closed, skipping duplicate archive',
-      LogCategory.SYSTEM,
-      { guildId, channelId },
-    );
+    enhancedLogger.warn('Application already closed, skipping duplicate archive', LogCategory.SYSTEM, {
+      guildId,
+      channelId,
+    });
     return;
   }
 
@@ -77,12 +76,10 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
   try {
     await fetchMessagesAndSaveToFile(channel, transcriptPath);
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to create application transcript',
-      error as Error,
-      LogCategory.SYSTEM,
-      { guildId, channelId },
-    );
+    enhancedLogger.error('Failed to create application transcript', error as Error, LogCategory.SYSTEM, {
+      guildId,
+      channelId,
+    });
     // Only reply if we haven't already replied/deferred
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({
@@ -150,12 +147,10 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
     try {
       await fs.promises.unlink(txtPath);
     } catch (error) {
-      enhancedLogger.error(
-        'Failed to delete application transcript file',
-        error as Error,
-        LogCategory.SYSTEM,
-        { guildId, txtPath },
-      );
+      enhancedLogger.error('Failed to delete application transcript file', error as Error, LogCategory.SYSTEM, {
+        guildId,
+        txtPath,
+      });
     }
 
     if (zipCheck) {
@@ -163,21 +158,17 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
       try {
         await fs.promises.unlink(zipPath);
       } catch (error) {
-        enhancedLogger.error(
-          'Failed to delete application attachment zip',
-          error as Error,
-          LogCategory.SYSTEM,
-          { guildId, zipPath },
-        );
+        enhancedLogger.error('Failed to delete application attachment zip', error as Error, LogCategory.SYSTEM, {
+          guildId,
+          zipPath,
+        });
       }
     }
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to send application transcript',
-      error as Error,
-      LogCategory.SYSTEM,
-      { guildId, channelId },
-    );
+    enhancedLogger.error('Failed to send application transcript', error as Error, LogCategory.SYSTEM, {
+      guildId,
+      channelId,
+    });
     return;
   }
 
@@ -187,6 +178,21 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
     channelId,
   });
 
-  // delete the channel
-  await channel.delete(application.channelId ?? undefined);
+  // delete the channel (verified — logs failure instead of throwing)
+  const deleteResult = await verifiedChannelDelete(channel, {
+    guildId,
+    label: 'application channel',
+  });
+  if (!deleteResult.success) {
+    enhancedLogger.error(
+      `Application channel persisted after delete attempt — possible bug. Channel: ${channelId}`,
+      undefined,
+      LogCategory.ERROR,
+      {
+        guildId,
+        channelId,
+        error: deleteResult.error,
+      },
+    );
+  }
 };

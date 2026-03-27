@@ -1,4 +1,4 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 export interface ApplicationWorkflowStatus {
   id: string;
@@ -8,6 +8,7 @@ export interface ApplicationWorkflowStatus {
 }
 
 @Entity({ name: 'application_configs' })
+@Index(['guildId'])
 export class ApplicationConfig {
   @PrimaryGeneratedColumn()
   id: number;
@@ -15,10 +16,10 @@ export class ApplicationConfig {
   @Column({ unique: true })
   guildId: string;
 
-  @Column()
+  @Column({ default: '' })
   messageId: string;
 
-  @Column()
+  @Column({ default: '' })
   channelId: string;
 
   @Column({ type: 'varchar', nullable: true })

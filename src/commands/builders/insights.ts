@@ -1,46 +1,29 @@
-import { SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
+import { PermissionFlagsBits, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
 import analyticsLang from '../../lang/analytics.json';
 
 const tl = analyticsLang.builder;
 
-const overview = new SlashCommandSubcommandBuilder()
-  .setName('overview')
-  .setDescription(tl.overview.descrp);
+const overview = new SlashCommandSubcommandBuilder().setName('overview').setDescription(tl.overview.descrp);
 
 const growth = new SlashCommandSubcommandBuilder()
   .setName('growth')
   .setDescription(tl.growth.descrp)
   .addIntegerOption(option =>
-    option
-      .setName('days')
-      .setDescription(tl.growth.daysOption)
-      .setRequired(false)
-      .setMinValue(1)
-      .setMaxValue(90),
+    option.setName('days').setDescription(tl.growth.daysOption).setRequired(false).setMinValue(1).setMaxValue(90),
   );
 
 const channels = new SlashCommandSubcommandBuilder()
   .setName('channels')
   .setDescription(tl.channels.descrp)
   .addIntegerOption(option =>
-    option
-      .setName('days')
-      .setDescription(tl.channels.daysOption)
-      .setRequired(false)
-      .setMinValue(1)
-      .setMaxValue(90),
+    option.setName('days').setDescription(tl.channels.daysOption).setRequired(false).setMinValue(1).setMaxValue(90),
   );
 
 const hours = new SlashCommandSubcommandBuilder()
   .setName('hours')
   .setDescription(tl.hours.descrp)
   .addIntegerOption(option =>
-    option
-      .setName('days')
-      .setDescription(tl.hours.daysOption)
-      .setRequired(false)
-      .setMinValue(1)
-      .setMaxValue(90),
+    option.setName('days').setDescription(tl.hours.daysOption).setRequired(false).setMinValue(1).setMaxValue(90),
   );
 
 const setup = new SlashCommandSubcommandBuilder()
@@ -59,9 +42,7 @@ const setup = new SlashCommandSubcommandBuilder()
         { name: 'View Status', value: 'status' },
       ),
   )
-  .addChannelOption(option =>
-    option.setName('channel').setDescription(tl.setup.channel).setRequired(false),
-  )
+  .addChannelOption(option => option.setName('channel').setDescription(tl.setup.channel).setRequired(false))
   .addStringOption(option =>
     option
       .setName('frequency')
@@ -74,17 +55,13 @@ const setup = new SlashCommandSubcommandBuilder()
       ),
   )
   .addIntegerOption(option =>
-    option
-      .setName('day')
-      .setDescription(tl.setup.day)
-      .setRequired(false)
-      .setMinValue(0)
-      .setMaxValue(28),
+    option.setName('day').setDescription(tl.setup.day).setRequired(false).setMinValue(0).setMaxValue(28),
   );
 
 export const insights = new SlashCommandBuilder()
   .setName('insights')
   .setDescription(tl.cmdDescrp)
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand(overview)
   .addSubcommand(growth)
   .addSubcommand(channels)

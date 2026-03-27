@@ -5,7 +5,7 @@ export class BotConfig {
   @PrimaryColumn()
   guildId: string;
 
-  @Column()
+  @Column({ default: false })
   enableGlobalStaffRole: boolean;
 
   @Column({ type: 'varchar', length: 255, nullable: true })

@@ -9,7 +9,6 @@ import { REST } from 'discord.js';
 
 const TOKEN = process.env.RELEASE === 'dev' ? process.env.DEV_BOT_TOKEN! : process.env.BOT_TOKEN!;
 
-export const CLIENT_ID =
-  process.env.RELEASE === 'dev' ? process.env.DEV_CLIENT_ID! : process.env.CLIENT_ID!;
+export const CLIENT_ID = process.env.RELEASE === 'dev' ? process.env.DEV_CLIENT_ID! : process.env.CLIENT_ID!;
 
 export const rest = new REST({ version: '10' }).setToken(TOKEN);

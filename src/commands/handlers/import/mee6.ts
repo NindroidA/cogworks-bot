@@ -12,9 +12,7 @@ import { importManager } from '../../../utils/import/importManager';
 
 const tl = lang.import.commands;
 
-export const mee6ImportHandler = async (
-  interaction: ChatInputCommandInteraction,
-): Promise<void> => {
+export const mee6ImportHandler = async (interaction: ChatInputCommandInteraction): Promise<void> => {
   const guildId = interaction.guildId!;
   const overwrite = interaction.options.getBoolean('overwrite') ?? false;
   const dryRun = interaction.options.getBoolean('dry-run') ?? false;
@@ -61,8 +59,7 @@ export const mee6ImportHandler = async (
     const embed = new EmbedBuilder()
       .setTitle('MEE6 Import — Dry Run')
       .setDescription(LANGF(tl.dryRunComplete, result.imported, result.skipped, result.failed))
-      .setColor(0x3498db)
-      .setTimestamp();
+      .setColor(0x3498db);
 
     if (result.errors.length > 0) {
       embed.addFields({
@@ -84,8 +81,7 @@ export const mee6ImportHandler = async (
         name: 'Duration',
         value: `${(result.durationMs / 1000).toFixed(1)}s`,
         inline: true,
-      })
-      .setTimestamp();
+      });
 
     if (result.errors.length > 0) {
       embed.addFields({

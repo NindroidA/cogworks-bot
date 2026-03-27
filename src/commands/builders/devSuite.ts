@@ -17,6 +17,13 @@ export const devSuite = new SlashCommandBuilder()
           .setDescription('System to scaffold')
           .setRequired(true)
           .addChoices(
+            { name: 'Tickets', value: 'tickets' },
+            { name: 'Applications', value: 'applications' },
+            { name: 'Announcements', value: 'announcements' },
+            { name: 'Memory', value: 'memory' },
+            { name: 'Bait Channel', value: 'baitchannel' },
+            { name: 'Rules', value: 'rules' },
+            { name: 'Reaction Roles', value: 'reactionroles' },
             { name: 'Starboard', value: 'starboard' },
             { name: 'XP System', value: 'xp' },
             { name: 'Onboarding', value: 'onboarding' },
@@ -44,6 +51,13 @@ export const devSuite = new SlashCommandBuilder()
           .setDescription('System to tear down')
           .setRequired(true)
           .addChoices(
+            { name: 'Tickets', value: 'tickets' },
+            { name: 'Applications', value: 'applications' },
+            { name: 'Announcements', value: 'announcements' },
+            { name: 'Memory', value: 'memory' },
+            { name: 'Bait Channel', value: 'baitchannel' },
+            { name: 'Rules', value: 'rules' },
+            { name: 'Reaction Roles', value: 'reactionroles' },
             { name: 'Starboard', value: 'starboard' },
             { name: 'XP System', value: 'xp' },
             { name: 'Onboarding', value: 'onboarding' },
@@ -67,16 +81,12 @@ export const devSuite = new SlashCommandBuilder()
       ),
   )
   .addSubcommand(sub =>
-    sub
-      .setName('teardown-all')
-      .setDescription('Factory reset — remove all test configs, data, and dev channels'),
+    sub.setName('teardown-all').setDescription('Factory reset — remove all test configs, data, and dev channels'),
   )
 
   // ─── Automated Testing ────────────────────────────────────────────────────
   .addSubcommand(sub =>
-    sub
-      .setName('smoke-test')
-      .setDescription('Quick health check — reports config status for every system'),
+    sub.setName('smoke-test').setDescription('Quick health check — reports config status for every system'),
   )
   .addSubcommand(sub =>
     sub
@@ -84,16 +94,12 @@ export const devSuite = new SlashCommandBuilder()
       .setDescription('Write/read/delete test data for every system — verify data layer integrity'),
   )
   .addSubcommand(sub =>
-    sub
-      .setName('permissions-audit')
-      .setDescription('Verify all admin-only commands properly reject non-admin users'),
+    sub.setName('permissions-audit').setDescription('Verify all admin-only commands properly reject non-admin users'),
   )
   .addSubcommand(sub =>
     sub
       .setName('master-test')
-      .setDescription(
-        'Full test suite — scaffold, populate, smoke-test, regression, then teardown',
-      ),
+      .setDescription('Full test suite — scaffold, populate, smoke-test, regression, then teardown'),
   )
 
   // ─── Data & Simulation ───────────────────────────────────────────────────
@@ -108,6 +114,11 @@ export const devSuite = new SlashCommandBuilder()
           .setRequired(true)
           .addChoices(
             { name: 'All Systems', value: 'all' },
+            { name: 'Tickets (archives)', value: 'tickets' },
+            { name: 'Applications (archives)', value: 'applications' },
+            { name: 'Memory (items)', value: 'memory' },
+            { name: 'Bait Channel (logs)', value: 'baitchannel' },
+            { name: 'Announcements (logs)', value: 'announcements' },
             { name: 'Starboard', value: 'starboard' },
             { name: 'XP System', value: 'xp' },
             { name: 'Analytics', value: 'analytics' },

@@ -3,71 +3,30 @@
  * Routes to the appropriate handler based on subcommand.
  */
 
-import {
-  type CacheType,
-  type ChatInputCommandInteraction,
-  type Client,
-  MessageFlags,
-} from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import onboardingLang from '../../../lang/onboarding.json';
 import { AppDataSource } from '../../../typeorm';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
-import {
-  createRateLimitKey,
-  enhancedLogger,
-  handleInteractionError,
-  LANGF,
-  lang,
-  RateLimits,
-  rateLimiter,
-  requireAdmin,
-} from '../../../utils';
+import { enhancedLogger, guardAdminRateLimit, handleInteractionError, LANGF, lang, RateLimits } from '../../../utils';
 import { sendOnboardingFlow } from '../../../utils/onboarding/onboardingEngine';
-import {
-  completionRoleHandler,
-  disableHandler,
-  enableHandler,
-  welcomeMessageHandler,
-} from './setup';
+import { completionRoleHandler, disableHandler, enableHandler, welcomeMessageHandler } from './setup';
 import { onboardingStatsHandler } from './stats';
 import { stepAddHandler, stepListHandler, stepRemoveHandler } from './steps';
 
 const tl = onboardingLang;
 
-export const onboardingHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const onboardingHandler = async (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   try {
-    // Require admin permissions for all onboarding subcommands
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdminRateLimit(interaction, {
+      action: 'onboarding',
+      limit: RateLimits.ANNOUNCEMENT_SETUP,
+      scope: 'guild',
+    });
+    if (!guard.allowed) return;
 
     if (!interaction.guildId) return;
-    const guildId = interaction.guildId;
+    const _guildId = interaction.guildId;
     const subcommand = interaction.options.getSubcommand();
-
-    // Rate limit check (guild-scoped: 5 setup operations per hour)
-    const rateLimitKey = createRateLimitKey.guild(guildId, 'onboarding');
-    const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.ANNOUNCEMENT_SETUP);
-
-    if (!rateCheck.allowed) {
-      await interaction.reply({
-        content: LANGF(
-          lang.errors.rateLimit,
-          Math.ceil((rateCheck.resetIn || 0) / 60000).toString(),
-        ),
-        flags: [MessageFlags.Ephemeral],
-      });
-      enhancedLogger.rateLimit('Onboarding rate limit exceeded', interaction.user.id, guildId);
-      return;
-    }
 
     switch (subcommand) {
       case 'enable':
@@ -124,10 +83,7 @@ export const onboardingHandler = async (
 /**
  * Preview the onboarding flow by DM'ing the invoking admin.
  */
-const previewHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+const previewHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
 
   const configRepo = AppDataSource.getRepository(OnboardingConfig);
@@ -160,10 +116,7 @@ const previewHandler = async (
 /**
  * Resend the onboarding flow to a specific user.
  */
-const resendHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+const resendHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
   const targetUser = interaction.options.getUser('user', true);
 

@@ -1,4 +1,3 @@
-import { lazyRepo } from '../../../utils/database/lazyRepo';
 import {
   ActionRowBuilder,
   type AutocompleteInteraction,
@@ -13,31 +12,15 @@ import {
 import { BaitKeyword } from '../../../typeorm/entities/bait/BaitKeyword';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
 import { handleInteractionError, lang, stripZeroWidthChars } from '../../../utils';
+import { DEFAULT_KEYWORDS } from '../../../utils/baitChannel/defaultKeywords';
+import { MAX } from '../../../utils/constants';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
+
+// Re-export for backwards compatibility
+export { DEFAULT_KEYWORDS } from '../../../utils/baitChannel/defaultKeywords';
 
 const keywordRepo = lazyRepo(BaitKeyword);
 const tl = lang.baitChannel;
-
-/** Default keywords seeded on first bait channel setup or keyword reset */
-export const DEFAULT_KEYWORDS: { keyword: string; weight: number }[] = [
-  { keyword: 'free nitro', weight: 8 },
-  { keyword: 'discord nitro', weight: 7 },
-  { keyword: 'boost', weight: 3 },
-  { keyword: 'giveaway', weight: 4 },
-  { keyword: 'win', weight: 2 },
-  { keyword: 'click here', weight: 7 },
-  { keyword: 'check dm', weight: 6 },
-  { keyword: 'dm me', weight: 4 },
-  { keyword: '@everyone', weight: 8 },
-  { keyword: '@here', weight: 7 },
-  { keyword: 'http', weight: 3 },
-  { keyword: 'www', weight: 3 },
-  { keyword: '.gg/', weight: 5 },
-  { keyword: 'steam', weight: 4 },
-  { keyword: 'csgo', weight: 5 },
-  { keyword: 'tf2', weight: 5 },
-];
-
-import { MAX } from '../../../utils/constants';
 
 /**
  * Seed default keywords for a guild if none exist.
@@ -57,21 +40,12 @@ export async function seedDefaultKeywords(guildId: string, createdBy = 'system')
   );
 
   // Use insert with orIgnore to handle any edge-case duplicates
-  await keywordRepo
-    .createQueryBuilder()
-    .insert()
-    .into(BaitKeyword)
-    .values(entities)
-    .orIgnore()
-    .execute();
+  await keywordRepo.createQueryBuilder().insert().into(BaitKeyword).values(entities).orIgnore().execute();
 
   return DEFAULT_KEYWORDS.length;
 }
 
-export const handleKeywords = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> => {
+export const handleKeywords = async (client: Client, interaction: ChatInputCommandInteraction): Promise<void> => {
   try {
     const action = interaction.options.getString('action', true);
     const guildId = interaction.guildId!;
@@ -100,11 +74,7 @@ export const handleKeywords = async (
   }
 };
 
-async function handleAdd(
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function handleAdd(client: Client, interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const rawKeyword = interaction.options.getString('keyword');
   if (!rawKeyword) {
     await interaction.reply({
@@ -162,9 +132,7 @@ async function handleAdd(
   const embed = new EmbedBuilder()
     .setColor('#00FF00')
     .setTitle(tl.keywords.add.title)
-    .setDescription(
-      tl.keywords.add.success.replace('{keyword}', keyword).replace('{weight}', weight.toString()),
-    )
+    .setDescription(tl.keywords.add.success.replace('{keyword}', keyword).replace('{weight}', weight.toString()))
     .setFooter({
       text: tl.keywords.list.footer.replace('{count}', newCount.toString()),
     });
@@ -172,11 +140,7 @@ async function handleAdd(
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
 }
 
-async function handleRemove(
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function handleRemove(client: Client, interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const keyword = interaction.options.getString('keyword');
   if (!keyword) {
     await interaction.reply({
@@ -207,10 +171,7 @@ async function handleRemove(
   });
 }
 
-async function handleList(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function handleList(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const keywords = await keywordRepo.find({
     where: { guildId },
     order: { weight: 'DESC' },
@@ -257,20 +218,10 @@ async function handleList(
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
 }
 
-async function handleReset(
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function handleReset(client: Client, interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('keyword_reset_confirm')
-      .setLabel('Confirm Reset')
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId('keyword_reset_cancel')
-      .setLabel('Cancel')
-      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('keyword_reset_confirm').setLabel('Confirm Reset').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('keyword_reset_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
   );
 
   const reply = await interaction.reply({
@@ -323,18 +274,14 @@ async function handleReset(
 }
 
 /** Autocomplete handler for keyword remove action */
-export async function handleKeywordAutocomplete(
-  interaction: AutocompleteInteraction,
-): Promise<void> {
+export async function handleKeywordAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
   const focusedValue = interaction.options.getFocused().toLowerCase();
 
   try {
     const keywords = await keywordRepo.find({ where: { guildId } });
-    const filtered = focusedValue
-      ? keywords.filter(k => k.keyword.includes(focusedValue))
-      : keywords;
+    const filtered = focusedValue ? keywords.filter(k => k.keyword.includes(focusedValue)) : keywords;
 
     await interaction.respond(
       filtered.slice(0, 25).map(k => ({

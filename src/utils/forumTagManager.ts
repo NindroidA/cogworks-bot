@@ -17,9 +17,7 @@ export async function ensureForumTag(
 ): Promise<string> {
   try {
     // Check if tag already exists (by name)
-    const existingTag = forumChannel.availableTags.find(
-      tag => tag.name.toLowerCase() === displayName.toLowerCase(),
-    );
+    const existingTag = forumChannel.availableTags.find(tag => tag.name.toLowerCase() === displayName.toLowerCase());
 
     if (existingTag) {
       enhancedLogger.info(`Forum tag "${displayName}" already exists`, LogCategory.SYSTEM, {
@@ -34,7 +32,9 @@ export async function ensureForumTag(
       enhancedLogger.warn(
         `Forum channel has reached maximum tag limit (20), cannot create tag for ${displayName}`,
         LogCategory.SYSTEM,
-        { forumId: forumChannel.id },
+        {
+          forumId: forumChannel.id,
+        },
       );
       // Return empty string to indicate no tag could be created
       return '';
@@ -74,9 +74,7 @@ export async function ensureForumTag(
 
     // Fetch the created tag ID (it's the last one added)
     const refreshedChannel = (await forumChannel.fetch()) as ForumChannel;
-    const createdTag = refreshedChannel.availableTags.find(
-      tag => tag.name.toLowerCase() === displayName.toLowerCase(),
-    );
+    const createdTag = refreshedChannel.availableTags.find(tag => tag.name.toLowerCase() === displayName.toLowerCase());
 
     if (!createdTag) {
       enhancedLogger.error(
@@ -96,12 +94,10 @@ export async function ensureForumTag(
 
     return createdTag.id;
   } catch (error) {
-    enhancedLogger.error(
-      `Failed to create/find forum tag for ${displayName}`,
-      error as Error,
-      LogCategory.ERROR,
-      { forumId: forumChannel.id, typeId },
-    );
+    enhancedLogger.error(`Failed to create/find forum tag for ${displayName}`, error as Error, LogCategory.ERROR, {
+      forumId: forumChannel.id,
+      typeId,
+    });
     return '';
   }
 }
@@ -112,11 +108,7 @@ export async function ensureForumTag(
  * @param threadId - The thread/post ID to apply tags to
  * @param tagIds - Array of tag IDs to apply
  */
-export async function applyForumTags(
-  forumChannel: ForumChannel,
-  threadId: string,
-  tagIds: string[],
-): Promise<void> {
+export async function applyForumTags(forumChannel: ForumChannel, threadId: string, tagIds: string[]): Promise<void> {
   try {
     // Filter out empty tag IDs and ensure we don't exceed 5 tags (Discord API limit)
     const validTagIds = tagIds.filter(id => id.length > 0).slice(0, 5);

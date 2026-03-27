@@ -1,11 +1,7 @@
-import {
-  type AutocompleteInteraction,
-  type ChatInputCommandInteraction,
-  MessageFlags,
-} from 'discord.js';
+import { type AutocompleteInteraction, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang, requireAdmin } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeToggle;
 
@@ -15,6 +11,15 @@ const tl = lang.ticket.customTypes.typeToggle;
  */
 export async function typeToggleHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
+    const adminCheck = requireAdmin(interaction);
+    if (!adminCheck.allowed) {
+      await interaction.reply({
+        content: adminCheck.message ?? '',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     if (!interaction.guild) {
       enhancedLogger.warn('Type-toggle handler: guild not found', LogCategory.COMMAND_EXECUTION, {
         userId: interaction.user.id,
@@ -29,11 +34,11 @@ export async function typeToggleHandler(interaction: ChatInputCommandInteraction
     const guildId = interaction.guild.id;
     const typeId = interaction.options.getString('type', true);
 
-    enhancedLogger.debug(
-      `Command: /ticket type-toggle type=${typeId}`,
-      LogCategory.COMMAND_EXECUTION,
-      { userId: interaction.user.id, guildId, typeId },
-    );
+    enhancedLogger.debug(`Command: /ticket type-toggle type=${typeId}`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      typeId,
+    });
 
     const typeRepo = AppDataSource.getRepository(CustomTicketType);
 
@@ -42,11 +47,11 @@ export async function typeToggleHandler(interaction: ChatInputCommandInteraction
     });
 
     if (!type) {
-      enhancedLogger.warn(
-        `Type-toggle: type '${typeId}' not found`,
-        LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId, typeId },
-      );
+      enhancedLogger.warn(`Type-toggle: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+        guildId,
+        typeId,
+      });
       await interaction.reply({
         content: tl.notFound,
         flags: [MessageFlags.Ephemeral],
@@ -62,12 +67,16 @@ export async function typeToggleHandler(interaction: ChatInputCommandInteraction
     enhancedLogger.info(
       `Type toggled: '${typeId}' ${previousState} → ${type.isActive}`,
       LogCategory.COMMAND_EXECUTION,
-      { userId: interaction.user.id, guildId, typeId, previousState, newState: type.isActive },
+      {
+        userId: interaction.user.id,
+        guildId,
+        typeId,
+        previousState,
+        newState: type.isActive,
+      },
     );
 
-    const message = type.isActive
-      ? LANGF(tl.activated, type.displayName)
-      : LANGF(tl.deactivated, type.displayName);
+    const message = type.isActive ? LANGF(tl.activated, type.displayName) : LANGF(tl.deactivated, type.displayName);
 
     await interaction.reply({
       content: message,
@@ -99,8 +108,7 @@ export async function ticketTypeAutocomplete(interaction: AutocompleteInteractio
     const filtered = types
       .filter(
         type =>
-          type.typeId.toLowerCase().includes(focusedValue) ||
-          type.displayName.toLowerCase().includes(focusedValue),
+          type.typeId.toLowerCase().includes(focusedValue) || type.displayName.toLowerCase().includes(focusedValue),
       )
       .slice(0, 25); // Discord limit
 
@@ -137,9 +145,7 @@ const LEGACY_TYPE_IDS = LEGACY_TYPES.map(t => t.typeId);
  * Autocomplete handler that includes both legacy and custom ticket types
  * Used by settings command for ping-on-create setting
  */
-export async function ticketTypeAutocompleteWithLegacy(
-  interaction: AutocompleteInteraction,
-): Promise<void> {
+export async function ticketTypeAutocompleteWithLegacy(interaction: AutocompleteInteraction): Promise<void> {
   try {
     if (!interaction.guild) return;
 
@@ -175,8 +181,7 @@ export async function ticketTypeAutocompleteWithLegacy(
     const filtered = allTypes
       .filter(
         type =>
-          type.typeId.toLowerCase().includes(focusedValue) ||
-          type.displayName.toLowerCase().includes(focusedValue),
+          type.typeId.toLowerCase().includes(focusedValue) || type.displayName.toLowerCase().includes(focusedValue),
       )
       .slice(0, 25); // Discord limit
 

@@ -5,24 +5,18 @@ import { lazyRepo } from '../../database/lazyRepo';
 import { buildMenuEmbed, updateMenuMessage } from '../../reactionRole/menuBuilder';
 import { invalidateGuildMenuCache } from '../../reactionRole/menuCache';
 import { ApiError } from '../apiError';
-import { extractId, isValidSnowflake } from '../helpers';
+import { isValidSnowflake, optionalString, requireId, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
 const menuRepo = lazyRepo(ReactionRoleMenu);
 const optionRepo = lazyRepo(ReactionRoleOption);
 
-export function registerReactionRoleHandlers(
-  client: Client,
-  routes: Map<string, RouteHandler>,
-): void {
+export function registerReactionRoleHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // POST /internal/guilds/:guildId/reaction-roles
   routes.set('POST /reaction-roles', async (guildId, body) => {
-    const channelId = body.channelId as string;
-    const title = body.title as string;
-    if (!channelId || !title) {
-      throw ApiError.badRequest('channelId and title are required');
-    }
+    const channelId = requireString(body, 'channelId');
+    const title = requireString(body, 'title');
     if (!isValidSnowflake(channelId)) throw ApiError.badRequest('Invalid channelId format');
 
     const guild = client.guilds.cache.get(guildId);
@@ -33,8 +27,8 @@ export function registerReactionRoleHandlers(
       throw ApiError.notFound('Channel not found or not a text channel');
     }
 
-    const mode = (body.mode as 'normal' | 'unique' | 'lock') || 'normal';
-    const description = (body.description as string) || null;
+    const mode = (optionalString(body, 'mode') as 'normal' | 'unique' | 'lock') || 'normal';
+    const description = optionalString(body, 'description') ?? null;
 
     // Create menu entity first (need ID for options)
     const menu = menuRepo.create({
@@ -82,7 +76,8 @@ export function registerReactionRoleHandlers(
 
     invalidateGuildMenuCache(guildId);
 
-    await writeAuditLog(guildId, 'reactionRole.create', body.triggeredBy as string, {
+    const triggeredBy = optionalString(body, 'triggeredBy');
+    await writeAuditLog(guildId, 'reactionRole.create', triggeredBy, {
       menuId: menu.id,
     });
     return { success: true, menuId: menu.id, messageId: sentMessage.id };
@@ -90,7 +85,7 @@ export function registerReactionRoleHandlers(
 
   // POST /internal/guilds/:guildId/reaction-roles/:id/rebuild
   routes.set('POST /reaction-roles/:id/rebuild', async (guildId, body, url) => {
-    const menuId = extractId(url, 'reaction-roles');
+    const menuId = requireId(url, 'reaction-roles');
     const menu = await menuRepo.findOne({
       where: { guildId, id: menuId },
       relations: ['options'],
@@ -105,7 +100,8 @@ export function registerReactionRoleHandlers(
 
     invalidateGuildMenuCache(guildId);
 
-    await writeAuditLog(guildId, 'reactionRole.rebuild', body.triggeredBy as string, { menuId });
+    const triggeredBy = optionalString(body, 'triggeredBy');
+    await writeAuditLog(guildId, 'reactionRole.rebuild', triggeredBy, { menuId });
     return { success: true };
   });
 }

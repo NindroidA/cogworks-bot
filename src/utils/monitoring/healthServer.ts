@@ -128,10 +128,10 @@ class HealthServer {
       this.handleRequest(req, res);
     });
 
-    this.server.listen(port, '127.0.0.1', () => {
-      enhancedLogger.info(`Health server listening on 127.0.0.1:${port}`, LogCategory.SYSTEM, {
+    this.server.listen(port, '0.0.0.0', () => {
+      enhancedLogger.info(`Health server listening on 0.0.0.0:${port}`, LogCategory.SYSTEM, {
         port,
-        host: '127.0.0.1',
+        host: '0.0.0.0',
         endpoints: ['/health', '/health/ready', '/health/live'],
       });
     });
@@ -175,10 +175,10 @@ class HealthServer {
     // Route to appropriate handler
     switch (url) {
       case '/health':
-        this.handleHealthCheck(res);
+        void this.handleHealthCheck(res);
         break;
       case '/health/ready':
-        this.handleReadinessCheck(res);
+        void this.handleReadinessCheck(res);
         break;
       case '/health/live':
         this.handleLivenessCheck(res);
@@ -311,10 +311,7 @@ class HealthServer {
   /**
    * Check database health status.
    */
-  private checkDatabase(dbHealth: {
-    connected: boolean;
-    responseTime?: number;
-  }): HealthCheckResult {
+  private checkDatabase(dbHealth: { connected: boolean; responseTime?: number }): HealthCheckResult {
     if (!dbHealth.connected) {
       return {
         status: 'fail',
@@ -375,11 +372,7 @@ class HealthServer {
   /**
    * Check memory usage status.
    */
-  private checkMemory(memory: {
-    heapUsedMB: string;
-    heapTotalMB: string;
-    rssMB: string;
-  }): HealthCheckResult {
+  private checkMemory(memory: { heapUsedMB: string; heapTotalMB: string; rssMB: string }): HealthCheckResult {
     const rssMB = parseInt(memory.rssMB, 10);
     const thresholdMB = Number.parseInt(process.env.MEMORY_THRESHOLD_MB || '512', 10);
     const effectiveThreshold = Number.isNaN(thresholdMB) ? 512 : thresholdMB;

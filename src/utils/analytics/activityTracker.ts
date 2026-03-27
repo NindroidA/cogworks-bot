@@ -178,12 +178,10 @@ class ActivityTracker {
 
       await repo.save(snapshot);
     } catch (error) {
-      enhancedLogger.error(
-        'Failed to flush analytics snapshot',
-        error as Error,
-        LogCategory.DATABASE,
-        { guildId, date: dateStr },
-      );
+      enhancedLogger.error('Failed to flush analytics snapshot', error as Error, LogCategory.DATABASE, {
+        guildId,
+        date: dateStr,
+      });
     }
   }
 

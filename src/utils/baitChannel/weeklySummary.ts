@@ -51,18 +51,14 @@ export async function checkAndSendWeeklySummaries(client: Client): Promise<void>
 
     if (configs.length === 0) return;
 
-    enhancedLogger.info(
-      `Sending weekly bait channel summaries to ${configs.length} guild(s)`,
-      LogCategory.SYSTEM,
-    );
+    enhancedLogger.info(`Sending weekly bait channel summaries to ${configs.length} guild(s)`, LogCategory.SYSTEM);
 
-    for (const config of configs) {
-      try {
-        await sendGuildSummary(client, config);
-      } catch (error) {
+    const results = await Promise.allSettled(configs.map(config => sendGuildSummary(client, config)));
+    for (let i = 0; i < results.length; i++) {
+      if (results[i].status === 'rejected') {
         enhancedLogger.error(
-          `Failed to send weekly summary for guild ${config.guildId}`,
-          error as Error,
+          `Failed to send weekly summary for guild ${configs[i].guildId}`,
+          (results[i] as PromiseRejectedResult).reason as Error,
           LogCategory.ERROR,
         );
       }
@@ -80,9 +76,7 @@ async function sendGuildSummary(client: Client, config: BaitChannelConfig): Prom
   const guild = client.guilds.cache.get(config.guildId);
   if (!guild) return;
 
-  const channel = (await guild.channels
-    .fetch(targetChannelId)
-    .catch(() => null)) as TextChannel | null;
+  const channel = (await guild.channels.fetch(targetChannelId).catch(() => null)) as TextChannel | null;
   if (!channel) return;
 
   // Fetch logs from the past 7 days
@@ -112,8 +106,7 @@ function buildZeroActivityEmbed(): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle('Weekly Bait Channel Summary')
     .setDescription('No bait channel activity in the past 7 days.')
-    .setColor(Colors.status.success)
-    .setTimestamp();
+    .setColor(Colors.status.success);
 }
 
 function buildSummaryEmbed(logs: BaitChannelLog[]): EmbedBuilder {
@@ -135,11 +128,8 @@ function buildSummaryEmbed(logs: BaitChannelLog[]): EmbedBuilder {
 
   // Override rate
   // Only count actionable entries (not whitelisted/deleted-in-time) as the denominator
-  const actionableLogs = logs.filter(
-    l => l.actionTaken !== 'whitelisted' && l.actionTaken !== 'deleted-in-time',
-  );
-  const overrideRate =
-    actionableLogs.length > 0 ? Math.round((overriddenCount / actionableLogs.length) * 100) : 0;
+  const actionableLogs = logs.filter(l => l.actionTaken !== 'whitelisted' && l.actionTaken !== 'deleted-in-time');
+  const overrideRate = actionableLogs.length > 0 ? Math.round((overriddenCount / actionableLogs.length) * 100) : 0;
 
   // Top 3 detection flags
   const flagCounts: Record<string, number> = {};
@@ -172,8 +162,7 @@ function buildSummaryEmbed(logs: BaitChannelLog[]): EmbedBuilder {
       { name: 'Avg Suspicion Score', value: `${avgScore}/100`, inline: true },
       { name: 'Override Rate', value: `${overrideRate}%`, inline: true },
       { name: 'Action Breakdown', value: actionLines || 'None', inline: false },
-    )
-    .setTimestamp();
+    );
 
   if (topFlags) {
     embed.addFields({

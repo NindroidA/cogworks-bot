@@ -1,10 +1,4 @@
-import {
-  type CacheType,
-  type ChatInputCommandInteraction,
-  type Client,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { MoreThan } from 'typeorm';
 import onboardingLang from '../../../lang/onboarding.json';
 import { OnboardingCompletion } from '../../../typeorm/entities/onboarding/OnboardingCompletion';
@@ -19,10 +13,7 @@ const tl = onboardingLang;
 /**
  * View onboarding completion statistics.
  */
-export const onboardingStatsHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const onboardingStatsHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
   const days = 30;
   const cutoff = new Date();
@@ -55,8 +46,7 @@ export const onboardingStatsHandler = async (
   const totalStarted = allCompletions.length;
   const completed = allCompletions.filter(c => c.completedAt !== null);
   const totalCompleted = completed.length;
-  const completionRate =
-    totalStarted > 0 ? ((totalCompleted / totalStarted) * 100).toFixed(1) : '0.0';
+  const completionRate = totalStarted > 0 ? ((totalCompleted / totalStarted) * 100).toFixed(1) : '0.0';
 
   // Average completion time (for those who completed)
   let avgTime = 'N/A';
@@ -108,8 +98,7 @@ export const onboardingStatsHandler = async (
       { name: tl.stats.totalCompleted, value: `${totalCompleted}`, inline: true },
       { name: tl.stats.completionRate, value: `${completionRate}%`, inline: true },
       { name: tl.stats.avgCompletionTime, value: avgTime, inline: true },
-    )
-    .setTimestamp();
+    );
 
   if (dropOffText) {
     embed.addFields({

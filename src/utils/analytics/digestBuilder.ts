@@ -19,16 +19,7 @@ import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 /**
  * Sparkline characters — maps a 0-1 fraction to a bar character.
  */
-const SPARK_CHARS = [
-  '\u2581',
-  '\u2582',
-  '\u2583',
-  '\u2584',
-  '\u2585',
-  '\u2586',
-  '\u2587',
-  '\u2588',
-];
+const SPARK_CHARS = ['\u2581', '\u2582', '\u2583', '\u2584', '\u2585', '\u2586', '\u2587', '\u2588'];
 
 /**
  * Convert an array of numbers to a text sparkline string.
@@ -40,10 +31,7 @@ function sparkline(values: number[]): string {
 
   return values
     .map(v => {
-      const index = Math.min(
-        Math.floor((v / max) * (SPARK_CHARS.length - 1)),
-        SPARK_CHARS.length - 1,
-      );
+      const index = Math.min(Math.floor((v / max) * (SPARK_CHARS.length - 1)), SPARK_CHARS.length - 1);
       return SPARK_CHARS[index];
     })
     .join('');
@@ -68,12 +56,8 @@ function formatHour(hour: number): string {
 /**
  * Build a digest embed from snapshot data for a given date range.
  */
-function buildDigestEmbed(
-  snapshots: AnalyticsSnapshot[],
-  title: string,
-  periodLabel: string,
-): EmbedBuilder {
-  const embed = new EmbedBuilder().setTitle(title).setColor(Colors.brand.primary).setTimestamp();
+function buildDigestEmbed(snapshots: AnalyticsSnapshot[], title: string, periodLabel: string): EmbedBuilder {
+  const embed = new EmbedBuilder().setTitle(title).setColor(Colors.brand.primary);
 
   if (snapshots.length === 0) {
     embed.setDescription('No data available for this period.');
@@ -108,9 +92,7 @@ function buildDigestEmbed(
   const topChannels = [...channelAgg.values()].sort((a, b) => b.count - a.count).slice(0, 5);
 
   if (topChannels.length > 0) {
-    const channelLines = topChannels.map(
-      (ch, i) => `${i + 1}. **#${ch.name}** — ${fmt(ch.count)} msgs`,
-    );
+    const channelLines = topChannels.map((ch, i) => `${i + 1}. **#${ch.name}** — ${fmt(ch.count)} msgs`);
     embed.addFields({
       name: 'Top Channels',
       value: channelLines.join('\n'),
@@ -119,7 +101,7 @@ function buildDigestEmbed(
   }
 
   // Member growth
-  const first = snapshots[0];
+  const _first = snapshots[0];
   const last = snapshots[snapshots.length - 1];
   const totalJoined = snapshots.reduce((a, s) => a + s.memberJoined, 0);
   const totalLeft = snapshots.reduce((a, s) => a + s.memberLeft, 0);
@@ -207,11 +189,7 @@ function shouldSendDigest(config: AnalyticsConfig, today: Date): 'weekly' | 'mon
 /**
  * Send a digest embed to the configured channel if it's the right day.
  */
-export async function sendDigest(
-  client: Client,
-  config: AnalyticsConfig,
-  today: Date,
-): Promise<void> {
+export async function sendDigest(client: Client, config: AnalyticsConfig, today: Date): Promise<void> {
   const digestType = shouldSendDigest(config, today);
   if (!digestType) return;
 
@@ -244,31 +222,21 @@ export async function sendDigest(
       guildId: config.guildId,
     });
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to send analytics digest to channel',
-      error as Error,
-      LogCategory.SYSTEM,
-      { guildId: config.guildId, channelId: config.digestChannelId },
-    );
+    enhancedLogger.error('Failed to send analytics digest to channel', error as Error, LogCategory.SYSTEM, {
+      guildId: config.guildId,
+      channelId: config.digestChannelId,
+    });
   }
 }
 
 /**
  * Build an overview embed for the current day (used by /insights overview).
  */
-export function buildOverviewEmbed(
-  snapshot: AnalyticsSnapshot | null,
-  guildName: string,
-): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setTitle(`Server Overview — Today`)
-    .setColor(Colors.brand.primary)
-    .setTimestamp();
+export function buildOverviewEmbed(snapshot: AnalyticsSnapshot | null, _guildName: string): EmbedBuilder {
+  const embed = new EmbedBuilder().setTitle(`Server Overview — Today`).setColor(Colors.brand.primary);
 
   if (!snapshot) {
-    embed.setDescription(
-      'No activity data recorded yet. Analytics will start collecting once enabled.',
-    );
+    embed.setDescription('No activity data recorded yet. Analytics will start collecting once enabled.');
     return embed;
   }
 
@@ -294,9 +262,7 @@ export function buildOverviewEmbed(
   }
 
   if (snapshot.topChannels && snapshot.topChannels.length > 0) {
-    const lines = snapshot.topChannels
-      .slice(0, 5)
-      .map((ch, i) => `${i + 1}. **#${ch.name}** — ${fmt(ch.count)}`);
+    const lines = snapshot.topChannels.slice(0, 5).map((ch, i) => `${i + 1}. **#${ch.name}** — ${fmt(ch.count)}`);
     embed.addFields({
       name: 'Top Channels',
       value: lines.join('\n'),
@@ -313,15 +279,10 @@ export function buildOverviewEmbed(
  * Build a growth embed from snapshot data (used by /insights growth).
  */
 export function buildGrowthEmbed(snapshots: AnalyticsSnapshot[], days: number): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setTitle(`Member Growth — Last ${days} Days`)
-    .setColor(Colors.brand.primary)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setTitle(`Member Growth — Last ${days} Days`).setColor(Colors.brand.primary);
 
   if (snapshots.length === 0) {
-    embed.setDescription(
-      'Not enough data to show growth trends. Check back after a few days of tracking.',
-    );
+    embed.setDescription('Not enough data to show growth trends. Check back after a few days of tracking.');
     return embed;
   }
 
@@ -352,10 +313,7 @@ export function buildGrowthEmbed(snapshots: AnalyticsSnapshot[], days: number): 
  * Build a channels embed from snapshot data (used by /insights channels).
  */
 export function buildChannelsEmbed(snapshots: AnalyticsSnapshot[], days: number): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setTitle(`Top Channels — Last ${days} Days`)
-    .setColor(Colors.brand.primary)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setTitle(`Top Channels — Last ${days} Days`).setColor(Colors.brand.primary);
 
   if (snapshots.length === 0) {
     embed.setDescription('No channel activity data available for this period.');
@@ -409,10 +367,7 @@ export function buildChannelsEmbed(snapshots: AnalyticsSnapshot[], days: number)
  * Build an hours heatmap embed from snapshot data (used by /insights hours).
  */
 export function buildHoursEmbed(snapshots: AnalyticsSnapshot[], days: number): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setTitle(`Activity by Hour — Last ${days} Days`)
-    .setColor(Colors.brand.primary)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setTitle(`Activity by Hour — Last ${days} Days`).setColor(Colors.brand.primary);
 
   if (snapshots.length === 0) {
     embed.setDescription('No hourly activity data available for this period.');
@@ -423,10 +378,7 @@ export function buildHoursEmbed(snapshots: AnalyticsSnapshot[], days: number): E
   const hourWeights = new Map<number, number>();
   for (const snap of snapshots) {
     if (snap.peakHourUtc !== null) {
-      hourWeights.set(
-        snap.peakHourUtc,
-        (hourWeights.get(snap.peakHourUtc) ?? 0) + snap.messageCount,
-      );
+      hourWeights.set(snap.peakHourUtc, (hourWeights.get(snap.peakHourUtc) ?? 0) + snap.messageCount);
     }
   }
 

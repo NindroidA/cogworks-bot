@@ -25,14 +25,8 @@ export class AddCreatedByIndexes1741564800000 implements MigrationInterface {
 
   async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`DROP INDEX \`IDX_tickets_guildId_createdBy\` ON \`tickets\``);
-    await queryRunner.query(
-      `DROP INDEX \`IDX_applications_guildId_createdBy\` ON \`applications\``,
-    );
-    await queryRunner.query(
-      `DROP INDEX \`IDX_archived_tickets_guildId_createdBy\` ON \`archived_tickets\``,
-    );
-    await queryRunner.query(
-      `DROP INDEX \`IDX_archived_applications_guildId_createdBy\` ON \`archived_applications\``,
-    );
+    await queryRunner.query(`DROP INDEX \`IDX_applications_guildId_createdBy\` ON \`applications\``);
+    await queryRunner.query(`DROP INDEX \`IDX_archived_tickets_guildId_createdBy\` ON \`archived_tickets\``);
+    await queryRunner.query(`DROP INDEX \`IDX_archived_applications_guildId_createdBy\` ON \`archived_applications\``);
   }
 }

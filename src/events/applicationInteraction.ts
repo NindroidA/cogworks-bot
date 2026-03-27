@@ -41,9 +41,7 @@ export const handleApplicationInteraction = async (client: Client, interaction: 
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
   // applicationConfig is loaded lazily — only fetched when actually needed
-  let applicationConfig:
-    | import('../typeorm/entities/application/ApplicationConfig').ApplicationConfig
-    | null = null;
+  let applicationConfig: import('../typeorm/entities/application/ApplicationConfig').ApplicationConfig | null = null;
   const getApplicationConfig = async () => {
     if (applicationConfig === null) {
       applicationConfig = await applicationConfigRepo.findOneBy({ guildId });
@@ -126,11 +124,11 @@ export const handleApplicationInteraction = async (client: Client, interaction: 
   /* Age Verification - No */
   if (interaction.isButton() && interaction.customId.startsWith('age_verify_no_')) {
     const positionId = parseInt(interaction.customId.replace('age_verify_no_', ''), 10);
-    enhancedLogger.debug(
-      `Button: age_verify_no_${positionId} (under 18)`,
-      LogCategory.COMMAND_EXECUTION,
-      { userId: interaction.user.id, guildId, positionId },
-    );
+    enhancedLogger.debug(`Button: age_verify_no_${positionId} (under 18)`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      positionId,
+    });
 
     await interaction.update({
       content: pl.ageVerifyNoReply,
@@ -159,11 +157,11 @@ export const handleApplicationInteraction = async (client: Client, interaction: 
     const appConfig = await getApplicationConfig();
     const category = appConfig?.categoryId;
 
-    enhancedLogger.debug(
-      `Modal submit: application_modal_${positionId}`,
-      LogCategory.COMMAND_EXECUTION,
-      { userId: interaction.user.id, guildId, positionId },
-    );
+    enhancedLogger.debug(`Modal submit: application_modal_${positionId}`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      positionId,
+    });
 
     // guild check
     if (!guild) {
@@ -352,7 +350,11 @@ export const handleApplicationInteraction = async (client: Client, interaction: 
         'Failed to create application',
         error instanceof Error ? error : new Error(String(error)),
         LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId, positionId },
+        {
+          userId: interaction.user.id,
+          guildId,
+          positionId,
+        },
       );
 
       // Only reply if we haven't already replied
@@ -429,9 +431,7 @@ async function showApplicationModal(
   const positionEmoji = position.emoji || '📝';
   const modalTitle = `${positionEmoji} ${position.title}`.substring(0, 45);
 
-  const modal = new ModalBuilder()
-    .setCustomId(`application_modal_${position.id}`)
-    .setTitle(modalTitle);
+  const modal = new ModalBuilder().setCustomId(`application_modal_${position.id}`).setTitle(modalTitle);
 
   const customFields = position.customFields;
 

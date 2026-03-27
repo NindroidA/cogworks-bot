@@ -5,20 +5,12 @@
  */
 
 import type { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
-import {
-  handleEventCancel,
-  handleEventCreate,
-  handleFromTemplate,
-  handleRecurring,
-} from './create';
+import { handleEventCancel, handleEventCreate, handleFromTemplate, handleRecurring } from './create';
 import { handleRemind } from './remind';
 import { eventSetupHandler } from './setup';
 import { eventTemplateHandler } from './template';
 
-export const eventHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const eventHandler = async (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const subcommandGroup = interaction.options.getSubcommandGroup(false);
   const subcommand = interaction.options.getSubcommand();
 

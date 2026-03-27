@@ -7,12 +7,7 @@
  * All handlers are admin-only and guild-scoped.
  */
 
-import {
-  type CacheType,
-  type ChatInputCommandInteraction,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import { enhancedLogger, LANGF, LogCategory, lang, requireAdmin } from '../../../utils';
@@ -38,7 +33,7 @@ const VALID_STRATEGIES: RoutingStrategy[] = ['round-robin', 'least-load', 'rando
 interface RoutingConfig {
   smartRoutingEnabled: boolean;
   routingRules: RoutingRule[] | null;
-  routingStrategy: string;
+  routingStrategy: RoutingStrategy;
 }
 
 function getRoutingFields(config: TicketConfig): RoutingConfig {
@@ -117,9 +112,7 @@ export const routingEnableHandler = async (interaction: ChatInputCommandInteract
 // /ticket routing-disable
 // ============================================================================
 
-export const routingDisableHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const routingDisableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -169,9 +162,7 @@ export const routingDisableHandler = async (
 // /ticket routing-rule-add <type> <role> [max-open]
 // ============================================================================
 
-export const routingRuleAddHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const routingRuleAddHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -253,9 +244,7 @@ export const routingRuleAddHandler = async (
 // /ticket routing-rule-remove <type>
 // ============================================================================
 
-export const routingRuleRemoveHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const routingRuleRemoveHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -316,9 +305,7 @@ export const routingRuleRemoveHandler = async (
 // /ticket routing-strategy <strategy>
 // ============================================================================
 
-export const routingStrategyHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const routingStrategyHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -492,8 +479,7 @@ export const routingStatsHandler = async (interaction: ChatInputCommandInteracti
         name: tl.statsRules,
         value: rulesText,
       },
-    )
-    .setTimestamp();
+    );
 
   if (workloadText) {
     embed.addFields({

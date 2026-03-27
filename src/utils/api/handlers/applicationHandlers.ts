@@ -4,9 +4,11 @@ import { Application } from '../../../typeorm/entities/application/Application';
 import { ArchivedApplication } from '../../../typeorm/entities/application/ArchivedApplication';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
 import { lazyRepo } from '../../database/lazyRepo';
+import { verifiedChannelDelete } from '../../discord/verifiedDelete';
 import { fetchMessagesAndSaveToFile } from '../../fetchAllMessages';
+import { enhancedLogger, LogCategory } from '../../monitoring/enhancedLogger';
 import { ApiError } from '../apiError';
-import { extractId } from '../helpers';
+import { optionalString, requireId, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
@@ -14,15 +16,11 @@ const applicationRepo = lazyRepo(Application);
 const archivedAppConfigRepo = lazyRepo(ArchivedApplicationConfig);
 const archivedAppRepo = lazyRepo(ArchivedApplication);
 
-export function registerApplicationHandlers(
-  client: Client,
-  routes: Map<string, RouteHandler>,
-): void {
+export function registerApplicationHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // POST /internal/guilds/:guildId/applications/:id/approve
   routes.set('POST /applications/:id/approve', async (guildId, body, url) => {
-    const appId = extractId(url, 'applications');
-    const approvedBy = body.approvedBy as string;
-    if (!approvedBy) throw ApiError.badRequest('approvedBy is required');
+    const appId = requireId(url, 'applications');
+    const approvedBy = requireString(body, 'approvedBy');
 
     const app = await applicationRepo.findOneBy({ guildId, id: appId });
     if (!app) throw ApiError.notFound('Application not found');
@@ -31,14 +29,10 @@ export function registerApplicationHandlers(
     await applicationRepo.update({ id: app.id, guildId }, { status: 'accepted' });
 
     // Send approval message in channel if accessible
-    const channel = app.channelId
-      ? await client.channels.fetch(app.channelId).catch(() => null)
-      : null;
+    const channel = app.channelId ? await client.channels.fetch(app.channelId).catch(() => null) : null;
     if (channel?.isTextBased()) {
-      const message = (body.message as string) || 'Your application has been approved.';
-      await (channel as GuildTextBasedChannel).send(
-        `✅ **Application Approved** by <@${approvedBy}>\n${message}`,
-      );
+      const message = optionalString(body, 'message') ?? 'Your application has been approved.';
+      await (channel as GuildTextBasedChannel).send(`✅ **Application Approved** by <@${approvedBy}>\n${message}`);
     }
 
     await writeAuditLog(guildId, 'application.approve', approvedBy, {
@@ -49,9 +43,8 @@ export function registerApplicationHandlers(
 
   // POST /internal/guilds/:guildId/applications/:id/deny
   routes.set('POST /applications/:id/deny', async (guildId, body, url) => {
-    const appId = extractId(url, 'applications');
-    const deniedBy = body.deniedBy as string;
-    if (!deniedBy) throw ApiError.badRequest('deniedBy is required');
+    const appId = requireId(url, 'applications');
+    const deniedBy = requireString(body, 'deniedBy');
 
     const app = await applicationRepo.findOneBy({ guildId, id: appId });
     if (!app) throw ApiError.notFound('Application not found');
@@ -59,14 +52,10 @@ export function registerApplicationHandlers(
 
     await applicationRepo.update({ id: app.id, guildId }, { status: 'rejected' });
 
-    const channel = app.channelId
-      ? await client.channels.fetch(app.channelId).catch(() => null)
-      : null;
+    const channel = app.channelId ? await client.channels.fetch(app.channelId).catch(() => null) : null;
     if (channel?.isTextBased()) {
-      const reason = (body.reason as string) || 'No reason provided.';
-      await (channel as GuildTextBasedChannel).send(
-        `❌ **Application Denied** by <@${deniedBy}>\nReason: ${reason}`,
-      );
+      const reason = optionalString(body, 'reason') ?? 'No reason provided.';
+      await (channel as GuildTextBasedChannel).send(`❌ **Application Denied** by <@${deniedBy}>\nReason: ${reason}`);
     }
 
     await writeAuditLog(guildId, 'application.deny', deniedBy, {
@@ -77,7 +66,7 @@ export function registerApplicationHandlers(
 
   // POST /internal/guilds/:guildId/applications/:id/archive
   routes.set('POST /applications/:id/archive', async (guildId, body, url) => {
-    const appId = extractId(url, 'applications');
+    const appId = requireId(url, 'applications');
     const app = await applicationRepo.findOneBy({ guildId, id: appId });
     if (!app) throw ApiError.notFound('Application not found');
 
@@ -87,9 +76,7 @@ export function registerApplicationHandlers(
     // Mark closed
     await applicationRepo.update({ id: app.id, guildId }, { status: 'closed' });
 
-    const channel = app.channelId
-      ? await client.channels.fetch(app.channelId).catch(() => null)
-      : null;
+    const channel = app.channelId ? await client.channels.fetch(app.channelId).catch(() => null) : null;
     if (!channel || !channel.isTextBased()) {
       return { success: true, archived: false };
     }
@@ -129,9 +116,7 @@ export function registerApplicationHandlers(
           }),
         );
       } else if (existingArchive.messageId) {
-        const post = (await forumChannel.threads.fetch(
-          existingArchive.messageId,
-        )) as ForumThreadChannel;
+        const post = (await forumChannel.threads.fetch(existingArchive.messageId)) as ForumThreadChannel;
         await post.send({ files });
       }
 
@@ -143,14 +128,20 @@ export function registerApplicationHandlers(
       // Archive failed
     }
 
-    // Delete application channel
-    try {
-      await (channel as GuildTextBasedChannel).delete();
-    } catch {
-      // Channel may be gone
+    // Delete application channel (verified)
+    const deleteResult = await verifiedChannelDelete(channel as GuildTextBasedChannel, {
+      guildId,
+      label: 'application channel (API)',
+    });
+    if (!deleteResult.success) {
+      enhancedLogger.error('Application channel persisted after API archive', undefined, LogCategory.ERROR, {
+        guildId,
+        channelId: app.channelId,
+      });
     }
 
-    await writeAuditLog(guildId, 'application.archive', body.triggeredBy as string, {
+    const triggeredBy = optionalString(body, 'triggeredBy');
+    await writeAuditLog(guildId, 'application.archive', triggeredBy, {
       applicationId: app.id,
     });
     return { success: true };

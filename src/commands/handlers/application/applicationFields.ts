@@ -6,7 +6,7 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { handleInteractionError, lang } from '../../../utils';
+import { handleInteractionError, lang, requireAdmin } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import {
   handleAddFieldModal as coreHandleAddFieldModal,
@@ -49,10 +49,7 @@ function completeSession(userId: string, guildId: string, entityId?: string): vo
 const fieldSessionCleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [key, timestamp] of fieldSessionMap.entries()) {
-    if (
-      timestamp === SESSION_COMPLETED ||
-      (timestamp > 0 && now - timestamp >= SESSION_TIMEOUT_MS)
-    ) {
+    if (timestamp === SESSION_COMPLETED || (timestamp > 0 && now - timestamp >= SESSION_TIMEOUT_MS)) {
       fieldSessionMap.delete(key);
     }
   }
@@ -103,10 +100,17 @@ const appFieldConfig: FieldManagerConfig<Position> = {
  * Handler for /application position fields command
  * Interactive UI for managing custom input fields
  */
-export async function applicationFieldsHandler(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function applicationFieldsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
+    const adminCheck = requireAdmin(interaction);
+    if (!adminCheck.allowed) {
+      await interaction.reply({
+        content: adminCheck.message ?? '',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     if (!interaction.guild) {
       await interaction.reply({
         content: lang.general.cmdGuildNotFound,
@@ -143,10 +147,7 @@ export async function applicationFieldsHandler(
 /**
  * Handle add field modal submission
  */
-export async function handleAppAddFieldModal(
-  interaction: ModalSubmitInteraction,
-  positionId: number,
-): Promise<void> {
+export async function handleAppAddFieldModal(interaction: ModalSubmitInteraction, positionId: number): Promise<void> {
   await coreHandleAddFieldModal(interaction, String(positionId), appFieldConfig);
 }
 

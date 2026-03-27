@@ -14,22 +14,14 @@ const tlGet = lang.getRoles;
 const addStaff = new SlashCommandSubcommandBuilder()
   .setName('staff')
   .setDescription(tlAdd.subcmdDescrp.staff)
-  .addRoleOption(option =>
-    option.setName('role_id').setDescription(tlAdd.subcmdDescrp.roleid).setRequired(true),
-  )
-  .addStringOption(option =>
-    option.setName('alias').setDescription(tlAdd.subcmdDescrp.alias).setRequired(true),
-  );
+  .addRoleOption(option => option.setName('role_id').setDescription(tlAdd.subcmdDescrp.roleid).setRequired(true))
+  .addStringOption(option => option.setName('alias').setDescription(tlAdd.subcmdDescrp.alias).setRequired(true));
 
 const addAdmin = new SlashCommandSubcommandBuilder()
   .setName('admin')
   .setDescription(tlAdd.subcmdDescrp.admin)
-  .addRoleOption(option =>
-    option.setName('role_id').setDescription(tlAdd.subcmdDescrp.roleid).setRequired(true),
-  )
-  .addStringOption(option =>
-    option.setName('alias').setDescription(tlAdd.subcmdDescrp.alias).setRequired(true),
-  );
+  .addRoleOption(option => option.setName('role_id').setDescription(tlAdd.subcmdDescrp.roleid).setRequired(true))
+  .addStringOption(option => option.setName('alias').setDescription(tlAdd.subcmdDescrp.alias).setRequired(true));
 
 const addGroup = new SlashCommandSubcommandGroupBuilder()
   .setName('add')
@@ -41,16 +33,12 @@ const addGroup = new SlashCommandSubcommandGroupBuilder()
 const removeStaff = new SlashCommandSubcommandBuilder()
   .setName('staff')
   .setDescription(tlRemove.subcmdDescrp.staff)
-  .addRoleOption(option =>
-    option.setName('role_id').setDescription(tlRemove.subcmdDescrp.roleid).setRequired(true),
-  );
+  .addRoleOption(option => option.setName('role_id').setDescription(tlRemove.subcmdDescrp.roleid).setRequired(true));
 
 const removeAdmin = new SlashCommandSubcommandBuilder()
   .setName('admin')
   .setDescription(tlRemove.subcmdDescrp.admin)
-  .addRoleOption(option =>
-    option.setName('role_id').setDescription(tlRemove.subcmdDescrp.roleid).setRequired(true),
-  );
+  .addRoleOption(option => option.setName('role_id').setDescription(tlRemove.subcmdDescrp.roleid).setRequired(true));
 
 const removeGroup = new SlashCommandSubcommandGroupBuilder()
   .setName('remove')

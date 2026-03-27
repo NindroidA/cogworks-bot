@@ -4,10 +4,7 @@ import { starboardRandomHandler } from './random';
 import { starboardConfigHandler, starboardSetupHandler, starboardToggleHandler } from './setup';
 import { starboardStatsHandler } from './stats';
 
-export const starboardHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const starboardHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const subcommand = interaction.options.getSubcommand();
 
   switch (subcommand) {

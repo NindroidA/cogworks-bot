@@ -5,11 +5,7 @@
  * Each template defines one or more AutoMod rules using Discord's native API types.
  */
 
-import {
-  AutoModerationActionType,
-  AutoModerationRuleEventType,
-  AutoModerationRuleTriggerType,
-} from 'discord.js';
+import { AutoModerationActionType, AutoModerationRuleEventType, AutoModerationRuleTriggerType } from 'discord.js';
 
 export interface AutoModRuleConfig {
   name: string;
@@ -195,11 +191,7 @@ const familyFriendlyTemplate: AutoModTemplate = {
           'wtf',
           'fml',
         ],
-        regexPatterns: [
-          'f+[u\\*]+[c\\*]+[k\\*]+',
-          's+[h\\*]+[i\\*]+[t\\*]+',
-          'b+[i\\*]+[t\\*]+[c\\*]+[h\\*]+',
-        ],
+        regexPatterns: ['f+[u\\*]+[c\\*]+[k\\*]+', 's+[h\\*]+[i\\*]+[t\\*]+', 'b+[i\\*]+[t\\*]+[c\\*]+[h\\*]+'],
       },
       actions: [
         {
@@ -259,8 +251,7 @@ const gamingTemplate: AutoModTemplate = {
         {
           type: AutoModerationActionType.BlockMessage,
           metadata: {
-            customMessage:
-              'Your message was blocked for containing prohibited trading/scam content.',
+            customMessage: 'Your message was blocked for containing prohibited trading/scam content.',
           },
         },
       ],

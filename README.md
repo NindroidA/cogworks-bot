@@ -1,6 +1,6 @@
 # Cogworks Bot
 
-A modular Discord server management bot built for communities that need more than just moderation. Tickets, applications, announcements, reaction roles, rules enforcement, anti-bot detection, and more — all in one bot with per-server isolation.
+All-in-one Discord server management. Tickets, applications, XP, reaction roles, events, starboard, and more — with per-server data isolation.
 
 <p>
   <img src="https://img.shields.io/github/package-json/v/NindroidA/cogworks-bot?style=flat-square&color=blue" alt="Version" />
@@ -11,18 +11,15 @@ A modular Discord server management bot built for communities that need more tha
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/NindroidA/cogworks-bot/main/.github/badges/loc.json&style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBvbHlsaW5lIHBvaW50cz0iMTYgMTggMjIgMTIgMTYgNiIvPjxwb2x5bGluZSBwb2ludHM9IjggNiAyIDEyIDggMTgiLz48L3N2Zz4=" alt="Lines of Code" />
 </p>
 
-## Useful Links
-- [Cogworks Home](https://cogworks.nindroidsystems.com)
-- [Cogworks Dashboard](https://cogworks.nindroidsystems.com/dashboard)
-- [Nindroid Systems Development Discord](https://discord.gg/nkwMUaVSYH)
+[Home](https://cogworks.nindroidsystems.com) &bull; [Dashboard](https://cogworks.nindroidsystems.com/dashboard) &bull; [Discord](https://discord.gg/nkwMUaVSYH) &bull; [Commands](docs/commands.md) &bull; [Admin Guide](docs/admin_guide.md)
 
-## Quick Start
+## Get Started
 
 ```
 /bot-setup
 ```
 
-The setup wizard auto-detects what's already configured and walks you through the rest.
+Auto-detects your server's config, walks you through the rest, and creates channels matching your naming style.
 
 ## Features
 
@@ -30,125 +27,78 @@ The setup wizard auto-detects what's already configured and walks you through th
 <tr>
 <td width="50%" valign="top">
 
-### Tickets
-- Custom ticket types with configurable fields
-- Admin-only mode for sensitive tickets
-- Forum-based archive with full transcripts
-- Per-type staff ping settings
-- Email import support
-- User restrictions per ticket type
+**Tickets** — Custom types, workflow tracking, SLA, smart routing, auto-close, email import, forum archive
 
 </td>
 <td width="50%" valign="top">
 
-### Applications
-- Position-based application system
-- Modal forms with custom questions
-- Forum-based archive for closed applications
-- Streamlined review workflow
+**Applications** — Position-based forms, review pipeline, workflow statuses, forum archive
 
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
 
-### Reaction Roles
-- Create menus with emoji-to-role mappings
-- **Normal** — select multiple roles
-- **Unique** — one role at a time (auto-swap)
-- **Lock** — once selected, can't be removed
-- Up to 25 menus / 20 options each
+**XP & Levels** — Message/voice XP, rank cards, leaderboard, role rewards, channel multipliers
 
 </td>
 <td width="50%" valign="top">
 
-### Rules Acknowledgment
-- Post a rules message in any channel
-- Users react to receive a configured role
-- Un-react removes the role
-- Custom message text and emoji
-- Role hierarchy validation on setup
+**Reaction Roles** — Emoji-to-role menus with normal, unique, and lock modes
 
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
 
-### Announcements
-- Rich embed templates (maintenance, updates, back online)
-- Preview before sending with Send/Cancel
-- Discord timestamps (user timezone)
-- Scheduled announcements
-- Auto-publish to news channels
+**Announcements** — Rich embed templates with placeholders, preview, auto-publish
 
 </td>
 <td width="50%" valign="top">
 
-### Memory System
-- Forum-based tracker for bugs, features, suggestions, reminders, notes
-- **Multi-channel support** — up to 3 memory channels per server
-- Capture messages directly into the tracker
-- Per-channel category and status tags with custom tag support
-- Status-driven thread archiving with auto-lock
+**Memory** — Forum-based tracker for bugs, features, suggestions with custom tags
 
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
 
-### Bait Channel (Anti-Bot)
-- 7 detection flags with suspicion scoring (0-100)
-- Configurable actions: ban, kick, or log-only
-- Whitelist management for trusted users/roles
-- Smart detection: account age, membership, message count
-- Grace period with countdown
+**Bait Channel** — Anti-bot detection with scoring, keywords, join velocity, graduated actions
 
 </td>
 <td width="50%" valign="top">
 
-### Outage Status
-- Bot owner sets operational status levels
-- Bot presence updates automatically (Online/Idle/DND)
-- Health check integration with auto-recovery
-- 24-hour manual override window
-- Optional status channel posting
+**Events** — Scheduled events, templates, automated reminders, RSVP tracking
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**Starboard** — Auto-highlight top messages, configurable threshold, random command
+
+</td>
+<td width="50%" valign="top">
+
+**Onboarding** — Multi-step welcome flows, role assignment, completion tracking
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**Rules** — Reaction-based acknowledgment with automatic role assignment
+
+</td>
+<td width="50%" valign="top">
+
+**Insights** — Activity snapshots, growth trends, channel heatmaps, digest reports
 
 </td>
 </tr>
 </table>
 
----
-
-### And Also...
-
-- **Role Management** — Admin/staff roles with custom aliases
-- **Health Monitoring** — HTTP endpoints for Docker health checks
-- **Internal API** — Dashboard integration for remote bot operations
-- **Data Export** — GDPR-compliant `/data-export` for full server data
-- **Auto-Cleanup** — All data removed when bot leaves a server
-- **Setup Wizard** — `/bot-setup` configures everything in one guided flow
-
-## Multi-Server Architecture
-
-Every piece of data is scoped to the guild it belongs to. Servers never see each other's config, tickets, applications, or logs. All database queries are filtered by `guildId` with indexed columns for performance.
-
-## Security
-
-| Layer | Protection |
-|-------|------------|
-| **Rate Limiting** | Per-user, per-guild, and global throttles |
-| **Permissions** | Admin/staff/owner validation on every command |
-| **Input Sanitization** | Discord markdown escaping, snowflake validation, parameterized SQL |
-| **Data Isolation** | Guild-scoped queries on all entities |
-| **GDPR** | Data export + automatic deletion on guild leave |
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [Commands](docs/commands.md) | Full command reference |
-| [Privacy Policy](docs/privacy_policy.md) | Data handling policy |
-| [Terms of Service](docs/terms_of_service.md) | Usage terms |
+Plus: AutoMod integration, context menus, outage status, role management, MEE6 import, data export, health monitoring, web dashboard, and GDPR-compliant auto-cleanup.
 
 ## Tech Stack
 
@@ -159,20 +109,27 @@ Every piece of data is scoped to the guild it belongs to. Servers never see each
 | Framework | Discord.js v14 |
 | Database | MySQL + TypeORM |
 | Deployment | Docker |
+| Linting | Biome |
 | Testing | Jest + ts-jest |
-| Logging | Structured logging with categories |
-| Monitoring | HTTP health endpoints |
+| Monitoring | Structured logging + HTTP health endpoints |
+
+## Codebase Health
+
+<img src="public/scorecard.png" width="100%" alt="Desloppify Codebase Health Scorecard" />
+
+## Docs
+
+| | |
+|---|---|
+| [Commands](docs/commands.md) | Full command reference |
+| [Admin Guide](docs/admin_guide.md) | Setup and configuration |
+| [Privacy Policy](docs/privacy_policy.md) | Data handling |
+| [Terms of Service](docs/terms_of_service.md) | Usage terms |
 
 ## License
 
-PolyForm Noncommercial License 1.0.0 — see [LICENSE](LICENSE) for details.
+[PolyForm Noncommercial 1.0.0](LICENSE)
 
 ## Support
 
-- [Development Discord](https://discord.gg/nkwMUaVSYH) — Join for help and updates
-- [GitHub Issues](https://github.com/NindroidA/cogworks-bot/issues) — Bug reports and feature requests
-- Use `/coffee` in Discord to support Cogworks development
-
-## Development
-
-Since the release of version 2.0.0, Cogworks development has been accelerated through the use of AI-assisted development tools, including GitHub Copilot, Claude, and other AI programming assistants. These tools have enhanced productivity while maintaining code quality and best practices. All AI-generated code and documentation has been reviewed, tested, and refined to ensure reliability and security.
+[Discord](https://discord.gg/nkwMUaVSYH) &bull; [Issues](https://github.com/NindroidA/cogworks-bot/issues) &bull; `/coffee` in Discord

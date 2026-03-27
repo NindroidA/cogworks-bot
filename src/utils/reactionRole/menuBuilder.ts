@@ -74,14 +74,9 @@ export async function updateMenuMessage(menu: ReactionRoleMenu, guild: Guild): P
 
     // Remove reactions for removed options
     for (const [, reaction] of message.reactions.cache) {
-      const emojiStr = reaction.emoji.id
-        ? `<:${reaction.emoji.name}:${reaction.emoji.id}>`
-        : reaction.emoji.name || '';
+      const emojiStr = reaction.emoji.id ? `<:${reaction.emoji.name}:${reaction.emoji.id}>` : reaction.emoji.name || '';
       const isBot = reaction.me;
-      if (
-        isBot &&
-        !menu.options?.find(o => o.emoji === emojiStr || o.emoji === reaction.emoji.name)
-      ) {
+      if (isBot && !menu.options?.find(o => o.emoji === emojiStr || o.emoji === reaction.emoji.name)) {
         await reaction.remove();
       }
     }

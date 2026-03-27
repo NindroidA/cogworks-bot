@@ -12,14 +12,9 @@ export async function coffeeHandler(interaction: ChatInputCommandInteraction): P
   try {
     const embed = new EmbedBuilder()
       .setTitle(tl.title)
-      .setDescription(tl.description)
+      .setDescription(`${tl.description}\n\n[Buy Me a Coffee](${COFFEE_URL})`)
       .setColor(Colors.brand.primary)
-      .addFields({
-        name: tl.linkTitle,
-        value: `[${COFFEE_URL}](${COFFEE_URL})`,
-      })
-      .setFooter({ text: tl.footer })
-      .setTimestamp();
+      .setFooter({ text: tl.footer });
 
     await interaction.reply({ embeds: [embed] });
   } catch (error) {

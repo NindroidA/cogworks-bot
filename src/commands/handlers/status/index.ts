@@ -3,17 +3,10 @@ import type { ExtendedClient } from '../../../types/ExtendedClient';
 import { statusClearHandler } from './clear';
 import { statusHistoryHandler } from './history';
 import { statusSetHandler } from './set';
-import {
-  statusMonitorSetHandler,
-  statusSubscribeHandler,
-  statusUnsubscribeHandler,
-} from './subscribe';
+import { statusMonitorSetHandler, statusSubscribeHandler, statusUnsubscribeHandler } from './subscribe';
 import { statusViewHandler } from './view';
 
-export const statusHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const statusHandler = async (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const statusManager = (client as ExtendedClient).statusManager;
   const subcommand = interaction.options.getSubcommand();
 

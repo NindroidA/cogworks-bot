@@ -3,15 +3,13 @@ import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { MemoryConfig, MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
   Colors,
-  createRateLimitKey,
   E,
   enhancedLogger,
+  guardAdminRateLimit,
   healthMonitor,
   LogCategory,
   lang,
   RateLimits,
-  rateLimiter,
-  requireAdmin,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
@@ -22,28 +20,14 @@ const memoryItemRepo = lazyRepo(MemoryItem);
 
 export const memoryUpdateStatusHandler = async (interaction: ChatInputCommandInteraction) => {
   const startTime = Date.now();
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'memory-update-status',
+    limit: RateLimits.MEMORY_OPERATION,
+    scope: 'userGuild',
+  });
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
-  const userId = interaction.user.id;
-
-  const rateLimitKey = createRateLimitKey.userGuild(userId, guildId, 'memory-update-status');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.MEMORY_OPERATION);
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: rateCheck.message!,
-      flags: [MessageFlags.Ephemeral],
-    });
-    healthMonitor.recordCommand('memory update-status', Date.now() - startTime, true);
-    return;
-  }
 
   const threadId = interaction.options.getString('thread', true);
   const statusTagId = interaction.options.getString('status', true);
@@ -59,7 +43,10 @@ export const memoryUpdateStatusHandler = async (interaction: ChatInputCommandInt
   }
 
   // Resolve config from memory item's memoryConfigId
-  const config = await memoryConfigRepo.findOneBy({ guildId, id: memoryItem.memoryConfigId });
+  const config = await memoryConfigRepo.findOneBy({
+    guildId,
+    id: memoryItem.memoryConfigId,
+  });
   if (!config) {
     await interaction.reply({
       content: `${E.error} ${tl.errors.notConfigured}`,
@@ -88,7 +75,11 @@ export const memoryUpdateStatusHandler = async (interaction: ChatInputCommandInt
   try {
     // Get all status tags to find the old one's discordTagId
     const statusTags = await memoryTagRepo.find({
-      where: { guildId, memoryConfigId: memoryItem.memoryConfigId, tagType: 'status' },
+      where: {
+        guildId,
+        memoryConfigId: memoryItem.memoryConfigId,
+        tagType: 'status',
+      },
     });
     const oldStatusTag = statusTags.find(t => t.name === memoryItem.status);
 
@@ -134,8 +125,7 @@ export const memoryUpdateStatusHandler = async (interaction: ChatInputCommandInt
         const closeEmbed = new EmbedBuilder()
           .setTitle(`${E.memory} ${tl.closeNotice.title}`)
           .setDescription(tl.closeNotice.description.replace('{0}', `<@${interaction.user.id}>`))
-          .setColor(Colors.status.neutral)
-          .setTimestamp();
+          .setColor(Colors.status.neutral);
 
         await thread.send({ embeds: [closeEmbed] });
       } catch {
@@ -146,11 +136,10 @@ export const memoryUpdateStatusHandler = async (interaction: ChatInputCommandInt
         await thread.setLocked(true);
         await thread.setArchived(true);
       } catch {
-        enhancedLogger.warn(
-          'Could not lock/archive completed memory thread',
-          LogCategory.COMMAND_EXECUTION,
-          { guildId, threadId },
-        );
+        enhancedLogger.warn('Could not lock/archive completed memory thread', LogCategory.COMMAND_EXECUTION, {
+          guildId,
+          threadId,
+        });
       }
     }
 
@@ -160,7 +149,9 @@ export const memoryUpdateStatusHandler = async (interaction: ChatInputCommandInt
       `Memory update-status error: ${error}`,
       error instanceof Error ? error : undefined,
       LogCategory.COMMAND_EXECUTION,
-      { guildId },
+      {
+        guildId,
+      },
     );
     await interaction.editReply({
       content: `${E.error} ${tl.quickUpdate.statusError}`,

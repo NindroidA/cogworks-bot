@@ -15,9 +15,7 @@ const INVITE_URL = 'https://discord.gg/nkwMUaVSYH';
  * Handler for /server command
  * Shows the Cogworks development Discord server invite link
  */
-export async function serverCommandHandler(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function serverCommandHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -28,11 +26,7 @@ export async function serverCommandHandler(
   }
 
   try {
-    const embed = new EmbedBuilder()
-      .setTitle(tl.title)
-      .setDescription(tl.description)
-      .setColor(Colors.brand.primary)
-      .setTimestamp();
+    const embed = new EmbedBuilder().setTitle(tl.title).setDescription(tl.description).setColor(Colors.brand.primary);
 
     const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setLabel(tl.buttonLabel).setURL(INVITE_URL).setStyle(ButtonStyle.Link),

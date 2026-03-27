@@ -12,15 +12,13 @@ import {
 import { MemoryConfig, MemoryTag, type MemoryTagType } from '../../../typeorm/entities/memory';
 import {
   Colors,
-  createRateLimitKey,
   E,
   enhancedLogger,
+  guardAdminRateLimit,
   healthMonitor,
   LogCategory,
   lang,
   RateLimits,
-  rateLimiter,
-  requireAdmin,
 } from '../../../utils';
 import { MAX } from '../../../utils/constants';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -163,9 +161,7 @@ async function handleTagAdd(interaction: ChatInputCommandInteraction, guildId: s
     const updatedForum = await forum.setAvailableTags([...currentTags, newForumTag]);
 
     // Find the newly created tag by comparing old and new
-    const discordTag = updatedForum.availableTags.find(
-      t => t.name === name && !currentTags.find(ct => ct.id === t.id),
-    );
+    const discordTag = updatedForum.availableTags.find(t => t.name === name && !currentTags.find(ct => ct.id === t.id));
 
     // Save to database
     const newTag = memoryTagRepo.create({
@@ -299,9 +295,7 @@ async function handleTagEdit(interaction: ChatInputCommandInteraction, guildId: 
       const existingTags = await memoryTagRepo.find({
         where: { guildId, memoryConfigId: config.id, tagType: tag.tagType },
       });
-      const conflict = existingTags.find(
-        t => t.id !== tag.id && t.name.toLowerCase() === newName.toLowerCase(),
-      );
+      const conflict = existingTags.find(t => t.id !== tag.id && t.name.toLowerCase() === newName.toLowerCase());
       if (conflict) {
         await interaction.editReply({
           content: `${E.error} ${tl.manageTags.add.duplicate.replace('{0}', tag.tagType).replace('{1}', newName)}`,
@@ -486,9 +480,7 @@ async function handleTagReset(interaction: ChatInputCommandInteraction, guildId:
         });
 
         // Rebuild default tags on the forum
-        const forum = (await interaction.guild!.channels.fetch(
-          config.forumChannelId,
-        )) as ForumChannel;
+        const forum = (await interaction.guild!.channels.fetch(config.forumChannelId)) as ForumChannel;
         if (forum) {
           const allTags: GuildForumTagData[] = [];
           const dbTags: Partial<MemoryTag>[] = [];
@@ -543,7 +535,9 @@ async function handleTagReset(interaction: ChatInputCommandInteraction, guildId:
           `Memory tag-reset error: ${error}`,
           error instanceof Error ? error : undefined,
           LogCategory.COMMAND_EXECUTION,
-          { guildId },
+          {
+            guildId,
+          },
         );
         await i.editReply({ content: `${E.error} ${tl.setup.error}` });
       }
@@ -642,32 +636,16 @@ export async function memoryTagAutocomplete(interaction: AutocompleteInteraction
 // Main exported handler
 // ---------------------------------------------------------------------------
 
-export const manageTagsHandler = async (
-  interaction: ChatInputCommandInteraction,
-  subcommand: string,
-) => {
+export const manageTagsHandler = async (interaction: ChatInputCommandInteraction, subcommand: string) => {
   const startTime = Date.now();
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'memory-setup',
+    limit: RateLimits.BOT_SETUP,
+    scope: 'guild',
+  });
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
-
-  const rateLimitKey = createRateLimitKey.guild(guildId, 'memory-setup');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.BOT_SETUP);
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: rateCheck.message!,
-      flags: [MessageFlags.Ephemeral],
-    });
-    healthMonitor.recordCommand('memory-setup', Date.now() - startTime, true);
-    return;
-  }
 
   switch (subcommand) {
     case 'tag-add':

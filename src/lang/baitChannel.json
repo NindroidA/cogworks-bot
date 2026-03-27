@@ -89,6 +89,9 @@
       "descrp": "Enable or disable weekly summary digest",
       "enabled": "Enable or disable weekly summary",
       "channel": "Channel to send the summary (defaults to log channel)"
+    },
+    "settings": {
+      "descrp": "Open settings modal to configure bait channel"
     }
   },
   "status": {

@@ -2,11 +2,13 @@ import type { Client } from 'discord.js';
 import { registerAnnouncementHandlers } from './handlers/announcementHandlers';
 import { registerApplicationHandlers } from './handlers/applicationHandlers';
 import { registerBaitChannelHandlers } from './handlers/baitChannelHandlers';
+import { registerCommandHandlers } from './handlers/commandHandlers';
 import { registerConfigHandlers } from './handlers/configHandlers';
 import { registerGuildHandlers } from './handlers/guildHandlers';
 import { registerMemoryHandlers } from './handlers/memoryHandlers';
 import { registerReactionRoleHandlers } from './handlers/reactionRoleHandlers';
 import { registerRulesHandlers } from './handlers/rulesHandlers';
+import { registerSetupHandlers } from './handlers/setupHandlers';
 import { registerTicketHandlers } from './handlers/ticketHandlers';
 
 export type RouteHandler = (
@@ -20,6 +22,7 @@ export function registerHandlers(client: Client): Map<string, RouteHandler> {
 
   // Top-level routes (no guildId required)
   registerGuildHandlers(client, routes);
+  registerCommandHandlers(routes);
 
   // Guild-scoped routes
   registerTicketHandlers(client, routes);
@@ -30,6 +33,7 @@ export function registerHandlers(client: Client): Map<string, RouteHandler> {
   registerReactionRoleHandlers(client, routes);
   registerConfigHandlers(client, routes);
   registerBaitChannelHandlers(client, routes);
+  registerSetupHandlers(routes);
 
   return routes;
 }

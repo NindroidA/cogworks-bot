@@ -13,14 +13,11 @@ import { Position } from '../../../typeorm/entities/application/Position';
 import {
   buildConfigStatusEmbed,
   cleanupOldMessage,
-  createRateLimitKey,
   enhancedLogger,
-  LANGF,
+  guardAdminRateLimit,
   LogCategory,
   lang,
   RateLimits,
-  rateLimiter,
-  requireAdmin,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import type { ConfigItem } from '../../../utils/setup/configStatusEmbed';
@@ -31,35 +28,150 @@ const applicationConfigRepo = lazyRepo(ApplicationConfig);
 const archivedApplicationConfigRepo = lazyRepo(ArchivedApplicationConfig);
 const positionRepo = lazyRepo(Position);
 
-export const applicationSetupHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
-  // Require admin permissions (check .allowed — object is always truthy)
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
+/** Set up or re-setup the application channel: send position message and update config. */
+async function setupApplicationChannel(
+  channelOption: TextChannel,
+  applicationConfig: ApplicationConfig | null,
+  guildId: string,
+  guild: ChatInputCommandInteraction<CacheType>['guild'] & {},
+): Promise<ApplicationConfig> {
+  const activePositions = await positionRepo.find({
+    where: { guildId, isActive: true },
+    order: { displayOrder: 'ASC' },
+  });
+
+  const { content, components } = await buildApplicationMessage(activePositions);
+
+  if (applicationConfig?.messageId) {
+    await cleanupOldMessage(guild, applicationConfig.channelId, applicationConfig.messageId);
   }
 
-  // Rate limit check (10 application setups per hour per guild)
-  const rateLimitKey = createRateLimitKey.guild(interaction.guildId!, 'application-setup');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.APPLICATION_SETUP);
+  const msg = await channelOption.send({ content, components });
 
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
-      flags: [MessageFlags.Ephemeral],
+  if (!applicationConfig) {
+    applicationConfig = applicationConfigRepo.create({
+      guildId,
+      messageId: msg.id,
+      channelId: channelOption.id,
     });
-    enhancedLogger.info(
-      `Rate limit exceeded for application setup in guild ${interaction.guildId}`,
-      LogCategory.SECURITY,
-    );
-    return;
+  } else {
+    applicationConfig.channelId = channelOption.id;
+    applicationConfig.messageId = msg.id;
   }
+
+  await applicationConfigRepo.save(applicationConfig);
+
+  enhancedLogger.info(`Application channel configured to ${channelOption.name}`, LogCategory.COMMAND_EXECUTION, {
+    guildId,
+    channelId: channelOption.id,
+  });
+
+  return applicationConfig;
+}
+
+/** Set up the application archive forum: create welcome thread and update config. */
+async function setupApplicationArchive(
+  archiveOption: ForumChannel,
+  archivedApplicationConfig: ArchivedApplicationConfig | null,
+  guildId: string,
+): Promise<ArchivedApplicationConfig> {
+  const thread = await archiveOption.threads.create({
+    name: 'Application Archive',
+    message: { content: tl.archiveInitialMsg },
+  });
+
+  try {
+    await thread.pin();
+  } catch {
+    enhancedLogger.info('Could not pin archive thread (max pins may be reached)', LogCategory.SYSTEM);
+  }
+
+  if (!archivedApplicationConfig) {
+    archivedApplicationConfig = archivedApplicationConfigRepo.create({
+      guildId,
+      messageId: thread.id,
+      channelId: archiveOption.id,
+    });
+  } else {
+    archivedApplicationConfig.channelId = archiveOption.id;
+    archivedApplicationConfig.messageId = thread.id;
+  }
+
+  await archivedApplicationConfigRepo.save(archivedApplicationConfig);
+
+  enhancedLogger.info(`Application archive configured to ${archiveOption.name}`, LogCategory.COMMAND_EXECUTION, {
+    guildId,
+    channelId: archiveOption.id,
+  });
+
+  return archivedApplicationConfig;
+}
+
+/** Set up the application category: store category ID in config. */
+async function setupApplicationCategory(
+  categoryOption: CategoryChannel,
+  applicationConfig: ApplicationConfig | null,
+  guildId: string,
+): Promise<ApplicationConfig> {
+  if (!applicationConfig) {
+    applicationConfig = applicationConfigRepo.create({
+      guildId,
+      messageId: '',
+      channelId: '',
+      categoryId: categoryOption.id,
+    });
+  } else {
+    applicationConfig.categoryId = categoryOption.id;
+  }
+
+  await applicationConfigRepo.save(applicationConfig);
+
+  enhancedLogger.info(`Application category configured to ${categoryOption.name}`, LogCategory.COMMAND_EXECUTION, {
+    guildId,
+    categoryId: categoryOption.id,
+  });
+
+  return applicationConfig;
+}
+
+/** Build the config status embed summarizing current application setup state. */
+function buildApplicationStatusEmbed(
+  applicationConfig: ApplicationConfig | null,
+  archivedApplicationConfig: ArchivedApplicationConfig | null,
+  hasUpdates: boolean,
+) {
+  const items: ConfigItem[] = [
+    {
+      label: 'Channel',
+      value: applicationConfig?.channelId ? `<#${applicationConfig.channelId}>` : null,
+      missingDescription: tl.missingChannel,
+    },
+    {
+      label: 'Archive',
+      value: archivedApplicationConfig?.channelId ? `<#${archivedApplicationConfig.channelId}>` : null,
+      missingDescription: tl.missingArchive,
+    },
+    {
+      label: 'Category',
+      value: applicationConfig?.categoryId ? `<#${applicationConfig.categoryId}>` : null,
+      missingDescription: tl.missingCategory,
+    },
+  ];
+
+  return buildConfigStatusEmbed({
+    systemName: tl.statusTitle,
+    items,
+    hasUpdates,
+  });
+}
+
+export const applicationSetupHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'application-setup',
+    limit: RateLimits.APPLICATION_SETUP,
+    scope: 'guild',
+  });
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const guild = interaction.guild!;
@@ -76,140 +188,26 @@ export const applicationSetupHandler = async (
   let archivedApplicationConfig = await archivedApplicationConfigRepo.findOneBy({ guildId });
 
   try {
-    // ── Channel setup ──────────────────────────────────────────────
     if (channelOption) {
-      // Get active positions for the application channel message
-      const activePositions = await positionRepo.find({
-        where: { guildId, isActive: true },
-        order: { displayOrder: 'ASC' },
-      });
-
-      const { content, components } = await buildApplicationMessage(activePositions);
-
-      // Clean up old message (always, even on same-channel re-setup)
-      if (applicationConfig?.messageId) {
-        await cleanupOldMessage(guild, applicationConfig.channelId, applicationConfig.messageId);
-      }
-
-      // Send new message
-      const msg = await channelOption.send({ content, components });
-
-      if (!applicationConfig) {
-        applicationConfig = applicationConfigRepo.create({
-          guildId,
-          messageId: msg.id,
-          channelId: channelOption.id,
-        });
-      } else {
-        applicationConfig.channelId = channelOption.id;
-        applicationConfig.messageId = msg.id;
-      }
-
-      await applicationConfigRepo.save(applicationConfig);
-
-      enhancedLogger.info(
-        `Application channel configured to ${channelOption.name}`,
-        LogCategory.COMMAND_EXECUTION,
-        { guildId, channelId: channelOption.id },
-      );
+      applicationConfig = await setupApplicationChannel(channelOption, applicationConfig, guildId, guild);
     }
 
-    // ── Archive setup ──────────────────────────────────────────────
     if (archiveOption) {
-      const thread = await archiveOption.threads.create({
-        name: 'Application Archive',
-        message: { content: tl.archiveInitialMsg },
-      });
-
-      try {
-        await thread.pin();
-      } catch {
-        enhancedLogger.info(
-          'Could not pin archive thread (max pins may be reached)',
-          LogCategory.SYSTEM,
-        );
-      }
-
-      if (!archivedApplicationConfig) {
-        archivedApplicationConfig = archivedApplicationConfigRepo.create({
-          guildId,
-          messageId: thread.id,
-          channelId: archiveOption.id,
-        });
-      } else {
-        archivedApplicationConfig.channelId = archiveOption.id;
-        archivedApplicationConfig.messageId = thread.id;
-      }
-
-      await archivedApplicationConfigRepo.save(archivedApplicationConfig);
-
-      enhancedLogger.info(
-        `Application archive configured to ${archiveOption.name}`,
-        LogCategory.COMMAND_EXECUTION,
-        { guildId, channelId: archiveOption.id },
-      );
+      archivedApplicationConfig = await setupApplicationArchive(archiveOption, archivedApplicationConfig, guildId);
     }
 
-    // ── Category setup ─────────────────────────────────────────────
     if (categoryOption) {
-      if (!applicationConfig) {
-        applicationConfig = applicationConfigRepo.create({
-          guildId,
-          messageId: '',
-          channelId: '',
-          categoryId: categoryOption.id,
-        });
-      } else {
-        applicationConfig.categoryId = categoryOption.id;
-      }
-
-      await applicationConfigRepo.save(applicationConfig);
-
-      enhancedLogger.info(
-        `Application category configured to ${categoryOption.name}`,
-        LogCategory.COMMAND_EXECUTION,
-        { guildId, categoryId: categoryOption.id },
-      );
+      applicationConfig = await setupApplicationCategory(categoryOption, applicationConfig, guildId);
     }
 
-    // ── Build status embed ─────────────────────────────────────────
-    const items: ConfigItem[] = [
-      {
-        label: 'Channel',
-        value: applicationConfig?.channelId ? `<#${applicationConfig.channelId}>` : null,
-        missingDescription: tl.missingChannel,
-      },
-      {
-        label: 'Archive',
-        value: archivedApplicationConfig?.channelId
-          ? `<#${archivedApplicationConfig.channelId}>`
-          : null,
-        missingDescription: tl.missingArchive,
-      },
-      {
-        label: 'Category',
-        value: applicationConfig?.categoryId ? `<#${applicationConfig.categoryId}>` : null,
-        missingDescription: tl.missingCategory,
-      },
-    ];
-
-    const statusEmbed = buildConfigStatusEmbed({
-      systemName: tl.statusTitle,
-      items,
-      hasUpdates: !!hasAnyOption,
-    });
+    const statusEmbed = buildApplicationStatusEmbed(applicationConfig, archivedApplicationConfig, !!hasAnyOption);
 
     await interaction.reply({
       embeds: [statusEmbed],
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
-    enhancedLogger.error(
-      'Application setup failed',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    enhancedLogger.error('Application setup failed', error as Error, LogCategory.COMMAND_EXECUTION, { guildId });
     await interaction.reply({
       content: tl.fail,
       flags: [MessageFlags.Ephemeral],

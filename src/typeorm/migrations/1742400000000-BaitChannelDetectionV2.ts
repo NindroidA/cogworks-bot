@@ -75,9 +75,7 @@ export class BaitChannelDetectionV21742400000000 implements MigrationInterface {
     for (const col of configColumns) {
       const exists = await this.columnExists(queryRunner, 'bait_channel_configs', col.name);
       if (!exists) {
-        await queryRunner.query(
-          `ALTER TABLE \`bait_channel_configs\` ADD COLUMN \`${col.name}\` ${col.definition}`,
-        );
+        await queryRunner.query(`ALTER TABLE \`bait_channel_configs\` ADD COLUMN \`${col.name}\` ${col.definition}`);
       }
     }
 
@@ -91,9 +89,7 @@ export class BaitChannelDetectionV21742400000000 implements MigrationInterface {
     for (const col of logColumns) {
       const exists = await this.columnExists(queryRunner, 'bait_channel_logs', col.name);
       if (!exists) {
-        await queryRunner.query(
-          `ALTER TABLE \`bait_channel_logs\` ADD COLUMN \`${col.name}\` ${col.definition}`,
-        );
+        await queryRunner.query(`ALTER TABLE \`bait_channel_logs\` ADD COLUMN \`${col.name}\` ${col.definition}`);
       }
     }
 
@@ -146,11 +142,7 @@ export class BaitChannelDetectionV21742400000000 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE IF EXISTS \`bait_keywords\``);
   }
 
-  private async columnExists(
-    queryRunner: QueryRunner,
-    table: string,
-    column: string,
-  ): Promise<boolean> {
+  private async columnExists(queryRunner: QueryRunner, table: string, column: string): Promise<boolean> {
     const result = await queryRunner.query(
       `SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
       [table, column],

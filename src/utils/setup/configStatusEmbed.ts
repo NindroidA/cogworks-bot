@@ -41,7 +41,7 @@ export function buildConfigStatusEmbed(options: ConfigStatusOptions): EmbedBuild
   const missing = items.filter(i => i.value === null);
   const isFullyConfigured = missing.length === 0;
 
-  const embed = new EmbedBuilder().setTimestamp();
+  const embed = new EmbedBuilder();
 
   if (isFullyConfigured) {
     embed.setTitle(`${systemName} Configuration`);

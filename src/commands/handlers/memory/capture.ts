@@ -14,33 +14,25 @@ import {
 } from 'discord.js';
 import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
-  createRateLimitKey,
   E,
   enhancedLogger,
-  healthMonitor,
+  guardAdminRateLimit,
   LogCategory,
   lang,
   notifyModalTimeout,
   RateLimits,
-  rateLimiter,
-  requireAdmin,
   sanitizeUserInput,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveMemoryConfig } from './channelPicker';
-import {
-  createDefaultSelectionState,
-  runTagSelectionCollector,
-  type TagSelectionState,
-} from './tagSelection';
+import { createDefaultSelectionState, runTagSelectionCollector, type TagSelectionState } from './tagSelection';
 
 const tl = lang.memory;
 const memoryTagRepo = lazyRepo(MemoryTag);
 const memoryItemRepo = lazyRepo(MemoryItem);
 
 // Regex patterns
-const MESSAGE_LINK_REGEX =
-  /https:\/\/(?:ptb\.|canary\.)?discord\.com\/channels\/(\d+)\/(\d+)\/(\d+)/;
+const MESSAGE_LINK_REGEX = /https:\/\/(?:ptb\.|canary\.)?discord\.com\/channels\/(\d+)\/(\d+)\/(\d+)/;
 const SNOWFLAKE_REGEX = /^\d{17,20}$/;
 
 /**
@@ -126,30 +118,14 @@ async function resolveTargetMessage(
 }
 
 export const memoryCaptureHandler = async (interaction: ChatInputCommandInteraction) => {
-  const startTime = Date.now();
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'memory-capture',
+    limit: RateLimits.MEMORY_OPERATION,
+    scope: 'userGuild',
+  });
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
-  const userId = interaction.user.id;
-
-  // Rate limit check
-  const rateLimitKey = createRateLimitKey.userGuild(userId, guildId, 'memory-capture');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.MEMORY_OPERATION);
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: rateCheck.message!,
-      flags: [MessageFlags.Ephemeral],
-    });
-    healthMonitor.recordCommand('memory capture', Date.now() - startTime, true);
-    return;
-  }
 
   const messageInput = interaction.options.getString('message');
 
@@ -168,11 +144,7 @@ export const memoryCaptureHandler = async (interaction: ChatInputCommandInteract
   const resolved = await resolveTargetMessage(interaction, messageInput, guildId);
   if (!resolved) return;
 
-  const {
-    message: targetMessage,
-    channelId: sourceChannelId,
-    messageId: sourceMessageId,
-  } = resolved;
+  const { message: targetMessage, channelId: sourceChannelId, messageId: sourceMessageId } = resolved;
   const sourceAuthor = targetMessage.author.displayName;
 
   // Get available tags
@@ -203,9 +175,7 @@ export const memoryCaptureHandler = async (interaction: ChatInputCommandInteract
   };
 
   const preview =
-    targetMessage.content.length > 200
-      ? `${targetMessage.content.slice(0, 200)}...`
-      : targetMessage.content;
+    targetMessage.content.length > 200 ? `${targetMessage.content.slice(0, 200)}...` : targetMessage.content;
 
   await runTagSelectionCollector(
     interaction,
@@ -268,13 +238,7 @@ async function showCaptureModal(
         i.customId.startsWith('memory_capture_modal_') && i.user.id === interaction.user.id,
     });
 
-    await handleCaptureModalSubmit(
-      modalSubmit,
-      selectionState,
-      guildId,
-      forumChannelId,
-      memoryConfigId,
-    );
+    await handleCaptureModalSubmit(modalSubmit, selectionState, guildId, forumChannelId, memoryConfigId);
   } catch {
     await notifyModalTimeout(interaction);
   }
@@ -295,9 +259,7 @@ async function handleCaptureModalSubmit(
 
   try {
     const title = sanitizeUserInput(interaction.fields.getTextInputValue('memory_title'));
-    const description = sanitizeUserInput(
-      interaction.fields.getTextInputValue('memory_description'),
-    );
+    const description = sanitizeUserInput(interaction.fields.getTextInputValue('memory_description'));
 
     const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
     if (!forum) {

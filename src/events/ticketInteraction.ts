@@ -7,6 +7,7 @@ import {
   type Interaction,
   MessageFlags,
   ModalBuilder,
+  type ModalSubmitFields,
   type TextChannel,
   TextInputBuilder,
   TextInputStyle,
@@ -33,6 +34,7 @@ import {
   rateLimiter,
 } from '../utils';
 import { lazyRepo } from '../utils/database/lazyRepo';
+import { isLegacyTicketType, LEGACY_TYPE_NAMES, type LegacyTicketTypeId } from '../utils/ticket/legacyTypes';
 import { customTicketOptions, ticketOptions } from './ticket';
 import { ticketAdminOnlyEvent } from './ticket/adminOnly';
 import { ageVerifyMessage, ageVerifyModal } from './ticket/ageVerify';
@@ -41,6 +43,42 @@ import { bugReportMessage, bugReportModal } from './ticket/bugReport';
 import { ticketCloseEvent } from './ticket/close';
 import { otherMessage, otherModal } from './ticket/other';
 import { playerReportMessage, playerReportModal } from './ticket/playerReport';
+
+/** Build a legacy ticket modal with the correct inputs for the given type. */
+async function buildLegacyTicketModal(typeId: string, modal: ModalBuilder): Promise<ModalBuilder> {
+  switch (typeId) {
+    case '18_verify':
+      return await ageVerifyModal(modal);
+    case 'ban_appeal':
+      return await banAppealModal(modal);
+    case 'player_report':
+      return await playerReportModal(modal);
+    case 'bug_report':
+      return await bugReportModal(modal);
+    case 'other':
+      return await otherModal(modal);
+    default:
+      return modal;
+  }
+}
+
+/** Build legacy ticket description from modal submit fields. */
+async function buildLegacyTicketDescription(typeId: string, fields: ModalSubmitFields): Promise<string> {
+  switch (typeId) {
+    case '18_verify':
+      return await ageVerifyMessage(fields);
+    case 'ban_appeal':
+      return await banAppealMessage(fields);
+    case 'player_report':
+      return await playerReportMessage(fields);
+    case 'bug_report':
+      return await bugReportMessage(fields);
+    case 'other':
+      return await otherMessage(fields);
+    default:
+      return '';
+  }
+}
 
 const ticketConfigRepo = lazyRepo(TicketConfig);
 const ticketRepo = lazyRepo(Ticket);
@@ -92,18 +130,16 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
   /* Handle Ticket Type Ping Toggle Button */
   if (interaction.isButton() && interaction.customId.startsWith('ticket_type_ping_toggle:')) {
     const typeId = interaction.customId.replace('ticket_type_ping_toggle:', '');
-    enhancedLogger.debug(
-      `Button: staff ping toggle for type '${typeId}'`,
-      LogCategory.COMMAND_EXECUTION,
-      { userId: interaction.user.id, guildId, typeId },
-    );
+    enhancedLogger.debug(`Button: staff ping toggle for type '${typeId}'`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      typeId,
+    });
 
     if (!guildId) {
-      enhancedLogger.warn(
-        'Staff ping toggle failed: guild not found',
-        LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id },
-      );
+      enhancedLogger.warn('Staff ping toggle failed: guild not found', LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+      });
       await interaction.reply({
         content: lang.general.cmdGuildNotFound,
         flags: [MessageFlags.Ephemeral],
@@ -116,11 +152,11 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
     });
 
     if (!type) {
-      enhancedLogger.warn(
-        `Staff ping toggle failed: type '${typeId}' not found`,
-        LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId, typeId },
-      );
+      enhancedLogger.warn(`Staff ping toggle failed: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+        guildId,
+        typeId,
+      });
       await interaction.reply({
         content: lang.ticket.customTypes.typeEdit.notFound,
         flags: [MessageFlags.Ephemeral],
@@ -177,11 +213,10 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
     // check if the ticket config exists
     const config = await getTicketConfig();
     if (!config) {
-      enhancedLogger.warn(
-        'Create ticket failed: ticketConfig not found',
-        LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId },
-      );
+      enhancedLogger.warn('Create ticket failed: ticketConfig not found', LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+        guildId,
+      });
       return;
     }
 
@@ -197,14 +232,10 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
         });
       } catch (error) {
         // Fallback to legacy buttons if custom types fail
-        enhancedLogger.warn(
-          'Failed to load custom ticket types, using legacy options',
-          LogCategory.COMMAND_EXECUTION,
-          {
-            guildId,
-            error: error instanceof Error ? error.message : String(error),
-          },
-        );
+        enhancedLogger.warn('Failed to load custom ticket types, using legacy options', LogCategory.COMMAND_EXECUTION, {
+          guildId,
+          error: error instanceof Error ? error.message : String(error),
+        });
         const options = ticketOptions();
         await interaction.reply({
           content: lang.ticket.selectTicketType,
@@ -262,37 +293,20 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
     }
 
     // Check if this is a LEGACY ticket type that should use hardcoded modals
-    const legacyTypes = ['18_verify', 'ban_appeal', 'player_report', 'bug_report', 'other'];
-    if (legacyTypes.includes(selectedTypeId)) {
-      enhancedLogger.debug(
-        `Opening legacy modal for type: ${selectedTypeId}`,
-        LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId, ticketType: selectedTypeId },
-      );
+    if (isLegacyTicketType(selectedTypeId)) {
+      enhancedLogger.debug(`Opening legacy modal for type: ${selectedTypeId}`, LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+        guildId,
+        ticketType: selectedTypeId,
+      });
 
       // Use legacy modal builders for legacy types
-      let modal = new ModalBuilder()
-        .setCustomId(`ticket_modal_${selectedTypeId}`)
-        .setTitle(`Create ${selectedTypeId.replace('_', ' ')} Ticket`);
-
-      // Add inputs to modal based on ticketType
-      switch (selectedTypeId) {
-        case '18_verify':
-          modal = await ageVerifyModal(modal);
-          break;
-        case 'ban_appeal':
-          modal = await banAppealModal(modal);
-          break;
-        case 'player_report':
-          modal = await playerReportModal(modal);
-          break;
-        case 'bug_report':
-          modal = await bugReportModal(modal);
-          break;
-        case 'other':
-          modal = await otherModal(modal);
-          break;
-      }
+      const modal = await buildLegacyTicketModal(
+        selectedTypeId,
+        new ModalBuilder()
+          .setCustomId(`ticket_modal_${selectedTypeId}`)
+          .setTitle(`Create ${selectedTypeId.replace('_', ' ')} Ticket`),
+      );
 
       // Show the modal (this is the ONLY response we can give)
       await interaction.showModal(modal);
@@ -374,8 +388,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
     const ticketType = interaction.customId.replace('ticket_', '');
 
     // Only handle valid ticket types (ignore bot setup buttons like ticket_skip, ticket_enable)
-    const validTicketTypes = ['18_verify', 'ban_appeal', 'player_report', 'bug_report', 'other'];
-    if (!validTicketTypes.includes(ticketType)) {
+    if (!isLegacyTicketType(ticketType)) {
       return; // Not a ticket creation button, ignore it
     }
 
@@ -385,29 +398,13 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
       ticketType,
     });
 
-    // build a modal for user input
-    let modal = new ModalBuilder()
-      .setCustomId(`ticket_modal_${ticketType}`)
-      .setTitle(`Create ${ticketType.replace('_', ' ')} Ticket`);
-
-    // add inputs to modal based on ticketType
-    switch (ticketType) {
-      case '18_verify':
-        modal = await ageVerifyModal(modal);
-        break;
-      case 'ban_appeal':
-        modal = await banAppealModal(modal);
-        break;
-      case 'player_report':
-        modal = await playerReportModal(modal);
-        break;
-      case 'bug_report':
-        modal = await bugReportModal(modal);
-        break;
-      case 'other':
-        modal = await otherModal(modal);
-        break;
-    }
+    // build a modal for user input using shared legacy builder
+    const modal = await buildLegacyTicketModal(
+      ticketType,
+      new ModalBuilder()
+        .setCustomId(`ticket_modal_${ticketType}`)
+        .setTitle(`Create ${ticketType.replace('_', ' ')} Ticket`),
+    );
 
     await interaction.showModal(modal);
   }
@@ -420,11 +417,11 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
     const modalTicketConfig = await getTicketConfig();
     const category = modalTicketConfig?.categoryId;
 
-    enhancedLogger.debug(
-      `Modal submit: ticket_modal_${ticketType}`,
-      LogCategory.COMMAND_EXECUTION,
-      { userId: interaction.user.id, guildId, ticketType },
-    );
+    enhancedLogger.debug(`Modal submit: ticket_modal_${ticketType}`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      ticketType,
+    });
 
     if (!guild) {
       await interaction.reply({
@@ -464,8 +461,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
       let description = '';
 
       // Check if this is a LEGACY ticket type
-      const legacyTypes = ['18_verify', 'ban_appeal', 'player_report', 'bug_report', 'other'];
-      const isLegacyType = legacyTypes.includes(ticketType);
+      const isLegacyType = isLegacyTicketType(ticketType);
 
       // For custom types, fetch config once and reuse throughout
       let customTypeConfig: CustomTicketType | null = null;
@@ -476,24 +472,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
       }
 
       if (isLegacyType) {
-        // Use legacy message builders for legacy types
-        switch (ticketType) {
-          case '18_verify':
-            description = await ageVerifyMessage(fields);
-            break;
-          case 'ban_appeal':
-            description = await banAppealMessage(fields);
-            break;
-          case 'player_report':
-            description = await playerReportMessage(fields);
-            break;
-          case 'bug_report':
-            description = await bugReportMessage(fields);
-            break;
-          case 'other':
-            description = await otherMessage(fields);
-            break;
-        }
+        description = await buildLegacyTicketDescription(ticketType, fields);
       } else {
         const ticketTypeConfig = customTypeConfig;
 
@@ -534,15 +513,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
       let displayName = ticketType;
 
       if (isLegacyType) {
-        // Use legacy names
-        const legacyNames: Record<string, string> = {
-          '18_verify': '18+ Verify',
-          ban_appeal: 'Ban Appeal',
-          player_report: 'Player Report',
-          bug_report: 'Bug Report',
-          other: 'Other',
-        };
-        displayName = legacyNames[ticketType] || ticketType;
+        displayName = LEGACY_TYPE_NAMES[ticketType as LegacyTicketTypeId] || ticketType;
       } else {
         // Reuse custom type config fetched earlier
         if (customTypeConfig) {
@@ -567,8 +538,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
       // create the ticket channel with numbering (sanitized for Discord channel names)
       const sanitizedDisplayName = displayName.toLowerCase().replace(/[^a-z0-9]/g, '-');
       const sanitizedUsername = member.user.username.toLowerCase().replace(/[^a-z0-9]/g, '-');
-      const channelName =
-        `${savedTicket.id}_${sanitizedDisplayName}_${sanitizedUsername}`.substring(0, 100);
+      const channelName = `${savedTicket.id}_${sanitizedDisplayName}_${sanitizedUsername}`.substring(0, 100);
 
       // get the staff/admin roles from the database
       const rolePerms = await savedRoleRepo
@@ -614,14 +584,8 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
       // send ticket welcome message with @ mention
       const welcomeMsg = `<@${member.user.id}>\n\n${lang.ticket.welcomeMsg}`;
       const buttonOptions = new ActionRowBuilder<ButtonBuilder>().setComponents(
-        new ButtonBuilder()
-          .setCustomId('admin_only_ticket')
-          .setLabel('Admin Only')
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId('close_ticket')
-          .setLabel('Close Ticket')
-          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('admin_only_ticket').setLabel('Admin Only').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('close_ticket').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
       );
       const descriptionMsg = `${description}`;
       const newChannel = channel as TextChannel;
@@ -664,23 +628,23 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
         },
       );
 
-      enhancedLogger.info(
-        `Ticket created: #${savedTicket.id} (${ticketType})`,
-        LogCategory.COMMAND_EXECUTION,
-        {
-          userId: interaction.user.id,
-          guildId,
-          ticketId: savedTicket.id,
-          ticketType,
-          channelId: newChannel.id,
-        },
-      );
+      enhancedLogger.info(`Ticket created: #${savedTicket.id} (${ticketType})`, LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+        guildId,
+        ticketId: savedTicket.id,
+        ticketType,
+        channelId: newChannel.id,
+      });
     } catch (error) {
       enhancedLogger.error(
         'Failed to create ticket',
         error instanceof Error ? error : new Error(String(error)),
         LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId, ticketType },
+        {
+          userId: interaction.user.id,
+          guildId,
+          ticketType,
+        },
       );
       await interaction.reply({
         content: lang.ticket.error,
@@ -699,14 +663,8 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
 
     // build a confirmation message with buttons
     const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId('confirm_admin_only_ticket')
-        .setLabel('Confirm')
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId('cancel_admin_only_ticket')
-        .setLabel('Cancel')
-        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('confirm_admin_only_ticket').setLabel('Confirm').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId('cancel_admin_only_ticket').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
     );
 
     await interaction.reply({
@@ -746,14 +704,8 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
 
     // build a confirmation message with buttons
     const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId('confirm_close_ticket')
-        .setLabel('Confirm Close')
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId('cancel_close_ticket')
-        .setLabel('Cancel')
-        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('confirm_close_ticket').setLabel('Confirm Close').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId('cancel_close_ticket').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
     );
 
     await interaction.reply({

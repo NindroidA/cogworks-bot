@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang, requireAdmin } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeList;
 
@@ -11,6 +11,15 @@ const tl = lang.ticket.customTypes.typeList;
  */
 export async function typeListHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
+    const adminCheck = requireAdmin(interaction);
+    if (!adminCheck.allowed) {
+      await interaction.reply({
+        content: adminCheck.message ?? '',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     if (!interaction.guild) {
       enhancedLogger.warn('Type-list handler: guild not found', LogCategory.COMMAND_EXECUTION, {
         userId: interaction.user.id,
@@ -43,7 +52,7 @@ export async function typeListHandler(interaction: ChatInputCommandInteraction):
       return;
     }
 
-    const embed = new EmbedBuilder().setTitle(tl.title).setColor('#0099ff').setTimestamp();
+    const embed = new EmbedBuilder().setTitle(tl.title).setColor('#0099ff');
 
     for (const type of types) {
       const status = type.isActive ? tl.activeLabel : tl.inactiveLabel;

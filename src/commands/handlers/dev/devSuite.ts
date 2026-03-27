@@ -8,29 +8,11 @@
 import type { ChatInputCommandInteraction, Client } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import { enhancedLogger, LogCategory, requireBotOwner } from '../../../utils';
-import {
-  handleScaffold,
-  handleScaffoldAll,
-  handleTeardown,
-  handleTeardownAll,
-} from './devSuiteScaffold';
-import {
-  handleMasterTest,
-  handlePermissionsAudit,
-  handleRegression,
-  handleSmokeTest,
-} from './devSuiteTests';
-import {
-  handleChain,
-  handlePopulate,
-  handleTimeline,
-  handleWalkthrough,
-} from './devSuiteWorkflows';
+import { handleScaffold, handleScaffoldAll, handleTeardown, handleTeardownAll } from './devSuiteScaffold';
+import { handleMasterTest, handlePermissionsAudit, handleRegression, handleSmokeTest } from './devSuiteTests';
+import { handleChain, handlePopulate, handleTimeline, handleWalkthrough } from './devSuiteWorkflows';
 
-export async function devSuiteHandler(
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function devSuiteHandler(client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   // Bot owner only
   const ownerCheck = requireBotOwner(interaction.user.id);
   if (!ownerCheck.allowed) {

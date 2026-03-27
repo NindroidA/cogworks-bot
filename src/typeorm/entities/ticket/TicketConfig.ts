@@ -1,4 +1,5 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import type { RoutingStrategy } from '../../../utils/ticket/smartRouter';
 
 export interface WorkflowStatus {
   id: string;
@@ -15,10 +16,10 @@ export class TicketConfig {
   @Column({ unique: true })
   guildId: string;
 
-  @Column()
+  @Column({ default: '' })
   messageId: string;
 
-  @Column()
+  @Column({ default: '' })
   channelId: string;
 
   @Column({ type: 'varchar', nullable: true })
@@ -87,5 +88,5 @@ export class TicketConfig {
   }> | null;
 
   @Column({ type: 'varchar', default: 'least-load' })
-  routingStrategy: string;
+  routingStrategy: RoutingStrategy;
 }

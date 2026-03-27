@@ -37,12 +37,9 @@ export async function checkAndAlertSlaBreaches(client: Client): Promise<void> {
       try {
         await processGuildSla(client, config);
       } catch (error) {
-        enhancedLogger.error(
-          `SLA check failed for guild ${config.guildId}`,
-          error as Error,
-          LogCategory.ERROR,
-          { guildId: config.guildId },
-        );
+        enhancedLogger.error(`SLA check failed for guild ${config.guildId}`, error as Error, LogCategory.ERROR, {
+          guildId: config.guildId,
+        });
       }
     }
   } catch (error) {
@@ -67,9 +64,7 @@ async function processGuildSla(client: Client, config: TicketConfig): Promise<vo
   // Get breach channel if configured
   let breachChannel: TextChannel | null = null;
   if (config.slaBreachChannelId) {
-    breachChannel = (await client.channels
-      .fetch(config.slaBreachChannelId)
-      .catch(() => null)) as TextChannel | null;
+    breachChannel = (await client.channels.fetch(config.slaBreachChannelId).catch(() => null)) as TextChannel | null;
   }
 
   for (const ticket of openTickets) {
@@ -104,16 +99,12 @@ async function processGuildSla(client: Client, config: TicketConfig): Promise<vo
               targetMinutes.toString(),
             ),
           )
-          .setColor(0xff0000)
-          .setTimestamp();
-
+          .setColor(0xff0000);
         await breachChannel.send({ embeds: [embed] }).catch(() => {
-          enhancedLogger.error(
-            'Failed to send SLA breach alert',
-            new Error('Channel send failed'),
-            LogCategory.ERROR,
-            { guildId: config.guildId, ticketId: ticket.id },
-          );
+          enhancedLogger.error('Failed to send SLA breach alert', new Error('Channel send failed'), LogCategory.ERROR, {
+            guildId: config.guildId,
+            ticketId: ticket.id,
+          });
         });
       }
 
@@ -124,12 +115,10 @@ async function processGuildSla(client: Client, config: TicketConfig): Promise<vo
         targetMinutes,
       });
     } catch (error) {
-      enhancedLogger.error(
-        `SLA processing failed for ticket ${ticket.id}`,
-        error as Error,
-        LogCategory.ERROR,
-        { guildId: config.guildId, ticketId: ticket.id },
-      );
+      enhancedLogger.error(`SLA processing failed for ticket ${ticket.id}`, error as Error, LogCategory.ERROR, {
+        guildId: config.guildId,
+        ticketId: ticket.id,
+      });
     }
   }
 }
@@ -152,7 +141,7 @@ function getSlaTargetForTicket(config: TicketConfig, ticket: Ticket): number {
 /**
  * Approximate ticket creation time from status history or lastActivityAt.
  */
-function getTicketCreationTime(ticket: Ticket): number {
+export function getTicketCreationTime(ticket: Ticket): number {
   // Check status history for earliest entry
   if (ticket.statusHistory && ticket.statusHistory.length > 0) {
     const earliest = ticket.statusHistory[0];

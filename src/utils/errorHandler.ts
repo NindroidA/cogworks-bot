@@ -98,8 +98,7 @@ export function classifyError(error: unknown): {
   category: ErrorCategory;
   severity: ErrorSeverity;
 } {
-  const errorMessage =
-    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  const errorMessage = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   const errorName = error instanceof Error ? error.name.toLowerCase() : '';
 
   // Database errors
@@ -145,11 +144,7 @@ export function classifyError(error: unknown): {
   }
 
   // Configuration errors
-  if (
-    errorMessage.includes('config') ||
-    errorMessage.includes('setup') ||
-    errorMessage.includes('not configured')
-  ) {
+  if (errorMessage.includes('config') || errorMessage.includes('setup') || errorMessage.includes('not configured')) {
     return {
       category: ErrorCategory.CONFIGURATION,
       severity: ErrorSeverity.MEDIUM,
@@ -157,11 +152,7 @@ export function classifyError(error: unknown): {
   }
 
   // External API errors
-  if (
-    errorMessage.includes('api') ||
-    errorMessage.includes('fetch') ||
-    errorMessage.includes('request failed')
-  ) {
+  if (errorMessage.includes('api') || errorMessage.includes('fetch') || errorMessage.includes('request failed')) {
     return {
       category: ErrorCategory.EXTERNAL_API,
       severity: ErrorSeverity.MEDIUM,
@@ -189,12 +180,7 @@ export function logError(errorInfo: ErrorInfo): void {
     case ErrorSeverity.MEDIUM:
     case ErrorSeverity.HIGH:
     case ErrorSeverity.CRITICAL:
-      enhancedLogger.error(
-        fullMessage,
-        error instanceof Error ? error : undefined,
-        LogCategory.ERROR,
-        context,
-      );
+      enhancedLogger.error(fullMessage, error instanceof Error ? error : undefined, LogCategory.ERROR, context);
       break;
   }
 
@@ -223,8 +209,7 @@ export function createDetailedErrorEmbed(errorInfo: ErrorInfo): EmbedBuilder {
       value: message || 'No additional details available.',
       inline: false,
     })
-    .setFooter({ text: 'If this persists, please contact an administrator.' })
-    .setTimestamp();
+    .setFooter({ text: 'If this persists, please contact an administrator.' });
 }
 
 /**
@@ -273,11 +258,7 @@ export async function handleInteractionError(
       followUpError instanceof Error ? followUpError : undefined,
       LogCategory.ERROR,
     );
-    enhancedLogger.error(
-      `Original error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.ERROR,
-    );
+    enhancedLogger.error(`Original error: ${error}`, error instanceof Error ? error : undefined, LogCategory.ERROR);
   }
 }
 
@@ -295,11 +276,7 @@ export function withErrorHandling<T extends Array<unknown>>(
       // Check if first arg is an interaction
       const firstArg = args[0];
       if (firstArg && typeof firstArg === 'object' && 'reply' in firstArg) {
-        await handleInteractionError(
-          firstArg as ChatInputCommandInteraction,
-          error,
-          `Error in ${handlerName}`,
-        );
+        await handleInteractionError(firstArg as ChatInputCommandInteraction, error, `Error in ${handlerName}`);
       } else {
         // Non-interaction error - just log it
         const { category, severity } = classifyError(error);
@@ -318,9 +295,7 @@ export function withErrorHandling<T extends Array<unknown>>(
 /**
  * Handle unhandled rejections
  */
-export function setupGlobalErrorHandlers(
-  onFatalShutdown?: (signal: string) => Promise<void>,
-): void {
+export function setupGlobalErrorHandlers(onFatalShutdown?: (signal: string) => Promise<void>): void {
   process.on('unhandledRejection', (reason, promise) => {
     enhancedLogger.error(
       `${E.alert} Unhandled Promise Rejection!`,
@@ -364,10 +339,7 @@ export function setupGlobalErrorHandlers(
 /**
  * Safe database operation wrapper
  */
-export async function safeDbOperation<T>(
-  operation: () => Promise<T>,
-  errorContext: string,
-): Promise<T | null> {
+export async function safeDbOperation<T>(operation: () => Promise<T>, errorContext: string): Promise<T | null> {
   try {
     return await operation();
   } catch (error) {

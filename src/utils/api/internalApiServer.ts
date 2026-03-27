@@ -32,11 +32,11 @@ class InternalApiServer {
     if (this.server) return;
 
     this.server = createServer((req, res) => {
-      this.handleRequest(req, res);
+      void this.handleRequest(req, res);
     });
 
-    this.server.listen(port, '127.0.0.1', () => {
-      enhancedLogger.info(`Internal API server listening on 127.0.0.1:${port}`, LogCategory.SYSTEM);
+    this.server.listen(port, '0.0.0.0', () => {
+      enhancedLogger.info(`Internal API server listening on 0.0.0.0:${port}`, LogCategory.SYSTEM);
     });
 
     this.server.on('error', (error: Error) => {

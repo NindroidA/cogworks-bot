@@ -30,6 +30,7 @@ import {
   sanitizeUserInput,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { findStatusById, appendStatusHistory as sharedAppendHistory } from '../../../utils/workflow/workflowHelpers';
 
 const tl = lang.application.workflow;
 const tlInfo = lang.application.workflowInfo;
@@ -56,10 +57,7 @@ async function getWorkflowConfig(guildId: string): Promise<{
 // Helper: Get application by channel
 // ============================================================================
 
-async function getApplicationByChannel(
-  guildId: string,
-  channelId: string,
-): Promise<Application | null> {
+async function getApplicationByChannel(guildId: string, channelId: string): Promise<Application | null> {
   return applicationRepo
     .createQueryBuilder('app')
     .where('app.guildId = :guildId', { guildId })
@@ -80,44 +78,23 @@ function mapStatus(status: string): string {
 // Helper: Append to status history (capped at MAX entries)
 // ============================================================================
 
-function appendStatusHistory(
-  application: Application,
-  status: string,
-  changedBy: string,
-  note?: string,
-): void {
-  const history = application.statusHistory || [];
-  history.push({
-    status,
-    changedBy,
-    changedAt: new Date().toISOString(),
-    ...(note ? { note } : {}),
-  });
-  if (history.length > MAX.APPLICATION_STATUS_HISTORY) {
-    application.statusHistory = history.slice(history.length - MAX.APPLICATION_STATUS_HISTORY);
-  } else {
-    application.statusHistory = history;
-  }
+function appendStatusHistory(application: Application, status: string, changedBy: string, note?: string): void {
+  sharedAppendHistory(application, status, changedBy, MAX.APPLICATION_STATUS_HISTORY, note);
 }
 
 // ============================================================================
 // Helper: Find status definition by ID
 // ============================================================================
 
-function findStatus(
-  statuses: ApplicationWorkflowStatus[],
-  statusId: string,
-): ApplicationWorkflowStatus | undefined {
-  return statuses.find(s => s.id === statusId);
+function findStatus(statuses: ApplicationWorkflowStatus[], statusId: string): ApplicationWorkflowStatus | undefined {
+  return findStatusById(statuses, statusId);
 }
 
 // ============================================================================
 // /application status <status>
 // ============================================================================
 
-export const applicationStatusHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const applicationStatusHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -165,22 +142,15 @@ export const applicationStatusHandler = async (
   await applicationRepo.save(application);
 
   const embed = new EmbedBuilder()
-    .setDescription(
-      LANGF(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`),
-    )
-    .setColor(parseInt(statusDef.color.replace('#', ''), 16))
-    .setTimestamp();
+    .setDescription(LANGF(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`))
+    .setColor(parseInt(statusDef.color.replace('#', ''), 16));
 
   await (interaction.channel as GuildTextBasedChannel)?.send({
     embeds: [embed],
   });
 
   await interaction.reply({
-    content: LANGF(
-      tl.statusChanged,
-      `${statusDef.emoji} ${statusDef.label}`,
-      `<@${interaction.user.id}>`,
-    ),
+    content: LANGF(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -197,9 +167,7 @@ export const applicationStatusHandler = async (
 // /application note <text>
 // ============================================================================
 
-export const applicationNoteHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const applicationNoteHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -265,9 +233,7 @@ export const applicationNoteHandler = async (
 // /application claim
 // ============================================================================
 
-export const applicationClaimHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const applicationClaimHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -301,10 +267,7 @@ export const applicationClaimHandler = async (
   application.reviewedAt = new Date();
   await applicationRepo.save(application);
 
-  const embed = new EmbedBuilder()
-    .setDescription(LANGF(tl.claimed, `<@${interaction.user.id}>`))
-    .setColor(0x5865f2)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setDescription(LANGF(tl.claimed, `<@${interaction.user.id}>`)).setColor(0x5865f2);
 
   await (interaction.channel as GuildTextBasedChannel)?.send({
     embeds: [embed],
@@ -326,9 +289,7 @@ export const applicationClaimHandler = async (
 // /application info
 // ============================================================================
 
-export const applicationInfoHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const applicationInfoHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -370,8 +331,7 @@ export const applicationInfoHandler = async (
         inline: true,
       },
     )
-    .setColor(statusDef ? parseInt(statusDef.color.replace('#', ''), 16) : 0x5865f2)
-    .setTimestamp();
+    .setColor(statusDef ? parseInt(statusDef.color.replace('#', ''), 16) : 0x5865f2);
 
   if (application.type) {
     embed.addFields({
@@ -403,9 +363,7 @@ export const applicationInfoHandler = async (
     const historyText = recentHistory
       .map((entry: ApplicationStatusHistoryEntry) => {
         const entryStatusDef = findStatus(statuses, entry.status);
-        const label = entryStatusDef
-          ? `${entryStatusDef.emoji} ${entryStatusDef.label}`
-          : entry.status;
+        const label = entryStatusDef ? `${entryStatusDef.emoji} ${entryStatusDef.label}` : entry.status;
         const timestamp = Math.floor(new Date(entry.changedAt).getTime() / 1000);
         return `${label} by <@${entry.changedBy}> <t:${timestamp}:R>`;
       })
@@ -421,9 +379,7 @@ export const applicationInfoHandler = async (
 // /application check (applicant self-check)
 // ============================================================================
 
-export const applicationCheckHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const applicationCheckHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
 
@@ -468,8 +424,7 @@ export const applicationCheckHandler = async (
         inline: true,
       },
     )
-    .setColor(statusDef ? parseInt(statusDef.color.replace('#', ''), 16) : 0x5865f2)
-    .setTimestamp();
+    .setColor(statusDef ? parseInt(statusDef.color.replace('#', ''), 16) : 0x5865f2);
 
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
 };
@@ -478,9 +433,7 @@ export const applicationCheckHandler = async (
 // /application workflow-enable
 // ============================================================================
 
-export const applicationWorkflowEnableHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const applicationWorkflowEnableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -527,9 +480,7 @@ export const applicationWorkflowEnableHandler = async (
 // /application workflow-disable
 // ============================================================================
 
-export const applicationWorkflowDisableHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const applicationWorkflowDisableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -575,9 +526,7 @@ export const applicationWorkflowDisableHandler = async (
 
 const STATUS_ID_REGEX = /^[a-z0-9-]{1,20}$/;
 
-export const applicationWorkflowAddStatusHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const applicationWorkflowAddStatusHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -607,10 +556,7 @@ export const applicationWorkflowAddStatusHandler = async (
   }
 
   const statusId = interaction.options.getString('id', true).toLowerCase().trim();
-  const label = sanitizeUserInput(interaction.options.getString('label', true).trim()).substring(
-    0,
-    50,
-  );
+  const label = sanitizeUserInput(interaction.options.getString('label', true).trim()).substring(0, 50);
   const emoji = interaction.options.getString('emoji') || '\uD83D\uDD35';
 
   if (!STATUS_ID_REGEX.test(statusId)) {
@@ -673,9 +619,7 @@ export const applicationWorkflowAddStatusHandler = async (
 // /application workflow-remove-status <status>
 // ============================================================================
 
-export const applicationWorkflowRemoveStatusHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const applicationWorkflowRemoveStatusHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({

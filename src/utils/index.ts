@@ -2,8 +2,8 @@ export type { Language } from '../lang';
 /** Re-export lang module with type safety */
 export { lang } from '../lang';
 
-// Internal API
-export * from './api/internalApiServer';
+// Note: internalApiServer is NOT re-exported here to avoid a 20-file import cycle.
+// Import directly: import { internalApiServer } from './utils/api/internalApiServer';
 // Core utilities
 export * from './apiConnector';
 export * from './baitChannelManager';
@@ -15,13 +15,19 @@ export * from './constants';
 export * from './database/ensureDefaultTicketTypes';
 export * from './database/guildQueries';
 export * from './database/legacyMigration';
+// Discord verified deletion utilities
+export * from './discord/verifiedDelete';
 export * from './embedBuilders';
 export * from './emojis';
 export * from './errorHandler';
 // Forum utilities
 export * from './forumTagManager';
+// Interaction helpers (guard, confirm, modal)
+export * from './interactions';
 // Logging utilities (extracted to break import cycles)
 export * from './logger';
+// Modal component helpers (raw API objects for new Discord components)
+export * from './modalComponents';
 // Monitoring utilities
 export * from './monitoring/enhancedLogger';
 export * from './monitoring/healthMonitor';
@@ -40,6 +46,17 @@ export * from './types';
 export * from './validation/inputSanitizer';
 export * from './validation/permissionValidator';
 export * from './validation/validators';
+
+/**
+ * Format a byte count into a human-readable string (B, KB, MB, GB).
+ * Starts from the lowest unit and scales up as needed.
+ */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
 
 /**
  * Formats a language template string with arguments

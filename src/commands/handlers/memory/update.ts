@@ -11,18 +11,7 @@ import {
   type ThreadChannel,
 } from 'discord.js';
 import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
-import {
-  Colors,
-  createRateLimitKey,
-  E,
-  enhancedLogger,
-  healthMonitor,
-  LogCategory,
-  lang,
-  RateLimits,
-  rateLimiter,
-  requireAdmin,
-} from '../../../utils';
+import { Colors, E, enhancedLogger, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveConfigFromThread } from './channelPicker';
 
@@ -30,41 +19,17 @@ const tl = lang.memory;
 const memoryTagRepo = lazyRepo(MemoryTag);
 const memoryItemRepo = lazyRepo(MemoryItem);
 
-export const memoryUpdateHandler = async (interaction: ChatInputCommandInteraction) => {
-  const startTime = Date.now();
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
-
+/** Validate the interaction context and load the memory item + status tags. */
+async function validateUpdateContext(interaction: ChatInputCommandInteraction) {
   const guildId = interaction.guildId!;
-  const userId = interaction.user.id;
-
-  // Rate limit check
-  const rateLimitKey = createRateLimitKey.userGuild(userId, guildId, 'memory-update');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.MEMORY_OPERATION);
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: rateCheck.message!,
-      flags: [MessageFlags.Ephemeral],
-    });
-    healthMonitor.recordCommand('memory update', Date.now() - startTime, true);
-    return;
-  }
-
   const channel = interaction.channel;
 
-  // Check if we're in a thread within the memory forum
   if (!channel || channel.type !== ChannelType.PublicThread) {
     await interaction.reply({
       content: `${E.error} ${tl.update.notAThread}`,
       flags: [MessageFlags.Ephemeral],
     });
-    return;
+    return null;
   }
 
   const threadChannel = channel as ThreadChannel;
@@ -75,10 +40,9 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
       content: `${E.error} ${tl.update.notInForum}`,
       flags: [MessageFlags.Ephemeral],
     });
-    return;
+    return null;
   }
 
-  // Get the memory item from database
   const memoryItem = await memoryItemRepo.findOneBy({
     guildId,
     threadId: threadChannel.id,
@@ -88,10 +52,9 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
       content: `${E.error} ${tl.update.itemNotFound}`,
       flags: [MessageFlags.Ephemeral],
     });
-    return;
+    return null;
   }
 
-  // Get available status tags
   const statusTags = await memoryTagRepo.find({
     where: { guildId, memoryConfigId: config.id, tagType: 'status' },
   });
@@ -101,18 +64,97 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
       content: `${E.error} No status tags configured. Run /memory-setup first.`,
       flags: [MessageFlags.Ephemeral],
     });
-    return;
+    return null;
   }
+
+  return { threadChannel, memoryItem, statusTags };
+}
+
+/** Build the status select menu for a given set of tags and current selection. */
+function buildStatusSelectRow(statusTags: MemoryTag[], selectedId: string) {
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('memory_update_status')
+      .setPlaceholder(tl.update.selectStatus)
+      .addOptions(
+        statusTags.map(tag => ({
+          label: tag.name,
+          value: tag.id.toString(),
+          emoji: tag.emoji || undefined,
+          default: tag.id.toString() === selectedId,
+        })),
+      ),
+  );
+}
+
+/** Build the confirm/cancel button row. */
+function buildUpdateButtonRow() {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('memory_update_confirm').setLabel('Update').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('memory_update_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+  );
+}
+
+/** Apply the status change: swap forum tags and update the DB record. */
+async function applyStatusChange(
+  threadChannel: ThreadChannel,
+  memoryItem: MemoryItem,
+  statusTags: MemoryTag[],
+  newStatusTag: MemoryTag,
+) {
+  const currentTags = threadChannel.appliedTags || [];
+  const oldStatusTag = statusTags.find(t => t.name === memoryItem.status);
+  const newTags = currentTags.filter(tagId => tagId !== oldStatusTag?.discordTagId);
+  if (newStatusTag.discordTagId) {
+    newTags.push(newStatusTag.discordTagId);
+  }
+
+  await threadChannel.edit({ appliedTags: newTags });
+
+  memoryItem.status = newStatusTag.name;
+  await memoryItemRepo.save(memoryItem);
+}
+
+/** If the new status is "Completed", send a close notice and lock/archive the thread. */
+async function handleCompletedStatus(threadChannel: ThreadChannel, userId: string, guildId: string) {
+  try {
+    const closeEmbed = new EmbedBuilder()
+      .setTitle(`${E.memory} ${tl.closeNotice.title}`)
+      .setDescription(tl.closeNotice.description.replace('{0}', `<@${userId}>`))
+      .setColor(Colors.status.neutral);
+    await threadChannel.send({ embeds: [closeEmbed] });
+  } catch {
+    // Non-critical — close notice is informational
+  }
+
+  try {
+    await threadChannel.setLocked(true);
+    await threadChannel.setArchived(true);
+  } catch {
+    enhancedLogger.warn('Could not lock/archive completed memory thread', LogCategory.COMMAND_EXECUTION, {
+      guildId,
+      threadId: threadChannel.id,
+    });
+  }
+}
+
+export const memoryUpdateHandler = async (interaction: ChatInputCommandInteraction) => {
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'memory-update',
+    limit: RateLimits.MEMORY_OPERATION,
+    scope: 'userGuild',
+  });
+  if (!guard.allowed) return;
+
+  const guildId = interaction.guildId!;
+
+  // Validate context and load data
+  const context = await validateUpdateContext(interaction);
+  if (!context) return;
+  const { threadChannel, memoryItem, statusTags } = context;
 
   // Find current status tag
   const currentStatusTag = statusTags.find(t => t.name === memoryItem.status);
-
-  const statusOptions = statusTags.map(tag => ({
-    label: tag.name,
-    value: tag.id.toString(),
-    emoji: tag.emoji || undefined,
-    default: tag.name === memoryItem.status,
-  }));
 
   // Store selection state
   const selectionState = {
@@ -143,27 +185,11 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
       );
   };
 
-  const statusSelect = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId('memory_update_status')
-      .setPlaceholder(tl.update.selectStatus)
-      .addOptions(statusOptions),
-  );
-
-  const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('memory_update_confirm')
-      .setLabel('Update')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId('memory_update_cancel')
-      .setLabel('Cancel')
-      .setStyle(ButtonStyle.Secondary),
-  );
+  const buttonRow = buildUpdateButtonRow();
 
   const response = await interaction.reply({
     embeds: [buildEmbed()],
-    components: [statusSelect, buttonRow],
+    components: [buildStatusSelectRow(statusTags, selectionState.newStatusId), buttonRow],
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -214,58 +240,16 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
       }
 
       try {
-        // Get current thread tags
-        const currentTags = threadChannel.appliedTags || [];
+        await applyStatusChange(threadChannel, memoryItem, statusTags, newStatusTag);
 
-        // Find and remove old status tag, add new one
-        const oldStatusTag = statusTags.find(t => t.name === memoryItem.status);
-        const newTags = currentTags.filter(tagId => tagId !== oldStatusTag?.discordTagId);
-        if (newStatusTag.discordTagId) {
-          newTags.push(newStatusTag.discordTagId);
-        }
-
-        // Update thread tags
-        await threadChannel.edit({ appliedTags: newTags });
-
-        // Update database
-        memoryItem.status = newStatusTag.name;
-        await memoryItemRepo.save(memoryItem);
-
-        const willClose = newStatusTag.name === 'Completed';
-
-        // Update the ephemeral interaction reply
         await interaction.editReply({
           content: `${E.success} ${tl.update.success}\n**${selectionState.oldStatusName}** → **${newStatusTag.emoji ? `${newStatusTag.emoji} ` : ''}${newStatusTag.name}**`,
           embeds: [],
           components: [],
         });
 
-        // Send visible close notice in the thread, then lock + archive
-        if (willClose) {
-          try {
-            const closeEmbed = new EmbedBuilder()
-              .setTitle(`${E.memory} ${tl.closeNotice.title}`)
-              .setDescription(
-                tl.closeNotice.description.replace('{0}', `<@${interaction.user.id}>`),
-              )
-              .setColor(Colors.status.neutral)
-              .setTimestamp();
-
-            await threadChannel.send({ embeds: [closeEmbed] });
-          } catch {
-            // Non-critical — close notice is informational
-          }
-
-          try {
-            await threadChannel.setLocked(true);
-            await threadChannel.setArchived(true);
-          } catch {
-            enhancedLogger.warn(
-              'Could not lock/archive completed memory thread',
-              LogCategory.COMMAND_EXECUTION,
-              { guildId, threadId: threadChannel.id },
-            );
-          }
+        if (newStatusTag.name === 'Completed') {
+          await handleCompletedStatus(threadChannel, interaction.user.id, guildId);
         }
       } catch (error) {
         enhancedLogger.error(
@@ -293,24 +277,9 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
           ? `${selectedTag.emoji} ${selectedTag.name}`
           : selectedTag?.name || 'Unknown';
 
-        // Rebuild components with updated state
-        const updatedStatusSelect = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId('memory_update_status')
-            .setPlaceholder(tl.update.selectStatus)
-            .addOptions(
-              statusTags.map(tag => ({
-                label: tag.name,
-                value: tag.id.toString(),
-                emoji: tag.emoji || undefined,
-                default: tag.id.toString() === selectionState.newStatusId,
-              })),
-            ),
-        );
-
         await selectInteraction.update({
           embeds: [buildEmbed()],
-          components: [updatedStatusSelect, buttonRow],
+          components: [buildStatusSelectRow(statusTags, selectionState.newStatusId), buttonRow],
         });
       }
     }

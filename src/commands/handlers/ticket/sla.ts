@@ -4,16 +4,12 @@
  * Handles /ticket sla-enable, sla-disable, sla-per-type, sla-stats subcommands.
  */
 
-import {
-  type CacheType,
-  type ChatInputCommandInteraction,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import { enhancedLogger, LANGF, LogCategory, lang, requireAdmin } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { getTicketCreationTime } from '../../../utils/ticket/slaChecker';
 
 const tl = lang.ticket.sla;
 const ticketConfigRepo = lazyRepo(TicketConfig);
@@ -128,7 +124,9 @@ export const slaDisableHandler = async (interaction: ChatInputCommandInteraction
     flags: [MessageFlags.Ephemeral],
   });
 
-  enhancedLogger.info('SLA tracking disabled', LogCategory.COMMAND_EXECUTION, { guildId });
+  enhancedLogger.info('SLA tracking disabled', LogCategory.COMMAND_EXECUTION, {
+    guildId,
+  });
 };
 
 // ============================================================================
@@ -256,8 +254,7 @@ export const slaStatsHandler = async (interaction: ChatInputCommandInteraction<C
     avgResponseMinutes = Math.round(totalResponseMs / respondedTickets.length / 60_000);
   }
 
-  const complianceRate =
-    totalTickets > 0 ? Math.round(((totalTickets - breachedCount) / totalTickets) * 100) : 100;
+  const complianceRate = totalTickets > 0 ? Math.round(((totalTickets - breachedCount) / totalTickets) * 100) : 100;
 
   const embed = new EmbedBuilder()
     .setTitle(LANGF(tl.statsTitle, days.toString()))
@@ -269,10 +266,7 @@ export const slaStatsHandler = async (interaction: ChatInputCommandInteraction<C
       },
       {
         name: tl.statsAvgResponse,
-        value:
-          respondedTickets.length > 0
-            ? LANGF(tl.statsMinutes, avgResponseMinutes.toString())
-            : 'N/A',
+        value: respondedTickets.length > 0 ? LANGF(tl.statsMinutes, avgResponseMinutes.toString()) : 'N/A',
         inline: true,
       },
       {
@@ -286,22 +280,6 @@ export const slaStatsHandler = async (interaction: ChatInputCommandInteraction<C
         inline: true,
       },
     )
-    .setColor(complianceRate >= 90 ? 0x00ff00 : complianceRate >= 70 ? 0xffa500 : 0xff0000)
-    .setTimestamp();
-
+    .setColor(complianceRate >= 90 ? 0x00ff00 : complianceRate >= 70 ? 0xffa500 : 0xff0000);
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
 };
-
-// ============================================================================
-// Helper: Approximate ticket creation time
-// ============================================================================
-
-function getTicketCreationTime(ticket: Ticket): number {
-  if (ticket.statusHistory && ticket.statusHistory.length > 0) {
-    const earliest = ticket.statusHistory[0];
-    if (earliest.changedAt) {
-      return new Date(earliest.changedAt).getTime();
-    }
-  }
-  return new Date(ticket.lastActivityAt).getTime();
-}

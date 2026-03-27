@@ -32,9 +32,7 @@ const maintenance = new SlashCommandSubcommandBuilder()
       .setRequired(false)
       .setMaxLength(2048),
   )
-  .addChannelOption(option =>
-    option.setName('channel').setDescription(tl.channel).setRequired(false),
-  );
+  .addChannelOption(option => option.setName('channel').setDescription(tl.channel).setRequired(false));
 
 const maintenanceScheduled = new SlashCommandSubcommandBuilder()
   .setName('maintenance-scheduled')
@@ -64,9 +62,7 @@ const maintenanceScheduled = new SlashCommandSubcommandBuilder()
       .setRequired(false)
       .setMaxLength(2048),
   )
-  .addChannelOption(option =>
-    option.setName('channel').setDescription(tl.channel).setRequired(false),
-  );
+  .addChannelOption(option => option.setName('channel').setDescription(tl.channel).setRequired(false));
 
 const backOnline = new SlashCommandSubcommandBuilder()
   .setName('back-online')
@@ -78,18 +74,13 @@ const backOnline = new SlashCommandSubcommandBuilder()
       .setRequired(false)
       .setMaxLength(2048),
   )
-  .addChannelOption(option =>
-    option.setName('channel').setDescription(tl.channel).setRequired(false),
-  );
+  .addChannelOption(option => option.setName('channel').setDescription(tl.channel).setRequired(false));
 
 const updateScheduled = new SlashCommandSubcommandBuilder()
   .setName('update-scheduled')
   .setDescription(tl['update-scheduled'].cmdDescrp)
   .addStringOption(option =>
-    option
-      .setName('version')
-      .setDescription(tl['update-scheduled'].version.cmdDescrp)
-      .setRequired(true),
+    option.setName('version').setDescription(tl['update-scheduled'].version.cmdDescrp).setRequired(true),
   )
   .addStringOption(option =>
     option
@@ -106,18 +97,13 @@ const updateScheduled = new SlashCommandSubcommandBuilder()
       .setRequired(false)
       .setMaxLength(2048),
   )
-  .addChannelOption(option =>
-    option.setName('channel').setDescription(tl.channel).setRequired(false),
-  );
+  .addChannelOption(option => option.setName('channel').setDescription(tl.channel).setRequired(false));
 
 const updateComplete = new SlashCommandSubcommandBuilder()
   .setName('update-complete')
   .setDescription(tl['update-complete'].cmdDescrp)
   .addStringOption(option =>
-    option
-      .setName('version')
-      .setDescription(tl['update-scheduled'].version.cmdDescrp)
-      .setRequired(true),
+    option.setName('version').setDescription(tl['update-scheduled'].version.cmdDescrp).setRequired(true),
   )
   .addStringOption(option =>
     option
@@ -126,9 +112,7 @@ const updateComplete = new SlashCommandSubcommandBuilder()
       .setRequired(false)
       .setMaxLength(2048),
   )
-  .addChannelOption(option =>
-    option.setName('channel').setDescription(tl.channel).setRequired(false),
-  );
+  .addChannelOption(option => option.setName('channel').setDescription(tl.channel).setRequired(false));
 
 /* =========================================================================
  * New send subcommand
@@ -138,15 +122,9 @@ const send = new SlashCommandSubcommandBuilder()
   .setName('send')
   .setDescription('Send an announcement using a template')
   .addStringOption(option =>
-    option
-      .setName('template')
-      .setDescription('Template to use')
-      .setRequired(true)
-      .setAutocomplete(true),
+    option.setName('template').setDescription('Template to use').setRequired(true).setAutocomplete(true),
   )
-  .addChannelOption(option =>
-    option.setName('channel').setDescription(tl.channel).setRequired(false),
-  )
+  .addChannelOption(option => option.setName('channel').setDescription(tl.channel).setRequired(false))
   .addStringOption(option =>
     option
       .setName('message')
@@ -168,11 +146,7 @@ const templateGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('edit')
       .setDescription('Edit an existing template')
       .addStringOption(option =>
-        option
-          .setName('template')
-          .setDescription('Template to edit')
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName('template').setDescription('Template to edit').setRequired(true).setAutocomplete(true),
       ),
   )
   .addSubcommand(sub =>
@@ -180,11 +154,7 @@ const templateGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('delete')
       .setDescription('Delete a custom template')
       .addStringOption(option =>
-        option
-          .setName('template')
-          .setDescription('Template to delete')
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName('template').setDescription('Template to delete').setRequired(true).setAutocomplete(true),
       ),
   )
   .addSubcommand(sub => sub.setName('list').setDescription('List all templates for this server'))
@@ -193,11 +163,7 @@ const templateGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('preview')
       .setDescription('Preview a template with example values')
       .addStringOption(option =>
-        option
-          .setName('template')
-          .setDescription('Template to preview')
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName('template').setDescription('Template to preview').setRequired(true).setAutocomplete(true),
       ),
   )
   .addSubcommand(sub => sub.setName('reset').setDescription('Reset all templates to defaults'));

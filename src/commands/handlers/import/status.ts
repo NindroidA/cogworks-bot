@@ -40,8 +40,7 @@ export const importStatusHandler = async (
           { name: 'Imported', value: String(running.importedCount), inline: true },
           { name: 'Elapsed', value: `${(elapsed / 1000).toFixed(1)}s`, inline: true },
         )
-        .setColor(0xf39c12)
-        .setTimestamp();
+        .setColor(0xf39c12);
 
       await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
       break;
@@ -58,7 +57,7 @@ export const importStatusHandler = async (
         return;
       }
 
-      const embed = new EmbedBuilder().setTitle(tl.historyTitle).setColor(0x3498db).setTimestamp();
+      const embed = new EmbedBuilder().setTitle(tl.historyTitle).setColor(0x3498db);
 
       for (const log of history.slice(0, 10)) {
         const statusEmoji =

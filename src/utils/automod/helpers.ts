@@ -12,11 +12,7 @@ import type {
   AutoModerationRuleCreateOptions,
   Guild,
 } from 'discord.js';
-import {
-  AutoModerationActionType,
-  AutoModerationRuleTriggerType,
-  type Collection,
-} from 'discord.js';
+import { AutoModerationActionType, AutoModerationRuleTriggerType, type Collection } from 'discord.js';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import type { AutoModRuleConfig } from './templates';
 
@@ -32,20 +28,13 @@ export const MAX_REGEX_LENGTH = 75;
 /**
  * Fetch all AutoMod rules for a guild.
  */
-export async function fetchAutoModRules(
-  guild: Guild,
-): Promise<Collection<string, AutoModerationRule>> {
+export async function fetchAutoModRules(guild: Guild): Promise<Collection<string, AutoModerationRule>> {
   try {
     return await guild.autoModerationRules.fetch();
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to fetch AutoMod rules',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        guildId: guild.id,
-      },
-    );
+    enhancedLogger.error('Failed to fetch AutoMod rules', error as Error, LogCategory.COMMAND_EXECUTION, {
+      guildId: guild.id,
+    });
     throw error;
   }
 }
@@ -53,10 +42,7 @@ export async function fetchAutoModRules(
 /**
  * Create a new AutoMod rule on a guild.
  */
-export async function createAutoModRule(
-  guild: Guild,
-  config: AutoModRuleConfig,
-): Promise<AutoModerationRule> {
+export async function createAutoModRule(guild: Guild, config: AutoModRuleConfig): Promise<AutoModerationRule> {
   try {
     const options: AutoModerationRuleCreateOptions = {
       name: config.name,
@@ -84,15 +70,10 @@ export async function createAutoModRule(
 
     return await guild.autoModerationRules.create(options);
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to create AutoMod rule',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        guildId: guild.id,
-        ruleName: config.name,
-      },
-    );
+    enhancedLogger.error('Failed to create AutoMod rule', error as Error, LogCategory.COMMAND_EXECUTION, {
+      guildId: guild.id,
+      ruleName: config.name,
+    });
     throw error;
   }
 }
@@ -104,15 +85,10 @@ export async function deleteAutoModRule(guild: Guild, ruleId: string): Promise<v
   try {
     await guild.autoModerationRules.delete(ruleId);
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to delete AutoMod rule',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        guildId: guild.id,
-        ruleId,
-      },
-    );
+    enhancedLogger.error('Failed to delete AutoMod rule', error as Error, LogCategory.COMMAND_EXECUTION, {
+      guildId: guild.id,
+      ruleId,
+    });
     throw error;
   }
 }
@@ -153,10 +129,7 @@ export interface AutoModBackup {
 /**
  * Serialize a collection of AutoMod rules to a JSON-safe backup object.
  */
-export function serializeRules(
-  rules: Collection<string, AutoModerationRule>,
-  guild: Guild,
-): AutoModBackup {
+export function serializeRules(rules: Collection<string, AutoModerationRule>, guild: Guild): AutoModBackup {
   const serialized: SerializedAutoModRule[] = rules.map(rule => ({
     name: rule.name,
     eventType: rule.eventType,

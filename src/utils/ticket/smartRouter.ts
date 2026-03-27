@@ -201,10 +201,7 @@ async function getOnlineStaffWithRole(guild: Guild, roleId: string): Promise<Gui
  * @param staffMembers - The staff members to check workload for
  * @returns Array of workload entries sorted by openTickets ascending
  */
-export async function getStaffWorkload(
-  guildId: string,
-  staffMembers: GuildMember[],
-): Promise<StaffWorkloadEntry[]> {
+export async function getStaffWorkload(guildId: string, staffMembers: GuildMember[]): Promise<StaffWorkloadEntry[]> {
   if (staffMembers.length === 0) return [];
 
   const memberIds = staffMembers.map(m => m.id);
@@ -222,10 +219,7 @@ export async function getStaffWorkload(
       .getRawMany<{ assignedTo: string; count: string }>();
 
     const countMap = new Map(
-      results.map((r: { assignedTo: string; count: string }) => [
-        r.assignedTo,
-        parseInt(r.count, 10),
-      ]),
+      results.map((r: { assignedTo: string; count: string }) => [r.assignedTo, parseInt(r.count, 10)]),
     );
 
     return memberIds

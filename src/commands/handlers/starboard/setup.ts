@@ -10,9 +10,7 @@ const tl = lang.starboard;
 /**
  * Handle /starboard setup <channel> [emoji] [threshold]
  */
-export const starboardSetupHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-): Promise<void> => {
+export const starboardSetupHandler = async (interaction: ChatInputCommandInteraction<CacheType>): Promise<void> => {
   try {
     const adminCheck = requireAdmin(interaction);
     if (!adminCheck.allowed) {
@@ -59,9 +57,7 @@ export const starboardSetupHandler = async (
 /**
  * Handle /starboard config <setting> <value>
  */
-export const starboardConfigHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-): Promise<void> => {
+export const starboardConfigHandler = async (interaction: ChatInputCommandInteraction<CacheType>): Promise<void> => {
   try {
     const adminCheck = requireAdmin(interaction);
     if (!adminCheck.allowed) {
@@ -127,9 +123,7 @@ export const starboardConfigHandler = async (
 /**
  * Handle /starboard toggle
  */
-export const starboardToggleHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-): Promise<void> => {
+export const starboardToggleHandler = async (interaction: ChatInputCommandInteraction<CacheType>): Promise<void> => {
   try {
     const adminCheck = requireAdmin(interaction);
     if (!adminCheck.allowed) {

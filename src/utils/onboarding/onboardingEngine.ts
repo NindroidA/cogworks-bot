@@ -78,11 +78,7 @@ export async function sendOnboardingFlow(member: GuildMember): Promise<boolean> 
 
     await dmChannel.send({ embeds: [welcomeEmbed] });
   } catch {
-    enhancedLogger.debug(
-      `Failed to send onboarding welcome DM to ${member.user.tag}`,
-      LogCategory.SYSTEM,
-      { guildId },
-    );
+    enhancedLogger.debug(`Failed to send onboarding welcome DM to ${member.user.tag}`, LogCategory.SYSTEM, { guildId });
     return false;
   }
 
@@ -120,12 +116,11 @@ export async function sendOnboardingFlow(member: GuildMember): Promise<boolean> 
     try {
       await member.roles.add(config.completionRoleId);
     } catch (error) {
-      enhancedLogger.error(
-        'Failed to grant onboarding completion role',
-        error as Error,
-        LogCategory.SYSTEM,
-        { guildId, userId: member.id, roleId: config.completionRoleId },
-      );
+      enhancedLogger.error('Failed to grant onboarding completion role', error as Error, LogCategory.SYSTEM, {
+        guildId,
+        userId: member.id,
+        roleId: config.completionRoleId,
+      });
     }
   }
 
@@ -134,9 +129,7 @@ export async function sendOnboardingFlow(member: GuildMember): Promise<boolean> 
     const doneEmbed = new EmbedBuilder()
       .setColor('#00FF00')
       .setTitle('Onboarding Complete!')
-      .setDescription(
-        `You've completed the onboarding for **${member.guild.name}**. Enjoy your stay!`,
-      );
+      .setDescription(`You've completed the onboarding for **${member.guild.name}**. Enjoy your stay!`);
     await dmChannel.send({ embeds: [doneEmbed] });
   } catch {
     // Best-effort
@@ -308,7 +301,7 @@ async function sendStep(
 async function waitForStepInteraction(
   message: Message,
   member: GuildMember,
-  step: OnboardingStepDef,
+  _step: OnboardingStepDef,
 ): Promise<boolean> {
   let selectedRoles: string[] = [];
 
@@ -339,7 +332,7 @@ async function waitForStepInteraction(
             if (customId.startsWith('onboarding_skip_')) {
               await interaction.update({ components: [] });
               collector.stop('skipped');
-              resolve(true);
+              void resolve(true);
               return;
             }
 
@@ -350,27 +343,22 @@ async function waitForStepInteraction(
                   try {
                     await member.roles.add(roleId);
                   } catch (error) {
-                    enhancedLogger.debug(
-                      `Failed to add role ${roleId} during onboarding`,
-                      LogCategory.SYSTEM,
-                      { error: (error as Error).message },
-                    );
+                    enhancedLogger.debug(`Failed to add role ${roleId} during onboarding`, LogCategory.SYSTEM, {
+                      error: (error as Error).message,
+                    });
                   }
                 }
               }
               await interaction.update({ components: [] });
               collector.stop('completed');
-              resolve(true);
+              void resolve(true);
               return;
             }
 
-            if (
-              customId.startsWith('onboarding_continue_') ||
-              customId.startsWith('onboarding_accept_')
-            ) {
+            if (customId.startsWith('onboarding_continue_') || customId.startsWith('onboarding_accept_')) {
               await interaction.update({ components: [] });
               collector.stop('completed');
-              resolve(true);
+              void resolve(true);
               return;
             }
           }
@@ -384,7 +372,7 @@ async function waitForStepInteraction(
       collector.on('end', (_collected, reason) => {
         if (reason !== 'completed' && reason !== 'skipped') {
           // Timed out
-          resolve(false);
+          void resolve(false);
         }
       });
     });

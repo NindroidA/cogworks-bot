@@ -10,3 +10,4 @@ export * from './typeRemove';
 export * from './typeToggle';
 export * from './userRestrict';
 export * from './workflow';
+export * from './workflowSettings';

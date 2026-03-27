@@ -1,9 +1,12 @@
 import type { Message, PartialMessage } from 'discord.js';
 import { AppDataSource } from '../typeorm';
 import { ApplicationConfig } from '../typeorm/entities/application/ApplicationConfig';
+import { ArchivedApplicationConfig } from '../typeorm/entities/application/ArchivedApplicationConfig';
 import { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
+import { MemoryConfig } from '../typeorm/entities/memory';
 import { ReactionRoleMenu } from '../typeorm/entities/reactionRole';
 import { RulesConfig } from '../typeorm/entities/rules';
+import { ArchivedTicketConfig } from '../typeorm/entities/ticket/ArchivedTicketConfig';
 import { TicketConfig } from '../typeorm/entities/ticket/TicketConfig';
 import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';
@@ -33,9 +36,7 @@ export default {
     const withTimeout = <T>(promise: Promise<T>): Promise<T> =>
       Promise.race([
         promise,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Config cleanup timed out')), 10_000),
-        ),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Config cleanup timed out')), 10_000)),
       ]);
 
     const results = await Promise.allSettled([
@@ -48,11 +49,26 @@ export default {
 
           config.messageId = '';
           await repo.save(config);
-          enhancedLogger.info(
-            'Cleared TicketConfig messageId for deleted message',
-            LogCategory.SYSTEM,
-            { guildId, messageId },
-          );
+          enhancedLogger.info('Cleared TicketConfig messageId for deleted message', LogCategory.SYSTEM, {
+            guildId,
+            messageId,
+          });
+        })(),
+      ),
+
+      // ArchivedTicketConfig — messageId
+      withTimeout(
+        (async () => {
+          const repo = AppDataSource.getRepository(ArchivedTicketConfig);
+          const config = await repo.findOneBy({ guildId, messageId });
+          if (!config) return;
+
+          config.messageId = '';
+          await repo.save(config);
+          enhancedLogger.info('Cleared ArchivedTicketConfig messageId for deleted message', LogCategory.SYSTEM, {
+            guildId,
+            messageId,
+          });
         })(),
       ),
 
@@ -65,11 +81,26 @@ export default {
 
           config.messageId = '';
           await repo.save(config);
-          enhancedLogger.info(
-            'Cleared ApplicationConfig messageId for deleted message',
-            LogCategory.SYSTEM,
-            { guildId, messageId },
-          );
+          enhancedLogger.info('Cleared ApplicationConfig messageId for deleted message', LogCategory.SYSTEM, {
+            guildId,
+            messageId,
+          });
+        })(),
+      ),
+
+      // ArchivedApplicationConfig — messageId
+      withTimeout(
+        (async () => {
+          const repo = AppDataSource.getRepository(ArchivedApplicationConfig);
+          const config = await repo.findOneBy({ guildId, messageId });
+          if (!config) return;
+
+          config.messageId = '';
+          await repo.save(config);
+          enhancedLogger.info('Cleared ArchivedApplicationConfig messageId for deleted message', LogCategory.SYSTEM, {
+            guildId,
+            messageId,
+          });
         })(),
       ),
 
@@ -131,15 +162,35 @@ export default {
           });
         })(),
       ),
+
+      // MemoryConfig — messageId
+      withTimeout(
+        (async () => {
+          const repo = AppDataSource.getRepository(MemoryConfig);
+          const configs = await repo.find({ where: { guildId } });
+          const match = configs.find(c => c.messageId === messageId);
+          if (!match) return;
+
+          match.messageId = null;
+          await repo.save(match);
+          enhancedLogger.info('Cleared MemoryConfig messageId for deleted message', LogCategory.SYSTEM, {
+            guildId,
+            messageId,
+          });
+        })(),
+      ),
     ]);
 
     // Log any failures with entity name for identification
     const entityNames = [
       'TicketConfig',
+      'ArchivedTicketConfig',
       'ApplicationConfig',
+      'ArchivedApplicationConfig',
       'BaitChannelConfig',
       'RulesConfig',
       'ReactionRoleMenu',
+      'MemoryConfig',
     ];
     for (let i = 0; i < results.length; i++) {
       const result = results[i];

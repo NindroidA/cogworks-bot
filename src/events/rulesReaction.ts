@@ -1,22 +1,15 @@
-import { lazyRepo } from '../utils/database/lazyRepo';
-import type {
-  Client,
-  MessageReaction,
-  PartialMessageReaction,
-  PartialUser,
-  User,
-} from 'discord.js';
+import type { Client, MessageReaction, PartialMessageReaction, PartialUser, User } from 'discord.js';
 import { RulesConfig } from '../typeorm/entities/rules';
 import { enhancedLogger, LogCategory, lang } from '../utils';
+import { lazyRepo } from '../utils/database/lazyRepo';
 import { ReactionCooldown } from '../utils/reactionCooldown';
+import { getCachedRulesConfig, setCachedRulesConfig } from '../utils/rules/rulesCache';
+
+// Re-export so existing importers don't break
+export { invalidateRulesCache } from '../utils/rules/rulesCache';
 
 const rulesConfigRepo = lazyRepo(RulesConfig);
 const tl = lang.rules.reaction;
-
-import { CACHE_TTL } from '../utils/constants';
-
-// In-memory cache: Map<messageId, { config, cachedAt }>
-const rulesCache = new Map<string, { config: RulesConfig; cachedAt: number }>();
 
 const cooldown = new ReactionCooldown();
 
@@ -25,33 +18,18 @@ export function stopRulesCooldownCleanup(): void {
   cooldown.stop();
 }
 
-/** Clear cache for a guild (called on setup/remove/guild leave) */
-export function invalidateRulesCache(guildId: string): void {
-  for (const [messageId, entry] of rulesCache) {
-    if (entry.config.guildId === guildId) {
-      rulesCache.delete(messageId);
-    }
-  }
-}
-
 /** Lookup rules config by message ID with caching */
 async function getRulesConfig(messageId: string, guildId: string): Promise<RulesConfig | null> {
   // Check cache first — verify guildId matches to prevent cross-guild leaks
-  const cached = rulesCache.get(messageId);
-  if (cached) {
-    // Check TTL — evict stale entries
-    if (Date.now() - cached.cachedAt > CACHE_TTL.RULES) {
-      rulesCache.delete(messageId);
-    } else if (cached.config.guildId === guildId) {
-      return cached.config;
-    }
-    // Cache hit but wrong guild — ignore and fall through to DB
+  const cached = getCachedRulesConfig(messageId);
+  if (cached && cached.guildId === guildId) {
+    return cached;
   }
 
   // DB lookup
   const config = await rulesConfigRepo.findOneBy({ guildId, messageId });
   if (config) {
-    rulesCache.set(messageId, { config, cachedAt: Date.now() });
+    setCachedRulesConfig(messageId, config);
   }
   return config;
 }

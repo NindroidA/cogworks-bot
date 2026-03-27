@@ -6,7 +6,7 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, handleInteractionError, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LogCategory, lang, requireAdmin } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import {
   handleAddFieldModal as coreHandleAddFieldModal,
@@ -53,6 +53,15 @@ const ticketFieldConfig: FieldManagerConfig<CustomTicketType> = {
  */
 export async function typeFieldsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
+    const adminCheck = requireAdmin(interaction);
+    if (!adminCheck.allowed) {
+      await interaction.reply({
+        content: adminCheck.message ?? '',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     if (!interaction.guild) {
       enhancedLogger.warn('Type-fields handler: guild not found', LogCategory.COMMAND_EXECUTION, {
         userId: interaction.user.id,
@@ -67,22 +76,22 @@ export async function typeFieldsHandler(interaction: ChatInputCommandInteraction
     const guildId = interaction.guild.id;
     const typeId = interaction.options.getString('type', true);
 
-    enhancedLogger.debug(
-      `Command: /ticket type-fields type=${typeId}`,
-      LogCategory.COMMAND_EXECUTION,
-      { userId: interaction.user.id, guildId, typeId },
-    );
+    enhancedLogger.debug(`Command: /ticket type-fields type=${typeId}`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      typeId,
+    });
 
     const ticketType = await typeRepo.findOne({
       where: { guildId, typeId },
     });
 
     if (!ticketType) {
-      enhancedLogger.warn(
-        `Type-fields: type '${typeId}' not found`,
-        LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId, typeId },
-      );
+      enhancedLogger.warn(`Type-fields: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+        guildId,
+        typeId,
+      });
       await interaction.reply({
         content: '❌ Ticket type not found!',
         flags: [MessageFlags.Ephemeral],
@@ -99,31 +108,21 @@ export async function typeFieldsHandler(interaction: ChatInputCommandInteraction
 /**
  * Handle add field modal submission
  */
-export async function handleAddFieldModal(
-  interaction: ModalSubmitInteraction,
-  typeId: string,
-): Promise<void> {
+export async function handleAddFieldModal(interaction: ModalSubmitInteraction, typeId: string): Promise<void> {
   await coreHandleAddFieldModal(interaction, typeId, ticketFieldConfig);
 }
 
 /**
  * Handle preview modal submission (just dismiss it)
  */
-export async function handlePreviewModal(
-  interaction: ModalSubmitInteraction,
-  _typeId: string,
-): Promise<void> {
+export async function handlePreviewModal(interaction: ModalSubmitInteraction, _typeId: string): Promise<void> {
   await coreHandlePreviewModal(interaction, ticketFieldConfig);
 }
 
 /**
  * Main button interaction handler
  */
-export async function handleFieldButton(
-  interaction: ButtonInteraction,
-  action: string,
-  typeId: string,
-): Promise<void> {
+export async function handleFieldButton(interaction: ButtonInteraction, action: string, typeId: string): Promise<void> {
   await coreHandleFieldButton(interaction, action, typeId, ticketFieldConfig);
 }
 

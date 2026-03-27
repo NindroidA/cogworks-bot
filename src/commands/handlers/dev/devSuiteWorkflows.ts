@@ -10,10 +10,17 @@ import {
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { AnalyticsSnapshot } from '../../../typeorm/entities/analytics/AnalyticsSnapshot';
+import { AnnouncementLog } from '../../../typeorm/entities/announcement/AnnouncementLog';
+import { ArchivedApplication } from '../../../typeorm/entities/application/ArchivedApplication';
+import { BaitChannelLog } from '../../../typeorm/entities/BaitChannelLog';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
 import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
+import { MemoryConfig } from '../../../typeorm/entities/memory/MemoryConfig';
+import { MemoryItem } from '../../../typeorm/entities/memory/MemoryItem';
 import { OnboardingCompletion } from '../../../typeorm/entities/onboarding/OnboardingCompletion';
 import { StarboardEntry } from '../../../typeorm/entities/starboard/StarboardEntry';
+import { ArchivedTicket } from '../../../typeorm/entities/ticket/ArchivedTicket';
+import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
@@ -38,19 +45,14 @@ function randInt(min: number, max: number): number {
 }
 
 /** Fetch real guild member IDs (up to limit) */
-async function fetchMemberIds(
-  interaction: ChatInputCommandInteraction,
-  limit: number,
-): Promise<string[]> {
+async function fetchMemberIds(interaction: ChatInputCommandInteraction, limit: number): Promise<string[]> {
   const members = await interaction.guild!.members.fetch({ limit });
   return Array.from(members.filter(m => !m.user.bot).keys()).slice(0, limit);
 }
 
 /** Fetch real text channel IDs from the guild */
 async function fetchTextChannelIds(interaction: ChatInputCommandInteraction): Promise<string[]> {
-  const channels = interaction
-    .guild!.channels.cache.filter(c => c.isTextBased() && !c.isThread())
-    .map(c => c.id);
+  const channels = interaction.guild!.channels.cache.filter(c => c.isTextBased() && !c.isThread()).map(c => c.id);
   return channels.slice(0, 10);
 }
 
@@ -176,9 +178,7 @@ async function populateXp(
 
   // Add role rewards at levels 5, 10, 25
   const guild = interaction.guild!;
-  const roles = Array.from(
-    guild.roles.cache.filter(r => !r.managed && r.name !== '@everyone').values(),
-  );
+  const roles = Array.from(guild.roles.cache.filter(r => !r.managed && r.name !== '@everyone').values());
 
   const rewards: XPRoleReward[] = [];
   const rewardLevels = [5, 10, 25];
@@ -199,10 +199,7 @@ async function populateXp(
   return { users: count, rewards: rewards.length };
 }
 
-async function populateAnalytics(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<{ days: number }> {
+async function populateAnalytics(interaction: ChatInputCommandInteraction, guildId: string): Promise<{ days: number }> {
   const repo = AppDataSource.getRepository(AnalyticsSnapshot);
   const channelIds = await fetchTextChannelIds(interaction);
   const guild = interaction.guild!;
@@ -235,10 +232,7 @@ async function populateAnalytics(
     snapshot.memberJoined = joined;
     snapshot.memberLeft = left;
     snapshot.messageCount = baseMessages;
-    snapshot.activeMembers = randInt(
-      Math.floor(baseMessages * 0.1),
-      Math.floor(baseMessages * 0.4),
-    );
+    snapshot.activeMembers = randInt(Math.floor(baseMessages * 0.1), Math.floor(baseMessages * 0.4));
     snapshot.voiceMinutes = randInt(0, 300);
     snapshot.peakHourUtc = isWeekend ? randInt(14, 22) : randInt(17, 23);
 
@@ -430,11 +424,313 @@ async function populateSla(
   return { withinSla: 2, breached: 2, pending: 1 };
 }
 
+async function populateTickets(interaction: ChatInputCommandInteraction, guildId: string): Promise<{ count: number }> {
+  const repo = AppDataSource.getRepository(ArchivedTicket);
+  const archiveConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);
+
+  // Find the archive forum channel
+  const archiveConfig = await archiveConfigRepo.findOneBy({ guildId });
+  const forumChannel = archiveConfig?.channelId
+    ? await interaction.guild!.channels.fetch(archiveConfig.channelId).catch(() => null)
+    : null;
+
+  const ticketTypes = [
+    'general',
+    'bug-report',
+    'support',
+    'general',
+    'bug-report',
+    'support',
+    'general',
+    'support',
+    'bug-report',
+    'general',
+  ];
+  const ticketNames = [
+    'Help with permissions',
+    'Server crash report',
+    'Role request',
+    'Channel access needed',
+    'Bug: emojis not showing',
+    'Payment issue',
+    'Feature suggestion',
+    'Account recovery',
+    'Email import test',
+    'General inquiry',
+  ];
+  const count = 10;
+  let created = 0;
+
+  for (let i = 0; i < count; i++) {
+    const entry = new ArchivedTicket();
+    entry.guildId = guildId;
+    entry.createdBy = interaction.user.id;
+    entry.ticketType = ticketTypes[i];
+    entry.customTypeId = null;
+    entry.forumTagIds = null;
+    entry.isEmailTicket = i === 7;
+    entry.emailSender = i === 7 ? 'user@example.com' : null;
+    entry.emailSenderName = i === 7 ? 'External User' : null;
+    entry.emailSubject = i === 7 ? 'Help with my account' : null;
+
+    // Create real forum thread if archive channel exists
+    if (forumChannel && 'threads' in forumChannel) {
+      try {
+        const thread = await forumChannel.threads.create({
+          name: `[${ticketTypes[i]}] ${ticketNames[i]}`,
+          message: {
+            content: `**Ticket by** ${interaction.user.username}\n**Type:** ${ticketTypes[i]}\n\nThis is a test archived ticket created by the dev suite populate command.${entry.isEmailTicket ? `\n\n📧 **Email ticket** from ${entry.emailSender}` : ''}`,
+          },
+        });
+        entry.messageId = thread.id;
+        // Lock the thread (archived tickets are closed)
+        await thread.setLocked(true).catch(() => {});
+        await thread.setArchived(true).catch(() => {});
+      } catch {
+        entry.messageId = fakeSnowflake();
+      }
+    } else {
+      entry.messageId = fakeSnowflake();
+    }
+
+    await repo.save(entry);
+    created++;
+  }
+
+  return { count: created };
+}
+
+async function populateApplications(
+  _interaction: ChatInputCommandInteraction,
+  guildId: string,
+): Promise<{ count: number }> {
+  const repo = AppDataSource.getRepository(ArchivedApplication);
+
+  const fakeUserIds = [
+    '100000000000000001',
+    '100000000000000002',
+    '100000000000000003',
+    '100000000000000004',
+    '100000000000000005',
+    '100000000000000006',
+    '100000000000000007',
+    '100000000000000008',
+  ];
+  const count = 8;
+  const entries: ArchivedApplication[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const entry = new ArchivedApplication();
+    entry.guildId = guildId;
+    entry.messageId = fakeSnowflake();
+    entry.createdBy = fakeUserIds[i];
+    entries.push(entry);
+  }
+
+  await repo.save(entries);
+  return { count };
+}
+
+async function populateMemory(_interaction: ChatInputCommandInteraction, guildId: string): Promise<{ count: number }> {
+  const memoryConfigRepo = AppDataSource.getRepository(MemoryConfig);
+  const itemRepo = AppDataSource.getRepository(MemoryItem);
+
+  // Find an existing memory config for this guild, or skip if none exists
+  const memoryConfig = await memoryConfigRepo.findOneBy({ guildId });
+  if (!memoryConfig) {
+    return { count: 0 };
+  }
+
+  const fakeUserIds = [
+    '100000000000000001',
+    '100000000000000002',
+    '100000000000000003',
+    '100000000000000004',
+    '100000000000000005',
+  ];
+  const titles = [
+    'Bug: Login button unresponsive on mobile',
+    'Feature: Add dark mode toggle to settings',
+    'Note: Server maintenance scheduled for Friday',
+    'Bug: Notification sound plays twice',
+    'Feature: Bulk role assignment tool',
+    'Note: Updated moderation guidelines',
+    'Bug: Emoji picker freezing on older devices',
+    'Feature: Customizable welcome messages',
+    'Note: Backup procedure documentation',
+    'Bug: Channel permissions not syncing correctly',
+  ];
+  const statuses = [
+    'Open',
+    'Open',
+    'In Progress',
+    'Open',
+    'Completed',
+    'Open',
+    'In Progress',
+    'Open',
+    'Completed',
+    'Open',
+  ];
+  const descriptions = [
+    'Users report the login button does not respond on iOS Safari.',
+    'Many users have requested a dark mode option in the dashboard.',
+    'Scheduled downtime for database migration, estimated 2 hours.',
+    'Duplicate notification sound when receiving DMs in voice channels.',
+    'Admins need a way to assign roles to multiple users at once.',
+    'New moderation rules added for link sharing in general channels.',
+    'The emoji picker widget causes frame drops on devices with <4GB RAM.',
+    'Allow server owners to customize the welcome DM per-channel.',
+    'Documented the weekly backup process and recovery steps.',
+    'Category permissions do not propagate to new channels correctly.',
+  ];
+  const count = 10;
+  const items: MemoryItem[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const item = new MemoryItem();
+    item.guildId = guildId;
+    item.memoryConfigId = memoryConfig.id;
+    item.threadId = fakeSnowflake();
+    item.title = titles[i];
+    item.description = descriptions[i];
+    item.status = statuses[i];
+    item.createdBy = pick(fakeUserIds);
+    item.sourceMessageId = null;
+    item.sourceChannelId = null;
+    items.push(item);
+  }
+
+  await itemRepo.save(items);
+  return { count };
+}
+
+async function populateBaitChannel(
+  _interaction: ChatInputCommandInteraction,
+  guildId: string,
+): Promise<{ count: number }> {
+  const repo = AppDataSource.getRepository(BaitChannelLog);
+
+  const fakeUserIds = [
+    '100000000000000001',
+    '100000000000000002',
+    '100000000000000003',
+    '100000000000000004',
+    '100000000000000005',
+    '100000000000000006',
+    '100000000000000007',
+    '100000000000000008',
+  ];
+  const fakeChannelIds = ['200000000000000001', '200000000000000002', '200000000000000003'];
+  const usernames = [
+    'SuspiciousBot_42',
+    'free_nitro_now',
+    'xSpammerx',
+    'totallylegit',
+    'cheap_boosts_99',
+    'NotAScammer',
+    'link_dropper_3',
+    'promo_account',
+  ];
+  const actionTypes: string[] = [
+    'banned',
+    'banned',
+    'kicked',
+    'banned',
+    'deleted-in-time',
+    'banned',
+    'kicked',
+    'banned',
+  ];
+  const messageContents = [
+    'Free Discord Nitro! Click here: http://totally-not-a-scam.com',
+    'Get cheap server boosts at http://fake-boosts.xyz',
+    '@everyone Check out my new server! discord.gg/spamlink',
+    'Steam gift cards giveaway! http://phishing-site.net',
+    'I am giving away Nitro to the first 100 members!',
+    'Join my server for free robux: discord.gg/fakeinvite',
+    '@here Exclusive deal just for you: http://malware-link.com',
+    'Free V-Bucks generator: http://scamsite.org/vbucks',
+  ];
+  const count = 8;
+  const entries: BaitChannelLog[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const entry = new BaitChannelLog();
+    entry.guildId = guildId;
+    entry.userId = fakeUserIds[i];
+    entry.username = usernames[i];
+    entry.channelId = pick(fakeChannelIds);
+    entry.messageContent = messageContents[i];
+    entry.messageId = fakeSnowflake();
+    entry.actionTaken = actionTypes[i];
+    entry.failureReason = null;
+    entry.accountAgeDays = Math.random() * 30;
+    entry.membershipMinutes = Math.random() * 60;
+    entry.messageCount = randInt(0, 3);
+    entry.hasVerifiedRole = false;
+    entry.suspicionScore = randInt(30, 100);
+    entry.detectionFlags = {
+      newAccount: Math.random() > 0.3,
+      newMember: Math.random() > 0.2,
+      noMessages: Math.random() > 0.4,
+      noVerification: Math.random() > 0.3,
+      suspiciousContent: Math.random() > 0.2,
+      linkSpam: Math.random() > 0.4,
+      mentionSpam: i === 2 || i === 6,
+      defaultAvatar: Math.random() > 0.5,
+      emptyProfile: Math.random() > 0.4,
+      suspiciousUsername: Math.random() > 0.5,
+      noRoles: Math.random() > 0.3,
+      discordInvite: i === 2 || i === 5,
+      phishingUrl: i === 3 || i === 6,
+      attachmentOnly: false,
+      joinBurst: i === 0 || i === 1,
+    };
+    entry.overridden = false;
+    entry.overriddenBy = null;
+    entry.overriddenAt = null;
+    entries.push(entry);
+  }
+
+  await repo.save(entries);
+  return { count };
+}
+
+async function populateAnnouncements(
+  _interaction: ChatInputCommandInteraction,
+  guildId: string,
+): Promise<{ count: number }> {
+  const repo = AppDataSource.getRepository(AnnouncementLog);
+
+  const fakeChannelIds = ['200000000000000001', '200000000000000002', '200000000000000003'];
+  const fakeSenderIds = ['100000000000000001', '100000000000000002'];
+  const templateTypes = ['maintenance_short', 'maintenance_long', 'update_scheduled', 'update_complete', 'back_online'];
+  const count = 5;
+  const entries: AnnouncementLog[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const entry = new AnnouncementLog();
+    entry.guildId = guildId;
+    entry.channelId = pick(fakeChannelIds);
+    entry.messageId = fakeSnowflake();
+    entry.type = templateTypes[i];
+    entry.sentBy = pick(fakeSenderIds);
+    entry.scheduledTime = i < 3 ? new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000) : null;
+    entry.version = i === 2 || i === 3 ? `${randInt(1, 4)}.${randInt(0, 9)}.${randInt(0, 9)}` : null;
+    entries.push(entry);
+  }
+
+  await repo.save(entries);
+  return { count };
+}
+
 // ─── Exported Handlers ─────────────────────────────────────────────────────────
 
 /**
  * Seed realistic usage data for a subsystem.
- * Supported systems: starboard, xp, analytics, events, onboarding, sla, all.
+ * Supported systems: starboard, xp, analytics, events, onboarding, sla,
+ * tickets, applications, memory, baitchannel, announcements, all.
  */
 export async function handlePopulate(
   _client: Client,
@@ -469,9 +765,7 @@ export async function handlePopulate(
 
     if (system === 'onboarding' || system === 'all') {
       const r = await populateOnboarding(interaction, guildId);
-      results.push(
-        `Onboarding: ${r.completed} completed, ${r.abandoned} abandoned, ${r.inProgress} in-progress`,
-      );
+      results.push(`Onboarding: ${r.completed} completed, ${r.abandoned} abandoned, ${r.inProgress} in-progress`);
     }
 
     if (system === 'sla' || system === 'all') {
@@ -479,9 +773,38 @@ export async function handlePopulate(
       results.push(`SLA: ${r.withinSla} within SLA, ${r.breached} breached, ${r.pending} pending`);
     }
 
+    if (system === 'tickets' || system === 'all') {
+      const r = await populateTickets(interaction, guildId);
+      results.push(`Tickets: ${r.count} archived ticket entries created`);
+    }
+
+    if (system === 'applications' || system === 'all') {
+      const r = await populateApplications(interaction, guildId);
+      results.push(`Applications: ${r.count} archived application entries created`);
+    }
+
+    if (system === 'memory' || system === 'all') {
+      const r = await populateMemory(interaction, guildId);
+      if (r.count > 0) {
+        results.push(`Memory: ${r.count} memory items created`);
+      } else {
+        results.push('Memory: skipped (no memory config found — run scaffold first)');
+      }
+    }
+
+    if (system === 'baitchannel' || system === 'all') {
+      const r = await populateBaitChannel(interaction, guildId);
+      results.push(`Bait Channel: ${r.count} log entries created`);
+    }
+
+    if (system === 'announcements' || system === 'all') {
+      const r = await populateAnnouncements(interaction, guildId);
+      results.push(`Announcements: ${r.count} log entries created`);
+    }
+
     if (results.length === 0) {
       await interaction.editReply(
-        'Unknown system. Choose: starboard, xp, analytics, events, onboarding, sla, all',
+        'Unknown system. Choose: starboard, xp, analytics, events, onboarding, sla, tickets, applications, memory, baitchannel, announcements, all',
       );
       return;
     }
@@ -490,8 +813,7 @@ export async function handlePopulate(
       .setTitle('Dev Populate Complete')
       .setColor(Colors.status.success)
       .setDescription(results.map(r => `- ${r}`).join('\n'))
-      .setFooter({ text: `Guild: ${guildId}` })
-      .setTimestamp();
+      .setFooter({ text: `Guild: ${guildId}` });
 
     await interaction.editReply({ embeds: [embed] });
 
@@ -579,11 +901,10 @@ async function timelineXp(
             },
             { name: 'Level-Ups', value: levelUps.toString(), inline: true },
             { name: 'Ticks', value: ticks.toString(), inline: true },
-          )
-          .setTimestamp();
+          );
 
         await interaction.editReply({ content: null, embeds: [summary] });
-        resolve();
+        void resolve();
         return;
       }
 
@@ -621,8 +942,7 @@ async function timelineXp(
         // Progress update every 15-20 seconds (every 3-4 ticks at 5s interval)
         if (ticks % 4 === 0) {
           const pct = Math.round((elapsed / durationMs) * 100);
-          const levelUpNote =
-            user.level > oldLevel ? ` | Level-up: <@${userId}> -> Lv${user.level}` : '';
+          const levelUpNote = user.level > oldLevel ? ` | Level-up: <@${userId}> -> Lv${user.level}` : '';
           await interaction.editReply(
             `XP Timeline: ${pct}% | ${totalXpAwarded} XP awarded | ${levelUps} level-ups${levelUpNote}`,
           );
@@ -703,11 +1023,10 @@ async function timelineAnalytics(
               value: today.toISOString().split('T')[0],
               inline: true,
             },
-          )
-          .setTimestamp();
+          );
 
         await interaction.editReply({ content: null, embeds: [summary] });
-        resolve();
+        void resolve();
         return;
       }
 
@@ -717,10 +1036,7 @@ async function timelineAnalytics(
 
         snapshot!.messageCount += msgBatch;
         snapshot!.voiceMinutes += voiceBatch;
-        snapshot!.activeMembers = Math.min(
-          snapshot!.activeMembers + randInt(0, 3),
-          guild.memberCount,
-        );
+        snapshot!.activeMembers = Math.min(snapshot!.activeMembers + randInt(0, 3), guild.memberCount);
         snapshot!.peakHourUtc = new Date().getUTCHours();
 
         // Update top channels
@@ -754,11 +1070,7 @@ async function timelineAnalytics(
           );
         }
       } catch (err) {
-        enhancedLogger.error(
-          'Timeline analytics tick error',
-          err as Error,
-          LogCategory.COMMAND_EXECUTION,
-        );
+        enhancedLogger.error('Timeline analytics tick error', err as Error, LogCategory.COMMAND_EXECUTION);
       }
     }, 10_000);
   });
@@ -821,8 +1133,7 @@ async function timelineSla(
       { name: 'Ticket ID', value: `#${ticket.id}`, inline: true },
       { name: 'SLA Breached', value: 'Yes (simulated)', inline: true },
       { name: 'Response Recorded', value: 'Yes', inline: true },
-    )
-    .setTimestamp();
+    );
 
   await interaction.editReply({ content: null, embeds: [summary] });
 }
@@ -842,9 +1153,7 @@ export async function handleWalkthrough(
     const steps = getWalkthroughSteps(system);
 
     if (!steps) {
-      await interaction.editReply(
-        'Unknown system. Choose: starboard, xp, sla, onboarding, events, analytics',
-      );
+      await interaction.editReply('Unknown system. Choose: starboard, xp, sla, onboarding, events, analytics');
       return;
     }
 
@@ -857,8 +1166,7 @@ export async function handleWalkthrough(
         .setColor(Colors.brand.primary)
         .setFooter({
           text: `Step ${currentStep + 1} of ${steps.length} | Guild: ${guildId}`,
-        })
-        .setTimestamp();
+        });
 
       const description = steps
         .map((step, i) => {
@@ -882,14 +1190,8 @@ export async function handleWalkthrough(
 
     const buildButtons = () => {
       return new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId('walkthrough_done')
-          .setLabel('Done')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId('walkthrough_skip')
-          .setLabel('Skip')
-          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('walkthrough_done').setLabel('Done').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId('walkthrough_skip').setLabel('Skip').setStyle(ButtonStyle.Secondary),
       );
     };
 
@@ -933,8 +1235,7 @@ export async function handleWalkthrough(
           .addFields(
             { name: 'Completed', value: doneCount.toString(), inline: true },
             { name: 'Skipped', value: skipCount.toString(), inline: true },
-          )
-          .setTimestamp();
+          );
 
         await btnInteraction.update({ embeds: [finalEmbed], components: [] });
         return;
@@ -955,8 +1256,7 @@ export async function handleWalkthrough(
         .setColor(Colors.status.warning)
         .setDescription(
           `Completed ${completed.filter(c => c !== 'pending').length} of ${steps.length} steps before timeout.`,
-        )
-        .setTimestamp();
+        );
 
       await interaction.editReply({ embeds: [timeoutEmbed], components: [] }).catch(() => {});
     });
@@ -1056,10 +1356,7 @@ export async function handleChain(
   }
 }
 
-async function chainXpStarboard(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function chainXpStarboard(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const xpRepo = AppDataSource.getRepository(XPUser);
   const starRepo = AppDataSource.getRepository(StarboardEntry);
   const results: { step: string; passed: boolean; detail: string }[] = [];
@@ -1118,10 +1415,7 @@ async function chainXpStarboard(
   await sendChainResults(interaction, 'XP -> Starboard', results);
 }
 
-async function chainOnboardingXp(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function chainOnboardingXp(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const onboardingRepo = AppDataSource.getRepository(OnboardingCompletion);
   const xpRepo = AppDataSource.getRepository(XPUser);
   const results: { step: string; passed: boolean; detail: string }[] = [];
@@ -1151,9 +1445,7 @@ async function chainOnboardingXp(
   results.push({
     step: 'Verify onboarding marked as complete',
     passed: isComplete,
-    detail: isComplete
-      ? `Completed at: ${verified!.completedAt!.toISOString()}`
-      : 'Not marked complete',
+    detail: isComplete ? `Completed at: ${verified!.completedAt!.toISOString()}` : 'Not marked complete',
   });
 
   // Step 3: Seed XP for the user (simulating post-onboarding activity)
@@ -1189,10 +1481,7 @@ async function chainOnboardingXp(
   await sendChainResults(interaction, 'Onboarding -> XP', results);
 }
 
-async function chainTicketsSlaRouting(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function chainTicketsSlaRouting(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const ticketRepo = AppDataSource.getRepository(Ticket);
   const results: { step: string; passed: boolean; detail: string }[] = [];
 
@@ -1274,10 +1563,7 @@ async function chainTicketsSlaRouting(
   await sendChainResults(interaction, 'Tickets -> SLA -> Routing', results);
 }
 
-async function chainAnalyticsXp(
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-): Promise<void> {
+async function chainAnalyticsXp(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const xpRepo = AppDataSource.getRepository(XPUser);
   const analyticsRepo = AppDataSource.getRepository(AnalyticsSnapshot);
   const results: { step: string; passed: boolean; detail: string }[] = [];
@@ -1383,8 +1669,7 @@ async function sendChainResults(
         value: results.filter(r => !r.passed).length.toString(),
         inline: true,
       },
-    )
-    .setTimestamp();
+    );
 
   await interaction.editReply({ content: null, embeds: [embed] });
 }

@@ -4,56 +4,26 @@
  * Handles: enable, disable, reminder-channel, summary-channel, default-reminder
  */
 
-import {
-  type CacheType,
-  type ChatInputCommandInteraction,
-  type Client,
-  MessageFlags,
-} from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import eventLang from '../../../lang/event.json';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
-import {
-  createRateLimitKey,
-  enhancedLogger,
-  LANGF,
-  LogCategory,
-  lang,
-  RateLimits,
-  rateLimiter,
-  requireAdmin,
-} from '../../../utils';
+import { enhancedLogger, guardAdminRateLimit, LANGF, LogCategory, lang, RateLimits } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const eventConfigRepo = lazyRepo(EventConfig);
 const tl = eventLang.setup;
 
-export const eventSetupHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+export const eventSetupHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'event-setup',
+    limit: RateLimits.ANNOUNCEMENT_SETUP,
+    scope: 'guild',
+  });
+  if (!guard.allowed) return;
 
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
   const subcommand = interaction.options.getSubcommand();
-
-  // Rate limit check
-  const rateLimitKey = createRateLimitKey.guild(guildId, 'event-setup');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.ANNOUNCEMENT_SETUP);
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
 
   try {
     let config = await eventConfigRepo.findOneBy({ guildId });

@@ -4,12 +4,7 @@
  * Manages keywords, regex patterns, and exemptions on Discord AutoMod rules.
  */
 
-import {
-  AutoModerationRuleTriggerType,
-  type ChatInputCommandInteraction,
-  type Client,
-  MessageFlags,
-} from 'discord.js';
+import { AutoModerationRuleTriggerType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
 import {
   fetchAutoModRules,
@@ -35,10 +30,7 @@ function validateRegexSyntax(pattern: string): boolean {
   }
 }
 
-export const keywordHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> => {
+export const keywordHandler = async (_client: Client, interaction: ChatInputCommandInteraction): Promise<void> => {
   const group = interaction.options.getSubcommandGroup(true);
   const subcommand = interaction.options.getSubcommand();
 
@@ -114,11 +106,11 @@ async function handleKeywordAdd(interaction: ChatInputCommandInteraction): Promi
       },
     });
 
-    enhancedLogger.info(
-      `AutoMod keyword added to rule ${rule.name}: ${keyword}`,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId: guild.id, ruleId, userId: interaction.user.id },
-    );
+    enhancedLogger.info(`AutoMod keyword added to rule ${rule.name}: ${keyword}`, LogCategory.COMMAND_EXECUTION, {
+      guildId: guild.id,
+      ruleId,
+      userId: interaction.user.id,
+    });
 
     await interaction.reply({
       content: LANGF(tl.keyword.add.success, keyword, rule.name),
@@ -176,11 +168,11 @@ async function handleKeywordRemove(interaction: ChatInputCommandInteraction): Pr
       },
     });
 
-    enhancedLogger.info(
-      `AutoMod keyword removed from rule ${rule.name}: ${keyword}`,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId: guild.id, ruleId, userId: interaction.user.id },
-    );
+    enhancedLogger.info(`AutoMod keyword removed from rule ${rule.name}: ${keyword}`, LogCategory.COMMAND_EXECUTION, {
+      guildId: guild.id,
+      ruleId,
+      userId: interaction.user.id,
+    });
 
     await interaction.reply({
       content: LANGF(tl.keyword.remove.success, keyword, rule.name),
@@ -325,11 +317,11 @@ async function handleRegexRemove(interaction: ChatInputCommandInteraction): Prom
       },
     });
 
-    enhancedLogger.info(
-      `AutoMod regex removed from rule ${rule.name}`,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId: guild.id, ruleId, userId: interaction.user.id },
-    );
+    enhancedLogger.info(`AutoMod regex removed from rule ${rule.name}`, LogCategory.COMMAND_EXECUTION, {
+      guildId: guild.id,
+      ruleId,
+      userId: interaction.user.id,
+    });
 
     await interaction.reply({
       content: LANGF(tl.regex.remove.success, pattern, rule.name),
@@ -399,17 +391,13 @@ async function handleExemptAdd(interaction: ChatInputCommandInteraction): Promis
 
     await rule.edit({ exemptRoles, exemptChannels });
 
-    enhancedLogger.info(
-      `AutoMod exemption added to rule ${rule.name}`,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        guildId: guild.id,
-        ruleId,
-        userId: interaction.user.id,
-        exemptRole: role?.id,
-        exemptChannel: channel?.id,
-      },
-    );
+    enhancedLogger.info(`AutoMod exemption added to rule ${rule.name}`, LogCategory.COMMAND_EXECUTION, {
+      guildId: guild.id,
+      ruleId,
+      userId: interaction.user.id,
+      exemptRole: role?.id,
+      exemptChannel: channel?.id,
+    });
 
     await interaction.reply({
       content: LANGF(tl.exempt.add.success, rule.name),
@@ -475,17 +463,13 @@ async function handleExemptRemove(interaction: ChatInputCommandInteraction): Pro
 
     await rule.edit({ exemptRoles, exemptChannels });
 
-    enhancedLogger.info(
-      `AutoMod exemption removed from rule ${rule.name}`,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        guildId: guild.id,
-        ruleId,
-        userId: interaction.user.id,
-        exemptRole: role?.id,
-        exemptChannel: channel?.id,
-      },
-    );
+    enhancedLogger.info(`AutoMod exemption removed from rule ${rule.name}`, LogCategory.COMMAND_EXECUTION, {
+      guildId: guild.id,
+      ruleId,
+      userId: interaction.user.id,
+      exemptRole: role?.id,
+      exemptChannel: channel?.id,
+    });
 
     await interaction.reply({
       content: LANGF(tl.exempt.remove.success, rule.name),

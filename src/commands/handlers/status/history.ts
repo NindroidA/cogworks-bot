@@ -1,21 +1,8 @@
-import {
-  type CacheType,
-  type ChatInputCommandInteraction,
-  EmbedBuilder,
-  MessageFlags,
-  time,
-} from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags, time } from 'discord.js';
 import { MoreThan } from 'typeorm';
 import { AppDataSource } from '../../../typeorm';
 import { StatusIncident } from '../../../typeorm/entities/status';
-import {
-  Colors,
-  enhancedLogger,
-  handleInteractionError,
-  LogCategory,
-  lang,
-  requireBotOwner,
-} from '../../../utils';
+import { Colors, enhancedLogger, handleInteractionError, LogCategory, lang, requireBotOwner } from '../../../utils';
 
 const tl = lang.status;
 
@@ -48,10 +35,7 @@ export async function statusHistoryHandler(interaction: ChatInputCommandInteract
       return;
     }
 
-    const embed = new EmbedBuilder()
-      .setTitle(tl.history.title)
-      .setColor(Colors.status.info)
-      .setTimestamp();
+    const embed = new EmbedBuilder().setTitle(tl.history.title).setColor(Colors.status.info);
 
     for (const incident of incidents) {
       const levelLabel = tl.levels[incident.level as keyof typeof tl.levels] || incident.level;
@@ -63,8 +47,7 @@ export async function statusHistoryHandler(interaction: ChatInputCommandInteract
         const resolved = time(new Date(incident.resolvedAt), 'R');
         value += `\n${tl.history.resolved}: ${resolved}`;
 
-        const durationMs =
-          new Date(incident.resolvedAt).getTime() - new Date(incident.startedAt).getTime();
+        const durationMs = new Date(incident.resolvedAt).getTime() - new Date(incident.startedAt).getTime();
         value += `\n${tl.history.duration}: ${formatDuration(durationMs)}`;
 
         if (incident.resolvedBy) {

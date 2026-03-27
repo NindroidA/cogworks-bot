@@ -1,9 +1,4 @@
-import {
-  type ChatInputCommandInteraction,
-  type Client,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
@@ -11,10 +6,7 @@ import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
-export const whitelistHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-) => {
+export const whitelistHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
   try {
     const action = interaction.options.getString('action', true);
     const role = interaction.options.getRole('role');
@@ -50,9 +42,7 @@ export const whitelistHandler = async (
         whitelistInfo.push(`**Users:** ${usersList}`);
       }
 
-      embed.setDescription(
-        whitelistInfo.length > 0 ? whitelistInfo.join('\n\n') : tl.whitelist.empty,
-      );
+      embed.setDescription(whitelistInfo.length > 0 ? whitelistInfo.join('\n\n') : tl.whitelist.empty);
 
       await interaction.reply({
         embeds: [embed],
@@ -108,8 +98,7 @@ export const whitelistHandler = async (
         if (!config.whitelistedUsers?.includes(targetUser.id)) {
           notInList = true;
         } else {
-          config.whitelistedUsers =
-            config.whitelistedUsers?.filter(id => id !== targetUser.id) || [];
+          config.whitelistedUsers = config.whitelistedUsers?.filter(id => id !== targetUser.id) || [];
           changed = true;
         }
       }

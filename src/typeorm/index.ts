@@ -27,6 +27,7 @@ import { PendingBan } from './entities/PendingBan';
 import { ReactionRoleMenu, ReactionRoleOption } from './entities/reactionRole';
 import { RulesConfig } from './entities/rules';
 import { SavedRole } from './entities/SavedRole';
+import { SetupState } from './entities/SetupState';
 import { StarboardConfig, StarboardEntry } from './entities/starboard';
 import { BotStatus, StatusIncident } from './entities/status';
 import { ArchivedTicket } from './entities/ticket/ArchivedTicket';
@@ -54,9 +55,12 @@ export const AppDataSource = new DataSource({
   synchronize: IS_DEV,
   migrationsRun: !IS_DEV,
   migrations: [`${__dirname}/migrations/*.{ts,js}`],
+  maxQueryExecutionTime: 5000,
   extra: {
-    connectionLimit: 10,
+    connectionLimit: 20,
     connectTimeout: 10_000,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 30_000,
   },
   entities: [
     TicketConfig,
@@ -103,5 +107,6 @@ export const AppDataSource = new DataSource({
     EventReminder,
     AnalyticsConfig,
     AnalyticsSnapshot,
+    SetupState,
   ],
 });

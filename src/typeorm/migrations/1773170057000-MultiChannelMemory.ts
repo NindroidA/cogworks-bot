@@ -31,14 +31,10 @@ export class MultiChannelMemory1773170057000 implements MigrationInterface {
     );
 
     // 3. Add sortOrder column
-    await queryRunner.query(
-      `ALTER TABLE \`memory_configs\` ADD \`sortOrder\` int NOT NULL DEFAULT 0`,
-    );
+    await queryRunner.query(`ALTER TABLE \`memory_configs\` ADD \`sortOrder\` int NOT NULL DEFAULT 0`);
 
     // 4. Add guildId index (was implicit from unique, now explicit)
-    await queryRunner.query(
-      `CREATE INDEX \`IDX_memory_configs_guildId\` ON \`memory_configs\` (\`guildId\`)`,
-    );
+    await queryRunner.query(`CREATE INDEX \`IDX_memory_configs_guildId\` ON \`memory_configs\` (\`guildId\`)`);
 
     // 5. Add memoryConfigId to memory_tags (nullable first for backfill)
     await queryRunner.query(`ALTER TABLE \`memory_tags\` ADD \`memoryConfigId\` int NULL`);
@@ -65,9 +61,7 @@ export class MultiChannelMemory1773170057000 implements MigrationInterface {
     await queryRunner.query(`ALTER TABLE \`memory_items\` MODIFY \`memoryConfigId\` int NOT NULL`);
 
     // 10. Drop old guildId+tagType index on memory_tags, add new composite
-    const tagIndexes = await queryRunner.query(
-      `SHOW INDEX FROM \`memory_tags\` WHERE Column_name = 'tagType'`,
-    );
+    const tagIndexes = await queryRunner.query(`SHOW INDEX FROM \`memory_tags\` WHERE Column_name = 'tagType'`);
     for (const idx of tagIndexes) {
       await queryRunner.query(`ALTER TABLE \`memory_tags\` DROP INDEX \`${idx.Key_name}\``);
     }

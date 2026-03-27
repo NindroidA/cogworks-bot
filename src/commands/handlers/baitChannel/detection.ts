@@ -1,9 +1,4 @@
-import {
-  type ChatInputCommandInteraction,
-  type Client,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
@@ -11,10 +6,7 @@ import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
-export const detectionHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-) => {
+export const detectionHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
   try {
     const enabled = interaction.options.getBoolean('enabled', true);
     const minAge = interaction.options.getInteger('min_account_age');

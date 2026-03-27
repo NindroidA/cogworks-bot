@@ -1,5 +1,5 @@
-import { lazyRepo } from '../database/lazyRepo';
 import { ReactionRoleMenu, type ReactionRoleOption } from '../../typeorm/entities/reactionRole';
+import { lazyRepo } from '../database/lazyRepo';
 
 const menuRepo = lazyRepo(ReactionRoleMenu);
 
@@ -21,10 +21,7 @@ function buildEmojiIndex(menu: ReactionRoleMenu): Map<string, ReactionRoleOption
 }
 
 /** Lookup menu by message ID with caching (lazy load) */
-export async function getCachedMenu(
-  messageId: string,
-  guildId: string,
-): Promise<ReactionRoleMenu | null> {
+export async function getCachedMenu(messageId: string, guildId: string): Promise<ReactionRoleMenu | null> {
   const cached = menuCache.get(messageId);
   if (cached) {
     // Check TTL — evict stale entries

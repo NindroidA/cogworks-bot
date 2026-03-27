@@ -1,47 +1,18 @@
 import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { SavedRole } from '../../../typeorm/entities/SavedRole';
-import {
-  createRateLimitKey,
-  enhancedLogger,
-  LANGF,
-  LogCategory,
-  lang,
-  RateLimits,
-  rateLimiter,
-  requireAdmin,
-} from '../../../utils';
+import { enhancedLogger, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.addRole;
 const savedRoleRepo = lazyRepo(SavedRole);
 
 export const roleAddHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
-  // Require admin permissions
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
-
-  // Rate limit check (10 role saves per hour per user)
-  const rateLimitKey = createRateLimitKey.user(interaction.user.id, 'role-save');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.ROLE_SAVE);
-
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
-      flags: [MessageFlags.Ephemeral],
-    });
-    enhancedLogger.rateLimit(
-      'Role save rate limit exceeded',
-      interaction.user.id,
-      interaction.guildId || undefined,
-    );
-    return;
-  }
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'role-save',
+    limit: RateLimits.ROLE_SAVE,
+    scope: 'user',
+  });
+  if (!guard.allowed) return;
 
   const subCommand = interaction.options.getSubcommand(); // 'staff' or 'admin'
   if (!interaction.guildId) return;

@@ -65,11 +65,10 @@ export class Mee6Importer implements BotImporter {
     let page = 0;
     let hasMore = true;
 
-    enhancedLogger.info(
-      `Starting MEE6 XP import for guild ${guildId}`,
-      LogCategory.COMMAND_EXECUTION,
-      { dryRun: options?.dryRun, overwrite: options?.overwrite },
-    );
+    enhancedLogger.info(`Starting MEE6 XP import for guild ${guildId}`, LogCategory.COMMAND_EXECUTION, {
+      dryRun: options?.dryRun,
+      overwrite: options?.overwrite,
+    });
 
     while (hasMore) {
       try {
@@ -156,7 +155,9 @@ export class Mee6Importer implements BotImporter {
         enhancedLogger.info(
           `MEE6 import page ${page}: fetched ${data.players.length} players (total: ${imported})`,
           LogCategory.COMMAND_EXECUTION,
-          { guildId },
+          {
+            guildId,
+          },
         );
 
         // If we got fewer than the limit, we've reached the end
@@ -176,7 +177,10 @@ export class Mee6Importer implements BotImporter {
           `MEE6 import error on page ${page}`,
           error instanceof Error ? error : undefined,
           LogCategory.COMMAND_EXECUTION,
-          { guildId, page },
+          {
+            guildId,
+            page,
+          },
         );
 
         // Stop on network errors

@@ -7,19 +7,9 @@ import {
   TextChannel,
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
-import {
-  type BaitActionType,
-  BaitChannelConfig,
-} from '../../../typeorm/entities/BaitChannelConfig';
+import { type BaitActionType, BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import {
-  enhancedLogger,
-  handleInteractionError,
-  LANGF,
-  LogCategory,
-  lang,
-  safeDbOperation,
-} from '../../../utils';
+import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang, safeDbOperation } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
@@ -58,9 +48,7 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
         try {
           const oldChannel = await interaction.guild!.channels.fetch(config.channelId);
           if (oldChannel?.isTextBased()) {
-            const oldMessage = await (oldChannel as TextChannel).messages.fetch(
-              config.channelMessageId,
-            );
+            const oldMessage = await (oldChannel as TextChannel).messages.fetch(config.channelMessageId);
             await oldMessage.delete();
           }
         } catch {
@@ -89,10 +77,7 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
         );
       }
     } catch {
-      enhancedLogger.warn(
-        'Failed to seed default keywords during bait channel setup',
-        LogCategory.COMMAND_EXECUTION,
-      );
+      enhancedLogger.warn('Failed to seed default keywords during bait channel setup', LogCategory.COMMAND_EXECUTION);
     }
 
     // Send or update warning message in the BAIT CHANNEL (visible to everyone)
@@ -123,10 +108,7 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
           await configRepo.save(config);
         }
       } catch {
-        enhancedLogger.warn(
-          'Failed to send/update warning message to bait channel',
-          LogCategory.COMMAND_EXECUTION,
-        );
+        enhancedLogger.warn('Failed to send/update warning message to bait channel', LogCategory.COMMAND_EXECUTION);
       }
     }
 
@@ -167,10 +149,7 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
   }
 };
 
-export const handleBaitChannelAddChannel = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-) => {
+export const handleBaitChannelAddChannel = async (client: Client, interaction: ChatInputCommandInteraction) => {
   try {
     const channel = interaction.options.getChannel('channel', true);
 
@@ -255,10 +234,7 @@ export const handleBaitChannelAddChannel = async (
   }
 };
 
-export const handleBaitChannelRemoveChannel = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-) => {
+export const handleBaitChannelRemoveChannel = async (client: Client, interaction: ChatInputCommandInteraction) => {
   try {
     const channel = interaction.options.getChannel('channel', true);
 

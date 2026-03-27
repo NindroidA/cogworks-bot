@@ -46,12 +46,9 @@ export async function checkAndSendReminders(client: Client): Promise<void> {
       try {
         await processGuildReminders(client, guildId, reminders);
       } catch (error) {
-        enhancedLogger.error(
-          `Reminder check failed for guild ${guildId}`,
-          error as Error,
-          LogCategory.ERROR,
-          { guildId },
-        );
+        enhancedLogger.error(`Reminder check failed for guild ${guildId}`, error as Error, LogCategory.ERROR, {
+          guildId,
+        });
       }
     }
   } catch (error) {
@@ -59,11 +56,7 @@ export async function checkAndSendReminders(client: Client): Promise<void> {
   }
 }
 
-async function processGuildReminders(
-  client: Client,
-  guildId: string,
-  reminders: EventReminder[],
-): Promise<void> {
+async function processGuildReminders(client: Client, guildId: string, reminders: EventReminder[]): Promise<void> {
   const config = await eventConfigRepo.findOneBy({ guildId });
   if (!config?.enabled || !config.reminderChannelId) {
     // No config or no reminder channel — mark as sent to avoid re-processing
@@ -74,9 +67,7 @@ async function processGuildReminders(
     return;
   }
 
-  const channel = (await client.channels
-    .fetch(config.reminderChannelId)
-    .catch(() => null)) as TextChannel | null;
+  const channel = (await client.channels.fetch(config.reminderChannelId).catch(() => null)) as TextChannel | null;
 
   if (!channel) {
     enhancedLogger.warn('Reminder channel not found', LogCategory.SYSTEM, {
@@ -107,8 +98,7 @@ async function processGuildReminders(
       const embed = new EmbedBuilder()
         .setTitle('Event Reminder')
         .setDescription(`**${eventTitle}** starts ${startTimestamp}!`)
-        .setColor(0x5865f2)
-        .setTimestamp();
+        .setColor(0x5865f2);
 
       if (scheduledEvent?.description) {
         embed.addFields({ name: 'Description', value: scheduledEvent.description.slice(0, 1024) });
@@ -129,7 +119,10 @@ async function processGuildReminders(
         `Failed to send reminder for event ${reminder.discordEventId}`,
         error as Error,
         LogCategory.ERROR,
-        { guildId, reminderId: reminder.id },
+        {
+          guildId,
+          reminderId: reminder.id,
+        },
       );
       // Mark as sent to avoid infinite retries
       reminder.sent = true;

@@ -5,12 +5,7 @@
  * Steps are stored as simple-json on OnboardingConfig.
  */
 
-export type OnboardingStepType =
-  | 'message'
-  | 'role-select'
-  | 'channel-suggest'
-  | 'rules-accept'
-  | 'custom-question';
+export type OnboardingStepType = 'message' | 'role-select' | 'channel-suggest' | 'rules-accept' | 'custom-question';
 
 export interface OnboardingRoleOption {
   label: string;

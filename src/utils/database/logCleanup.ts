@@ -15,9 +15,7 @@ let cleanupInterval: ReturnType<typeof setInterval> | null = null;
  */
 async function runLogCleanup(): Promise<void> {
   const baitCutoff = new Date(Date.now() - RETENTION_DAYS.BAIT_LOG * 24 * 60 * 60 * 1000);
-  const announcementCutoff = new Date(
-    Date.now() - RETENTION_DAYS.ANNOUNCEMENT_LOG * 24 * 60 * 60 * 1000,
-  );
+  const announcementCutoff = new Date(Date.now() - RETENTION_DAYS.ANNOUNCEMENT_LOG * 24 * 60 * 60 * 1000);
 
   try {
     const baitRepo = AppDataSource.getRepository(BaitChannelLog);

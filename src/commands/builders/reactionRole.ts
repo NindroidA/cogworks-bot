@@ -1,9 +1,4 @@
-import {
-  ChannelType,
-  PermissionsBitField,
-  SlashCommandBuilder,
-  SlashCommandSubcommandBuilder,
-} from 'discord.js';
+import { ChannelType, PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
 
 const tl = lang.reactionRole.builder;
@@ -18,15 +13,9 @@ const create = new SlashCommandSubcommandBuilder()
       .setRequired(true)
       .addChannelTypes(ChannelType.GuildText),
   )
+  .addStringOption(option => option.setName('name').setDescription(tl.create.name).setRequired(true).setMaxLength(255))
   .addStringOption(option =>
-    option.setName('name').setDescription(tl.create.name).setRequired(true).setMaxLength(255),
-  )
-  .addStringOption(option =>
-    option
-      .setName('description')
-      .setDescription(tl.create.description)
-      .setRequired(false)
-      .setMaxLength(4000),
+    option.setName('description').setDescription(tl.create.description).setRequired(false).setMaxLength(4000),
   )
   .addStringOption(option =>
     option
@@ -46,16 +35,10 @@ const add = new SlashCommandSubcommandBuilder()
   .addStringOption(option =>
     option.setName('menu').setDescription(tl.add.menuId).setRequired(true).setAutocomplete(true),
   )
-  .addStringOption(option =>
-    option.setName('emoji').setDescription(tl.add.emoji).setRequired(true).setMaxLength(64),
-  )
+  .addStringOption(option => option.setName('emoji').setDescription(tl.add.emoji).setRequired(true).setMaxLength(64))
   .addRoleOption(option => option.setName('role').setDescription(tl.add.role).setRequired(true))
   .addStringOption(option =>
-    option
-      .setName('description')
-      .setDescription(tl.add.description)
-      .setRequired(false)
-      .setMaxLength(200),
+    option.setName('description').setDescription(tl.add.description).setRequired(false).setMaxLength(200),
   );
 
 const remove = new SlashCommandSubcommandBuilder()
@@ -64,9 +47,7 @@ const remove = new SlashCommandSubcommandBuilder()
   .addStringOption(option =>
     option.setName('menu').setDescription(tl.remove.menuId).setRequired(true).setAutocomplete(true),
   )
-  .addStringOption(option =>
-    option.setName('emoji').setDescription(tl.remove.emoji).setRequired(true),
-  );
+  .addStringOption(option => option.setName('emoji').setDescription(tl.remove.emoji).setRequired(true));
 
 const edit = new SlashCommandSubcommandBuilder()
   .setName('edit')
@@ -74,15 +55,9 @@ const edit = new SlashCommandSubcommandBuilder()
   .addStringOption(option =>
     option.setName('menu').setDescription(tl.edit.menuId).setRequired(true).setAutocomplete(true),
   )
+  .addStringOption(option => option.setName('name').setDescription(tl.edit.name).setRequired(false).setMaxLength(255))
   .addStringOption(option =>
-    option.setName('name').setDescription(tl.edit.name).setRequired(false).setMaxLength(255),
-  )
-  .addStringOption(option =>
-    option
-      .setName('description')
-      .setDescription(tl.edit.description)
-      .setRequired(false)
-      .setMaxLength(4000),
+    option.setName('description').setDescription(tl.edit.description).setRequired(false).setMaxLength(4000),
   )
   .addStringOption(option =>
     option
@@ -105,9 +80,7 @@ const deleteMenu = new SlashCommandSubcommandBuilder()
 
 const list = new SlashCommandSubcommandBuilder().setName('list').setDescription(tl.list.descrp);
 
-const validate = new SlashCommandSubcommandBuilder()
-  .setName('validate')
-  .setDescription(tl.validate.descrp);
+const validate = new SlashCommandSubcommandBuilder().setName('validate').setDescription(tl.validate.descrp);
 
 export const reactionRole = new SlashCommandBuilder()
   .setName('reactionrole')

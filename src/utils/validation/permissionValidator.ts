@@ -5,8 +5,8 @@
  */
 
 import {
-  type ChatInputCommandInteraction,
   type GuildMember,
+  type Interaction,
   PermissionFlagsBits,
   type PermissionResolvable,
   PermissionsBitField,
@@ -126,11 +126,7 @@ export function isGuildOwner(member: GuildMember | null): PermissionCheckResult 
   };
 }
 
-export function hasRole(
-  member: GuildMember | null,
-  roleId: string,
-  roleName?: string,
-): PermissionCheckResult {
+export function hasRole(member: GuildMember | null, roleId: string, roleName?: string): PermissionCheckResult {
   if (!member) {
     return {
       allowed: false,
@@ -149,11 +145,7 @@ export function hasRole(
   };
 }
 
-export function hasAnyRole(
-  member: GuildMember | null,
-  roleIds: string[],
-  roleNames?: string[],
-): PermissionCheckResult {
+export function hasAnyRole(member: GuildMember | null, roleIds: string[], roleNames?: string[]): PermissionCheckResult {
   if (!member) {
     return {
       allowed: false,
@@ -180,10 +172,7 @@ export function hasAnyRole(
   };
 }
 
-export function isRoleAbove(
-  member: GuildMember | null,
-  targetRoleId: string,
-): PermissionCheckResult {
+export function isRoleAbove(member: GuildMember | null, targetRoleId: string): PermissionCheckResult {
   if (!member) {
     return {
       allowed: false,
@@ -210,7 +199,7 @@ export function isRoleAbove(
   };
 }
 
-export function requireGuild(interaction: ChatInputCommandInteraction): PermissionCheckResult {
+export function requireGuild(interaction: Interaction): PermissionCheckResult {
   if (!interaction.guild || !interaction.guildId) {
     return {
       allowed: false,
@@ -227,7 +216,7 @@ export function requireGuild(interaction: ChatInputCommandInteraction): Permissi
  * @param interaction - Command interaction
  * @returns Permission check result with automatic logging
  */
-export function requireAdmin(interaction: ChatInputCommandInteraction): PermissionCheckResult {
+export function requireAdmin(interaction: Interaction): PermissionCheckResult {
   const guildCheck = requireGuild(interaction);
   if (!guildCheck.allowed) {
     return guildCheck;
@@ -237,8 +226,9 @@ export function requireAdmin(interaction: ChatInputCommandInteraction): Permissi
   const adminCheck = hasAdminPermission(member);
 
   if (!adminCheck.allowed) {
+    const commandName = 'commandName' in interaction ? interaction.commandName : 'interaction';
     enhancedLogger.warn(
-      `User ${interaction.user.tag} attempted to use admin command ${interaction.commandName} without permission`,
+      `User ${interaction.user.tag} attempted to use admin command ${commandName} without permission`,
       LogCategory.SECURITY,
     );
   }
@@ -252,7 +242,7 @@ export function requireAdmin(interaction: ChatInputCommandInteraction): Permissi
  * @param interaction - Command interaction
  * @returns Permission check result with automatic logging
  */
-export function requireOwner(interaction: ChatInputCommandInteraction): PermissionCheckResult {
+export function requireOwner(interaction: Interaction): PermissionCheckResult {
   const guildCheck = requireGuild(interaction);
   if (!guildCheck.allowed) {
     return guildCheck;
@@ -262,8 +252,9 @@ export function requireOwner(interaction: ChatInputCommandInteraction): Permissi
   const ownerCheck = isGuildOwner(member);
 
   if (!ownerCheck.allowed) {
+    const commandName = 'commandName' in interaction ? interaction.commandName : 'interaction';
     enhancedLogger.warn(
-      `User ${interaction.user.tag} attempted to use owner command ${interaction.commandName} without permission`,
+      `User ${interaction.user.tag} attempted to use owner command ${commandName} without permission`,
       LogCategory.SECURITY,
     );
   }
@@ -289,18 +280,9 @@ export function requireBotOwner(userId: string): PermissionCheckResult {
  * Predefined permission sets for common validation use cases
  */
 export const ValidationPermissionSets = {
-  MANAGE_TICKETS: [
-    PermissionsBitField.Flags.ManageMessages,
-    PermissionsBitField.Flags.ManageChannels,
-  ],
-  MANAGE_APPLICATIONS: [
-    PermissionsBitField.Flags.ManageRoles,
-    PermissionsBitField.Flags.ManageMessages,
-  ],
-  MANAGE_ANNOUNCEMENTS: [
-    PermissionsBitField.Flags.ManageMessages,
-    PermissionsBitField.Flags.MentionEveryone,
-  ],
+  MANAGE_TICKETS: [PermissionsBitField.Flags.ManageMessages, PermissionsBitField.Flags.ManageChannels],
+  MANAGE_APPLICATIONS: [PermissionsBitField.Flags.ManageRoles, PermissionsBitField.Flags.ManageMessages],
+  MANAGE_ANNOUNCEMENTS: [PermissionsBitField.Flags.ManageMessages, PermissionsBitField.Flags.MentionEveryone],
   MODERATE: [PermissionsBitField.Flags.ModerateMembers, PermissionsBitField.Flags.KickMembers],
 } as const;
 

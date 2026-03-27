@@ -1,15 +1,12 @@
 import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { ReactionRoleMenu, ReactionRoleOption } from '../../../typeorm/entities/reactionRole';
 import {
-  createRateLimitKey,
   enhancedLogger,
+  guardAdminRateLimit,
   invalidateMenuCache,
-  LANGF,
   LogCategory,
   lang,
   RateLimits,
-  rateLimiter,
-  requireAdmin,
   updateMenuMessage,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -18,17 +15,13 @@ const tl = lang.reactionRole;
 const menuRepo = lazyRepo(ReactionRoleMenu);
 const optionRepo = lazyRepo(ReactionRoleOption);
 
-export async function reactionRoleRemoveHandler(
-  interaction: ChatInputCommandInteraction<CacheType>,
-) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+export async function reactionRoleRemoveHandler(interaction: ChatInputCommandInteraction<CacheType>) {
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'reactionrole-remove',
+    limit: RateLimits.ANNOUNCEMENT_SETUP,
+    scope: 'guild',
+  });
+  if (!guard.allowed) return;
 
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
@@ -37,17 +30,6 @@ export async function reactionRoleRemoveHandler(
 
   const menuId = parseInt(interaction.options.getString('menu', true), 10);
   const emoji = interaction.options.getString('emoji', true).trim();
-
-  // Rate limit (5 per hour per guild)
-  const rateLimitKey = createRateLimitKey.guild(guildId, 'reactionrole-remove');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.ANNOUNCEMENT_SETUP);
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
 
   try {
     const menu = await menuRepo.findOne({
@@ -99,12 +81,9 @@ export async function reactionRoleRemoveHandler(
       userId: interaction.user.id,
     });
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to remove reaction role option',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    enhancedLogger.error('Failed to remove reaction role option', error as Error, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+    });
     await interaction.reply({
       content: tl.remove.error,
       flags: [MessageFlags.Ephemeral],

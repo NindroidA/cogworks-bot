@@ -1,18 +1,17 @@
 import type { AutocompleteInteraction, Client } from 'discord.js';
 import { templateAutocomplete } from '../commands/handlers/announcement/templates';
 import { applicationPositionAutocomplete } from '../commands/handlers/application/applicationPosition';
+import {
+  applicationRemovableStatusAutocomplete,
+  applicationWorkflowStatusAutocomplete,
+} from '../commands/handlers/application/workflow';
 import { handleKeywordAutocomplete } from '../commands/handlers/baitChannel/keywords';
 import { memoryAutocomplete } from '../commands/handlers/memory';
 import { memoryTagAutocomplete } from '../commands/handlers/memory/manageTags';
 import { reactionRoleMenuAutocomplete } from '../commands/handlers/reactionRole';
-import {
-  ticketTypeAutocomplete,
-  ticketTypeAutocompleteWithLegacy,
-} from '../commands/handlers/ticket/typeToggle';
-import {
-  removableStatusAutocomplete,
-  workflowStatusAutocomplete,
-} from '../commands/handlers/ticket/workflow';
+import { routingRuleAutocomplete } from '../commands/handlers/ticket/routing';
+import { ticketTypeAutocomplete, ticketTypeAutocompleteWithLegacy } from '../commands/handlers/ticket/typeToggle';
+import { removableStatusAutocomplete, workflowStatusAutocomplete } from '../commands/handlers/ticket/workflow';
 import { enhancedLogger, LogCategory } from '../utils';
 
 /**
@@ -27,48 +26,61 @@ export const handleAutocomplete = async (_client: Client, interaction: Autocompl
     // Route to appropriate autocomplete handler
     switch (commandName) {
       case 'ticket': {
-        // All ticket subcommands that use type autocomplete
+        const group = interaction.options.getSubcommandGroup(false);
         const subcommand = interaction.options.getSubcommand();
-        enhancedLogger.debug(
-          `Autocomplete: /${commandName} ${subcommand}`,
-          LogCategory.COMMAND_EXECUTION,
-          { userId: interaction.user.id, guildId, subcommand },
-        );
+        enhancedLogger.debug(`Autocomplete: /${commandName} ${group} ${subcommand}`, LogCategory.COMMAND_EXECUTION, {
+          userId: interaction.user.id,
+          guildId,
+          subcommandGroup: group,
+          subcommand,
+        });
 
-        if (
-          subcommand === 'type-edit' ||
-          subcommand === 'type-toggle' ||
-          subcommand === 'type-default' ||
-          subcommand === 'type-remove' ||
-          subcommand === 'type-fields' ||
-          subcommand === 'user-restrict'
-        ) {
-          await ticketTypeAutocomplete(interaction);
-        } else if (subcommand === 'settings') {
-          // Settings needs both legacy and custom types for ping-on-create
-          await ticketTypeAutocompleteWithLegacy(interaction);
-        } else if (subcommand === 'status' || subcommand === 'autoclose-enable') {
-          await workflowStatusAutocomplete(interaction);
-        } else if (subcommand === 'workflow-remove-status') {
-          await removableStatusAutocomplete(interaction);
+        if (group === 'type') {
+          // Type group: edit, toggle, default, remove, fields all use type autocomplete
+          if (subcommand !== 'add' && subcommand !== 'list') {
+            await ticketTypeAutocomplete(interaction);
+          }
+        } else if (group === 'manage') {
+          if (subcommand === 'status') {
+            await workflowStatusAutocomplete(interaction);
+          } else if (subcommand === 'user-restrict') {
+            await ticketTypeAutocomplete(interaction);
+          } else if (subcommand === 'settings') {
+            await ticketTypeAutocompleteWithLegacy(interaction);
+          }
+        } else if (group === 'workflow') {
+          if (subcommand === 'remove-status') {
+            await removableStatusAutocomplete(interaction);
+          } else if (subcommand === 'autoclose-enable') {
+            await workflowStatusAutocomplete(interaction);
+          }
+        } else if (group === 'sla') {
+          if (subcommand === 'per-type') {
+            await ticketTypeAutocomplete(interaction);
+          }
+        } else if (group === 'routing') {
+          if (subcommand === 'rule-add') {
+            await ticketTypeAutocomplete(interaction);
+          } else if (subcommand === 'rule-remove') {
+            await routingRuleAutocomplete(interaction);
+          }
         }
         break;
       }
       case 'application': {
         const subcommand = interaction.options.getSubcommand();
-        enhancedLogger.debug(
-          `Autocomplete: /${commandName} position ${subcommand}`,
-          LogCategory.COMMAND_EXECUTION,
-          { userId: interaction.user.id, guildId, subcommand },
-        );
+        enhancedLogger.debug(`Autocomplete: /${commandName} ${subcommand}`, LogCategory.COMMAND_EXECUTION, {
+          userId: interaction.user.id,
+          guildId,
+          subcommand,
+        });
 
-        if (
-          subcommand === 'remove' ||
-          subcommand === 'toggle' ||
-          subcommand === 'edit' ||
-          subcommand === 'fields'
-        ) {
+        if (subcommand === 'remove' || subcommand === 'toggle' || subcommand === 'edit' || subcommand === 'fields') {
           await applicationPositionAutocomplete(interaction);
+        } else if (subcommand === 'status') {
+          await applicationWorkflowStatusAutocomplete(interaction);
+        } else if (subcommand === 'workflow-remove-status') {
+          await applicationRemovableStatusAutocomplete(interaction);
         }
         break;
       }
@@ -92,7 +104,8 @@ export const handleAutocomplete = async (_client: Client, interaction: Autocompl
       }
       case 'baitchannel': {
         const subcommand = interaction.options.getSubcommand();
-        if (subcommand === 'keywords') {
+        const group = interaction.options.getSubcommandGroup();
+        if (group === 'detection' && subcommand === 'keywords') {
           await handleKeywordAutocomplete(interaction);
         }
         break;
@@ -107,7 +120,11 @@ export const handleAutocomplete = async (_client: Client, interaction: Autocompl
       'Autocomplete error',
       error instanceof Error ? error : new Error(String(error)),
       LogCategory.COMMAND_EXECUTION,
-      { userId: interaction.user.id, guildId, commandName },
+      {
+        userId: interaction.user.id,
+        guildId,
+        commandName,
+      },
     );
     // Fail silently for autocomplete
     try {

@@ -1,12 +1,7 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity()
+@Index(['guildId'])
 export class AnnouncementConfig {
   @PrimaryGeneratedColumn()
   id: number;
@@ -15,13 +10,13 @@ export class AnnouncementConfig {
   guildId: string;
 
   // @deprecated — Use defaultRoleId instead. Kept for legacy migration.
-  @Column()
+  @Column({ default: '' })
   minecraftRoleId: string;
 
   @Column({ type: 'varchar', nullable: true })
   defaultRoleId: string | null;
 
-  @Column()
+  @Column({ default: '' })
   defaultChannelId: string;
 
   @CreateDateColumn()

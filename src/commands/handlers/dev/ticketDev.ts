@@ -2,22 +2,14 @@ import { type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { ArchivedTicket } from '../../../typeorm/entities/ticket/ArchivedTicket';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
-import {
-  enhancedLogger,
-  handleInteractionError,
-  LogCategory,
-  lang,
-  requireAdmin,
-} from '../../../utils';
+import { enhancedLogger, handleInteractionError, LogCategory, lang, requireAdmin } from '../../../utils';
 import { findManyByGuild } from '../../../utils/database/guildQueries';
 
 /**
  * Bulk close all active tickets in the server
  * Admin-only command for testing/cleanup
  */
-export async function bulkCloseTicketsHandler(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function bulkCloseTicketsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     // Admin-only command
     const ownerCheck = requireAdmin(interaction);
@@ -74,11 +66,7 @@ export async function bulkCloseTicketsHandler(
         closedCount++;
       } catch (error) {
         errorCount++;
-        enhancedLogger.error(
-          `Failed to close ticket ${ticket.id}`,
-          error as Error,
-          LogCategory.COMMAND_EXECUTION,
-        );
+        enhancedLogger.error(`Failed to close ticket ${ticket.id}`, error as Error, LogCategory.COMMAND_EXECUTION);
       }
     }
 
@@ -97,9 +85,7 @@ export async function bulkCloseTicketsHandler(
  * Delete a specific archived ticket by user
  * Also deletes the forum post
  */
-export async function deleteArchivedTicketHandler(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function deleteArchivedTicketHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     // Admin-only command
     const ownerCheck = requireAdmin(interaction);
@@ -167,9 +153,7 @@ export async function deleteArchivedTicketHandler(
  * Delete ALL archived tickets in the server
  * Also deletes all forum posts
  */
-export async function deleteAllArchivedTicketsHandler(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function deleteAllArchivedTicketsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     // Admin-only command
     const ownerCheck = requireAdmin(interaction);
@@ -216,11 +200,7 @@ export async function deleteAllArchivedTicketsHandler(
         }
       } catch (error) {
         postsFailed++;
-        enhancedLogger.error(
-          `Failed to delete forum post ${ticket.messageId}`,
-          error as Error,
-          LogCategory.ERROR,
-        );
+        enhancedLogger.error(`Failed to delete forum post ${ticket.messageId}`, error as Error, LogCategory.ERROR);
       }
     }
 

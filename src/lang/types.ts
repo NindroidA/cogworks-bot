@@ -91,7 +91,6 @@ export interface LangGeneral {
     cmdDescrp: string;
     title: string;
     description: string;
-    linkTitle: string;
     footer: string;
   };
   server: {
@@ -106,6 +105,17 @@ export interface LangGeneral {
     description: string;
     buttonLabel: string;
     footer: string;
+  };
+  contextMenu: {
+    baitManagerUnavailable: string;
+    userNotMember: string;
+    ticketNotConfigured: string;
+    noTicketTypes: string;
+    selectRoleAndChannel: string;
+  };
+  setup: {
+    noSystemsSelected: string;
+    saveError: string;
   };
 }
 
@@ -1173,6 +1183,9 @@ export interface LangBaitChannel {
       descrp: string;
       enabled: string;
       channel: string;
+    };
+    settings: {
+      descrp: string;
     };
   };
   status: {

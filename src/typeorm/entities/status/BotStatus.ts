@@ -1,11 +1,6 @@
 import { Column, Entity, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 
-export type StatusLevel =
-  | 'operational'
-  | 'degraded'
-  | 'partial-outage'
-  | 'major-outage'
-  | 'maintenance';
+export type StatusLevel = 'operational' | 'degraded' | 'partial-outage' | 'major-outage' | 'maintenance';
 
 @Entity({ name: 'bot_status' })
 export class BotStatus {

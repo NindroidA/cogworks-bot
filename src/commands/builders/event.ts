@@ -21,19 +21,10 @@ const create = new SlashCommandSubcommandBuilder()
     option.setName('title').setDescription(tl.create.title).setRequired(true).setMaxLength(100),
   )
   .addStringOption(option =>
-    option
-      .setName('start')
-      .setDescription(tl.create.start)
-      .setRequired(true)
-      .setMinLength(10)
-      .setMaxLength(22),
+    option.setName('start').setDescription(tl.create.start).setRequired(true).setMinLength(10).setMaxLength(22),
   )
   .addStringOption(option =>
-    option
-      .setName('description')
-      .setDescription(tl.create.description)
-      .setRequired(false)
-      .setMaxLength(1000),
+    option.setName('description').setDescription(tl.create.description).setRequired(false).setMaxLength(1000),
   )
   .addChannelOption(option =>
     option
@@ -43,19 +34,10 @@ const create = new SlashCommandSubcommandBuilder()
       .addChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice),
   )
   .addIntegerOption(option =>
-    option
-      .setName('duration')
-      .setDescription(tl.create.duration)
-      .setRequired(false)
-      .setMinValue(1)
-      .setMaxValue(1440),
+    option.setName('duration').setDescription(tl.create.duration).setRequired(false).setMinValue(1).setMaxValue(1440),
   )
   .addStringOption(option =>
-    option
-      .setName('location')
-      .setDescription(tl.create.location)
-      .setRequired(false)
-      .setMaxLength(100),
+    option.setName('location').setDescription(tl.create.location).setRequired(false).setMaxLength(100),
   );
 
 /* =========================================================================
@@ -66,19 +48,10 @@ const fromTemplate = new SlashCommandSubcommandBuilder()
   .setName('from-template')
   .setDescription(tl.fromTemplate.descrp)
   .addStringOption(option =>
-    option
-      .setName('template')
-      .setDescription(tl.fromTemplate.template)
-      .setRequired(true)
-      .setAutocomplete(true),
+    option.setName('template').setDescription(tl.fromTemplate.template).setRequired(true).setAutocomplete(true),
   )
   .addStringOption(option =>
-    option
-      .setName('start')
-      .setDescription(tl.fromTemplate.start)
-      .setRequired(true)
-      .setMinLength(10)
-      .setMaxLength(22),
+    option.setName('start').setDescription(tl.fromTemplate.start).setRequired(true).setMinLength(10).setMaxLength(22),
   );
 
 /* =========================================================================
@@ -103,12 +76,7 @@ const remind = new SlashCommandSubcommandBuilder()
     option.setName('event').setDescription(tl.remind.event).setRequired(true).setAutocomplete(true),
   )
   .addIntegerOption(option =>
-    option
-      .setName('minutes')
-      .setDescription(tl.remind.minutes)
-      .setRequired(true)
-      .setMinValue(1)
-      .setMaxValue(10080),
+    option.setName('minutes').setDescription(tl.remind.minutes).setRequired(true).setMinValue(1).setMaxValue(10080),
   );
 
 /* =========================================================================
@@ -124,11 +92,7 @@ const templateGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('edit')
       .setDescription(tl.template.edit)
       .addStringOption(option =>
-        option
-          .setName('template')
-          .setDescription(tl.template.templateOption)
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName('template').setDescription(tl.template.templateOption).setRequired(true).setAutocomplete(true),
       ),
   )
   .addSubcommand(sub =>
@@ -136,11 +100,7 @@ const templateGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('delete')
       .setDescription(tl.template.delete)
       .addStringOption(option =>
-        option
-          .setName('template')
-          .setDescription(tl.template.templateOption)
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName('template').setDescription(tl.template.templateOption).setRequired(true).setAutocomplete(true),
       ),
   )
   .addSubcommand(sub => sub.setName('list').setDescription(tl.template.list));
@@ -200,19 +160,10 @@ const recurring = new SlashCommandSubcommandBuilder()
   .setName('recurring')
   .setDescription(tl.recurring.descrp)
   .addStringOption(option =>
-    option
-      .setName('template')
-      .setDescription(tl.recurring.template)
-      .setRequired(true)
-      .setAutocomplete(true),
+    option.setName('template').setDescription(tl.recurring.template).setRequired(true).setAutocomplete(true),
   )
   .addStringOption(option =>
-    option
-      .setName('start')
-      .setDescription(tl.recurring.start)
-      .setRequired(true)
-      .setMinLength(10)
-      .setMaxLength(22),
+    option.setName('start').setDescription(tl.recurring.start).setRequired(true).setMinLength(10).setMaxLength(22),
   )
   .addStringOption(option =>
     option

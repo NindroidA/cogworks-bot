@@ -32,16 +32,16 @@ export async function checkAndAutoCloseTickets(client: Client): Promise<void> {
 
     if (configs.length === 0) return;
 
-    // Process guilds sequentially to avoid overwhelming the DB
-    for (const config of configs) {
-      try {
-        await processGuildAutoClose(client, config);
-      } catch (error) {
+    // Process guilds in parallel with bounded concurrency
+    const results = await Promise.allSettled(configs.map(config => processGuildAutoClose(client, config)));
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.status === 'rejected') {
         enhancedLogger.error(
-          `Auto-close failed for guild ${config.guildId}`,
-          error as Error,
+          `Auto-close failed for guild ${configs[i].guildId}`,
+          result.reason as Error,
           LogCategory.ERROR,
-          { guildId: config.guildId },
+          { guildId: configs[i].guildId },
         );
       }
     }
@@ -80,21 +80,15 @@ async function processGuildAutoClose(client: Client, config: TicketConfig): Prom
         await sendAutoCloseWarning(client, config, ticket);
       }
     } catch (error) {
-      enhancedLogger.error(
-        `Auto-close processing failed for ticket ${ticket.id}`,
-        error as Error,
-        LogCategory.ERROR,
-        { guildId: config.guildId, ticketId: ticket.id },
-      );
+      enhancedLogger.error(`Auto-close processing failed for ticket ${ticket.id}`, error as Error, LogCategory.ERROR, {
+        guildId: config.guildId,
+        ticketId: ticket.id,
+      });
     }
   }
 }
 
-async function sendAutoCloseWarning(
-  client: Client,
-  config: TicketConfig,
-  ticket: Ticket,
-): Promise<void> {
+async function sendAutoCloseWarning(client: Client, config: TicketConfig, ticket: Ticket): Promise<void> {
   // Check if warning was already sent (look for autoclose-warning in history)
   const history = ticket.statusHistory || [];
   const hasWarning = history.some(entry => entry.note === 'autoclose-warning');
@@ -110,8 +104,7 @@ async function sendAutoCloseWarning(
 
     const embed = new EmbedBuilder()
       .setDescription(LANGF(tl.autoCloseWarning, config.autoCloseWarningHours.toString()))
-      .setColor(0xffa500)
-      .setTimestamp();
+      .setColor(0xffa500);
 
     await channel.send({ embeds: [embed] });
 
@@ -139,11 +132,7 @@ async function sendAutoCloseWarning(
   }
 }
 
-async function autoCloseTicket(
-  client: Client,
-  config: TicketConfig,
-  ticket: Ticket,
-): Promise<void> {
+async function autoCloseTicket(client: Client, config: TicketConfig, ticket: Ticket): Promise<void> {
   try {
     const channel = ticket.channelId
       ? ((await client.channels.fetch(ticket.channelId).catch(() => null)) as TextChannel | null)
@@ -158,8 +147,7 @@ async function autoCloseTicket(
     // Post auto-close message
     const embed = new EmbedBuilder()
       .setDescription(LANGF(tl.autoClosed, config.autoCloseDays.toString()))
-      .setColor(0x808080)
-      .setTimestamp();
+      .setColor(0x808080);
 
     await channel.send({ embeds: [embed] });
 

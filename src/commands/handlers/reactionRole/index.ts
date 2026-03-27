@@ -1,9 +1,4 @@
-import type {
-  AutocompleteInteraction,
-  CacheType,
-  ChatInputCommandInteraction,
-  Client,
-} from 'discord.js';
+import type { AutocompleteInteraction, CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import { lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -17,10 +12,7 @@ import { reactionRoleValidateHandler } from './validate';
 
 const menuRepo = lazyRepo(ReactionRoleMenu);
 
-export const reactionRoleHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const reactionRoleHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const subcommand = interaction.options.getSubcommand();
 
   switch (subcommand) {

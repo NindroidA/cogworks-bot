@@ -4,12 +4,7 @@
  * Sets a custom reminder for a scheduled event.
  */
 
-import {
-  type CacheType,
-  type ChatInputCommandInteraction,
-  type Client,
-  MessageFlags,
-} from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import eventLang from '../../../lang/event.json';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
@@ -76,9 +71,7 @@ export async function handleRemind(
       return;
     }
 
-    const reminderAt = new Date(
-      scheduledEvent.scheduledStartAt.getTime() - minutesBefore * 60 * 1000,
-    );
+    const reminderAt = new Date(scheduledEvent.scheduledStartAt.getTime() - minutesBefore * 60 * 1000);
 
     if (reminderAt <= new Date()) {
       await interaction.reply({

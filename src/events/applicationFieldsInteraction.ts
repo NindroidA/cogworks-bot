@@ -1,9 +1,4 @@
-import type {
-  ButtonInteraction,
-  Client,
-  Interaction,
-  StringSelectMenuInteraction,
-} from 'discord.js';
+import type { ButtonInteraction, Client, Interaction, StringSelectMenuInteraction } from 'discord.js';
 import { applicationEditModalHandler } from '../commands/handlers/application/applicationEdit';
 import {
   handleAppAddFieldModal,
@@ -37,11 +32,7 @@ export const applicationFieldsInteraction = async (_client: Client, interaction:
       if (moveMatch) {
         const [, direction, index, positionId] = moveMatch;
         const action = `${direction}_${index}`;
-        await handleAppFieldButton(
-          interaction as ButtonInteraction,
-          action,
-          parseInt(positionId, 10),
-        );
+        await handleAppFieldButton(interaction as ButtonInteraction, action, parseInt(positionId, 10));
         return;
       }
 
@@ -58,11 +49,7 @@ export const applicationFieldsInteraction = async (_client: Client, interaction:
       if (fieldButtonMatch) {
         const [, action, positionId] = fieldButtonMatch;
         if (action !== 'label') {
-          await handleAppFieldButton(
-            interaction as ButtonInteraction,
-            action,
-            parseInt(positionId, 10),
-          );
+          await handleAppFieldButton(interaction as ButtonInteraction, action, parseInt(positionId, 10));
         }
         return;
       }
@@ -76,11 +63,7 @@ export const applicationFieldsInteraction = async (_client: Client, interaction:
       const fieldSelectMatch = customId.match(/^appfield_([^_]+)_select_(\d+)$/);
       if (fieldSelectMatch) {
         const [, action, positionId] = fieldSelectMatch;
-        await handleAppFieldSelectMenu(
-          interaction as StringSelectMenuInteraction,
-          action,
-          parseInt(positionId, 10),
-        );
+        await handleAppFieldSelectMenu(interaction as StringSelectMenuInteraction, action, parseInt(positionId, 10));
         return;
       }
     }

@@ -11,13 +11,11 @@ import { RulesConfig } from '../../typeorm/entities/rules';
 import {
   Colors,
   cleanupOldMessage,
-  createRateLimitKey,
   enhancedLogger,
-  LANGF,
+  guardAdminRateLimit,
   LogCategory,
   lang,
   RateLimits,
-  rateLimiter,
   requireAdmin,
   truncateWithNotice,
   validateEmoji,
@@ -27,10 +25,7 @@ import { lazyRepo } from '../../utils/database/lazyRepo';
 const tl = lang.rules;
 const rulesConfigRepo = lazyRepo(RulesConfig);
 
-export const rulesSetupHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const rulesSetupHandler = async (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const subcommand = interaction.options.getSubcommand();
 
   switch (subcommand) {
@@ -47,31 +42,15 @@ export const rulesSetupHandler = async (
 };
 
 async function handleSetup(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
-  // Require admin permissions
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'rules-setup',
+    limit: RateLimits.ANNOUNCEMENT_SETUP,
+    scope: 'guild',
+  });
+  if (!guard.allowed) return;
 
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
-
-  // Rate limit check (5 setup operations per hour per guild)
-  const rateLimitKey = createRateLimitKey.guild(guildId, 'rules-setup');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.ANNOUNCEMENT_SETUP);
-
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
-      flags: [MessageFlags.Ephemeral],
-    });
-    enhancedLogger.info('Rate limit exceeded for rules setup', LogCategory.SECURITY, { guildId });
-    return;
-  }
 
   const channel = interaction.options.getChannel('channel', true) as TextChannel;
   const role = interaction.options.getRole('role', true);
@@ -121,8 +100,7 @@ async function handleSetup(_client: Client, interaction: ChatInputCommandInterac
   try {
     // Build the rules message
     const messageText =
-      customMessage ||
-      tl.setup.defaultMessage.replace('{emoji}', emoji).replace('{roleName}', role.name);
+      customMessage || tl.setup.defaultMessage.replace('{emoji}', emoji).replace('{roleName}', role.name);
 
     // Check for existing config — clean up old message if reconfiguring
     const existingConfig = await rulesConfigRepo.findOneBy({ guildId });
@@ -164,24 +142,17 @@ async function handleSetup(_client: Client, interaction: ChatInputCommandInterac
       content: `${isUpdate ? tl.setup.updated : tl.setup.success}\n• Channel: ${channel}\n• Role: ${role}\n• Emoji: ${emoji}`,
     });
 
-    enhancedLogger.info(
-      `Rules acknowledgment ${isUpdate ? 'updated' : 'configured'}`,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        guildId,
-        channelId: channel.id,
-        roleId: role.id,
-        emoji,
-        userId: interaction.user.id,
-      },
-    );
+    enhancedLogger.info(`Rules acknowledgment ${isUpdate ? 'updated' : 'configured'}`, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+      channelId: channel.id,
+      roleId: role.id,
+      emoji,
+      userId: interaction.user.id,
+    });
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to configure rules acknowledgment',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    enhancedLogger.error('Failed to configure rules acknowledgment', error as Error, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+    });
     await interaction.editReply({
       content: tl.setup.error,
     });
@@ -220,13 +191,10 @@ async function handleView(interaction: ChatInputCommandInteraction<CacheType>) {
       { name: tl.view.emoji, value: config.emoji, inline: true },
       {
         name: tl.view.customMessage,
-        value: config.customMessage
-          ? truncateWithNotice(config.customMessage, 1024)
-          : tl.view.defaultLabel,
+        value: config.customMessage ? truncateWithNotice(config.customMessage, 1024) : tl.view.defaultLabel,
         inline: false,
       },
-    )
-    .setTimestamp();
+    );
 
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
 }
@@ -276,12 +244,7 @@ async function handleRemove(_client: Client, interaction: ChatInputCommandIntera
       userId: interaction.user.id,
     });
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to remove rules config',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    enhancedLogger.error('Failed to remove rules config', error as Error, LogCategory.COMMAND_EXECUTION, { guildId });
     await interaction.reply({
       content: tl.remove.error,
       flags: [MessageFlags.Ephemeral],

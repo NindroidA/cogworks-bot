@@ -16,6 +16,7 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
+  requireAdmin,
   sanitizeUserInput,
 } from '../../../utils';
 import { buildTypeConfirmationEmbed } from './typeAdd';
@@ -28,6 +29,15 @@ const tl = lang.ticket.customTypes.typeEdit;
  */
 export async function typeEditHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
+    const adminCheck = requireAdmin(interaction);
+    if (!adminCheck.allowed) {
+      await interaction.reply({
+        content: adminCheck.message ?? '',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     const user = interaction.user.username;
 
     if (!interaction.guild) {
@@ -41,10 +51,7 @@ export async function typeEditHandler(interaction: ChatInputCommandInteraction):
 
     const guildId = interaction.guild.id;
     const typeId = interaction.options.getString('type', true);
-    enhancedLogger.info(
-      `User ${user} opening type-edit modal for '${typeId}'`,
-      LogCategory.COMMAND_EXECUTION,
-    );
+    enhancedLogger.info(`User ${user} opening type-edit modal for '${typeId}'`, LogCategory.COMMAND_EXECUTION);
 
     const typeRepo = AppDataSource.getRepository(CustomTicketType);
 
@@ -53,10 +60,7 @@ export async function typeEditHandler(interaction: ChatInputCommandInteraction):
     });
 
     if (!type) {
-      enhancedLogger.warn(
-        `User ${user} type-edit failed: type '${typeId}' not found`,
-        LogCategory.COMMAND_EXECUTION,
-      );
+      enhancedLogger.warn(`User ${user} type-edit failed: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION);
       await interaction.reply({
         content: tl.notFound,
         flags: [MessageFlags.Ephemeral],
@@ -65,9 +69,7 @@ export async function typeEditHandler(interaction: ChatInputCommandInteraction):
     }
 
     // Create modal pre-filled with existing values
-    const modal = new ModalBuilder()
-      .setCustomId(`ticket-type-edit-modal:${typeId}`)
-      .setTitle(tl.modalTitle);
+    const modal = new ModalBuilder().setCustomId(`ticket-type-edit-modal:${typeId}`).setTitle(tl.modalTitle);
 
     const displayNameInput = new TextInputBuilder()
       .setCustomId('displayName')
@@ -117,16 +119,10 @@ export async function typeEditHandler(interaction: ChatInputCommandInteraction):
 /**
  * Handler for ticket type-edit modal submission
  */
-export async function typeEditModalHandler(
-  interaction: ModalSubmitInteraction,
-  typeId: string,
-): Promise<void> {
+export async function typeEditModalHandler(interaction: ModalSubmitInteraction, typeId: string): Promise<void> {
   try {
     const user = interaction.user.username;
-    enhancedLogger.info(
-      `User ${user} submitted type-edit modal for '${typeId}'`,
-      LogCategory.COMMAND_EXECUTION,
-    );
+    enhancedLogger.info(`User ${user} submitted type-edit modal for '${typeId}'`, LogCategory.COMMAND_EXECUTION);
 
     if (!interaction.guild) {
       enhancedLogger.warn('Type-edit modal failed: guild not found', LogCategory.COMMAND_EXECUTION);
@@ -143,8 +139,7 @@ export async function typeEditModalHandler(
     const displayName = sanitizeUserInput(interaction.fields.getTextInputValue('displayName'));
     const emoji = interaction.fields.getTextInputValue('emoji')?.trim() || null;
     const colorInput = interaction.fields.getTextInputValue('color')?.trim() || '#0099ff';
-    const description =
-      sanitizeUserInput(interaction.fields.getTextInputValue('description')) || null;
+    const description = sanitizeUserInput(interaction.fields.getTextInputValue('description')) || null;
 
     // Validate hex color
     if (!/^#[0-9A-Fa-f]{6}$/.test(colorInput)) {

@@ -8,7 +8,7 @@ import { MAX } from '../../constants';
 import { lazyRepo } from '../../database/lazyRepo';
 import { sanitizeUserInput } from '../../validation/inputSanitizer';
 import { ApiError } from '../apiError';
-import { isValidSnowflake, validateHexColor } from '../helpers';
+import { isValidSnowflake, optionalString, requireString, validateHexColor } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
@@ -16,14 +16,10 @@ const announcementLogRepo = lazyRepo(AnnouncementLog);
 const templateRepo = lazyRepo(AnnouncementTemplate);
 const configRepo = lazyRepo(AnnouncementConfig);
 
-export function registerAnnouncementHandlers(
-  client: Client,
-  routes: Map<string, RouteHandler>,
-): void {
+export function registerAnnouncementHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // POST /internal/guilds/:guildId/announcements/send
   routes.set('POST /announcements/send', async (guildId, body) => {
-    const channelId = body.channelId as string;
-    if (!channelId) throw ApiError.badRequest('channelId is required');
+    const channelId = requireString(body, 'channelId');
     if (!isValidSnowflake(channelId)) throw ApiError.badRequest('Invalid channelId format');
 
     const guild = client.guilds.cache.get(guildId);
@@ -35,7 +31,7 @@ export function registerAnnouncementHandlers(
     }
 
     // If templateName is provided, use template system
-    const templateName = body.templateName as string | undefined;
+    const templateName = optionalString(body, 'templateName');
     if (templateName) {
       const template = await templateRepo.findOneBy({
         guildId,
@@ -44,7 +40,7 @@ export function registerAnnouncementHandlers(
       if (!template) throw ApiError.notFound(`Template '${templateName}' not found`);
 
       const config = await configRepo.findOneBy({ guildId });
-      const roleId = config?.defaultRoleId || config?.minecraftRoleId;
+      const roleId = config?.defaultRoleId;
 
       const params: TemplatePlaceholderParams = {};
       const bodyParams = (body.params as Record<string, unknown>) || {};
@@ -61,7 +57,7 @@ export function registerAnnouncementHandlers(
         allowedMentions: roleId ? { roles: [roleId] } : undefined,
       });
 
-      const sentBy = (body.sentBy as string) || 'dashboard';
+      const sentBy = optionalString(body, 'sentBy') ?? 'dashboard';
       await announcementLogRepo.save(
         announcementLogRepo.create({
           guildId,
@@ -72,7 +68,8 @@ export function registerAnnouncementHandlers(
         }),
       );
 
-      await writeAuditLog(guildId, 'announcement.send', body.triggeredBy as string, {
+      const triggeredBy = optionalString(body, 'triggeredBy');
+      await writeAuditLog(guildId, 'announcement.send', triggeredBy, {
         channelId,
         messageId: sentMessage.id,
         template: templateName,
@@ -81,25 +78,19 @@ export function registerAnnouncementHandlers(
     }
 
     // Legacy: custom title + description
-    const title = sanitizeUserInput(body.title as string);
-    const description = sanitizeUserInput(body.description as string);
-    if (!title || !description) {
-      throw ApiError.badRequest(
-        'channelId, title, and description are required (or provide templateName)',
-      );
-    }
+    const title = sanitizeUserInput(requireString(body, 'title'));
+    const description = sanitizeUserInput(requireString(body, 'description'));
 
-    const color = (body.color as string) || '#5865F2';
+    const color = optionalString(body, 'color') ?? '#5865F2';
     const colorError = validateHexColor(color);
     if (colorError) throw ApiError.badRequest(colorError);
 
     const embed = new EmbedBuilder()
       .setTitle(title)
       .setDescription(description)
-      .setColor(Number.parseInt(color.replace('#', ''), 16))
-      .setTimestamp();
+      .setColor(Number.parseInt(color.replace('#', ''), 16));
 
-    const mentionRoleId = body.mentionRoleId as string | undefined;
+    const mentionRoleId = optionalString(body, 'mentionRoleId');
     const content = mentionRoleId ? `<@&${mentionRoleId}>` : undefined;
 
     const sentMessage = await (channel as TextChannel).send({
@@ -108,7 +99,7 @@ export function registerAnnouncementHandlers(
       allowedMentions: mentionRoleId ? { roles: [mentionRoleId] } : undefined,
     });
 
-    const sentBy = (body.sentBy as string) || 'dashboard';
+    const sentBy = optionalString(body, 'sentBy') ?? 'dashboard';
     await announcementLogRepo.save(
       announcementLogRepo.create({
         guildId,
@@ -119,7 +110,8 @@ export function registerAnnouncementHandlers(
       }),
     );
 
-    await writeAuditLog(guildId, 'announcement.send', body.triggeredBy as string, {
+    const triggeredBy = optionalString(body, 'triggeredBy');
+    await writeAuditLog(guildId, 'announcement.send', triggeredBy, {
       channelId,
       messageId: sentMessage.id,
     });
@@ -137,14 +129,10 @@ export function registerAnnouncementHandlers(
 
   // POST /internal/guilds/:guildId/announcements/templates
   routes.set('POST /announcements/templates', async (guildId, body) => {
-    const name = ((body.name as string) || '').toLowerCase().trim();
-    const displayName = sanitizeUserInput(body.displayName as string);
-    const title = sanitizeUserInput(body.title as string);
-    const templateBody = sanitizeUserInput(body.body as string);
-
-    if (!name || !displayName || !title || !templateBody) {
-      throw ApiError.badRequest('name, displayName, title, and body are required');
-    }
+    const name = requireString(body, 'name').toLowerCase();
+    const displayName = sanitizeUserInput(requireString(body, 'displayName'));
+    const title = sanitizeUserInput(requireString(body, 'title'));
+    const templateBody = sanitizeUserInput(requireString(body, 'body'));
 
     if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) {
       throw ApiError.badRequest('Name must be lowercase alphanumeric with hyphens only');
@@ -162,7 +150,7 @@ export function registerAnnouncementHandlers(
       throw ApiError.conflict(`Template '${name}' already exists`);
     }
 
-    const color = (body.color as string) || '#5865F2';
+    const color = optionalString(body, 'color') ?? '#5865F2';
     const colorError = validateHexColor(color);
     if (colorError) throw ApiError.badRequest(colorError);
 
@@ -173,17 +161,18 @@ export function registerAnnouncementHandlers(
       title,
       body: templateBody,
       color: color.toUpperCase(),
-      description: sanitizeUserInput(body.description as string) || null,
-      footerText: sanitizeUserInput(body.footerText as string) || null,
+      description: sanitizeUserInput(optionalString(body, 'description') ?? '') || null,
+      footerText: sanitizeUserInput(optionalString(body, 'footerText') ?? '') || null,
       showTimestamp: body.showTimestamp !== false,
       mentionRole: body.mentionRole === true,
       isDefault: false,
-      createdBy: (body.triggeredBy as string) || null,
+      createdBy: optionalString(body, 'triggeredBy') ?? null,
     });
 
     await templateRepo.save(template);
 
-    await writeAuditLog(guildId, 'announcement.template.create', body.triggeredBy as string, {
+    const triggeredBy = optionalString(body, 'triggeredBy');
+    await writeAuditLog(guildId, 'announcement.template.create', triggeredBy, {
       templateName: name,
     });
     return { success: true, template };
@@ -191,8 +180,7 @@ export function registerAnnouncementHandlers(
 
   // POST /internal/guilds/:guildId/announcements/templates/delete
   routes.set('POST /announcements/templates/delete', async (guildId, body) => {
-    const name = body.name as string;
-    if (!name) throw ApiError.badRequest('name is required');
+    const name = requireString(body, 'name');
 
     const template = await templateRepo.findOneBy({ guildId, name });
     if (!template) throw ApiError.notFound(`Template '${name}' not found`);
@@ -200,7 +188,8 @@ export function registerAnnouncementHandlers(
 
     await templateRepo.remove(template);
 
-    await writeAuditLog(guildId, 'announcement.template.delete', body.triggeredBy as string, {
+    const triggeredBy = optionalString(body, 'triggeredBy');
+    await writeAuditLog(guildId, 'announcement.template.delete', triggeredBy, {
       templateName: name,
     });
     return { success: true };

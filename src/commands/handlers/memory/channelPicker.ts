@@ -1,9 +1,4 @@
-import {
-  ActionRowBuilder,
-  type ChatInputCommandInteraction,
-  MessageFlags,
-  StringSelectMenuBuilder,
-} from 'discord.js';
+import { ActionRowBuilder, type ChatInputCommandInteraction, MessageFlags, StringSelectMenuBuilder } from 'discord.js';
 import { MemoryConfig } from '../../../typeorm/entities/memory';
 import { E, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';

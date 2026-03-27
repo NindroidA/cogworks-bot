@@ -28,6 +28,7 @@ import {
   sanitizeUserInput,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { findStatusById, appendStatusHistory as sharedAppendHistory } from '../../../utils/workflow/workflowHelpers';
 
 const tl = lang.ticket.workflow;
 const tlInfo = lang.ticket.info;
@@ -74,25 +75,8 @@ function mapStatus(status: string): string {
 // Helper: Append to status history (capped at MAX entries)
 // ============================================================================
 
-function appendStatusHistory(
-  ticket: Ticket,
-  status: string,
-  changedBy: string,
-  note?: string,
-): void {
-  const history = ticket.statusHistory || [];
-  history.push({
-    status,
-    changedBy,
-    changedAt: new Date().toISOString(),
-    ...(note ? { note } : {}),
-  });
-  // Trim oldest entries if over limit
-  if (history.length > MAX.TICKET_STATUS_HISTORY) {
-    ticket.statusHistory = history.slice(history.length - MAX.TICKET_STATUS_HISTORY);
-  } else {
-    ticket.statusHistory = history;
-  }
+function appendStatusHistory(ticket: Ticket, status: string, changedBy: string, note?: string): void {
+  sharedAppendHistory(ticket, status, changedBy, MAX.TICKET_STATUS_HISTORY, note);
 }
 
 // ============================================================================
@@ -100,7 +84,7 @@ function appendStatusHistory(
 // ============================================================================
 
 function findStatus(statuses: WorkflowStatus[], statusId: string): WorkflowStatus | undefined {
-  return statuses.find(s => s.id === statusId);
+  return findStatusById(statuses, statusId);
 }
 
 // ============================================================================
@@ -162,11 +146,8 @@ export const ticketStatusHandler = async (interaction: ChatInputCommandInteracti
 
   // Post status change embed in channel
   const embed = new EmbedBuilder()
-    .setDescription(
-      LANGF(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`),
-    )
-    .setColor(parseInt(statusDef.color.replace('#', ''), 16))
-    .setTimestamp();
+    .setDescription(LANGF(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`))
+    .setColor(parseInt(statusDef.color.replace('#', ''), 16));
 
   await (interaction.channel as GuildTextBasedChannel)?.send({
     embeds: [embed],
@@ -174,11 +155,7 @@ export const ticketStatusHandler = async (interaction: ChatInputCommandInteracti
 
   // Reply ephemeral
   await interaction.reply({
-    content: LANGF(
-      tl.statusChanged,
-      `${statusDef.emoji} ${statusDef.label}`,
-      `<@${interaction.user.id}>`,
-    ),
+    content: LANGF(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -227,10 +204,7 @@ export const ticketAssignHandler = async (interaction: ChatInputCommandInteracti
   ticket.lastActivityAt = new Date();
   await ticketRepo.save(ticket);
 
-  const embed = new EmbedBuilder()
-    .setDescription(LANGF(tl.assigned, `<@${user.id}>`))
-    .setColor(0x5865f2)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setDescription(LANGF(tl.assigned, `<@${user.id}>`)).setColor(0x5865f2);
 
   await (interaction.channel as GuildTextBasedChannel)?.send({
     embeds: [embed],
@@ -253,9 +227,7 @@ export const ticketAssignHandler = async (interaction: ChatInputCommandInteracti
 // /ticket unassign
 // ============================================================================
 
-export const ticketUnassignHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const ticketUnassignHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -291,7 +263,7 @@ export const ticketUnassignHandler = async (
   ticket.lastActivityAt = new Date();
   await ticketRepo.save(ticket);
 
-  const embed = new EmbedBuilder().setDescription(tl.unassigned).setColor(0x808080).setTimestamp();
+  const embed = new EmbedBuilder().setDescription(tl.unassigned).setColor(0x808080);
 
   await (interaction.channel as GuildTextBasedChannel)?.send({
     embeds: [embed],
@@ -353,8 +325,7 @@ export const ticketInfoHandler = async (interaction: ChatInputCommandInteraction
         inline: true,
       },
     )
-    .setColor(statusDef ? parseInt(statusDef.color.replace('#', ''), 16) : 0x5865f2)
-    .setTimestamp();
+    .setColor(statusDef ? parseInt(statusDef.color.replace('#', ''), 16) : 0x5865f2);
 
   if (ticket.type || ticket.customTypeId) {
     embed.addFields({
@@ -378,9 +349,7 @@ export const ticketInfoHandler = async (interaction: ChatInputCommandInteraction
     const historyText = recentHistory
       .map((entry: TicketStatusHistoryEntry) => {
         const entryStatusDef = findStatus(statuses, entry.status);
-        const label = entryStatusDef
-          ? `${entryStatusDef.emoji} ${entryStatusDef.label}`
-          : entry.status;
+        const label = entryStatusDef ? `${entryStatusDef.emoji} ${entryStatusDef.label}` : entry.status;
         const timestamp = Math.floor(new Date(entry.changedAt).getTime() / 1000);
         return `${label} by <@${entry.changedBy}> <t:${timestamp}:R>`;
       })
@@ -396,9 +365,7 @@ export const ticketInfoHandler = async (interaction: ChatInputCommandInteraction
 // /ticket workflow-enable
 // ============================================================================
 
-export const workflowEnableHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const workflowEnableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -445,9 +412,7 @@ export const workflowEnableHandler = async (
 // /ticket workflow-disable
 // ============================================================================
 
-export const workflowDisableHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const workflowDisableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -494,9 +459,7 @@ export const workflowDisableHandler = async (
 
 const STATUS_ID_REGEX = /^[a-z0-9-]{1,20}$/;
 
-export const workflowAddStatusHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const workflowAddStatusHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -526,10 +489,7 @@ export const workflowAddStatusHandler = async (
   }
 
   const statusId = interaction.options.getString('id', true).toLowerCase().trim();
-  const label = sanitizeUserInput(interaction.options.getString('label', true).trim()).substring(
-    0,
-    50,
-  );
+  const label = sanitizeUserInput(interaction.options.getString('label', true).trim()).substring(0, 50);
   const emoji = interaction.options.getString('emoji') || '\uD83D\uDD35';
 
   // Validate ID format
@@ -595,9 +555,7 @@ export const workflowAddStatusHandler = async (
 // /ticket workflow-remove-status <status>
 // ============================================================================
 
-export const workflowRemoveStatusHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const workflowRemoveStatusHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -675,9 +633,7 @@ export const workflowRemoveStatusHandler = async (
 // /ticket autoclose-enable [days] [warning-hours] [status]
 // ============================================================================
 
-export const autoCloseEnableHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const autoCloseEnableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -707,8 +663,7 @@ export const autoCloseEnableHandler = async (
   }
 
   const days = interaction.options.getInteger('days') || config.autoCloseDays || 7;
-  const warningHours =
-    interaction.options.getInteger('warning-hours') || config.autoCloseWarningHours || 24;
+  const warningHours = interaction.options.getInteger('warning-hours') || config.autoCloseWarningHours || 24;
   const status = interaction.options.getString('status') || config.autoCloseStatus || 'resolved';
 
   config.autoCloseEnabled = true;
@@ -734,9 +689,7 @@ export const autoCloseEnableHandler = async (
 // /ticket autoclose-disable
 // ============================================================================
 
-export const autoCloseDisableHandler = async (
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const autoCloseDisableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({

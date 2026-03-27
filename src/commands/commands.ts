@@ -1,9 +1,4 @@
-import {
-  type CacheType,
-  type ChatInputCommandInteraction,
-  type Client,
-  MessageFlags,
-} from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import { BotConfig } from '../typeorm/entities/BotConfig';
 import {
   createRateLimitKey,
@@ -22,16 +17,26 @@ import { applicationEditHandler } from './handlers/application/applicationEdit';
 import { applicationFieldsHandler } from './handlers/application/applicationFields';
 import { applicationPositionHandler } from './handlers/application/applicationPosition';
 import { applicationSetupHandler } from './handlers/application/applicationSetup';
+import {
+  applicationCheckHandler,
+  applicationClaimHandler,
+  applicationInfoHandler,
+  applicationNoteHandler,
+  applicationStatusHandler,
+  applicationWorkflowAddStatusHandler,
+  applicationWorkflowDisableHandler,
+  applicationWorkflowEnableHandler,
+  applicationWorkflowRemoveStatusHandler,
+} from './handlers/application/workflow';
+import { archiveCleanupHandler } from './handlers/archive/cleanup';
 import { automodHandler } from './handlers/automod';
 import { baitChannelHandler } from './handlers/baitChannel';
+import { botResetHandler } from './handlers/botReset';
 import { botSetupHandler } from './handlers/botSetup';
 import { coffeeHandler } from './handlers/coffee';
 import { dashboardHandler } from './handlers/dashboard';
 import { dataExportHandler } from './handlers/dataExport';
-import {
-  deleteAllArchivedApplicationsHandler,
-  deleteArchivedApplicationHandler,
-} from './handlers/dev/applicationDev';
+import { deleteAllArchivedApplicationsHandler, deleteArchivedApplicationHandler } from './handlers/dev/applicationDev';
 import { devSuiteHandler } from './handlers/dev/devSuite';
 import { devTestHandler } from './handlers/dev/devTest';
 import {
@@ -82,7 +87,17 @@ import {
   workflowDisableHandler,
   workflowEnableHandler,
   workflowRemoveStatusHandler,
+  workflowSettingsHandler,
 } from './handlers/ticket';
+import {
+  routingDisableHandler,
+  routingEnableHandler,
+  routingRuleAddHandler,
+  routingRuleRemoveHandler,
+  routingStatsHandler,
+  routingStrategyHandler,
+} from './handlers/ticket/routing';
+import { slaDisableHandler, slaEnableHandler, slaPerTypeHandler, slaStatsHandler } from './handlers/ticket/sla';
 import { ticketSetupHandler } from './handlers/ticketSetup';
 import {
   leaderboardCommandHandler,
@@ -95,10 +110,7 @@ import {
 // Handler type aliases
 // ---------------------------------------------------------------------------
 
-type FullHandler = (
-  client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => Promise<void>;
+type FullHandler = (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => Promise<void>;
 type InteractionHandler = (interaction: ChatInputCommandInteraction<CacheType>) => Promise<void>;
 
 // ---------------------------------------------------------------------------
@@ -126,6 +138,7 @@ const CLIENT_ROUTES: Record<string, FullHandler> = {
   automod: automodHandler,
   event: eventHandler,
   insights: insightsHandler,
+  archive: archiveCleanupHandler,
   'dev-test': devTestHandler,
   'dev-suite': devSuiteHandler,
 };
@@ -141,28 +154,6 @@ const SIMPLE_ROUTES: Record<string, InteractionHandler> = {
 
 /** Subcommand routers keyed by parent command → subcommand → handler */
 const SUBCOMMAND_ROUTES: Record<string, Record<string, InteractionHandler>> = {
-  ticket: {
-    'type-add': typeAddHandler,
-    'type-edit': typeEditHandler,
-    'type-list': typeListHandler,
-    'type-toggle': typeToggleHandler,
-    'type-default': typeDefaultHandler,
-    'type-remove': typeRemoveHandler,
-    'type-fields': typeFieldsHandler,
-    'import-email': emailImportHandler,
-    'user-restrict': userRestrictHandler,
-    settings: settingsHandler,
-    status: ticketStatusHandler,
-    assign: ticketAssignHandler,
-    unassign: ticketUnassignHandler,
-    info: ticketInfoHandler,
-    'workflow-enable': workflowEnableHandler,
-    'workflow-disable': workflowDisableHandler,
-    'workflow-add-status': workflowAddStatusHandler,
-    'workflow-remove-status': workflowRemoveStatusHandler,
-    'autoclose-enable': autoCloseEnableHandler,
-    'autoclose-disable': autoCloseDisableHandler,
-  },
   memory: {
     add: memoryAddHandler,
     capture: memoryCaptureHandler,
@@ -191,10 +182,7 @@ const botConfigRepo = lazyRepo(BotConfig);
 // Main command dispatcher
 // ---------------------------------------------------------------------------
 
-export const handleSlashCommand = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const handleSlashCommand = async (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const startTime = Date.now();
   const user = interaction.user.username;
   const commandName = interaction.commandName;
@@ -227,9 +215,11 @@ export const handleSlashCommand = async (
   }
 
   try {
-    // bot-setup is allowed without prior config
+    // bot-setup and bot-reset are allowed without prior config
     if (commandName === 'bot-setup') {
       await botSetupHandler(client, interaction);
+    } else if (commandName === 'bot-reset') {
+      await botResetHandler(client, interaction);
     } else {
       const botConfig = await botConfigRepo.findOneBy({ guildId });
       if (!botConfig) {
@@ -256,20 +246,21 @@ export const handleSlashCommand = async (
     healthMonitor.recordCommand(commandName, executionTime, true);
     healthMonitor.recordError(`Command failed: ${commandName}`, 'COMMAND');
 
-    enhancedLogger.error(
-      `Command /${commandName} failed`,
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      { userId: interaction.user.id, guildId, commandName },
-    );
+    enhancedLogger.error(`Command /${commandName} failed`, error as Error, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      commandName,
+    });
 
     try {
       await interaction.reply({
         content: '❌ An error occurred while executing this command. Please try again later.',
         flags: [MessageFlags.Ephemeral],
       });
-    } catch {
-      // Interaction may have already been replied to
+    } catch (replyError) {
+      enhancedLogger.warn('Failed to send error reply to user', LogCategory.COMMAND_EXECUTION, {
+        reason: replyError instanceof Error ? replyError.message : String(replyError),
+      });
     }
   }
 };
@@ -309,6 +300,11 @@ async function dispatchCommand(
   }
 
   // 4. Special cases with subcommand groups
+  if (commandName === 'ticket') {
+    await dispatchTicketCommand(interaction);
+    return;
+  }
+
   if (commandName === 'role') {
     await dispatchRoleCommand(interaction);
     return;
@@ -319,9 +315,7 @@ async function dispatchCommand(
   }
 }
 
-async function dispatchRoleCommand(
-  interaction: ChatInputCommandInteraction<CacheType>,
-): Promise<void> {
+async function dispatchRoleCommand(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   const subcommandGroup = interaction.options.getSubcommandGroup(false);
   const subcommand = interaction.options.getSubcommand();
 
@@ -334,24 +328,103 @@ async function dispatchRoleCommand(
   }
 }
 
+/** Ticket subcommand group routing */
+const TICKET_GROUP_ROUTES: Record<string, Record<string, InteractionHandler>> = {
+  type: {
+    add: typeAddHandler,
+    edit: typeEditHandler,
+    list: typeListHandler,
+    toggle: typeToggleHandler,
+    default: typeDefaultHandler,
+    remove: typeRemoveHandler,
+    fields: typeFieldsHandler,
+  },
+  manage: {
+    status: ticketStatusHandler,
+    assign: ticketAssignHandler,
+    unassign: ticketUnassignHandler,
+    info: ticketInfoHandler,
+    'import-email': emailImportHandler,
+    'user-restrict': userRestrictHandler,
+    settings: settingsHandler,
+  },
+  workflow: {
+    enable: workflowEnableHandler,
+    disable: workflowDisableHandler,
+    'add-status': workflowAddStatusHandler,
+    'remove-status': workflowRemoveStatusHandler,
+    settings: workflowSettingsHandler,
+    'autoclose-enable': autoCloseEnableHandler,
+    'autoclose-disable': autoCloseDisableHandler,
+  },
+  sla: {
+    enable: slaEnableHandler,
+    disable: slaDisableHandler,
+    'per-type': slaPerTypeHandler,
+    stats: slaStatsHandler,
+  },
+  routing: {
+    enable: routingEnableHandler,
+    disable: routingDisableHandler,
+    'rule-add': routingRuleAddHandler,
+    'rule-remove': routingRuleRemoveHandler,
+    strategy: routingStrategyHandler,
+    stats: routingStatsHandler,
+  },
+};
+
+async function dispatchTicketCommand(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
+  const group = interaction.options.getSubcommandGroup(true);
+  const subcommand = interaction.options.getSubcommand();
+
+  const groupRoutes = TICKET_GROUP_ROUTES[group];
+  if (groupRoutes) {
+    const handler = groupRoutes[subcommand];
+    if (handler) {
+      await handler(interaction);
+    }
+  }
+}
+
+/** Application top-level subcommand map (no group) */
+const APPLICATION_SUBCOMMANDS: Record<string, InteractionHandler> = {
+  status: applicationStatusHandler,
+  note: applicationNoteHandler,
+  claim: applicationClaimHandler,
+  info: applicationInfoHandler,
+  check: applicationCheckHandler,
+  'workflow-enable': applicationWorkflowEnableHandler,
+  'workflow-disable': applicationWorkflowDisableHandler,
+  'workflow-add-status': applicationWorkflowAddStatusHandler,
+  'workflow-remove-status': applicationWorkflowRemoveStatusHandler,
+};
+
 async function dispatchApplicationCommand(
   client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
   const group = interaction.options.getSubcommandGroup(false);
-  if (group !== 'position') return;
-
   const subcommand = interaction.options.getSubcommand();
-  switch (subcommand) {
-    case 'edit':
-      await applicationEditHandler(interaction);
-      break;
-    case 'fields':
-      await applicationFieldsHandler(interaction);
-      break;
-    default:
-      await applicationPositionHandler(client, interaction);
-      break;
+
+  if (group === 'position') {
+    switch (subcommand) {
+      case 'edit':
+        await applicationEditHandler(interaction);
+        break;
+      case 'fields':
+        await applicationFieldsHandler(interaction);
+        break;
+      default:
+        await applicationPositionHandler(client, interaction);
+        break;
+    }
+    return;
+  }
+
+  // Top-level workflow subcommands (no group)
+  const handler = APPLICATION_SUBCOMMANDS[subcommand];
+  if (handler) {
+    await handler(interaction);
   }
 }
 
@@ -361,6 +434,7 @@ async function dispatchApplicationCommand(
 
 const AUDITABLE_COMMANDS = new Set([
   'bot-setup',
+  'bot-reset',
   'ticket-setup',
   'application-setup',
   'announcement-setup',
@@ -376,37 +450,13 @@ const AUDITABLE_COMMANDS = new Set([
   'onboarding',
   'automod',
   'event',
+  'archive',
 ]);
 
-const AUDITABLE_TICKET_SUBCOMMANDS = new Set([
-  'type-add',
-  'type-edit',
-  'type-toggle',
-  'type-default',
-  'type-remove',
-  'type-fields',
-  'import-email',
-  'user-restrict',
-  'settings',
-  'status',
-  'assign',
-  'unassign',
-  'workflow-enable',
-  'workflow-disable',
-  'workflow-add-status',
-  'workflow-remove-status',
-  'autoclose-enable',
-  'autoclose-disable',
-]);
+/** All ticket subcommand groups are auditable */
+const AUDITABLE_TICKET_GROUPS = new Set(['type', 'manage', 'workflow', 'sla', 'routing']);
 
-const AUDITABLE_MEMORY_SUBCOMMANDS = new Set([
-  'add',
-  'capture',
-  'update',
-  'update-status',
-  'update-tags',
-  'delete',
-]);
+const AUDITABLE_MEMORY_SUBCOMMANDS = new Set(['add', 'capture', 'update', 'update-status', 'update-tags', 'delete']);
 
 const AUDITABLE_ROLE_GROUPS = new Set(['add', 'remove']);
 
@@ -421,9 +471,11 @@ function logCommandAudit(
   if (AUDITABLE_COMMANDS.has(commandName)) {
     action = `command:${commandName}`;
   } else if (commandName === 'ticket') {
+    const group = interaction.options.getSubcommandGroup(false);
     const sub = interaction.options.getSubcommand(false);
-    if (sub && AUDITABLE_TICKET_SUBCOMMANDS.has(sub)) {
-      action = `command:ticket:${sub}`;
+    if (group && AUDITABLE_TICKET_GROUPS.has(group) && sub) {
+      action = `command:ticket:${group}:${sub}`;
+      details.subcommandGroup = group;
       details.subcommand = sub;
     }
   } else if (commandName === 'memory') {
@@ -444,10 +496,13 @@ function logCommandAudit(
     if (group === 'position' && sub) {
       action = `command:application:position:${sub}`;
       details.subcommand = sub;
+    } else if (!group && sub) {
+      action = `command:application:${sub}`;
+      details.subcommand = sub;
     }
   }
 
   if (action) {
-    writeAuditLog(guildId, action, interaction.user.id, details, 'command');
+    void writeAuditLog(guildId, action, interaction.user.id, details, 'command');
   }
 }

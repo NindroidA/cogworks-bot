@@ -317,18 +317,14 @@ class EnhancedLogger {
 
     // File output
     if (this.config.enableFile) {
-      this.writeToFile(entry);
+      void this.writeToFile(entry);
     }
   }
 
   /**
    * Log a debug message
    */
-  public debug(
-    message: string,
-    category: LogCategory = LogCategory.SYSTEM,
-    metadata?: Record<string, unknown>,
-  ): void {
+  public debug(message: string, category: LogCategory = LogCategory.SYSTEM, metadata?: Record<string, unknown>): void {
     this.log({
       timestamp: new Date(),
       level: LogLevel.DEBUG,
@@ -341,11 +337,7 @@ class EnhancedLogger {
   /**
    * Log an info message
    */
-  public info(
-    message: string,
-    category: LogCategory = LogCategory.SYSTEM,
-    metadata?: Record<string, unknown>,
-  ): void {
+  public info(message: string, category: LogCategory = LogCategory.SYSTEM, metadata?: Record<string, unknown>): void {
     this.log({
       timestamp: new Date(),
       level: LogLevel.INFO,
@@ -358,11 +350,7 @@ class EnhancedLogger {
   /**
    * Log a warning message
    */
-  public warn(
-    message: string,
-    category: LogCategory = LogCategory.SYSTEM,
-    metadata?: Record<string, unknown>,
-  ): void {
+  public warn(message: string, category: LogCategory = LogCategory.SYSTEM, metadata?: Record<string, unknown>): void {
     this.log({
       timestamp: new Date(),
       level: LogLevel.WARN,
@@ -427,12 +415,7 @@ class EnhancedLogger {
   /**
    * Log command execution
    */
-  public command(
-    message: string,
-    userId: string,
-    guildId?: string,
-    metadata?: Record<string, unknown>,
-  ): void {
+  public command(message: string, userId: string, guildId?: string, metadata?: Record<string, unknown>): void {
     this.log({
       timestamp: new Date(),
       level: LogLevel.INFO,
@@ -447,12 +430,7 @@ class EnhancedLogger {
   /**
    * Log security event
    */
-  public security(
-    message: string,
-    userId?: string,
-    guildId?: string,
-    metadata?: Record<string, unknown>,
-  ): void {
+  public security(message: string, userId?: string, guildId?: string, metadata?: Record<string, unknown>): void {
     this.log({
       timestamp: new Date(),
       level: LogLevel.WARN,
@@ -467,12 +445,7 @@ class EnhancedLogger {
   /**
    * Log rate limit event
    */
-  public rateLimit(
-    message: string,
-    userId?: string,
-    guildId?: string,
-    metadata?: Record<string, unknown>,
-  ): void {
+  public rateLimit(message: string, userId?: string, guildId?: string, metadata?: Record<string, unknown>): void {
     this.log({
       timestamp: new Date(),
       level: LogLevel.WARN,
@@ -487,12 +460,7 @@ class EnhancedLogger {
   /**
    * Log permission check failure
    */
-  public permissionDenied(
-    message: string,
-    userId: string,
-    guildId?: string,
-    metadata?: Record<string, unknown>,
-  ): void {
+  public permissionDenied(message: string, userId: string, guildId?: string, metadata?: Record<string, unknown>): void {
     this.log({
       timestamp: new Date(),
       level: LogLevel.WARN,
@@ -507,11 +475,7 @@ class EnhancedLogger {
   /**
    * Log database operation
    */
-  public database(
-    message: string,
-    level: LogLevel = LogLevel.DEBUG,
-    metadata?: Record<string, unknown>,
-  ): void {
+  public database(message: string, level: LogLevel = LogLevel.DEBUG, metadata?: Record<string, unknown>): void {
     this.log({
       timestamp: new Date(),
       level,
@@ -524,11 +488,7 @@ class EnhancedLogger {
   /**
    * Log performance metrics
    */
-  public performance(
-    message: string,
-    durationMs: number,
-    metadata?: Record<string, unknown>,
-  ): void {
+  public performance(message: string, durationMs: number, metadata?: Record<string, unknown>): void {
     this.log({
       timestamp: new Date(),
       level: LogLevel.DEBUG,

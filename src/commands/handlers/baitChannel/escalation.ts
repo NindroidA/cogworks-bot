@@ -1,9 +1,4 @@
-import {
-  type ChatInputCommandInteraction,
-  type Client,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
@@ -12,10 +7,7 @@ import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
 
-export const escalationHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-) => {
+export const escalationHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
   try {
     const subcommand = interaction.options.getSubcommand();
     const configRepo = AppDataSource.getRepository(BaitChannelConfig);
@@ -34,7 +26,7 @@ export const escalationHandler = async (
     }
 
     switch (subcommand) {
-      case 'escalation-enable': {
+      case 'enable': {
         config.enableEscalation = true;
         await safeDbOperation(() => configRepo.save(config), 'Save escalation config');
         (client as ExtendedClient).baitChannelManager?.clearConfigCache(interaction.guildId!);
@@ -60,7 +52,7 @@ export const escalationHandler = async (
         break;
       }
 
-      case 'escalation-disable': {
+      case 'disable': {
         config.enableEscalation = false;
         await safeDbOperation(() => configRepo.save(config), 'Save escalation config');
         (client as ExtendedClient).baitChannelManager?.clearConfigCache(interaction.guildId!);
@@ -72,7 +64,7 @@ export const escalationHandler = async (
         break;
       }
 
-      case 'escalation-thresholds': {
+      case 'thresholds': {
         const logThreshold = interaction.options.getInteger('log');
         const timeoutThreshold = interaction.options.getInteger('timeout');
         const kickThreshold = interaction.options.getInteger('kick');

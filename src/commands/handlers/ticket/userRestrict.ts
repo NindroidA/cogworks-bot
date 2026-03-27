@@ -17,8 +17,10 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
+  notifyModalTimeout,
   requireAdmin,
 } from '../../../utils';
+import { checkboxGroup, labelWrap, rawModal } from '../../../utils/modalComponents';
 
 const tl = lang.ticket.customTypes.userRestrict;
 
@@ -87,25 +89,12 @@ export async function userRestrictHandler(interaction: ChatInputCommandInteracti
 
     // If a specific type is provided, handle single toggle with confirmation
     if (typeId) {
-      await handleSingleTypeToggle(
-        interaction,
-        guildId,
-        targetUser,
-        typeId,
-        ticketTypes,
-        restrictionRepo,
-      );
+      await handleSingleTypeToggle(interaction, guildId, targetUser, typeId, ticketTypes, restrictionRepo);
       return;
     }
 
-    // Otherwise, show the configurator embed
-    await showRestrictionsConfigurator(
-      interaction,
-      guildId,
-      targetUser,
-      ticketTypes,
-      restrictionRepo,
-    );
+    // Otherwise, show checkbox group modal for batch management
+    await showRestrictionsModal(interaction, guildId, targetUser, ticketTypes, restrictionRepo);
   } catch (error) {
     await handleInteractionError(interaction, error, 'userRestrictHandler');
   }
@@ -143,12 +132,8 @@ async function handleSingleTypeToggle(
 
   const isCurrentlyRestricted = !!existingRestriction;
   const confirmMessage = isCurrentlyRestricted
-    ? tl.confirmAllow
-        .replace('{user}', targetUser.toString())
-        .replace('{type}', ticketType.displayName)
-    : tl.confirmRestrict
-        .replace('{user}', targetUser.toString())
-        .replace('{type}', ticketType.displayName);
+    ? tl.confirmAllow.replace('{user}', targetUser.toString()).replace('{type}', ticketType.displayName)
+    : tl.confirmRestrict.replace('{user}', targetUser.toString()).replace('{type}', ticketType.displayName);
 
   // Create confirmation buttons
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -168,7 +153,6 @@ async function handleSingleTypeToggle(
     flags: [MessageFlags.Ephemeral],
   });
 
-  // Set up collector for this specific interaction
   const filter = (i: ButtonInteraction) => {
     if (i.user.id !== interaction.user.id) {
       i.reply({
@@ -191,12 +175,9 @@ async function handleSingleTypeToggle(
     if (i.customId.startsWith('restrict_confirm_')) {
       try {
         if (isCurrentlyRestricted) {
-          // Remove restriction
           await restrictionRepo.remove(existingRestriction);
           await i.update({
-            content: tl.successAllow
-              .replace('{user}', targetUser.toString())
-              .replace('{type}', ticketType.displayName),
+            content: tl.successAllow.replace('{user}', targetUser.toString()).replace('{type}', ticketType.displayName),
             components: [],
           });
 
@@ -211,7 +192,6 @@ async function handleSingleTypeToggle(
             },
           );
         } else {
-          // Add restriction
           const newRestriction = restrictionRepo.create({
             guildId,
             userId: targetUser.id,
@@ -239,26 +219,17 @@ async function handleSingleTypeToggle(
           );
         }
       } catch {
-        await i.update({
-          content: tl.error,
-          components: [],
-        });
+        await i.update({ content: tl.error, components: [] });
       }
     } else {
-      await i.update({
-        content: tl.cancelled,
-        components: [],
-      });
+      await i.update({ content: tl.cancelled, components: [] });
     }
   });
 
   collector?.on('end', async collected => {
     if (collected.size === 0) {
       try {
-        await interaction.editReply({
-          content: tl.cancelled,
-          components: [],
-        });
+        await interaction.editReply({ content: tl.cancelled, components: [] });
       } catch {
         // Interaction may have expired
       }
@@ -267,9 +238,10 @@ async function handleSingleTypeToggle(
 }
 
 /**
- * Show the configurator embed for managing all restrictions for a user
+ * Show a checkbox group modal for managing all restrictions for a user.
+ * Checked items = restricted types. One submit = batch DB update.
  */
-async function showRestrictionsConfigurator(
+async function showRestrictionsModal(
   interaction: ChatInputCommandInteraction,
   guildId: string,
   targetUser: User,
@@ -280,152 +252,68 @@ async function showRestrictionsConfigurator(
     ? R
     : never,
 ): Promise<void> {
-  // Get all current restrictions for this user
+  // Get current restrictions
   const restrictions = await restrictionRepo.find({
     where: { guildId, userId: targetUser.id },
   });
-
   const restrictedTypeIds = new Set(restrictions.map(r => r.typeId));
 
-  // Build the embed and buttons
-  const { embed, components } = buildConfiguratorEmbed(
-    targetUser,
-    ticketTypes,
-    restrictedTypeIds,
-    interaction.user.id,
-  );
+  // Build checkbox group options (max 10 per Discord API)
+  const options = ticketTypes.slice(0, 10).map(type => ({
+    label: type.displayName,
+    value: type.typeId,
+    description: type.emoji ? `${type.emoji} ${type.typeId}` : type.typeId,
+    default: restrictedTypeIds.has(type.typeId),
+  }));
 
-  await interaction.reply({
-    embeds: [embed],
-    components,
-    flags: [MessageFlags.Ephemeral],
+  const modal = rawModal(`ur_modal_${targetUser.id}_${Date.now()}`, `Restrictions: ${targetUser.displayName}`, [
+    labelWrap(
+      'Restricted Ticket Types',
+      checkboxGroup('ur_restricted_types', options, 0),
+      'Check the types this user should be BLOCKED from creating',
+    ),
+  ]);
+
+  await interaction.showModal(modal as any);
+
+  const modalSubmit = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
+    await notifyModalTimeout(interaction);
+    return null;
   });
+  if (!modalSubmit) return;
 
-  // Set up collector
-  const filter = (i: ButtonInteraction) => {
-    if (i.user.id !== interaction.user.id) {
-      i.reply({
-        content: tl.notYourInteraction,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return false;
-    }
-    return i.customId.startsWith('ur_toggle_') || i.customId === 'ur_done';
-  };
+  // Get selected (restricted) type IDs from checkbox group
+  const rawSelectedValues: string[] = (modalSubmit.fields as any).getField('ur_restricted_types')?.values ?? [];
+  // Validate submitted values against guild-owned ticket types (prevents cross-guild data injection)
+  const validTypeIds = new Set(ticketTypes.map(t => t.typeId));
+  const selectedValues = rawSelectedValues.filter(id => validTypeIds.has(id));
+  const newRestrictedSet = new Set(selectedValues);
 
-  const collector = interaction.channel?.createMessageComponentCollector({
-    filter,
-    componentType: ComponentType.Button,
-    time: 300000, // 5 minutes
-  });
+  // Compute diff: add new restrictions, remove old ones
+  const toAdd = [...newRestrictedSet].filter(id => !restrictedTypeIds.has(id));
+  const toRemove = [...restrictedTypeIds].filter(id => !newRestrictedSet.has(id));
 
-  collector?.on('collect', async i => {
-    if (i.customId === 'ur_done') {
-      await i.update({
-        content: tl.saved,
-        embeds: [],
-        components: [],
-      });
-      collector.stop();
-      return;
-    }
+  // Batch: remove lifted restrictions
+  for (const typeId of toRemove) {
+    await restrictionRepo.delete({ guildId, userId: targetUser.id, typeId });
+  }
 
-    // Handle toggle
-    const typeId = i.customId.replace('ur_toggle_', '');
-    const ticketType = ticketTypes.find(t => t.typeId === typeId);
+  // Batch: add new restrictions
+  if (toAdd.length > 0) {
+    const newRestrictions = toAdd.map(typeId =>
+      restrictionRepo.create({
+        guildId,
+        userId: targetUser.id,
+        typeId,
+        restrictedBy: interaction.user.id,
+      }),
+    );
+    await restrictionRepo.save(newRestrictions);
+  }
 
-    if (!ticketType) return;
-
-    try {
-      if (restrictedTypeIds.has(typeId)) {
-        // Remove restriction
-        await restrictionRepo.delete({
-          guildId,
-          userId: targetUser.id,
-          typeId,
-        });
-        restrictedTypeIds.delete(typeId);
-
-        enhancedLogger.info(
-          `Ticket restriction removed: ${targetUser.tag} can now create ${typeId}`,
-          LogCategory.COMMAND_EXECUTION,
-          {
-            guildId,
-            userId: targetUser.id,
-            typeId,
-            removedBy: interaction.user.id,
-          },
-        );
-      } else {
-        // Add restriction
-        const newRestriction = restrictionRepo.create({
-          guildId,
-          userId: targetUser.id,
-          typeId,
-          restrictedBy: interaction.user.id,
-        });
-        await restrictionRepo.save(newRestriction);
-        restrictedTypeIds.add(typeId);
-
-        enhancedLogger.info(
-          `Ticket restriction added: ${targetUser.tag} restricted from ${typeId}`,
-          LogCategory.COMMAND_EXECUTION,
-          {
-            guildId,
-            userId: targetUser.id,
-            typeId,
-            restrictedBy: interaction.user.id,
-          },
-        );
-      }
-
-      // Update the embed
-      const { embed: newEmbed, components: newComponents } = buildConfiguratorEmbed(
-        targetUser,
-        ticketTypes,
-        restrictedTypeIds,
-        interaction.user.id,
-      );
-
-      await i.update({
-        embeds: [newEmbed],
-        components: newComponents,
-      });
-    } catch {
-      await i.reply({
-        content: tl.error,
-        flags: [MessageFlags.Ephemeral],
-      });
-    }
-  });
-
-  collector?.on('end', async (_, reason) => {
-    if (reason === 'time') {
-      try {
-        await interaction.editReply({
-          content: tl.saved,
-          embeds: [],
-          components: [],
-        });
-      } catch {
-        // Interaction may have expired
-      }
-    }
-  });
-}
-
-/**
- * Build the configurator embed and button components
- */
-function buildConfiguratorEmbed(
-  targetUser: User,
-  ticketTypes: CustomTicketType[],
-  restrictedTypeIds: Set<string>,
-  _commandUserId: string,
-): { embed: EmbedBuilder; components: ActionRowBuilder<ButtonBuilder>[] } {
-  // Build description with current status
+  // Build summary embed
   const typeStatusLines = ticketTypes.map(type => {
-    const isRestricted = restrictedTypeIds.has(type.typeId);
+    const isRestricted = newRestrictedSet.has(type.typeId);
     const status = isRestricted ? tl.restricted : tl.canCreate;
     const emoji = type.emoji || '🎫';
     return `${emoji} **${type.displayName}** - ${status}`;
@@ -433,63 +321,18 @@ function buildConfiguratorEmbed(
 
   const embed = new EmbedBuilder()
     .setTitle(tl.title)
-    .setDescription(
-      `${tl.description.replace('{user}', targetUser.toString())}\n\n${typeStatusLines.join('\n')}`,
-    )
+    .setDescription(`${tl.description.replace('{user}', targetUser.toString())}\n\n${typeStatusLines.join('\n')}`)
     .setColor(0x5865f2)
-    .setFooter({ text: tl.footer })
-    .setThumbnail(targetUser.displayAvatarURL());
+    .setFooter({ text: tl.saved });
 
-  // Build button rows (max 5 buttons per row, max 5 rows)
-  const components: ActionRowBuilder<ButtonBuilder>[] = [];
-  let currentRow = new ActionRowBuilder<ButtonBuilder>();
-  let buttonCount = 0;
+  await modalSubmit.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
 
-  for (const type of ticketTypes) {
-    const isRestricted = restrictedTypeIds.has(type.typeId);
-
-    const button = new ButtonBuilder()
-      .setCustomId(`ur_toggle_${type.typeId}`)
-      .setLabel(type.displayName.substring(0, 80)) // Discord limit
-      .setStyle(isRestricted ? ButtonStyle.Danger : ButtonStyle.Success);
-
-    if (type.emoji) {
-      // Only set emoji if it's a valid single emoji
-      try {
-        button.setEmoji(type.emoji);
-      } catch {
-        // Invalid emoji, skip
-      }
-    }
-
-    currentRow.addComponents(button);
-    buttonCount++;
-
-    if (buttonCount === 5) {
-      components.push(currentRow);
-      currentRow = new ActionRowBuilder<ButtonBuilder>();
-      buttonCount = 0;
-    }
-
-    // Discord limit: max 25 buttons (5 rows * 5 buttons)
-    if (components.length === 4 && buttonCount === 4) {
-      break;
-    }
-  }
-
-  // Add remaining buttons
-  if (buttonCount > 0) {
-    components.push(currentRow);
-  }
-
-  // Add Done button in a new row
-  const doneRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('ur_done')
-      .setLabel(lang.general.buttons.done)
-      .setStyle(ButtonStyle.Primary),
-  );
-  components.push(doneRow);
-
-  return { embed, components };
+  enhancedLogger.info(`Ticket restrictions updated via modal for ${targetUser.tag}`, LogCategory.COMMAND_EXECUTION, {
+    guildId,
+    userId: targetUser.id,
+    restricted: [...newRestrictedSet],
+    added: toAdd,
+    removed: toRemove,
+    updatedBy: interaction.user.id,
+  });
 }

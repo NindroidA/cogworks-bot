@@ -1,9 +1,4 @@
-import {
-  type ChatInputCommandInteraction,
-  type Client,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
 import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
@@ -27,13 +22,8 @@ export const statusHandler = async (_client: Client, interaction: ChatInputComma
     }
 
     // Build channel list from channelIds or legacy channelId
-    const baitChannelIds = config.channelIds?.length
-      ? config.channelIds
-      : config.channelId
-        ? [config.channelId]
-        : [];
-    const channelMentions =
-      baitChannelIds.map(id => `<#${id}>`).join(', ') || tl.status.channelNotFound;
+    const baitChannelIds = config.channelIds?.length ? config.channelIds : config.channelId ? [config.channelId] : [];
+    const channelMentions = baitChannelIds.map(id => `<#${id}>`).join(', ') || tl.status.channelNotFound;
 
     const logChannel = config.logChannelId
       ? await interaction.guild!.channels.fetch(config.logChannelId).catch(() => null)
@@ -78,14 +68,8 @@ export const statusHandler = async (_client: Client, interaction: ChatInputComma
           tl.status.minAccountAge.replace('{0}', config.minAccountAgeDays.toString()),
           tl.status.minMembership.replace('{0}', config.minMembershipMinutes.toString()),
           tl.status.minMessages.replace('{0}', config.minMessageCount.toString()),
-          tl.status.requireVerification.replace(
-            '{0}',
-            config.requireVerification ? tl.status.yes : tl.status.no,
-          ),
-          tl.status.actionThreshold.replace(
-            '{0}',
-            (config.instantActionThreshold ?? 90).toString(),
-          ),
+          tl.status.requireVerification.replace('{0}', config.requireVerification ? tl.status.yes : tl.status.no),
+          tl.status.actionThreshold.replace('{0}', (config.instantActionThreshold ?? 90).toString()),
         ].join('\n'),
       });
     }

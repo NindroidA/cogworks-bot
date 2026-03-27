@@ -131,7 +131,7 @@ class HealthMonitor {
     // Check database connection every 5 minutes
     this.periodicCheckIntervals.push(
       setInterval(() => {
-        this.checkDatabaseHealth();
+        void this.checkDatabaseHealth();
       }, 300000),
     );
 
@@ -169,8 +169,7 @@ class HealthMonitor {
 
     // Update average execution time
     stats.averageExecutionTime =
-      (stats.averageExecutionTime * (stats.executionCount - 1) + executionTime) /
-      stats.executionCount;
+      (stats.averageExecutionTime * (stats.executionCount - 1) + executionTime) / stats.executionCount;
 
     stats.lastExecuted = new Date();
 
@@ -328,10 +327,7 @@ class HealthMonitor {
     const database = await this.checkDatabaseHealth();
     const errors = this.getErrorStats();
     const activeGuilds = this.client?.guilds.cache.size || 0;
-    const totalCommands = Array.from(this.commandStats.values()).reduce(
-      (sum, stat) => sum + stat.executionCount,
-      0,
-    );
+    const totalCommands = Array.from(this.commandStats.values()).reduce((sum, stat) => sum + stat.executionCount, 0);
     const commandsPerMinute = this.getCommandsPerMinute();
 
     // Count configured guilds (guilds that have run bot-setup)
@@ -372,9 +368,7 @@ class HealthMonitor {
    * Get command statistics
    */
   public getCommandStats(): CommandStats[] {
-    return Array.from(this.commandStats.values()).sort(
-      (a, b) => b.executionCount - a.executionCount,
-    );
+    return Array.from(this.commandStats.values()).sort((a, b) => b.executionCount - a.executionCount);
   }
 
   /**
@@ -432,16 +426,12 @@ class HealthMonitor {
 
     // Log at INFO level only when status CHANGES
     if (this.previousStatus !== null && this.previousStatus !== status.status) {
-      enhancedLogger.info(
-        `Health status changed: ${this.previousStatus} → ${status.status}`,
-        LogCategory.SYSTEM,
-        {
-          guilds: status.activeGuilds,
-          memory: status.memory,
-          database: status.database,
-          uptime: status.uptimeFormatted,
-        },
-      );
+      enhancedLogger.info(`Health status changed: ${this.previousStatus} → ${status.status}`, LogCategory.SYSTEM, {
+        guilds: status.activeGuilds,
+        memory: status.memory,
+        database: status.database,
+        uptime: status.uptimeFormatted,
+      });
     }
 
     // Always warn if not healthy (degraded or unhealthy)
@@ -468,11 +458,7 @@ class HealthMonitor {
           await this.statusManager.autoSetStatus('operational');
         }
       } catch (error) {
-        enhancedLogger.error(
-          'Failed to auto-update bot status from health check',
-          error as Error,
-          LogCategory.SYSTEM,
-        );
+        enhancedLogger.error('Failed to auto-update bot status from health check', error as Error, LogCategory.SYSTEM);
       }
     }
 

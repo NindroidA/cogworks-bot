@@ -19,6 +19,7 @@ import {
   LANGF,
   LogCategory,
   lang,
+  requireAdmin,
   sanitizeUserInput,
 } from '../../../utils';
 
@@ -30,6 +31,15 @@ const tl = lang.ticket.customTypes.typeAdd;
  */
 export async function typeAddHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
+    const adminCheck = requireAdmin(interaction);
+    if (!adminCheck.allowed) {
+      await interaction.reply({
+        content: adminCheck.message ?? '',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     const user = interaction.user.username;
     enhancedLogger.info(`User ${user} opened ticket type-add modal`, LogCategory.COMMAND_EXECUTION);
 
@@ -111,10 +121,7 @@ export async function typeAddHandler(interaction: ChatInputCommandInteraction): 
 export async function typeAddModalHandler(interaction: ModalSubmitInteraction): Promise<void> {
   try {
     const user = interaction.user.username;
-    enhancedLogger.info(
-      `User ${user} submitted ticket type-add modal`,
-      LogCategory.COMMAND_EXECUTION,
-    );
+    enhancedLogger.info(`User ${user} submitted ticket type-add modal`, LogCategory.COMMAND_EXECUTION);
 
     if (!interaction.guild) {
       enhancedLogger.warn('Type-add modal failed: guild not found', LogCategory.COMMAND_EXECUTION);
@@ -132,8 +139,7 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
     const displayName = sanitizeUserInput(interaction.fields.getTextInputValue('displayName'));
     const emoji = interaction.fields.getTextInputValue('emoji')?.trim() || null;
     const colorInput = interaction.fields.getTextInputValue('color')?.trim() || '#0099ff';
-    const description =
-      sanitizeUserInput(interaction.fields.getTextInputValue('description')) || null;
+    const description = sanitizeUserInput(interaction.fields.getTextInputValue('description')) || null;
 
     // Validate type ID format (lowercase, numbers, underscores only)
     if (!/^[a-z0-9_]+$/.test(typeId)) {
@@ -169,10 +175,7 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
     });
 
     if (existing) {
-      enhancedLogger.warn(
-        `User ${user} type-add failed: duplicate typeId '${typeId}'`,
-        LogCategory.COMMAND_EXECUTION,
-      );
+      enhancedLogger.warn(`User ${user} type-add failed: duplicate typeId '${typeId}'`, LogCategory.COMMAND_EXECUTION);
       await interaction.reply({
         content: LANGF(tl.duplicate, typeId),
         flags: [MessageFlags.Ephemeral],
@@ -237,8 +240,7 @@ export function buildTypeConfirmationEmbed(type: CustomTicketType, isNew: boolea
 
   const embed = new EmbedBuilder()
     .setTitle(`${E.ok} ${LANGF(title, type.displayName).replace('!', '')}`)
-    .setColor(parseInt(type.embedColor.replace('#', ''), 16))
-    .setTimestamp();
+    .setColor(parseInt(type.embedColor.replace('#', ''), 16));
 
   // Type details
   const details = [

@@ -215,6 +215,17 @@ export const DEFAULT_APPLICATION_STATUSES: {
 /** Application status IDs that cannot be removed from a workflow */
 export const REQUIRED_APPLICATION_STATUSES = ['submitted', 'approved', 'denied'];
 
+export const TIMEOUTS = {
+  /** Modal await timeout: 5 minutes */
+  MODAL: 300_000,
+  /** Confirm/cancel button timeout: 30 seconds */
+  CONFIRMATION: 30_000,
+  /** General component collection timeout: 60 seconds */
+  COMPONENT: 60_000,
+  /** Long-lived dashboards/wizards: 5 minutes */
+  DASHBOARD: 300_000,
+} as const;
+
 export const TEXT_LIMITS = {
   /** Short input field max length */
   SHORT_FIELD: 100,

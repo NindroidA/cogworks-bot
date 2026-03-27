@@ -11,55 +11,32 @@ import {
 } from 'discord.js';
 import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
-  createRateLimitKey,
   E,
   enhancedLogger,
-  healthMonitor,
+  guardAdminRateLimit,
   LogCategory,
   lang,
   notifyModalTimeout,
   RateLimits,
-  rateLimiter,
-  requireAdmin,
   sanitizeUserInput,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveMemoryConfig } from './channelPicker';
-import {
-  createDefaultSelectionState,
-  runTagSelectionCollector,
-  type TagSelectionState,
-} from './tagSelection';
+import { createDefaultSelectionState, runTagSelectionCollector, type TagSelectionState } from './tagSelection';
 
 const tl = lang.memory;
 const memoryTagRepo = lazyRepo(MemoryTag);
 const memoryItemRepo = lazyRepo(MemoryItem);
 
 export const memoryAddHandler = async (interaction: ChatInputCommandInteraction) => {
-  const startTime = Date.now();
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'memory-add',
+    limit: RateLimits.MEMORY_OPERATION,
+    scope: 'userGuild',
+  });
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
-  const userId = interaction.user.id;
-
-  // Rate limit check
-  const rateLimitKey = createRateLimitKey.userGuild(userId, guildId, 'memory-add');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.MEMORY_OPERATION);
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: rateCheck.message!,
-      flags: [MessageFlags.Ephemeral],
-    });
-    healthMonitor.recordCommand('memory add', Date.now() - startTime, true);
-    return;
-  }
 
   // Check if memory system is configured
   const config = await resolveMemoryConfig(interaction, guildId);
@@ -157,9 +134,7 @@ async function handleModalSubmit(
 
   try {
     const title = sanitizeUserInput(interaction.fields.getTextInputValue('memory_title'));
-    const description = sanitizeUserInput(
-      interaction.fields.getTextInputValue('memory_description'),
-    );
+    const description = sanitizeUserInput(interaction.fields.getTextInputValue('memory_description'));
 
     const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
     if (!forum) {

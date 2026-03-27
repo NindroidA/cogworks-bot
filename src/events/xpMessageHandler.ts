@@ -25,75 +25,79 @@ export default {
    * handler can invoke this without tight coupling.
    */
   async execute(message: Message, _client: ExtendedClient) {
-    if (!message.guild) return;
-    if (message.author.bot) return;
+    try {
+      if (!message.guild) return;
+      if (message.author.bot) return;
 
-    const guildId = message.guild.id;
+      const guildId = message.guild.id;
 
-    // Fast-path: check if XP is enabled (cached)
-    const config = await getXPConfig(guildId);
-    if (!config?.enabled) return;
+      // Fast-path: check if XP is enabled (cached)
+      const config = await getXPConfig(guildId);
+      if (!config?.enabled) return;
 
-    // Check ignored channels
-    if (config.ignoredChannels?.includes(message.channelId)) return;
+      // Check ignored channels
+      if (config.ignoredChannels?.includes(message.channelId)) return;
 
-    // Check ignored roles
-    const member = message.member;
-    if (!member) return;
-    if (config.ignoredRoles?.length) {
-      const hasIgnoredRole = member.roles.cache.some(r => config.ignoredRoles!.includes(r.id));
-      if (hasIgnoredRole) return;
-    }
-
-    // Get or create XP user record
-    let xpUser = await userRepo.findOne({
-      where: { guildId, userId: message.author.id },
-    });
-
-    if (!xpUser) {
-      xpUser = userRepo.create({
-        guildId,
-        userId: message.author.id,
-      });
-    }
-
-    // Always increment message count
-    xpUser.messages += 1;
-
-    // Check cooldown
-    const now = new Date();
-    if (xpUser.lastXpAt) {
-      const cooldownMs = config.xpCooldownSeconds * 1000;
-      const elapsed = now.getTime() - xpUser.lastXpAt.getTime();
-      if (elapsed < cooldownMs) {
-        // Still on cooldown — save message count but no XP
-        await userRepo.save(xpUser);
-        return;
+      // Check ignored roles
+      const member = message.member;
+      if (!member) return;
+      if (config.ignoredRoles?.length) {
+        const hasIgnoredRole = member.roles.cache.some(r => config.ignoredRoles!.includes(r.id));
+        if (hasIgnoredRole) return;
       }
-    }
 
-    // Calculate XP to award
-    let xpAmount = randomXp(config.xpPerMessageMin, config.xpPerMessageMax);
+      // Get or create XP user record
+      let xpUser = await userRepo.findOne({
+        where: { guildId, userId: message.author.id },
+      });
 
-    // Apply channel multiplier
-    const channelMultiplier = config.multiplierChannels?.[message.channelId];
-    if (channelMultiplier) {
-      xpAmount = Math.floor(xpAmount * channelMultiplier);
-    }
+      if (!xpUser) {
+        xpUser = userRepo.create({
+          guildId,
+          userId: message.author.id,
+        });
+      }
 
-    // Ensure at least 1 XP
-    xpAmount = Math.max(1, xpAmount);
+      // Always increment message count
+      xpUser.messages += 1;
 
-    const oldLevel = xpUser.level;
-    xpUser.xp += xpAmount;
-    xpUser.level = calculateLevel(xpUser.xp);
-    xpUser.lastXpAt = now;
+      // Check cooldown
+      const now = new Date();
+      if (xpUser.lastXpAt) {
+        const cooldownMs = config.xpCooldownSeconds * 1000;
+        const elapsed = now.getTime() - xpUser.lastXpAt.getTime();
+        if (elapsed < cooldownMs) {
+          // Still on cooldown — save message count but no XP
+          await userRepo.save(xpUser);
+          return;
+        }
+      }
 
-    await userRepo.save(xpUser);
+      // Calculate XP to award
+      let xpAmount = randomXp(config.xpPerMessageMin, config.xpPerMessageMax);
 
-    // Check for level-up
-    if (xpUser.level > oldLevel) {
-      await handleLevelUp(message, config, xpUser, member);
+      // Apply channel multiplier
+      const channelMultiplier = config.multiplierChannels?.[message.channelId];
+      if (channelMultiplier) {
+        xpAmount = Math.floor(xpAmount * channelMultiplier);
+      }
+
+      // Ensure at least 1 XP
+      xpAmount = Math.max(1, xpAmount);
+
+      const oldLevel = xpUser.level;
+      xpUser.xp += xpAmount;
+      xpUser.level = calculateLevel(xpUser.xp);
+      xpUser.lastXpAt = now;
+
+      await userRepo.save(xpUser);
+
+      // Check for level-up
+      if (xpUser.level > oldLevel) {
+        await handleLevelUp(message, config, xpUser, member);
+      }
+    } catch (error) {
+      enhancedLogger.error('XP message handler failed', error as Error, LogCategory.ERROR);
     }
   },
 };
@@ -103,7 +107,11 @@ export default {
  */
 async function handleLevelUp(
   message: Message,
-  config: { levelUpChannelId: string | null; levelUpMessage: string; guildId: string },
+  config: {
+    levelUpChannelId: string | null;
+    levelUpMessage: string;
+    guildId: string;
+  },
   xpUser: XPUser,
   member: GuildMember,
 ) {
@@ -147,11 +155,9 @@ async function handleLevelUp(
               LogCategory.SYSTEM,
             );
           } catch (error) {
-            enhancedLogger.debug(
-              `Failed to grant role reward ${reward.roleId} to ${member.id}`,
-              LogCategory.SYSTEM,
-              { error: (error as Error).message },
-            );
+            enhancedLogger.debug(`Failed to grant role reward ${reward.roleId} to ${member.id}`, LogCategory.SYSTEM, {
+              error: (error as Error).message,
+            });
           }
         }
       } else if (reward.removeOnDelevel && member.roles.cache.has(reward.roleId)) {
@@ -159,11 +165,9 @@ async function handleLevelUp(
         try {
           await member.roles.remove(reward.roleId, `Below XP Level ${reward.level}`);
         } catch (error) {
-          enhancedLogger.debug(
-            `Failed to remove role reward ${reward.roleId} from ${member.id}`,
-            LogCategory.SYSTEM,
-            { error: (error as Error).message },
-          );
+          enhancedLogger.debug(`Failed to remove role reward ${reward.roleId} from ${member.id}`, LogCategory.SYSTEM, {
+            error: (error as Error).message,
+          });
         }
       }
     }
@@ -171,7 +175,9 @@ async function handleLevelUp(
     enhancedLogger.debug(
       `Error handling level-up for ${xpUser.userId} in guild ${config.guildId}`,
       LogCategory.SYSTEM,
-      { error: (error as Error).message },
+      {
+        error: (error as Error).message,
+      },
     );
   }
 }

@@ -64,8 +64,7 @@ export function buildRankEmbed(
         value: `Messages: **${xpUser.messages.toLocaleString()}** | Voice: **${xpUser.voiceMinutes.toLocaleString()}** min`,
         inline: false,
       },
-    )
-    .setTimestamp();
+    );
 
   if (nextRewardLevel !== undefined) {
     embed.setFooter({ text: `Next role reward at Level ${nextRewardLevel}` });

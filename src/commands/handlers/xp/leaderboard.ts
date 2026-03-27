@@ -1,10 +1,5 @@
 import type { ColorResolvable } from 'discord.js';
-import {
-  type ChatInputCommandInteraction,
-  type Client,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import xpLang from '../../../lang/xp.json';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
 import { handleInteractionError } from '../../../utils';
@@ -16,10 +11,7 @@ const PAGE_SIZE = 10;
 
 const userRepo = lazyRepo(XPUser);
 
-export const leaderboardHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction,
-) => {
+export const leaderboardHandler = async (_client: Client, interaction: ChatInputCommandInteraction) => {
   try {
     const guildId = interaction.guildId;
     if (!guildId) return;
@@ -34,7 +26,7 @@ export const leaderboardHandler = async (
     }
 
     const page = Math.max(1, interaction.options.getInteger('page') || 1);
-    const offset = (page - 1) * PAGE_SIZE;
+    const _offset = (page - 1) * PAGE_SIZE;
 
     const totalUsers = await userRepo.count({ where: { guildId } });
     if (totalUsers === 0) {
@@ -69,11 +61,8 @@ export const leaderboardHandler = async (
       .setTitle(xpLang.leaderboard.title)
       .setDescription(entries.join('\n'))
       .setFooter({
-        text: xpLang.leaderboard.footer
-          .replace('{0}', String(safePage))
-          .replace('{1}', String(totalPages)),
-      })
-      .setTimestamp();
+        text: xpLang.leaderboard.footer.replace('{0}', String(safePage)).replace('{1}', String(totalPages)),
+      });
 
     await interaction.reply({ embeds: [embed] });
   } catch (error) {

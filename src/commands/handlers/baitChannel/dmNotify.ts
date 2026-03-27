@@ -1,9 +1,4 @@
-import {
-  type ChatInputCommandInteraction,
-  type Client,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
@@ -31,7 +26,7 @@ export const dmNotifyHandler = async (client: Client, interaction: ChatInputComm
     }
 
     switch (subcommand) {
-      case 'dm-enable': {
+      case 'enable': {
         config.dmBeforeAction = true;
         await safeDbOperation(() => configRepo.save(config), 'Save DM config');
         (client as ExtendedClient).baitChannelManager?.clearConfigCache(interaction.guildId!);
@@ -43,7 +38,7 @@ export const dmNotifyHandler = async (client: Client, interaction: ChatInputComm
         break;
       }
 
-      case 'dm-disable': {
+      case 'disable': {
         config.dmBeforeAction = false;
         await safeDbOperation(() => configRepo.save(config), 'Save DM config');
         (client as ExtendedClient).baitChannelManager?.clearConfigCache(interaction.guildId!);
@@ -55,7 +50,7 @@ export const dmNotifyHandler = async (client: Client, interaction: ChatInputComm
         break;
       }
 
-      case 'dm-appeal-info': {
+      case 'appeal-info': {
         const text = sanitizeUserInput(interaction.options.getString('text', true));
 
         if (text.length > 500) {
@@ -70,13 +65,10 @@ export const dmNotifyHandler = async (client: Client, interaction: ChatInputComm
         await safeDbOperation(() => configRepo.save(config), 'Save appeal info');
         (client as ExtendedClient).baitChannelManager?.clearConfigCache(interaction.guildId!);
 
-        const embed = new EmbedBuilder()
-          .setColor(Colors.status.success)
-          .setTitle(tl.dmNotify.appealSet)
-          .addFields({
-            name: 'Appeal Information',
-            value: text,
-          });
+        const embed = new EmbedBuilder().setColor(Colors.status.success).setTitle(tl.dmNotify.appealSet).addFields({
+          name: 'Appeal Information',
+          value: text,
+        });
 
         await interaction.reply({
           embeds: [embed],
@@ -85,7 +77,7 @@ export const dmNotifyHandler = async (client: Client, interaction: ChatInputComm
         break;
       }
 
-      case 'dm-clear-appeal': {
+      case 'clear-appeal': {
         config.appealInfo = null as unknown as string;
         await safeDbOperation(() => configRepo.save(config), 'Clear appeal info');
         (client as ExtendedClient).baitChannelManager?.clearConfigCache(interaction.guildId!);

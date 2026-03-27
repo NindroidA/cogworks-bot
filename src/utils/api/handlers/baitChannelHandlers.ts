@@ -1,12 +1,14 @@
 import type { Client } from 'discord.js';
 import { MoreThanOrEqual } from 'typeorm';
-import { DEFAULT_KEYWORDS } from '../../../commands/handlers/baitChannel/keywords';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelLog } from '../../../typeorm/entities/BaitChannelLog';
 import { BaitKeyword } from '../../../typeorm/entities/bait/BaitKeyword';
 import { JoinEvent } from '../../../typeorm/entities/bait/JoinEvent';
+import { DEFAULT_KEYWORDS } from '../../baitChannel/defaultKeywords';
 import type { BaitChannelManager } from '../../baitChannelManager';
+import { MAX } from '../../constants';
 import { ApiError } from '../apiError';
+import { optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
@@ -14,12 +16,7 @@ type ClientWithBaitManager = Client & {
   baitChannelManager?: BaitChannelManager;
 };
 
-import { MAX } from '../../constants';
-
-export function registerBaitChannelHandlers(
-  client: Client,
-  routes: Map<string, RouteHandler>,
-): void {
+export function registerBaitChannelHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   const keywordRepo = AppDataSource.getRepository(BaitKeyword);
 
   // GET /internal/guilds/:guildId/bait-channel/keywords
@@ -33,11 +30,11 @@ export function registerBaitChannelHandlers(
 
   // POST /internal/guilds/:guildId/bait-channel/keywords/add
   routes.set('POST /bait-channel/keywords/add', async (guildId, body) => {
-    const keyword = (body.keyword as string)?.toLowerCase().trim();
+    const keyword = requireString(body, 'keyword').toLowerCase();
     const weight = typeof body.weight === 'number' ? body.weight : 5;
-    const triggeredBy = body.triggeredBy as string | undefined;
+    const triggeredBy = optionalString(body, 'triggeredBy');
 
-    if (!keyword || keyword.length < 1 || keyword.length > 100) {
+    if (keyword.length < 1 || keyword.length > 100) {
       throw ApiError.badRequest('keyword must be 1-100 characters');
     }
     if (weight < 1 || weight > 10) {
@@ -66,7 +63,7 @@ export function registerBaitChannelHandlers(
     const baitManager = (client as ClientWithBaitManager).baitChannelManager;
     baitManager?.clearKeywordCache(guildId);
 
-    await writeAuditLog(guildId, 'bait-keyword-add', triggeredBy, {
+    await writeAuditLog(guildId, 'bait.keywordAdd', triggeredBy, {
       keyword,
       weight,
     });
@@ -76,12 +73,8 @@ export function registerBaitChannelHandlers(
 
   // POST /internal/guilds/:guildId/bait-channel/keywords/remove
   routes.set('POST /bait-channel/keywords/remove', async (guildId, body) => {
-    const keyword = (body.keyword as string)?.toLowerCase().trim();
-    const triggeredBy = body.triggeredBy as string | undefined;
-
-    if (!keyword) {
-      throw ApiError.badRequest('keyword is required');
-    }
+    const keyword = requireString(body, 'keyword').toLowerCase();
+    const triggeredBy = optionalString(body, 'triggeredBy');
 
     const result = await keywordRepo.delete({ guildId, keyword });
     if (!result.affected) {
@@ -91,7 +84,7 @@ export function registerBaitChannelHandlers(
     const baitManager = (client as ClientWithBaitManager).baitChannelManager;
     baitManager?.clearKeywordCache(guildId);
 
-    await writeAuditLog(guildId, 'bait-keyword-remove', triggeredBy, {
+    await writeAuditLog(guildId, 'bait.keywordRemove', triggeredBy, {
       keyword,
     });
 
@@ -100,7 +93,7 @@ export function registerBaitChannelHandlers(
 
   // POST /internal/guilds/:guildId/bait-channel/keywords/reset
   routes.set('POST /bait-channel/keywords/reset', async (guildId, body) => {
-    const triggeredBy = body.triggeredBy as string | undefined;
+    const triggeredBy = optionalString(body, 'triggeredBy');
 
     await keywordRepo.delete({ guildId });
 
@@ -117,7 +110,7 @@ export function registerBaitChannelHandlers(
     const baitManager = (client as ClientWithBaitManager).baitChannelManager;
     baitManager?.clearKeywordCache(guildId);
 
-    await writeAuditLog(guildId, 'bait-keyword-reset', triggeredBy);
+    await writeAuditLog(guildId, 'bait.keywordReset', triggeredBy);
 
     return { success: true, count: DEFAULT_KEYWORDS.length };
   });
@@ -128,12 +121,8 @@ export function registerBaitChannelHandlers(
   // POST /internal/guilds/:guildId/bait-channel/override
   // Mark the most recent BaitChannelLog for a user as overridden
   routes.set('POST /bait-channel/override', async (guildId, body) => {
-    const userId = body.userId as string | undefined;
-    const triggeredBy = body.triggeredBy as string | undefined;
-
-    if (!userId) {
-      throw ApiError.badRequest('userId is required');
-    }
+    const userId = requireString(body, 'userId');
+    const triggeredBy = optionalString(body, 'triggeredBy');
 
     const log = await logRepo.findOne({
       where: { guildId, userId },
@@ -153,7 +142,7 @@ export function registerBaitChannelHandlers(
     log.overriddenAt = new Date();
     await logRepo.save(log);
 
-    await writeAuditLog(guildId, 'bait-log-override', triggeredBy, {
+    await writeAuditLog(guildId, 'bait.logOverride', triggeredBy, {
       logId: log.id,
       userId,
     });

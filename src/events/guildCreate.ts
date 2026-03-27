@@ -82,15 +82,11 @@ export default {
         .setFooter({
           text: tl.footer.replace('{0}', client.guilds.cache.size.toString()),
           iconURL: client.user?.displayAvatarURL(),
-        })
-        .setTimestamp();
+        });
 
       // Send welcome message
       await targetChannel.send({ embeds: [welcomeEmbed] });
-      enhancedLogger.info(
-        `Sent welcome message in ${guild.name} (#${targetChannel.name})`,
-        LogCategory.SYSTEM,
-      );
+      enhancedLogger.info(`Sent welcome message in ${guild.name} (#${targetChannel.name})`, LogCategory.SYSTEM);
       // Notify API (fire-and-forget) — skip for dev guild
       if (guild.id !== process.env.DEV_GUILD_ID) {
         // Intentional: fire-and-forget API notification

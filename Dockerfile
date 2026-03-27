@@ -47,11 +47,11 @@ USER cogworks
 # Environment variables
 ENV NODE_ENV=production
 ENV RELEASE=prod
-ENV HEALTH_PORT=3000
+ENV HEALTH_PORT=3003
 ENV BOT_INTERNAL_PORT=3002
 
 # Expose health check port and internal API port
-EXPOSE 3000 3002
+EXPOSE 3003 3002
 
 # Health check using existing endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

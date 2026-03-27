@@ -98,11 +98,9 @@ export function getAvailablePlaceholders(): PlaceholderInfo[] {
  * Detects which placeholders requiring user input are present in a template.
  */
 export function detectDynamicPlaceholders(template: AnnouncementTemplate): PlaceholderInfo[] {
-  const allText = [
-    template.title,
-    template.body,
-    ...(template.fields?.flatMap(f => [f.name, f.value]) ?? []),
-  ].join(' ');
+  const allText = [template.title, template.body, ...(template.fields?.flatMap(f => [f.name, f.value]) ?? [])].join(
+    ' ',
+  );
 
   return PLACEHOLDER_METADATA.filter(p => p.requiresInput && allText.includes(`{${p.name}}`));
 }

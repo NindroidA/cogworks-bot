@@ -51,9 +51,7 @@ export const guildScheduledEventCreate = {
 
       // Auto-create reminder if configured
       if (config.reminderChannelId && config.defaultReminderMinutes > 0 && event.scheduledStartAt) {
-        const reminderAt = new Date(
-          event.scheduledStartAt.getTime() - config.defaultReminderMinutes * 60 * 1000,
-        );
+        const reminderAt = new Date(event.scheduledStartAt.getTime() - config.defaultReminderMinutes * 60 * 1000);
 
         if (reminderAt > new Date()) {
           const reminder = eventReminderRepo.create({
@@ -64,24 +62,15 @@ export const guildScheduledEventCreate = {
           });
           await eventReminderRepo.save(reminder);
 
-          enhancedLogger.info(
-            `Auto-reminder created for event: ${event.name}`,
-            LogCategory.SYSTEM,
-            {
-              guildId,
-              eventId: event.id,
-              reminderAt: reminderAt.toISOString(),
-            },
-          );
+          enhancedLogger.info(`Auto-reminder created for event: ${event.name}`, LogCategory.SYSTEM, {
+            guildId,
+            eventId: event.id,
+            reminderAt: reminderAt.toISOString(),
+          });
         }
       }
     } catch (error) {
-      enhancedLogger.error(
-        'Error handling scheduled event create',
-        error as Error,
-        LogCategory.ERROR,
-        { guildId },
-      );
+      enhancedLogger.error('Error handling scheduled event create', error as Error, LogCategory.ERROR, { guildId });
     }
   },
 };
@@ -130,9 +119,7 @@ export const guildScheduledEventUpdate = {
         });
 
         if (config.reminderChannelId && config.defaultReminderMinutes > 0) {
-          const reminderAt = new Date(
-            newEvent.scheduledStartAt.getTime() - config.defaultReminderMinutes * 60 * 1000,
-          );
+          const reminderAt = new Date(newEvent.scheduledStartAt.getTime() - config.defaultReminderMinutes * 60 * 1000);
 
           if (reminderAt > new Date()) {
             const reminder = eventReminderRepo.create({
@@ -146,12 +133,7 @@ export const guildScheduledEventUpdate = {
         }
       }
     } catch (error) {
-      enhancedLogger.error(
-        'Error handling scheduled event update',
-        error as Error,
-        LogCategory.ERROR,
-        { guildId },
-      );
+      enhancedLogger.error('Error handling scheduled event update', error as Error, LogCategory.ERROR, { guildId });
     }
   },
 };
@@ -174,19 +156,14 @@ export const guildScheduledEventDelete = {
       });
 
       if (result.affected && result.affected > 0) {
-        enhancedLogger.info(
-          `Reminders cleared for deleted event: ${event.id}`,
-          LogCategory.SYSTEM,
-          { guildId, eventId: event.id, remindersCleared: result.affected },
-        );
+        enhancedLogger.info(`Reminders cleared for deleted event: ${event.id}`, LogCategory.SYSTEM, {
+          guildId,
+          eventId: event.id,
+          remindersCleared: result.affected,
+        });
       }
     } catch (error) {
-      enhancedLogger.error(
-        'Error handling scheduled event delete',
-        error as Error,
-        LogCategory.ERROR,
-        { guildId },
-      );
+      enhancedLogger.error('Error handling scheduled event delete', error as Error, LogCategory.ERROR, { guildId });
     }
   },
 };
@@ -219,15 +196,11 @@ export const guildScheduledEventUserRemove = {
     const guildId = event.guildId;
     if (!guildId) return;
 
-    enhancedLogger.debug(
-      `User ${user.id} unsubscribed from event ${event.id}`,
-      LogCategory.SYSTEM,
-      {
-        guildId,
-        eventId: event.id,
-        userId: user.id,
-      },
-    );
+    enhancedLogger.debug(`User ${user.id} unsubscribed from event ${event.id}`, LogCategory.SYSTEM, {
+      guildId,
+      eventId: event.id,
+      userId: user.id,
+    });
   },
 };
 
@@ -235,11 +208,7 @@ export const guildScheduledEventUserRemove = {
 // Helpers
 // ============================================================================
 
-async function handleEventCompleted(
-  event: GuildScheduledEvent,
-  config: EventConfig,
-  client: Client,
-): Promise<void> {
+async function handleEventCompleted(event: GuildScheduledEvent, config: EventConfig, client: Client): Promise<void> {
   const guildId = event.guildId;
 
   // Clean up reminders
@@ -248,9 +217,7 @@ async function handleEventCompleted(
   // Post-event summary
   if (config.postEventSummary && config.summaryChannelId) {
     try {
-      const channel = (await client.channels
-        .fetch(config.summaryChannelId)
-        .catch(() => null)) as TextChannel | null;
+      const channel = (await client.channels.fetch(config.summaryChannelId).catch(() => null)) as TextChannel | null;
 
       if (channel) {
         const subscriberCount = event.userCount ?? 0;
@@ -262,8 +229,7 @@ async function handleEventCompleted(
               ? `**${event.name}** has ended. ${subscriberCount} users were interested.`
               : `**${event.name}** has ended.`,
           )
-          .setColor(0x808080)
-          .setTimestamp();
+          .setColor(0x808080);
 
         await channel.send({ embeds: [embed] });
       }
@@ -278,11 +244,7 @@ async function handleEventCompleted(
   await handleRecurringNext(event, config, client);
 }
 
-async function handleRecurringNext(
-  event: GuildScheduledEvent,
-  config: EventConfig,
-  _client: Client,
-): Promise<void> {
+async function handleRecurringNext(event: GuildScheduledEvent, config: EventConfig, _client: Client): Promise<void> {
   const guildId = event.guildId;
 
   // Try to find a recurring template matching this event title
@@ -296,9 +258,7 @@ async function handleRecurringNext(
   // Calculate next occurrence
   const lastStart = event.scheduledStartAt || new Date();
   const nextStart = calculateNextOccurrence(lastStart, matchingTemplate.recurringPattern);
-  const nextEnd = new Date(
-    nextStart.getTime() + matchingTemplate.defaultDurationMinutes * 60 * 1000,
-  );
+  const nextEnd = new Date(nextStart.getTime() + matchingTemplate.defaultDurationMinutes * 60 * 1000);
 
   try {
     const guild = _client.guilds.cache.get(guildId);
@@ -310,8 +270,7 @@ async function handleRecurringNext(
       external: GuildScheduledEventEntityType.External,
     };
 
-    const resolvedEntityType =
-      entityTypeMap[matchingTemplate.entityType] || GuildScheduledEventEntityType.External;
+    const resolvedEntityType = entityTypeMap[matchingTemplate.entityType] || GuildScheduledEventEntityType.External;
 
     const eventData: Parameters<typeof guild.scheduledEvents.create>[0] = {
       name: matchingTemplate.title,
@@ -345,22 +304,16 @@ async function handleRecurringNext(
       }
     }
 
-    enhancedLogger.info(
-      `Recurring event '${matchingTemplate.title}' next occurrence created`,
-      LogCategory.SYSTEM,
-      {
-        guildId,
-        nextStart: nextStart.toISOString(),
-        pattern: matchingTemplate.recurringPattern,
-      },
-    );
+    enhancedLogger.info(`Recurring event '${matchingTemplate.title}' next occurrence created`, LogCategory.SYSTEM, {
+      guildId,
+      nextStart: nextStart.toISOString(),
+      pattern: matchingTemplate.recurringPattern,
+    });
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to create recurring event occurrence',
-      error as Error,
-      LogCategory.ERROR,
-      { guildId, templateName: matchingTemplate.name },
-    );
+    enhancedLogger.error('Failed to create recurring event occurrence', error as Error, LogCategory.ERROR, {
+      guildId,
+      templateName: matchingTemplate.name,
+    });
   }
 }
 

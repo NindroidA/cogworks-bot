@@ -28,14 +28,7 @@ export function getGuildId(interaction: ChatInputCommandInteraction<CacheType>):
 export type TicketStatus = 'created' | 'opened' | 'closed' | 'adminOnly' | 'error' | (string & {});
 
 /** Possible states for a staff application (includes workflow custom statuses via string) */
-export type ApplicationStatus =
-  | 'created'
-  | 'opened'
-  | 'closed'
-  | 'accepted'
-  | 'rejected'
-  | 'error'
-  | (string & {});
+export type ApplicationStatus = 'created' | 'opened' | 'closed' | 'accepted' | 'rejected' | 'error' | (string & {});
 
 /** Types of saved roles that can be managed */
 export type SavedRoleTypes = 'staff' | 'admin';

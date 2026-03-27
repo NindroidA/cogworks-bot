@@ -30,10 +30,7 @@ import type { AutoModRuleConfig } from '../../../utils/automod/templates';
 
 const tl = lang.automod;
 
-export const backupHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> => {
+export const backupHandler = async (_client: Client, interaction: ChatInputCommandInteraction): Promise<void> => {
   const subcommand = interaction.options.getSubcommand();
 
   switch (subcommand) {
@@ -75,11 +72,11 @@ async function handleBackup(interaction: ChatInputCommandInteraction): Promise<v
         files: [attachment],
       });
 
-      enhancedLogger.info(
-        `AutoMod backup exported for guild ${guild.id}`,
-        LogCategory.COMMAND_EXECUTION,
-        { guildId: guild.id, ruleCount: rules.size, userId: interaction.user.id },
-      );
+      enhancedLogger.info(`AutoMod backup exported for guild ${guild.id}`, LogCategory.COMMAND_EXECUTION, {
+        guildId: guild.id,
+        ruleCount: rules.size,
+        userId: interaction.user.id,
+      });
 
       await interaction.editReply({ content: tl.backup.success });
     } catch {
@@ -139,10 +136,7 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
         .setCustomId('automod_restore_confirm')
         .setLabel('Confirm Restore')
         .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId('automod_restore_cancel')
-        .setLabel('Cancel')
-        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('automod_restore_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
     );
 
     const confirmReply = await interaction.editReply({
@@ -178,8 +172,7 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
               keywordFilter: serializedRule.triggerMetadata?.keywordFilter,
               regexPatterns: serializedRule.triggerMetadata?.regexPatterns,
               mentionTotalLimit: serializedRule.triggerMetadata?.mentionTotalLimit,
-              mentionRaidProtectionEnabled:
-                serializedRule.triggerMetadata?.mentionRaidProtectionEnabled,
+              mentionRaidProtectionEnabled: serializedRule.triggerMetadata?.mentionRaidProtectionEnabled,
             },
             actions: serializedRule.actions.map(a => ({
               type: a.type as AutoModerationActionType,
@@ -196,19 +189,17 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
           await createAutoModRule(guild, ruleConfig);
           created++;
         } catch (error) {
-          enhancedLogger.warn(
-            `Failed to restore rule: ${serializedRule.name}`,
-            LogCategory.COMMAND_EXECUTION,
-            { guildId: guild.id, error: String(error) },
-          );
+          enhancedLogger.warn(`Failed to restore rule: ${serializedRule.name}`, LogCategory.COMMAND_EXECUTION, {
+            guildId: guild.id,
+            error: String(error),
+          });
         }
       }
 
-      enhancedLogger.info(
-        `AutoMod rules restored: ${created}/${backup.rules.length}`,
-        LogCategory.COMMAND_EXECUTION,
-        { guildId: guild.id, userId: interaction.user.id },
-      );
+      enhancedLogger.info(`AutoMod rules restored: ${created}/${backup.rules.length}`, LogCategory.COMMAND_EXECUTION, {
+        guildId: guild.id,
+        userId: interaction.user.id,
+      });
 
       const embed = new EmbedBuilder()
         .setColor('#00FF00')

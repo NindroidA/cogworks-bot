@@ -1,29 +1,28 @@
 import {
-  ActionRowBuilder,
-  ButtonBuilder,
   ButtonStyle,
   type CacheType,
   type ChatInputCommandInteraction,
-  ComponentType,
   MessageFlags,
   type TextChannel,
 } from 'discord.js';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import {
+  awaitConfirmation,
+  buildErrorMessage,
   enhancedLogger,
+  handleInteractionError,
   invalidateMenuCache,
   LogCategory,
   lang,
   requireAdmin,
+  verifiedMessageDelete,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.reactionRole;
 const menuRepo = lazyRepo(ReactionRoleMenu);
 
-export async function reactionRoleDeleteHandler(
-  interaction: ChatInputCommandInteraction<CacheType>,
-) {
+export async function reactionRoleDeleteHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -50,83 +49,50 @@ export async function reactionRoleDeleteHandler(
       return;
     }
 
-    // Confirmation buttons
-    const confirmBtn = new ButtonBuilder()
-      .setCustomId('rr-delete-confirm')
-      .setLabel(lang.general.buttons.confirm)
-      .setStyle(ButtonStyle.Danger);
-
-    const cancelBtn = new ButtonBuilder()
-      .setCustomId('rr-delete-cancel')
-      .setLabel(lang.general.buttons.cancel)
-      .setStyle(ButtonStyle.Secondary);
-
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(confirmBtn, cancelBtn);
-
-    const reply = await interaction.reply({
-      content: tl.delete.confirmMessage.replace('{name}', menu.name),
-      components: [row],
-      flags: [MessageFlags.Ephemeral],
+    const result = await awaitConfirmation(interaction, {
+      message: tl.delete.confirmMessage.replace('{name}', menu.name),
+      confirmStyle: ButtonStyle.Danger,
+      idPrefix: 'rr-delete',
     });
+    if (!result) return;
 
-    // Wait for button press
+    // Delete the Discord message first (verified)
+    let msgDeleteFailed = false;
     try {
-      const btnInteraction = await reply.awaitMessageComponent({
-        componentType: ComponentType.Button,
-        filter: i => i.user.id === interaction.user.id,
-        time: 30_000,
-      });
-
-      if (btnInteraction.customId === 'rr-delete-confirm') {
-        // Delete the Discord message
-        try {
-          const channel = await guild.channels.fetch(menu.channelId);
-          if (channel?.isTextBased()) {
-            const msg = await (channel as TextChannel).messages.fetch(menu.messageId);
-            await msg.delete();
-          }
-        } catch {
-          // Message may already be deleted
-        }
-
-        // Invalidate cache and delete from DB (CASCADE will remove options)
-        invalidateMenuCache(menu.messageId);
-        await menuRepo.remove(menu);
-
-        await btnInteraction.update({
-          content: tl.delete.success.replace('{name}', menu.name),
-          components: [],
-        });
-
-        enhancedLogger.info('Reaction role menu deleted', LogCategory.COMMAND_EXECUTION, {
+      const channel = await guild.channels.fetch(menu.channelId);
+      if (channel?.isTextBased()) {
+        const msg = await (channel as TextChannel).messages.fetch(menu.messageId);
+        const delResult = await verifiedMessageDelete(msg, {
           guildId,
-          menuId: menu.id,
-          menuName: menu.name,
-          userId: interaction.user.id,
+          label: 'reaction role menu message',
         });
-      } else {
-        await btnInteraction.update({
-          content: lang.errors.cancelled,
-          components: [],
-        });
+        if (!delResult.success) {
+          msgDeleteFailed = true;
+        }
       }
     } catch {
-      // Timeout
-      await interaction.editReply({
-        content: lang.errors.timeout,
-        components: [],
-      });
+      // Channel or message not found — already gone, proceed with DB cleanup
     }
-  } catch (error) {
-    enhancedLogger.error(
-      'Failed to delete reaction role menu',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
-    await interaction.reply({
-      content: tl.delete.error,
-      flags: [MessageFlags.Ephemeral],
+
+    // Invalidate cache and delete from DB (CASCADE will remove options)
+    invalidateMenuCache(menu.messageId);
+    await menuRepo.remove(menu);
+
+    await result.interaction.editReply({
+      content: msgDeleteFailed
+        ? buildErrorMessage(
+            `${tl.delete.success.replace('{name}', menu.name)}\n\n⚠️ The Discord message could not be deleted — you may need to remove it manually.`,
+          )
+        : tl.delete.success.replace('{name}', menu.name),
     });
+
+    enhancedLogger.info('Reaction role menu deleted', LogCategory.COMMAND_EXECUTION, {
+      guildId,
+      menuId: menu.id,
+      menuName: menu.name,
+      userId: interaction.user.id,
+    });
+  } catch (error) {
+    await handleInteractionError(interaction, error, 'Failed to delete reaction role menu');
   }
 }

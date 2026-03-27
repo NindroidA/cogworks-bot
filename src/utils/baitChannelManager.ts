@@ -140,10 +140,7 @@ export class BaitChannelManager {
       }
 
       if (activeBans.length > 0) {
-        enhancedLogger.info(
-          `Restored ${this.pendingBans.size} pending bans from database`,
-          LogCategory.SYSTEM,
-        );
+        enhancedLogger.info(`Restored ${this.pendingBans.size} pending bans from database`, LogCategory.SYSTEM);
       }
     } catch (error) {
       logError({
@@ -156,11 +153,7 @@ export class BaitChannelManager {
     }
   }
 
-  private async savePendingBanToDb(
-    guildId: string,
-    pendingBan: PendingBan,
-    gracePeriodSeconds: number,
-  ): Promise<void> {
+  private async savePendingBanToDb(guildId: string, pendingBan: PendingBan, gracePeriodSeconds: number): Promise<void> {
     if (!this.pendingBanRepo) return;
     try {
       const entity = this.pendingBanRepo.create({
@@ -185,11 +178,7 @@ export class BaitChannelManager {
     }
   }
 
-  private async removePendingBanFromDb(
-    userId: string,
-    messageId: string,
-    guildId?: string,
-  ): Promise<void> {
+  private async removePendingBanFromDb(userId: string, messageId: string, guildId?: string): Promise<void> {
     if (!this.pendingBanRepo) return;
     try {
       const where: Record<string, string> = { userId, messageId };
@@ -220,11 +209,7 @@ export class BaitChannelManager {
       }
 
       // Multi-channel support: check channelIds array with legacy channelId fallback
-      const baitChannels = config.channelIds?.length
-        ? config.channelIds
-        : config.channelId
-          ? [config.channelId]
-          : [];
+      const baitChannels = config.channelIds?.length ? config.channelIds : config.channelId ? [config.channelId] : [];
       if (!baitChannels.includes(message.channelId)) {
         enhancedLogger.debug(
           `Message in ${message.channelId}, bait channels are [${baitChannels.join(', ')}]`,
@@ -267,18 +252,16 @@ export class BaitChannelManager {
       enhancedLogger.info(
         `Bait channel post from ${member.user.tag} (Score: ${analysis.score}/100)`,
         LogCategory.SECURITY,
-        { userId: member.id, score: analysis.score, guildId: message.guild.id },
+        {
+          userId: member.id,
+          score: analysis.score,
+          guildId: message.guild.id,
+        },
       );
 
       // Instant action for high suspicion scores (configurable threshold, default 90)
       if (config.enableSmartDetection && analysis.score >= (config.instantActionThreshold ?? 90)) {
-        await this.executeAction(
-          member,
-          message,
-          config,
-          analysis,
-          'High suspicion score - instant action',
-        );
+        await this.executeAction(member, message, config, analysis, 'High suspicion score - instant action');
         return;
       }
 
@@ -305,10 +288,7 @@ export class BaitChannelManager {
     }
   }
 
-  private async analyzeSuspicion(
-    message: Message,
-    config: BaitChannelConfig,
-  ): Promise<SuspicionAnalysis> {
+  private async analyzeSuspicion(message: Message, config: BaitChannelConfig): Promise<SuspicionAnalysis> {
     const member = message.member!;
     let score = 0;
     const flags = {
@@ -366,9 +346,7 @@ export class BaitChannelManager {
     // Check for verification role
     if (config.requireVerification) {
       const hasVerifiedRole = member.roles.cache.some(
-        role =>
-          role.name.toLowerCase().includes('verified') ||
-          role.name.toLowerCase().includes('member'),
+        role => role.name.toLowerCase().includes('verified') || role.name.toLowerCase().includes('member'),
       );
 
       if (!hasVerifiedRole) {
@@ -403,10 +381,7 @@ export class BaitChannelManager {
       }
     } catch {
       // API fetch failed (rate limit, network) — skip this flag, never penalize
-      enhancedLogger.debug(
-        `Skipped emptyProfile check for ${member.user.tag} (fetch failed)`,
-        LogCategory.SECURITY,
-      );
+      enhancedLogger.debug(`Skipped emptyProfile check for ${member.user.tag} (fetch failed)`, LogCategory.SECURITY);
     }
 
     // Check for suspicious username patterns
@@ -489,9 +464,7 @@ export class BaitChannelManager {
         flags.joinBurst = true;
         score += 15;
         const joinCount = this.joinVelocityTracker.getJoinCount(message.guild.id, windowMs);
-        reasons.push(
-          `Join burst detected (${joinCount} joins in ${config.joinVelocityWindowMinutes ?? 5} min)`,
-        );
+        reasons.push(`Join burst detected (${joinCount} joins in ${config.joinVelocityWindowMinutes ?? 5} min)`);
       }
     }
 
@@ -501,10 +474,7 @@ export class BaitChannelManager {
     return { score, flags, reasons };
   }
 
-  private checkWhitelist(
-    member: GuildMember,
-    config: BaitChannelConfig,
-  ): { whitelisted: boolean; reason: string } {
+  private checkWhitelist(member: GuildMember, config: BaitChannelConfig): { whitelisted: boolean; reason: string } {
     // Server owner cannot be kicked/banned - always whitelist
     if (member.id === member.guild.ownerId) {
       return { whitelisted: true, reason: 'User is the Server Owner' };
@@ -516,9 +486,7 @@ export class BaitChannelManager {
     }
 
     // Check whitelisted roles
-    const whitelistedRole = member.roles.cache.find(role =>
-      config.whitelistedRoles?.includes(role.id),
-    );
+    const whitelistedRole = member.roles.cache.find(role => config.whitelistedRoles?.includes(role.id));
     if (whitelistedRole) {
       return {
         whitelisted: true,
@@ -527,10 +495,7 @@ export class BaitChannelManager {
     }
 
     // Admins are whitelisted unless disableAdminWhitelist is enabled (for testing)
-    if (
-      !config.disableAdminWhitelist &&
-      member.permissions.has(PermissionFlagsBits.Administrator)
-    ) {
+    if (!config.disableAdminWhitelist && member.permissions.has(PermissionFlagsBits.Administrator)) {
       return { whitelisted: true, reason: 'User is an Administrator' };
     }
 
@@ -587,8 +552,7 @@ export class BaitChannelManager {
             inline: true,
           },
           { name: 'Server', value: member.guild.name, inline: true },
-        )
-        .setTimestamp();
+        );
 
       if (config.appealInfo) {
         embed.addFields({
@@ -600,10 +564,7 @@ export class BaitChannelManager {
       await member.send({ embeds: [embed] });
       return true;
     } catch {
-      enhancedLogger.debug(
-        `Failed to send DM notification to ${member.user.tag}`,
-        LogCategory.SECURITY,
-      );
+      enhancedLogger.debug(`Failed to send DM notification to ${member.user.tag}`, LogCategory.SECURITY);
       return false;
     }
   }
@@ -653,7 +614,7 @@ export class BaitChannelManager {
           inline: true,
         },
       )
-      .setTimestamp()
+
       .setFooter({ text: message.guild!.name });
 
     if (analysis.reasons.length > 0) {
@@ -768,9 +729,7 @@ export class BaitChannelManager {
                 .fetch(pendingBan.channelId)
                 .catch(() => null)) as TextChannel | null;
               if (channel) {
-                const warningMessage = await channel.messages
-                  .fetch(pendingBan.warningMessageId)
-                  .catch(() => null);
+                const warningMessage = await channel.messages.fetch(pendingBan.warningMessageId).catch(() => null);
                 if (warningMessage) {
                   await warningMessage.delete();
                 }
@@ -807,11 +766,7 @@ export class BaitChannelManager {
    * Scan all text channels in a guild and delete recent messages from a banned user.
    * Processes channels sequentially to avoid rate limits.
    */
-  private async purgeUserMessages(
-    guild: Guild,
-    userId: string,
-    baitChannelIds: string[],
-  ): Promise<PurgeResult> {
+  private async purgeUserMessages(guild: Guild, userId: string, baitChannelIds: string[]): Promise<PurgeResult> {
     let totalDeleted = 0;
     let channelCount = 0;
 
@@ -890,11 +845,11 @@ export class BaitChannelManager {
             channelCount++;
           }
         } catch (error) {
-          enhancedLogger.debug(
-            `Purge: failed to process channel ${channel.id}`,
-            LogCategory.SECURITY,
-            { channelId: channel.id, userId, error: (error as Error).message },
-          );
+          enhancedLogger.debug(`Purge: failed to process channel ${channel.id}`, LogCategory.SECURITY, {
+            channelId: channel.id,
+            userId,
+            error: (error as Error).message,
+          });
         }
       }
 
@@ -902,7 +857,12 @@ export class BaitChannelManager {
         enhancedLogger.info(
           `Purged ${totalDeleted} messages across ${channelCount} channels for user ${userId}`,
           LogCategory.SECURITY,
-          { userId, guildId: guild.id, totalDeleted, channelCount },
+          {
+            userId,
+            guildId: guild.id,
+            totalDeleted,
+            channelCount,
+          },
         );
       }
     } catch (error) {
@@ -978,34 +938,24 @@ export class BaitChannelManager {
           case 'ban':
             await member.ban({
               reason: `${config.banReason} (${reason})`,
-              deleteMessageSeconds: config.deleteUserMessages
-                ? config.deleteMessageDays * 24 * 60 * 60
-                : 0,
+              deleteMessageSeconds: config.deleteUserMessages ? config.deleteMessageDays * 24 * 60 * 60 : 0,
             });
-            enhancedLogger.info(
-              `Banned user ${member.user.tag} (Score: ${analysis.score})`,
-              LogCategory.SECURITY,
-              {
-                userId: member.id,
-                score: analysis.score,
-                action: 'ban',
-                guildId: message.guild!.id,
-              },
-            );
+            enhancedLogger.info(`Banned user ${member.user.tag} (Score: ${analysis.score})`, LogCategory.SECURITY, {
+              userId: member.id,
+              score: analysis.score,
+              action: 'ban',
+              guildId: message.guild!.id,
+            });
             break;
 
           case 'kick':
             await member.kick(`${config.banReason} (${reason})`);
-            enhancedLogger.info(
-              `Kicked user ${member.user.tag} (Score: ${analysis.score})`,
-              LogCategory.SECURITY,
-              {
-                userId: member.id,
-                score: analysis.score,
-                action: 'kick',
-                guildId: message.guild!.id,
-              },
-            );
+            enhancedLogger.info(`Kicked user ${member.user.tag} (Score: ${analysis.score})`, LogCategory.SECURITY, {
+              userId: member.id,
+              score: analysis.score,
+              action: 'kick',
+              guildId: message.guild!.id,
+            });
             break;
 
           case 'timeout': {
@@ -1077,11 +1027,7 @@ export class BaitChannelManager {
 
     // Step 4: Purge user messages (ban, or timeout with deleteUserMessages) — skip in test mode
     let purgeResult: PurgeResult | undefined;
-    const baitChannelIds = config.channelIds?.length
-      ? config.channelIds
-      : config.channelId
-        ? [config.channelId]
-        : [];
+    const baitChannelIds = config.channelIds?.length ? config.channelIds : config.channelId ? [config.channelId] : [];
     if (
       !isTestMode &&
       actionResult === 'success' &&
@@ -1121,10 +1067,7 @@ export class BaitChannelManager {
    * Detect accounts that joined around the same time with similar suspicious characteristics.
    * Returns null if fewer than 3 matching accounts are found (not enough evidence).
    */
-  private async detectRepeatOffenders(
-    member: GuildMember,
-    guildId: string,
-  ): Promise<RepeatOffenderResult | null> {
+  private async detectRepeatOffenders(member: GuildMember, guildId: string): Promise<RepeatOffenderResult | null> {
     try {
       if (!member.joinedAt) return null;
 
@@ -1162,11 +1105,9 @@ export class BaitChannelManager {
         })),
       };
     } catch (error) {
-      enhancedLogger.debug(
-        `Failed to detect repeat offenders for ${member.user.tag}`,
-        LogCategory.DATABASE,
-        { error: (error as Error).message },
-      );
+      enhancedLogger.debug(`Failed to detect repeat offenders for ${member.user.tag}`, LogCategory.DATABASE, {
+        error: (error as Error).message,
+      });
       return null;
     }
   }
@@ -1312,8 +1253,7 @@ export class BaitChannelManager {
           },
           {
             name: '🎭 Roles',
-            value:
-              member.roles.cache.size > 1 ? `${member.roles.cache.size - 1} roles` : 'No roles',
+            value: member.roles.cache.size > 1 ? `${member.roles.cache.size - 1} roles` : 'No roles',
             inline: true,
           },
           { name: '⚡ Reason', value: reason, inline: false },
@@ -1346,18 +1286,14 @@ export class BaitChannelManager {
       if (actionResult === 'failed' && failureReason) {
         embed.addFields({
           name: '⚠️ Failure Reason',
-          value:
-            failureReason.length > 1024 ? `${failureReason.substring(0, 1021)}...` : failureReason,
+          value: failureReason.length > 1024 ? `${failureReason.substring(0, 1021)}...` : failureReason,
         });
       }
 
       if (message.content) {
         embed.addFields({
           name: '💬 Message Content',
-          value:
-            message.content.length > 1024
-              ? `${message.content.substring(0, 1021)}...`
-              : message.content,
+          value: message.content.length > 1024 ? `${message.content.substring(0, 1021)}...` : message.content,
         });
       }
 
@@ -1412,7 +1348,7 @@ export class BaitChannelManager {
         });
       }
 
-      embed.setTimestamp();
+      embed;
 
       await logChannel.send({ embeds: [embed] });
     } catch (error) {
@@ -1457,8 +1393,7 @@ export class BaitChannelManager {
           },
           {
             name: '🎭 Roles',
-            value:
-              member.roles.cache.size > 1 ? `${member.roles.cache.size - 1} roles` : 'No roles',
+            value: member.roles.cache.size > 1 ? `${member.roles.cache.size - 1} roles` : 'No roles',
             inline: true,
           },
           {
@@ -1482,10 +1417,7 @@ export class BaitChannelManager {
       if (message.content) {
         embed.addFields({
           name: '💬 Message Content',
-          value:
-            message.content.length > 1024
-              ? `${message.content.substring(0, 1021)}...`
-              : message.content,
+          value: message.content.length > 1024 ? `${message.content.substring(0, 1021)}...` : message.content,
         });
       }
 
@@ -1496,7 +1428,7 @@ export class BaitChannelManager {
         });
       }
 
-      embed.setTimestamp();
+      embed;
 
       await logChannel.send({ embeds: [embed] });
     } catch (error) {

@@ -18,10 +18,7 @@ import { Colors } from './colors';
  * await interaction.reply({ embeds: [embed] });
  */
 export function createSuccessEmbed(title: string, description?: string): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setTitle(`${title}`)
-    .setColor(Colors.status.success)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setTitle(`${title}`).setColor(Colors.status.success);
 
   if (description) {
     embed.setDescription(description);
@@ -40,10 +37,7 @@ export function createSuccessEmbed(title: string, description?: string): EmbedBu
  * await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
  */
 export function createErrorEmbed(title: string, description?: string): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setTitle(`${title}`)
-    .setColor(Colors.status.error)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setTitle(`${title}`).setColor(Colors.status.error);
 
   if (description) {
     embed.setDescription(description);
@@ -62,10 +56,7 @@ export function createErrorEmbed(title: string, description?: string): EmbedBuil
  * await channel.send({ embeds: [embed] });
  */
 export function createWarningEmbed(title: string, description?: string): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setTitle(`${title}`)
-    .setColor(Colors.status.warning)
-    .setTimestamp();
+  const embed = new EmbedBuilder().setTitle(`${title}`).setColor(Colors.status.warning);
 
   if (description) {
     embed.setDescription(description);
@@ -84,7 +75,7 @@ export function createWarningEmbed(title: string, description?: string): EmbedBu
  * await channel.send({ embeds: [embed] });
  */
 export function createInfoEmbed(title: string, description?: string): EmbedBuilder {
-  const embed = new EmbedBuilder().setTitle(title).setColor(Colors.status.info).setTimestamp();
+  const embed = new EmbedBuilder().setTitle(title).setColor(Colors.status.info);
 
   if (description) {
     embed.setDescription(description);
@@ -108,7 +99,7 @@ export function createCustomEmbed(
   description?: string,
   color: ColorResolvable = Colors.brand.primary,
 ): EmbedBuilder {
-  const embed = new EmbedBuilder().setTitle(title).setColor(color).setTimestamp();
+  const embed = new EmbedBuilder().setTitle(title).setColor(color);
 
   if (description) {
     embed.setDescription(description);

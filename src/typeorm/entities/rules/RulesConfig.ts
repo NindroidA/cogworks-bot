@@ -1,13 +1,7 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  PrimaryGeneratedColumn,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity({ name: 'rules_configs' })
-// Note: guildId has unique constraint which creates an index automatically
+@Index(['guildId'])
 export class RulesConfig {
   @PrimaryGeneratedColumn()
   id: number;

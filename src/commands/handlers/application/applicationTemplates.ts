@@ -13,8 +13,7 @@ const templates: Record<string, PositionTemplate> = {
   general: {
     name: 'General Application',
     title: 'General Application',
-    description:
-      'Submit a general application to join our team. Fill out the form and our team will review it.',
+    description: 'Submit a general application to join our team. Fill out the form and our team will review it.',
     emoji: '📝',
     ageGateEnabled: false,
     customFields: [
@@ -62,8 +61,7 @@ const templates: Record<string, PositionTemplate> = {
   staff: {
     name: 'Staff Application',
     title: 'Staff Application',
-    description:
-      'Apply to become a staff member. Moderation experience and availability are key factors.',
+    description: 'Apply to become a staff member. Moderation experience and availability are key factors.',
     emoji: '🛡️',
     ageGateEnabled: true,
     customFields: [
@@ -206,8 +204,7 @@ const templates: Record<string, PositionTemplate> = {
   partnership: {
     name: 'Partnership Application',
     title: 'Partnership Application',
-    description:
-      'Apply for a partnership or collaboration. Tell us about your organization and goals.',
+    description: 'Apply for a partnership or collaboration. Tell us about your organization and goals.',
     emoji: '🤝',
     ageGateEnabled: false,
     customFields: [

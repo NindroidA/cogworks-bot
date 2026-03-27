@@ -1,20 +1,11 @@
 import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import {
-  createRateLimitKey,
-  enhancedLogger,
-  handleInteractionError,
-  LANGF,
-  LogCategory,
-  lang,
-  RateLimits,
-  rateLimiter,
-  requireAdmin,
-} from '../../../utils';
+import { guardAdminRateLimit, handleInteractionError, lang, RateLimits } from '../../../utils';
 import { detectionHandler } from './detection';
 import { dmNotifyHandler } from './dmNotify';
 import { escalationHandler } from './escalation';
 import { handleKeywords } from './keywords';
 import { overrideHandler } from './override';
+import { settingsHandler } from './settings';
 import { handleBaitChannelAddChannel, handleBaitChannelRemoveChannel, setupHandler } from './setup';
 import { statsHandler } from './stats';
 import { statusHandler } from './status';
@@ -23,104 +14,86 @@ import { testModeHandler } from './testMode';
 import { toggleHandler } from './toggle';
 import { whitelistHandler } from './whitelist';
 
-export const baitChannelHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-) => {
+export const baitChannelHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
   try {
-    // Require admin permissions for all baitchannel subcommands
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdminRateLimit(interaction, {
+      action: 'baitchannel',
+      limit: RateLimits.BAIT_CHANNEL,
+      scope: 'guild',
+    });
+    if (!guard.allowed) return;
 
     if (!interaction.guildId) return;
-    const guildId = interaction.guildId;
+    const group = interaction.options.getSubcommandGroup(true);
     const subcommand = interaction.options.getSubcommand();
 
-    // Rate limit check (guild-scoped: 10 bait channel operations per hour)
-    const rateLimitKey = createRateLimitKey.guild(guildId, 'baitchannel');
-    const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.BAIT_CHANNEL);
-
-    if (!rateCheck.allowed) {
-      await interaction.reply({
-        content: LANGF(
-          lang.errors.rateLimit,
-          Math.ceil((rateCheck.resetIn || 0) / 60000).toString(),
-        ),
-        flags: [MessageFlags.Ephemeral],
-      });
-      enhancedLogger.warn(
-        `Rate limit exceeded for bait channel command in guild ${guildId}`,
-        LogCategory.SECURITY,
-      );
-      return;
-    }
-
-    switch (subcommand) {
+    switch (group) {
       case 'setup':
-        await setupHandler(client, interaction);
+        switch (subcommand) {
+          case 'setup':
+            await setupHandler(client, interaction);
+            break;
+          case 'toggle':
+            await toggleHandler(client, interaction);
+            break;
+          case 'add-channel':
+            await handleBaitChannelAddChannel(client, interaction);
+            break;
+          case 'remove-channel':
+            await handleBaitChannelRemoveChannel(client, interaction);
+            break;
+          case 'status':
+            await statusHandler(client, interaction);
+            break;
+          default:
+            await interaction.reply({ content: lang.errors.unknownSubcommand, flags: [MessageFlags.Ephemeral] });
+        }
         break;
 
       case 'detection':
-        await detectionHandler(client, interaction);
+        switch (subcommand) {
+          case 'detection':
+            await detectionHandler(client, interaction);
+            break;
+          case 'whitelist':
+            await whitelistHandler(client, interaction);
+            break;
+          case 'keywords':
+            await handleKeywords(client, interaction);
+            break;
+          case 'settings':
+            await settingsHandler(client, interaction);
+            break;
+          case 'test-mode':
+            await testModeHandler(client, interaction);
+            break;
+          default:
+            await interaction.reply({ content: lang.errors.unknownSubcommand, flags: [MessageFlags.Ephemeral] });
+        }
         break;
 
-      case 'whitelist':
-        await whitelistHandler(client, interaction);
-        break;
-
-      case 'status':
-        await statusHandler(client, interaction);
-        break;
-
-      case 'stats':
-        await statsHandler(client, interaction);
-        break;
-
-      case 'toggle':
-        await toggleHandler(client, interaction);
-        break;
-
-      case 'escalation-enable':
-      case 'escalation-disable':
-      case 'escalation-thresholds':
+      case 'escalation':
         await escalationHandler(client, interaction);
         break;
 
-      case 'dm-enable':
-      case 'dm-disable':
-      case 'dm-appeal-info':
-      case 'dm-clear-appeal':
+      case 'dm':
         await dmNotifyHandler(client, interaction);
         break;
 
-      case 'keywords':
-        await handleKeywords(client, interaction);
-        break;
-
-      case 'override':
-        await overrideHandler(client, interaction);
-        break;
-
-      case 'add-channel':
-        await handleBaitChannelAddChannel(client, interaction);
-        break;
-
-      case 'remove-channel':
-        await handleBaitChannelRemoveChannel(client, interaction);
-        break;
-
-      case 'test-mode':
-        await testModeHandler(client, interaction);
-        break;
-
-      case 'summary':
-        await summaryHandler(client, interaction);
+      case 'stats':
+        switch (subcommand) {
+          case 'stats':
+            await statsHandler(client, interaction);
+            break;
+          case 'summary':
+            await summaryHandler(client, interaction);
+            break;
+          case 'override':
+            await overrideHandler(client, interaction);
+            break;
+          default:
+            await interaction.reply({ content: lang.errors.unknownSubcommand, flags: [MessageFlags.Ephemeral] });
+        }
         break;
 
       default:

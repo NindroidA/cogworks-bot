@@ -60,11 +60,13 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
   const enabled = interaction.options.getBoolean('enabled', true);
   const typeId = interaction.options.getString('type');
 
-  enhancedLogger.debug(
-    `Command: /ticket settings ${setting}=${enabled}`,
-    LogCategory.COMMAND_EXECUTION,
-    { userId: interaction.user.id, guildId, setting, enabled, typeId },
-  );
+  enhancedLogger.debug(`Command: /ticket settings ${setting}=${enabled}`, LogCategory.COMMAND_EXECUTION, {
+    userId: interaction.user.id,
+    guildId,
+    setting,
+    enabled,
+    typeId,
+  });
 
   const ticketConfigRepo = AppDataSource.getRepository(TicketConfig);
   const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
@@ -83,17 +85,17 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
 
   if (setting === 'admin-only-mention') {
     await ticketConfigRepo.update({ guildId }, { adminOnlyMentionStaff: enabled });
-    enhancedLogger.info(
-      `Setting updated: admin-only-mention=${enabled}`,
-      LogCategory.COMMAND_EXECUTION,
-      { userId: interaction.user.id, guildId, setting, enabled },
-    );
+    enhancedLogger.info(`Setting updated: admin-only-mention=${enabled}`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      setting,
+      enabled,
+    });
 
     const embed = new EmbedBuilder()
       .setTitle(`${E.ok} ${tl.updated}`)
       .setDescription(enabled ? tl.adminOnlyMentionEnabled : tl.adminOnlyMentionDisabled)
-      .setColor(Colors.status.success)
-      .setTimestamp();
+      .setColor(Colors.status.success);
 
     await interaction.reply({
       embeds: [embed],
@@ -105,11 +107,10 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
   if (setting === 'ping-on-create') {
     // Type is required for this setting
     if (!typeId) {
-      enhancedLogger.warn(
-        'Settings handler: type required for ping-on-create',
-        LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId },
-      );
+      enhancedLogger.warn('Settings handler: type required for ping-on-create', LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+        guildId,
+      });
       await interaction.reply({
         content: tl.typeRequired,
         flags: [MessageFlags.Ephemeral],
@@ -132,11 +133,11 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
       const customType = await customTypeRepo.findOneBy({ guildId, typeId });
 
       if (!customType) {
-        enhancedLogger.warn(
-          `Settings handler: type '${typeId}' not found`,
-          LogCategory.COMMAND_EXECUTION,
-          { userId: interaction.user.id, guildId, typeId },
-        );
+        enhancedLogger.warn(`Settings handler: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION, {
+          userId: interaction.user.id,
+          guildId,
+          typeId,
+        });
         await interaction.reply({
           content: LANGF(tl.typeNotFound, typeId),
           flags: [MessageFlags.Ephemeral],
@@ -148,21 +149,20 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
       await customTypeRepo.update({ guildId, typeId }, { pingStaffOnCreate: enabled });
     }
 
-    enhancedLogger.info(
-      `Setting updated: ping-on-create for '${typeId}'=${enabled}`,
-      LogCategory.COMMAND_EXECUTION,
-      { userId: interaction.user.id, guildId, setting, typeId, enabled },
-    );
+    enhancedLogger.info(`Setting updated: ping-on-create for '${typeId}'=${enabled}`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      setting,
+      typeId,
+      enabled,
+    });
 
     const embed = new EmbedBuilder()
       .setTitle(`${E.ok} ${tl.updated}`)
       .setDescription(
-        enabled
-          ? LANGF(tl.pingOnCreateEnabled, displayName)
-          : LANGF(tl.pingOnCreateDisabled, displayName),
+        enabled ? LANGF(tl.pingOnCreateEnabled, displayName) : LANGF(tl.pingOnCreateDisabled, displayName),
       )
-      .setColor(Colors.status.success)
-      .setTimestamp();
+      .setColor(Colors.status.success);
 
     await interaction.reply({
       embeds: [embed],

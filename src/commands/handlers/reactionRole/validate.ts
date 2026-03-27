@@ -1,16 +1,7 @@
 import type { CacheType, ChatInputCommandInteraction, TextChannel } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
-import {
-  Colors,
-  createRateLimitKey,
-  enhancedLogger,
-  LANGF,
-  LogCategory,
-  lang,
-  rateLimiter,
-  requireAdmin,
-} from '../../../utils';
+import { Colors, enhancedLogger, guardAdminRateLimit, LANGF, LogCategory, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.reactionRole;
@@ -25,34 +16,16 @@ interface ValidationIssue {
  * Validates all reaction role menus in the guild.
  * Checks for missing channels, deleted messages, and removed roles.
  */
-export async function reactionRoleValidateHandler(
-  interaction: ChatInputCommandInteraction<CacheType>,
-) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+export async function reactionRoleValidateHandler(interaction: ChatInputCommandInteraction<CacheType>) {
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'reactionrole-validate',
+    limit: { maxAttempts: 1, windowMs: 300_000 },
+    scope: 'guild',
+  });
+  if (!guard.allowed) return;
 
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
-
-  // Rate limit: 1 per 5 minutes per guild
-  const rateLimitKey = createRateLimitKey.guild(guildId, 'reactionrole-validate');
-  const rateCheck = rateLimiter.check(rateLimitKey, {
-    maxAttempts: 1,
-    windowMs: 300_000,
-  });
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: rateCheck.message!,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
 
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
@@ -85,9 +58,7 @@ export async function reactionRoleValidateHandler(
       if (!channel) {
         issues.push({
           menu: menu.name,
-          issue: tl.validate.channelMissing
-            .replace('{name}', menu.name)
-            .replace('{channelId}', menu.channelId),
+          issue: tl.validate.channelMissing.replace('{name}', menu.name).replace('{channelId}', menu.channelId),
         });
         menuHasIssue = true;
       } else {
@@ -97,9 +68,7 @@ export async function reactionRoleValidateHandler(
         } catch {
           issues.push({
             menu: menu.name,
-            issue: tl.validate.menuMissing
-              .replace('{name}', menu.name)
-              .replace('{channelId}', menu.channelId),
+            issue: tl.validate.menuMissing.replace('{name}', menu.name).replace('{channelId}', menu.channelId),
           });
           menuHasIssue = true;
         }
@@ -112,9 +81,7 @@ export async function reactionRoleValidateHandler(
         } catch {
           issues.push({
             menu: menu.name,
-            issue: tl.validate.roleMissing
-              .replace('{name}', menu.name)
-              .replace('{emoji}', option.emoji),
+            issue: tl.validate.roleMissing.replace('{name}', menu.name).replace('{emoji}', option.emoji),
           });
           menuHasIssue = true;
         }
@@ -126,7 +93,7 @@ export async function reactionRoleValidateHandler(
     }
 
     // Build report embed
-    const embed = new EmbedBuilder().setTitle(tl.validate.title).setTimestamp();
+    const embed = new EmbedBuilder().setTitle(tl.validate.title);
 
     if (issues.length === 0) {
       embed.setColor(Colors.status.success);

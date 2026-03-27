@@ -21,11 +21,7 @@ export const memorySetup = new SlashCommandBuilder()
           .setRequired(false),
       )
       .addStringOption(option =>
-        option
-          .setName('channel-name')
-          .setDescription(tl.channelNameOption)
-          .setRequired(false)
-          .setMaxLength(100),
+        option.setName('channel-name').setDescription(tl.channelNameOption).setRequired(false).setMaxLength(100),
       ),
   )
   .addSubcommand(sub =>
@@ -40,11 +36,7 @@ export const memorySetup = new SlashCommandBuilder()
           .setRequired(true),
       )
       .addStringOption(option =>
-        option
-          .setName('channel-name')
-          .setDescription(tl.channelNameOption)
-          .setRequired(false)
-          .setMaxLength(100),
+        option.setName('channel-name').setDescription(tl.channelNameOption).setRequired(false).setMaxLength(100),
       ),
   )
   .addSubcommand(sub => sub.setName('remove-channel').setDescription(tl.removeChannelDescrp))
@@ -54,11 +46,7 @@ export const memorySetup = new SlashCommandBuilder()
       .setName('tag-add')
       .setDescription(tb.tagAdd)
       .addStringOption(option =>
-        option
-          .setName('name')
-          .setDescription(tb.tagName)
-          .setRequired(true)
-          .setMaxLength(MAX.MEMORY_TAG_NAME_LENGTH),
+        option.setName('name').setDescription(tb.tagName).setRequired(true).setMaxLength(MAX.MEMORY_TAG_NAME_LENGTH),
       )
       .addStringOption(option =>
         option
@@ -67,9 +55,7 @@ export const memorySetup = new SlashCommandBuilder()
           .setRequired(true)
           .addChoices({ name: 'Category', value: 'category' }, { name: 'Status', value: 'status' }),
       )
-      .addStringOption(option =>
-        option.setName('emoji').setDescription(tb.tagEmoji).setRequired(false),
-      )
+      .addStringOption(option => option.setName('emoji').setDescription(tb.tagEmoji).setRequired(false))
       .addChannelOption(option =>
         option
           .setName('channel')
@@ -107,9 +93,7 @@ export const memorySetup = new SlashCommandBuilder()
           .setRequired(false)
           .setMaxLength(MAX.MEMORY_TAG_NAME_LENGTH),
       )
-      .addStringOption(option =>
-        option.setName('emoji').setDescription(tb.tagEmoji).setRequired(false),
-      )
+      .addStringOption(option => option.setName('emoji').setDescription(tb.tagEmoji).setRequired(false))
       .addChannelOption(option =>
         option
           .setName('channel')

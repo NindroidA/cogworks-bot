@@ -18,9 +18,7 @@ export const starboard = new SlashCommandBuilder()
           .addChannelTypes(ChannelType.GuildText)
           .setRequired(true),
       )
-      .addStringOption(option =>
-        option.setName('emoji').setDescription(tl.setup.emoji).setRequired(false),
-      )
+      .addStringOption(option => option.setName('emoji').setDescription(tl.setup.emoji).setRequired(false))
       .addIntegerOption(option =>
         option
           .setName('threshold')
@@ -47,9 +45,7 @@ export const starboard = new SlashCommandBuilder()
             { name: 'ignore-nsfw', value: 'ignore-nsfw' },
           ),
       )
-      .addStringOption(option =>
-        option.setName('value').setDescription(tl.config.value).setRequired(true),
-      ),
+      .addStringOption(option => option.setName('value').setDescription(tl.config.value).setRequired(true)),
   )
   .addSubcommand(sub =>
     sub

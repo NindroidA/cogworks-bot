@@ -1,9 +1,4 @@
-import {
-  type CacheType,
-  type ChatInputCommandInteraction,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import { Colors, enhancedLogger, LogCategory, lang, requireAdmin } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -38,24 +33,18 @@ export async function reactionRoleListHandler(interaction: ChatInputCommandInter
       return;
     }
 
-    const embed = new EmbedBuilder()
-      .setTitle(tl.list.title)
-      .setColor(Colors.brand.primary)
-      .setTimestamp();
+    const embed = new EmbedBuilder().setTitle(tl.list.title).setColor(Colors.brand.primary);
 
     for (const menu of menus) {
       const sorted = [...menu.options].sort((a, b) => a.sortOrder - b.sortOrder);
       const optionLines = sorted.map(opt => {
         // Check if role still exists
         const roleExists = interaction.guild?.roles.cache.has(opt.roleId);
-        const roleDisplay = roleExists
-          ? `<@&${opt.roleId}>`
-          : `${opt.roleId} ${tl.list.roleDeletedWarning}`;
+        const roleDisplay = roleExists ? `<@&${opt.roleId}>` : `${opt.roleId} ${tl.list.roleDeletedWarning}`;
         return `${opt.emoji} → ${roleDisplay}`;
       });
 
-      const modeLabel =
-        menu.mode === 'unique' ? 'Unique' : menu.mode === 'lock' ? 'Lock' : 'Normal';
+      const modeLabel = menu.mode === 'unique' ? 'Unique' : menu.mode === 'lock' ? 'Lock' : 'Normal';
       const value = optionLines.length > 0 ? optionLines.join('\n') : '_No options_';
 
       embed.addFields({
@@ -69,12 +58,9 @@ export async function reactionRoleListHandler(interaction: ChatInputCommandInter
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to list reaction role menus',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    enhancedLogger.error('Failed to list reaction role menus', error as Error, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+    });
     await interaction.reply({
       content: tl.list.error,
       flags: [MessageFlags.Ephemeral],

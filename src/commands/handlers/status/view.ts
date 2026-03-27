@@ -1,10 +1,4 @@
-import {
-  type CacheType,
-  type ChatInputCommandInteraction,
-  EmbedBuilder,
-  MessageFlags,
-  time,
-} from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags, time } from 'discord.js';
 import { Colors, handleInteractionError, lang, requireBotOwner } from '../../../utils';
 import type { StatusManager } from '../../../utils/status/StatusManager';
 
@@ -48,8 +42,7 @@ export async function statusViewHandler(
           value: status.message || tl.view.noMessage,
           inline: true,
         },
-      )
-      .setTimestamp();
+      );
 
     // Affected systems
     const systemsValue =

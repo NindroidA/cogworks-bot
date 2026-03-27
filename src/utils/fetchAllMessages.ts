@@ -7,10 +7,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import axios from 'axios';
 import type { GuildTextBasedChannel, Message } from 'discord.js';
 import JSZip from 'jszip';
 import { lang } from '../lang';
+import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
 
 /**
  * Fetches all messages from a channel and saves them to files
@@ -24,10 +24,7 @@ import { lang } from '../lang';
  * // Creates: ./archives/1234567890.txt
  * // Creates: ./archives/attachments_1234567890.zip (if images found)
  */
-export async function fetchMessagesAndSaveToFile(
-  channel: GuildTextBasedChannel,
-  outputPath: string,
-): Promise<void> {
+export async function fetchMessagesAndSaveToFile(channel: GuildTextBasedChannel, outputPath: string): Promise<void> {
   // Validate channel
   if (!channel) {
     throw new Error('Invalid channel or channel is not a text channel.');
@@ -70,7 +67,7 @@ export async function fetchMessagesAndSaveToFile(
   // Write transcript file
   const fullFile = header + fileContent;
   await fs.promises.writeFile(transcriptPath, fullFile);
-  console.log(lang.console.transcriptSaved);
+  enhancedLogger.info(lang.console.transcriptSaved, LogCategory.SYSTEM);
 
   const zip = new JSZip();
   let attachmentCount = 0;
@@ -80,10 +77,9 @@ export async function fetchMessagesAndSaveToFile(
     for (const attach of msg.attachments.values()) {
       // Only save images
       if (attach.contentType?.startsWith('image/')) {
-        const resp = await axios.get(attach.url, {
-          responseType: 'arraybuffer',
-        });
-        zip.file(attach.name, resp.data);
+        const resp = await fetch(attach.url);
+        const buffer = Buffer.from(await resp.arrayBuffer());
+        zip.file(attach.name, buffer);
         attachmentCount++;
       }
     }
@@ -94,6 +90,6 @@ export async function fetchMessagesAndSaveToFile(
     const zipPath = path.resolve(`${outputPath}attachments_${channel.id}.zip`);
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
     await fs.promises.writeFile(zipPath, zipBuffer);
-    console.log(`${lang.console.attachmentsSaved} (${attachmentCount} images)`);
+    enhancedLogger.info(`${lang.console.attachmentsSaved} (${attachmentCount} images)`, LogCategory.SYSTEM);
   }
 }

@@ -43,7 +43,7 @@ interface TagOption {
 /**
  * Build select menu rows and button row for tag selection
  */
-export function buildTagSelectionComponents(
+function buildTagSelectionComponents(
   categoryOptions: TagOption[],
   statusOptions: TagOption[],
   state: TagSelectionState,
@@ -91,7 +91,7 @@ export function buildTagSelectionComponents(
 /**
  * Build the selection embed showing current category/status choices
  */
-export function buildTagSelectionEmbed(state: TagSelectionState, config: TagSelectionConfig) {
+function buildTagSelectionEmbed(state: TagSelectionState, config: TagSelectionConfig) {
   const embed = new EmbedBuilder()
     .setTitle(config.title)
     .setColor(Colors.brand.primary)
@@ -139,20 +139,11 @@ export async function runTagSelectionCollector(
     emoji: tag.emoji || undefined,
   }));
 
-  const initialComponents = buildTagSelectionComponents(
-    categoryOptions,
-    statusOptions,
-    state,
-    config,
-  );
+  const initialComponents = buildTagSelectionComponents(categoryOptions, statusOptions, state, config);
 
   const response = await interaction.reply({
     embeds: [buildTagSelectionEmbed(state, config)],
-    components: [
-      initialComponents.categorySelect,
-      initialComponents.statusSelect,
-      initialComponents.buttonRow,
-    ],
+    components: [initialComponents.categorySelect, initialComponents.statusSelect, initialComponents.buttonRow],
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -207,9 +198,7 @@ export async function runTagSelectionCollector(
 
   collector.on('end', (_, reason) => {
     if (reason === 'time') {
-      interaction
-        .editReply({ content: lang.errors.timeout, embeds: [], components: [] })
-        .catch(() => null);
+      interaction.editReply({ content: lang.errors.timeout, embeds: [], components: [] }).catch(() => null);
     }
   });
 }
@@ -223,8 +212,6 @@ export function createDefaultSelectionState(statusTags: MemoryTag[]): TagSelecti
     categoryId: null,
     categoryName: null,
     statusId: defaultStatus.id.toString(),
-    statusName: defaultStatus.emoji
-      ? `${defaultStatus.emoji} ${defaultStatus.name}`
-      : defaultStatus.name,
+    statusName: defaultStatus.emoji ? `${defaultStatus.emoji} ${defaultStatus.name}` : defaultStatus.name,
   };
 }

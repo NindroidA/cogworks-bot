@@ -18,9 +18,9 @@ import { Colors } from '../colors';
 import { enhancedLogger, LogCategory } from './enhancedLogger';
 
 export interface MemoryWatchdogConfig {
-  /** Heap usage percentage to trigger a warning (default: 80) */
+  /** Heap usage percentage to trigger a warning (default: 85 prod, 90 dev) */
   heapWarnPct: number;
-  /** Heap usage percentage to trigger a critical alert (default: 95) */
+  /** Heap usage percentage to trigger a critical alert (default: 95 prod, 98 dev) */
   heapCritPct: number;
   /** Map size threshold to trigger a warning (default: 10000) */
   mapWarnSize: number;
@@ -56,9 +56,15 @@ export class MemoryWatchdog {
   private lastAlertTime = 0;
 
   constructor(config?: Partial<MemoryWatchdogConfig>) {
+    const isDev = (process.env.RELEASE || 'prod').toLowerCase().trim() === 'dev';
+
+    // Dev bots have smaller heaps and higher baseline usage — use relaxed thresholds
+    const defaultWarnPct = isDev ? 90 : 85;
+    const defaultCritPct = isDev ? 98 : 95;
+
     this.config = {
-      heapWarnPct: envInt('MEMORY_WARN_HEAP_PCT', config?.heapWarnPct ?? 80),
-      heapCritPct: envInt('MEMORY_CRIT_HEAP_PCT', config?.heapCritPct ?? 95),
+      heapWarnPct: envInt('MEMORY_WARN_HEAP_PCT', config?.heapWarnPct ?? defaultWarnPct),
+      heapCritPct: envInt('MEMORY_CRIT_HEAP_PCT', config?.heapCritPct ?? defaultCritPct),
       mapWarnSize: envInt('MEMORY_MAP_WARN_SIZE', config?.mapWarnSize ?? 10000),
       checkIntervalMs: config?.checkIntervalMs ?? 60_000,
       alertCooldownMs: config?.alertCooldownMs ?? 900_000,
@@ -87,7 +93,10 @@ export class MemoryWatchdog {
   getStats(): WatchdogMemoryStats {
     const mem = process.memoryUsage();
     const heapUsedMB = mem.heapUsed / 1024 / 1024;
-    const heapTotalMB = mem.heapTotal / 1024 / 1024;
+    // Use heap_size_limit (max V8 can grow to) instead of heapTotal (current allocation)
+    // heapTotal is misleading because V8 expands dynamically — 95% of current allocation is normal
+    const v8Stats = require('node:v8').getHeapStatistics();
+    const heapTotalMB = (v8Stats.heap_size_limit || mem.heapTotal) / 1024 / 1024;
 
     const trackedMaps: Record<string, number> = {};
     for (const [name, sizeFn] of this.trackedMaps) {
@@ -149,7 +158,7 @@ export class MemoryWatchdog {
 
     // Status channel alerting (rate-limited)
     if (level !== 'ok') {
-      this.sendStatusChannelAlert(stats, level);
+      void this.sendStatusChannelAlert(stats, level);
     }
 
     return level;
@@ -162,10 +171,7 @@ export class MemoryWatchdog {
     this.client = client;
   }
 
-  private async sendStatusChannelAlert(
-    stats: WatchdogMemoryStats,
-    level: ThresholdLevel,
-  ): Promise<void> {
+  private async sendStatusChannelAlert(stats: WatchdogMemoryStats, level: ThresholdLevel): Promise<void> {
     const channelId = process.env.MEMORY_ALERT_CHANNEL_ID || process.env.STATUS_CHANNEL_ID;
     const isDev = (process.env.RELEASE || 'prod').toLowerCase().trim() === 'dev';
     if (!channelId || !this.client || isDev) return;
@@ -199,9 +205,7 @@ export class MemoryWatchdog {
           },
           { name: 'RSS', value: `${stats.rssMB} MB`, inline: true },
           { name: 'Tracked Maps', value: mapLines || 'None', inline: false },
-        )
-        .setTimestamp();
-
+        );
       await (channel as TextChannel).send({ embeds: [embed] });
     } catch (error) {
       enhancedLogger.error(

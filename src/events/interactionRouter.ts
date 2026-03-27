@@ -29,11 +29,7 @@ import { typeFieldsInteraction } from './typeFieldsInteraction';
  *   `ticket-type-edit-modal:*`, `ticket-email-import-modal`
  */
 export const routeInteraction = async (client: Client, interaction: Interaction): Promise<void> => {
-  if (
-    !interaction.isButton() &&
-    !interaction.isStringSelectMenu() &&
-    !interaction.isModalSubmit()
-  ) {
+  if (!interaction.isButton() && !interaction.isStringSelectMenu() && !interaction.isModalSubmit()) {
     return;
   }
 

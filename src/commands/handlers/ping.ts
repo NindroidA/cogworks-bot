@@ -38,8 +38,7 @@ export async function pingHandler(interaction: ChatInputCommandInteraction): Pro
         { name: tl.wsLatency, value: `${wsLatency}ms`, inline: true },
         { name: tl.apiLatency, value: `${roundtrip}ms`, inline: true },
         { name: tl.uptime, value: formatUptime(uptime), inline: true },
-      )
-      .setTimestamp();
+      );
 
     await interaction.editReply({ content: '', embeds: [embed] });
   } catch (error) {

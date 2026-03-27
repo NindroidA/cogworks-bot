@@ -1,16 +1,13 @@
 import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { ReactionRoleMenu, ReactionRoleOption } from '../../../typeorm/entities/reactionRole';
 import {
-  createRateLimitKey,
   enhancedLogger,
+  guardAdminRateLimit,
   invalidateMenuCache,
-  LANGF,
   LogCategory,
   lang,
   MAX,
   RateLimits,
-  rateLimiter,
-  requireAdmin,
   updateMenuMessage,
   validateEmoji,
   validateRoleForMenu,
@@ -22,14 +19,12 @@ const menuRepo = lazyRepo(ReactionRoleMenu);
 const optionRepo = lazyRepo(ReactionRoleOption);
 
 export async function reactionRoleAddHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'reactionrole-add',
+    limit: RateLimits.ANNOUNCEMENT_SETUP,
+    scope: 'guild',
+  });
+  if (!guard.allowed) return;
 
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
@@ -40,17 +35,6 @@ export async function reactionRoleAddHandler(interaction: ChatInputCommandIntera
   const emoji = interaction.options.getString('emoji', true).trim();
   const role = interaction.options.getRole('role', true);
   const description = interaction.options.getString('description') || null;
-
-  // Rate limit (5 per hour per guild)
-  const rateLimitKey = createRateLimitKey.guild(guildId, 'reactionrole-add');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.ANNOUNCEMENT_SETUP);
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
 
   // Validate emoji format
   const emojiCheck = validateEmoji(emoji);
@@ -152,12 +136,9 @@ export async function reactionRoleAddHandler(interaction: ChatInputCommandIntera
       userId: interaction.user.id,
     });
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to add reaction role option',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    enhancedLogger.error('Failed to add reaction role option', error as Error, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+    });
     await interaction.reply({
       content: tl.add.error,
       flags: [MessageFlags.Ephemeral],

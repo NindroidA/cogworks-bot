@@ -1,19 +1,11 @@
-import {
-  type ChatInputCommandInteraction,
-  type Client,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelLog } from '../../../typeorm/entities/BaitChannelLog';
 import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
-export const overrideHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction,
-) => {
+export const overrideHandler = async (_client: Client, interaction: ChatInputCommandInteraction) => {
   try {
     const guildId = interaction.guildId!;
     const targetUser = interaction.options.getUser('user', true);
@@ -78,8 +70,7 @@ export const overrideHandler = async (
           value: `<t:${Math.floor(recentLog.createdAt.getTime() / 1000)}:R>`,
           inline: true,
         },
-      )
-      .setTimestamp();
+      );
 
     await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
   } catch (error) {

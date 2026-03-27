@@ -1,4 +1,3 @@
-import { lazyRepo } from '../../utils/database/lazyRepo';
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -15,24 +14,9 @@ import {
   MessageFlags,
   StringSelectMenuBuilder,
 } from 'discord.js';
-import {
-  MemoryConfig,
-  MemoryItem,
-  MemoryTag,
-  type MemoryTagType,
-} from '../../typeorm/entities/memory';
-import {
-  Colors,
-  createRateLimitKey,
-  E,
-  enhancedLogger,
-  healthMonitor,
-  LogCategory,
-  lang,
-  RateLimits,
-  rateLimiter,
-  requireAdmin,
-} from '../../utils';
+import { MemoryConfig, MemoryItem, MemoryTag, type MemoryTagType } from '../../typeorm/entities/memory';
+import { Colors, E, enhancedLogger, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../utils';
+import { lazyRepo } from '../../utils/database/lazyRepo';
 
 const tl = lang.memory;
 const memoryConfigRepo = lazyRepo(MemoryConfig);
@@ -57,32 +41,15 @@ const DEFAULT_STATUS_TAGS = [
   { name: 'Completed', emoji: '\u2705' },
 ];
 
-export const memorySetupHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-) => {
-  const startTime = Date.now();
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+export const memorySetupHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
+  const guard = await guardAdminRateLimit(interaction, {
+    action: 'memory-setup',
+    limit: RateLimits.BOT_SETUP,
+    scope: 'guild',
+  });
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
-
-  const rateLimitKey = createRateLimitKey.guild(guildId, 'memory-setup');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.BOT_SETUP);
-  if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: rateCheck.message!,
-      flags: [MessageFlags.Ephemeral],
-    });
-    healthMonitor.recordCommand('memory-setup', Date.now() - startTime, true);
-    return;
-  }
 
   const subcommand = interaction.options.getSubcommand();
 
@@ -109,11 +76,7 @@ export const memorySetupHandler = async (
   }
 };
 
-async function handleSetup(
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-) {
+async function handleSetup(client: Client, interaction: ChatInputCommandInteraction, guildId: string) {
   const existingConfigs = await memoryConfigRepo.find({ where: { guildId } });
 
   if (existingConfigs.length > 0) {
@@ -203,10 +166,7 @@ async function handleSetup(
         return;
       }
 
-      if (
-        i.componentType === ComponentType.ChannelSelect &&
-        i.customId === 'memory_setup_channel'
-      ) {
+      if (i.componentType === ComponentType.ChannelSelect && i.customId === 'memory_setup_channel') {
         collector.stop('selected');
         const selectedChannel = i.channels.first() as ForumChannel;
         await i.update({
@@ -244,11 +204,7 @@ async function handleSetup(
   }
 }
 
-async function handleAddChannel(
-  _client: Client,
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-) {
+async function handleAddChannel(_client: Client, interaction: ChatInputCommandInteraction, guildId: string) {
   const existingConfigs = await memoryConfigRepo.find({ where: { guildId } });
 
   if (existingConfigs.length >= MAX.MEMORY_CHANNELS_PER_GUILD) {
@@ -274,8 +230,7 @@ async function handleAddChannel(
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
   try {
-    const nextSortOrder =
-      existingConfigs.length > 0 ? Math.max(...existingConfigs.map(c => c.sortOrder)) + 1 : 0;
+    const nextSortOrder = existingConfigs.length > 0 ? Math.max(...existingConfigs.map(c => c.sortOrder)) + 1 : 0;
 
     const messageId = await postWelcomeThread(channel);
 
@@ -298,17 +253,15 @@ async function handleAddChannel(
       `Memory add-channel error: ${error}`,
       error instanceof Error ? error : undefined,
       LogCategory.COMMAND_EXECUTION,
-      { guildId },
+      {
+        guildId,
+      },
     );
     await interaction.editReply({ content: `${E.error} ${tl.setup.error}` });
   }
 }
 
-async function handleRemoveChannel(
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-  guildId: string,
-) {
+async function handleRemoveChannel(client: Client, interaction: ChatInputCommandInteraction, guildId: string) {
   const configs = await memoryConfigRepo.find({
     where: { guildId },
     order: { sortOrder: 'ASC' },
@@ -343,8 +296,7 @@ async function handleRemoveChannel(
 
   try {
     const i = await response.awaitMessageComponent({
-      filter: i =>
-        i.user.id === interaction.user.id && i.customId === 'memory_remove_channel_select',
+      filter: i => i.user.id === interaction.user.id && i.customId === 'memory_remove_channel_select',
       time: 30000,
     });
 
@@ -405,7 +357,9 @@ async function handleRemoveChannel(
           `Memory remove-channel error: ${error}`,
           error instanceof Error ? error : undefined,
           LogCategory.COMMAND_EXECUTION,
-          { guildId },
+          {
+            guildId,
+          },
         );
         await confirmI.editReply({ content: `${E.error} ${tl.setup.error}` });
       }
@@ -434,9 +388,7 @@ async function handleView(interaction: ChatInputCommandInteraction, guildId: str
     return;
   }
 
-  const embed = new EmbedBuilder()
-    .setTitle(`${E.memory} ${tl.setup.viewTitle}`)
-    .setColor(Colors.brand.primary);
+  const embed = new EmbedBuilder().setTitle(`${E.memory} ${tl.setup.viewTitle}`).setColor(Colors.brand.primary);
 
   for (const config of configs) {
     const tagCount = await memoryTagRepo.count({
@@ -462,8 +414,7 @@ function createWelcomeEmbed(): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle(`${E.memory || '\u{1F4DD}'} ${tl.setup.welcomeTitle}`)
     .setDescription(tl.setup.welcomeDescription)
-    .setColor(Colors.brand.primary)
-    .setTimestamp();
+    .setColor(Colors.brand.primary);
 }
 
 async function deleteOldWelcomeThread(client: Client, config: MemoryConfig): Promise<void> {
@@ -506,10 +457,7 @@ async function postWelcomeThread(forum: ForumChannel): Promise<string | null> {
     try {
       await thread.pin();
     } catch {
-      enhancedLogger.warn(
-        'Could not pin memory welcome thread to forum',
-        LogCategory.COMMAND_EXECUTION,
-      );
+      enhancedLogger.warn('Could not pin memory welcome thread to forum', LogCategory.COMMAND_EXECUTION);
     }
 
     return thread.id;
@@ -602,7 +550,9 @@ async function createMemoryForum(
       `Failed to create memory forum: ${error}`,
       error instanceof Error ? error : undefined,
       LogCategory.COMMAND_EXECUTION,
-      { guildId },
+      {
+        guildId,
+      },
     );
     await interaction.editReply({
       content: `${E.error} ${tl.setup.error}`,

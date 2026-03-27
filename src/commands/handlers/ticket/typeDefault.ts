@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang, requireAdmin } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeDefault;
 
@@ -11,6 +11,15 @@ const tl = lang.ticket.customTypes.typeDefault;
  */
 export async function typeDefaultHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
+    const adminCheck = requireAdmin(interaction);
+    if (!adminCheck.allowed) {
+      await interaction.reply({
+        content: adminCheck.message ?? '',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     if (!interaction.guild) {
       enhancedLogger.warn('Type-default handler: guild not found', LogCategory.COMMAND_EXECUTION, {
         userId: interaction.user.id,
@@ -25,11 +34,11 @@ export async function typeDefaultHandler(interaction: ChatInputCommandInteractio
     const guildId = interaction.guild.id;
     const typeId = interaction.options.getString('type', true);
 
-    enhancedLogger.debug(
-      `Command: /ticket type-default type=${typeId}`,
-      LogCategory.COMMAND_EXECUTION,
-      { userId: interaction.user.id, guildId, typeId },
-    );
+    enhancedLogger.debug(`Command: /ticket type-default type=${typeId}`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      typeId,
+    });
 
     const typeRepo = AppDataSource.getRepository(CustomTicketType);
 
@@ -38,11 +47,11 @@ export async function typeDefaultHandler(interaction: ChatInputCommandInteractio
     });
 
     if (!type) {
-      enhancedLogger.warn(
-        `Type-default: type '${typeId}' not found`,
-        LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId, typeId },
-      );
+      enhancedLogger.warn(`Type-default: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+        guildId,
+        typeId,
+      });
       await interaction.reply({
         content: tl.notFound,
         flags: [MessageFlags.Ephemeral],
@@ -51,11 +60,11 @@ export async function typeDefaultHandler(interaction: ChatInputCommandInteractio
     }
 
     if (!type.isActive) {
-      enhancedLogger.warn(
-        `Type-default: type '${typeId}' is inactive`,
-        LogCategory.COMMAND_EXECUTION,
-        { userId: interaction.user.id, guildId, typeId },
-      );
+      enhancedLogger.warn(`Type-default: type '${typeId}' is inactive`, LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+        guildId,
+        typeId,
+      });
       await interaction.reply({
         content: tl.mustBeActive,
         flags: [MessageFlags.Ephemeral],

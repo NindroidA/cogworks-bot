@@ -35,10 +35,7 @@ export function xpForNextLevel(level: number): number {
  * Get XP progress within the current level.
  * Returns current XP into level, XP needed for next, and percentage.
  */
-export function xpProgress(
-  xp: number,
-  level: number,
-): { current: number; needed: number; percentage: number } {
+export function xpProgress(xp: number, level: number): { current: number; needed: number; percentage: number } {
   const currentLevelXp = xpForLevel(level);
   const nextLevelXp = xpForNextLevel(level);
   const current = xp - currentLevelXp;

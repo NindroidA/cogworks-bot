@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
 
 const tl = lang.dev.migrate;
@@ -7,7 +7,6 @@ export const migrate = new SlashCommandBuilder()
   .setName('migrate')
   .setDescription(tl.cmdDescrp)
   .setDMPermission(false)
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand(subcommand => subcommand.setName('ticket-tags').setDescription(tl.ticketTags))
-  .addSubcommand(subcommand =>
-    subcommand.setName('application-tags').setDescription(tl.applicationTags),
-  );
+  .addSubcommand(subcommand => subcommand.setName('application-tags').setDescription(tl.applicationTags));

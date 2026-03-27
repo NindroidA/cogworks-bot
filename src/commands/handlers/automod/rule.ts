@@ -20,7 +20,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang, showAndAwaitModal } from '../../../utils';
 import {
   createAutoModRule,
   deleteAutoModRule,
@@ -29,14 +29,10 @@ import {
   getTriggerTypeLabel,
   MAX_AUTOMOD_RULES,
 } from '../../../utils/automod/helpers';
-import { notifyModalTimeout } from '../../../utils/collectors';
 
 const tl = lang.automod;
 
-export const ruleHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> => {
+export const ruleHandler = async (_client: Client, interaction: ChatInputCommandInteraction): Promise<void> => {
   const subcommand = interaction.options.getSubcommand();
 
   switch (subcommand) {
@@ -156,9 +152,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
     }
 
     // Show modal to edit rule name
-    const modal = new ModalBuilder()
-      .setCustomId(`automod_rule_edit_${ruleId}`)
-      .setTitle(tl.rule.edit.modalTitle);
+    const modal = new ModalBuilder().setCustomId(`automod_rule_edit_${ruleId}`).setTitle(tl.rule.edit.modalTitle);
 
     const nameInput = new TextInputBuilder()
       .setCustomId('rule_name')
@@ -171,12 +165,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
 
     modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput));
 
-    await interaction.showModal(modal);
-
-    const modalSubmit = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-      await notifyModalTimeout(interaction);
-      return null;
-    });
+    const modalSubmit = await showAndAwaitModal(interaction, modal);
     if (!modalSubmit) return;
 
     const newName = modalSubmit.fields.getTextInputValue('rule_name');
@@ -223,14 +212,8 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
 
     // Confirmation
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId('automod_delete_confirm')
-        .setLabel('Confirm Delete')
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId('automod_delete_cancel')
-        .setLabel('Cancel')
-        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('automod_delete_confirm').setLabel('Confirm Delete').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId('automod_delete_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
     );
 
     const reply = await interaction.reply({
@@ -307,24 +290,15 @@ async function handleList(interaction: ChatInputCommandInteraction): Promise<voi
       lines.push(`**Type:** ${getTriggerTypeLabel(rule.triggerType)}`);
       lines.push(`**Status:** ${rule.enabled ? tl.rule.list.enabled : tl.rule.list.disabled}`);
 
-      if (
-        rule.triggerType === AutoModerationRuleTriggerType.Keyword &&
-        rule.triggerMetadata.keywordFilter
-      ) {
+      if (rule.triggerType === AutoModerationRuleTriggerType.Keyword && rule.triggerMetadata.keywordFilter) {
         lines.push(LANGF(tl.rule.list.keywords, rule.triggerMetadata.keywordFilter.length));
       }
 
-      if (
-        rule.triggerType === AutoModerationRuleTriggerType.Keyword &&
-        rule.triggerMetadata.regexPatterns
-      ) {
+      if (rule.triggerType === AutoModerationRuleTriggerType.Keyword && rule.triggerMetadata.regexPatterns) {
         lines.push(LANGF(tl.rule.list.regexPatterns, rule.triggerMetadata.regexPatterns.length));
       }
 
-      if (
-        rule.triggerType === AutoModerationRuleTriggerType.MentionSpam &&
-        rule.triggerMetadata.mentionTotalLimit
-      ) {
+      if (rule.triggerType === AutoModerationRuleTriggerType.MentionSpam && rule.triggerMetadata.mentionTotalLimit) {
         lines.push(LANGF(tl.rule.list.mentionLimit, rule.triggerMetadata.mentionTotalLimit));
       }
 

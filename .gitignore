@@ -79,7 +79,6 @@ temp/
 .claude/
 .plans/
 .desloppify/
-CLAUDE.md
 
 # Docker
 *.tar.gz
@@ -93,4 +92,3 @@ src/utils/baResponses.json
 # Development
 TODO.md
 task_plan.md
-docs/admin_guide.md

@@ -1,9 +1,4 @@
-import {
-  type ChatInputCommandInteraction,
-  type Client,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { MoreThan } from 'typeorm';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelLog } from '../../../typeorm/entities/BaitChannelLog';
@@ -43,18 +38,14 @@ export const statsHandler = async (_client: Client, interaction: ChatInputComman
       overridden: recentLogs.filter(l => l.overridden).length,
       avgScore:
         recentLogs.length > 0
-          ? (recentLogs.reduce((sum, l) => sum + l.suspicionScore, 0) / recentLogs.length).toFixed(
-              1,
-            )
+          ? (recentLogs.reduce((sum, l) => sum + l.suspicionScore, 0) / recentLogs.length).toFixed(1)
           : '0',
     };
 
     // Override rate calculation
     const actionableLogs = recentLogs.filter(l => l.actionTaken !== 'logged');
     const overrideRate =
-      actionableLogs.length > 0
-        ? ((stats.overridden / actionableLogs.length) * 100).toFixed(1)
-        : '0.0';
+      actionableLogs.length > 0 ? ((stats.overridden / actionableLogs.length) * 100).toFixed(1) : '0.0';
 
     // Score distribution buckets
     const scoreDist = {
@@ -124,8 +115,7 @@ export const statsHandler = async (_client: Client, interaction: ChatInputComman
           value: `0-29: ${scoreDist.low} | 30-59: ${scoreDist.medium} | 60-89: ${scoreDist.high} | 90-100: ${scoreDist.critical}`,
           inline: false,
         },
-      )
-      .setTimestamp();
+      );
 
     if (topFlags) {
       embed.addFields({

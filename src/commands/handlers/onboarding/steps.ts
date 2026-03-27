@@ -1,10 +1,4 @@
-import {
-  type CacheType,
-  type ChatInputCommandInteraction,
-  type Client,
-  EmbedBuilder,
-  MessageFlags,
-} from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import onboardingLang from '../../../lang/onboarding.json';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
 import { enhancedLogger, LANGF } from '../../../utils';
@@ -31,10 +25,7 @@ function generateStepId(title: string): string {
 /**
  * Add a new step to the onboarding flow.
  */
-export const stepAddHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const stepAddHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
   const type = interaction.options.getString('type', true) as OnboardingStepType;
   const title = interaction.options.getString('title', true);
@@ -90,10 +81,7 @@ export const stepAddHandler = async (
 /**
  * Remove a step from the onboarding flow.
  */
-export const stepRemoveHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const stepRemoveHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
   const stepId = interaction.options.getString('step', true);
 
@@ -135,10 +123,7 @@ export const stepRemoveHandler = async (
 /**
  * List all onboarding steps.
  */
-export const stepListHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export const stepListHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
 
   const config = await configRepo.findOneBy({ guildId });

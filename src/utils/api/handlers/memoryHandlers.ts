@@ -2,6 +2,7 @@ import type { Client, ForumChannel } from 'discord.js';
 import { MemoryConfig, MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import { lazyRepo } from '../../database/lazyRepo';
 import { ApiError } from '../apiError';
+import { optionalNumber, optionalString, requireNumber, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
@@ -12,13 +13,10 @@ const memoryTagRepo = lazyRepo(MemoryTag);
 export function registerMemoryHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // POST /internal/guilds/:guildId/memory/create
   routes.set('POST /memory/create', async (guildId, body) => {
-    const memoryConfigId = body.memoryConfigId as number;
-    const title = body.title as string;
-    const description = body.description as string;
-    const createdBy = body.createdBy as string;
-    if (!memoryConfigId || !title || !createdBy) {
-      throw ApiError.badRequest('memoryConfigId, title, and createdBy are required');
-    }
+    const memoryConfigId = requireNumber(body, 'memoryConfigId');
+    const title = requireString(body, 'title');
+    const description = optionalString(body, 'description');
+    const createdBy = requireString(body, 'createdBy');
 
     const config = await memoryConfigRepo.findOneBy({
       guildId,
@@ -29,14 +27,12 @@ export function registerMemoryHandlers(client: Client, routes: Map<string, Route
     const guild = client.guilds.cache.get(guildId);
     if (!guild) throw ApiError.notFound('Guild not found');
 
-    const forum = (await guild.channels
-      .fetch(config.forumChannelId)
-      .catch(() => null)) as ForumChannel | null;
+    const forum = (await guild.channels.fetch(config.forumChannelId).catch(() => null)) as ForumChannel | null;
     if (!forum) throw ApiError.notFound('Memory forum channel not found');
 
     // Build applied tags
     const appliedTags: string[] = [];
-    const categoryTagId = body.categoryTagId as number | undefined;
+    const categoryTagId = optionalNumber(body, 'categoryTagId');
     if (categoryTagId) {
       const tag = await memoryTagRepo.findOneBy({
         id: categoryTagId,
@@ -73,7 +69,8 @@ export function registerMemoryHandlers(client: Client, routes: Map<string, Route
     });
     await memoryItemRepo.save(memoryItem);
 
-    await writeAuditLog(guildId, 'memory.create', body.triggeredBy as string, {
+    const triggeredBy = optionalString(body, 'triggeredBy');
+    await writeAuditLog(guildId, 'memory.create', triggeredBy, {
       threadId: thread.id,
       itemId: memoryItem.id,
     });

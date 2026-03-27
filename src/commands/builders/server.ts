@@ -3,7 +3,4 @@ import { lang } from '../../utils';
 
 const tl = lang.general.server;
 
-export const server = new SlashCommandBuilder()
-  .setName('server')
-  .setDescription(tl.cmdDescrp)
-  .toJSON();
+export const server = new SlashCommandBuilder().setName('server').setDescription(tl.cmdDescrp).toJSON();

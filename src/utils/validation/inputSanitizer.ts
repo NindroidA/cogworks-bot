@@ -31,13 +31,6 @@ export function escapeDiscordMarkdown(text: string): string {
 }
 
 /**
- * Validates a Discord snowflake ID (17-20 digit numeric string).
- */
-export function validateSnowflake(id: string): boolean {
-  return /^\d{17,20}$/.test(id);
-}
-
-/**
  * Masks an email address for safe logging.
  * `user@example.com` → `u***@e***.com`
  */
@@ -95,12 +88,7 @@ export function validateSafeUrl(url: string): string | null {
   // Block IPv6 link-local and loopback (bracket-wrapped in URLs)
   if (hostname.startsWith('[')) {
     const ipv6 = hostname.slice(1, -1).toLowerCase();
-    if (
-      ipv6 === '::1' ||
-      ipv6.startsWith('fe80:') ||
-      ipv6.startsWith('fc') ||
-      ipv6.startsWith('fd')
-    ) {
+    if (ipv6 === '::1' || ipv6.startsWith('fe80:') || ipv6.startsWith('fc') || ipv6.startsWith('fd')) {
       return 'Private/internal IP addresses are not allowed';
     }
   }
@@ -179,10 +167,7 @@ export interface SanitizeOptions {
  * 4. escapeDiscordMarkdown() (if enabled)
  * 5. truncateWithNotice() (if maxLength provided)
  */
-export function sanitizeUserInput(
-  input: string | null | undefined,
-  options?: SanitizeOptions,
-): string {
+export function sanitizeUserInput(input: string | null | undefined, options?: SanitizeOptions): string {
   if (input == null) return '';
 
   let result = input.trim();

@@ -93,10 +93,7 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
 
   // close ticket button
   const closeButton = new ActionRowBuilder<ButtonBuilder>().setComponents(
-    new ButtonBuilder()
-      .setCustomId('close_ticket')
-      .setLabel('Close Ticket')
-      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('close_ticket').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
   );
 
   // set the components of the welcome message to just have the close button

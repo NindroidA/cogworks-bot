@@ -1,15 +1,13 @@
 import { type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { ArchivedApplication } from '../../../typeorm/entities/application/ArchivedApplication';
-import { handleInteractionError, lang, requireAdmin } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LogCategory, lang, requireAdmin } from '../../../utils';
 
 /**
  * Delete a specific archived application by user
  * Also deletes the forum post
  */
-export async function deleteArchivedApplicationHandler(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function deleteArchivedApplicationHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     // Admin-only command
     const ownerCheck = requireAdmin(interaction);
@@ -55,7 +53,7 @@ export async function deleteArchivedApplicationHandler(
         forumPostDeleted = true;
       }
     } catch (error) {
-      console.error('Failed to delete forum post:', error);
+      enhancedLogger.warn('Failed to delete forum post', LogCategory.COMMAND_EXECUTION, { error: String(error) });
       // Continue anyway to delete database record
     }
 
@@ -77,9 +75,7 @@ export async function deleteArchivedApplicationHandler(
  * Delete ALL archived applications in the server
  * Also deletes all forum posts
  */
-export async function deleteAllArchivedApplicationsHandler(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function deleteAllArchivedApplicationsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     // Admin-only command
     const ownerCheck = requireAdmin(interaction);
@@ -124,7 +120,10 @@ export async function deleteAllArchivedApplicationsHandler(
         }
       } catch (error) {
         postsFailed++;
-        console.error(`Failed to delete forum post ${app.messageId}:`, error);
+        enhancedLogger.warn('Failed to delete forum post', LogCategory.COMMAND_EXECUTION, {
+          messageId: app.messageId,
+          error: String(error),
+        });
       }
     }
 

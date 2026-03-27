@@ -17,6 +17,7 @@ import {
   type RoleSelectMenuInteraction,
 } from 'discord.js';
 import { lang } from '../lang';
+import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
 
 /**
  * Collector configuration options
@@ -36,9 +37,7 @@ export type ButtonCollectorCallback = (interaction: ButtonInteraction) => Promis
 /**
  * Callback for handling role select interactions
  */
-export type RoleSelectCollectorCallback = (
-  interaction: RoleSelectMenuInteraction,
-) => Promise<void> | void;
+export type RoleSelectCollectorCallback = (interaction: RoleSelectMenuInteraction) => Promise<void> | void;
 
 /**
  * Creates a button collector with standard configuration
@@ -86,13 +85,23 @@ export function createButtonCollector(
   });
 
   if (onCollect) {
-    collector.on('collect', onCollect);
+    collector.on('collect', async i => {
+      try {
+        await onCollect(i);
+      } catch (error) {
+        enhancedLogger.error('Collector onCollect callback failed', error as Error, LogCategory.ERROR);
+      }
+    });
   }
 
   if (onTimeout) {
     collector.on('end', async (_collected, reason) => {
       if (reason === 'time') {
-        await onTimeout();
+        try {
+          await onTimeout();
+        } catch (error) {
+          enhancedLogger.error('Collector onTimeout callback failed', error as Error, LogCategory.ERROR);
+        }
       }
     });
   }
@@ -132,12 +141,22 @@ export function createRoleSelectCollector(
     filter: i => i.user.id === options.userId,
   });
 
-  collector.on('collect', onCollect);
+  collector.on('collect', async i => {
+    try {
+      await onCollect(i);
+    } catch (error) {
+      enhancedLogger.error('Role select collector callback failed', error as Error, LogCategory.ERROR);
+    }
+  });
 
   if (onTimeout) {
     collector.on('end', async (_collected, reason) => {
       if (reason === 'time') {
-        await onTimeout();
+        try {
+          await onTimeout();
+        } catch (error) {
+          enhancedLogger.error('Role select collector timeout callback failed', error as Error, LogCategory.ERROR);
+        }
       }
     });
   }

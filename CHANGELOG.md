@@ -5,9 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - 2026-03-19
+## [3.0.0] - Unreleased (targeting March 2026)
 
 ### Added
+- **Interaction Utility Helpers**: New `src/utils/interactions/` module with standardized patterns
+  - `guardAdminRateLimit()` — combined admin + rate limit guard (replaces 25+ copies of boilerplate)
+  - `awaitConfirmation()` — standardized confirm/cancel button flow with auto-cancel and timeout
+  - `showAndAwaitModal()` — modal show + await + timeout notification wrapper
+  - `TIMEOUTS` constants (modal, confirmation, component, dashboard)
+- **Wired 8 Previously Orphaned Features**: Connected handlers that were built but never registered
+  - Ticket SLA commands: `/ticket sla-enable`, `sla-disable`, `sla-per-type`, `sla-stats`
+  - Ticket routing commands: `/ticket routing-enable`, `routing-disable`, `routing-rule-add/remove`, `routing-strategy`, `routing-stats`
+  - Application workflow commands: `/application status`, `note`, `claim`, `info`, `check`, `workflow-enable/disable`, `workflow-add/remove-status`
+  - Event handlers: onboarding join, scheduled events (5 lifecycle hooks), XP message tracking, XP voice tracking
+  - Analytics snapshot job: periodic daily snapshots with proper start/stop lifecycle
+  - Added `GuildScheduledEvents` and `GuildVoiceStates` intents
+- **Forum Welcome Threads**: Bot-setup now creates pinned welcome threads for all forum channels
+  - Ticket archive, application archive, and memory forums (both auto-create and existing-channel paths)
+- **Codebase Health Scorecard**: Desloppify scorecard at `public/scorecard.png`, displayed in README
+
 - **Constants Consolidation**: Centralized all magic numbers into `src/utils/constants.ts`
   - Cache TTLs, intervals, retention days, max limits, text limits
   - Single source of truth for all configuration values across the codebase
@@ -173,8 +189,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All handlers now throw typed errors instead of returning `{ error: '...' }` with 200
 - **Permission System Consolidation**: Merged `permissions.ts` into `permissionValidator.ts`
   - Single canonical module with `PermissionSets`, `createPrivateChannelPermissions`, and all validators
+- **Discord Components v2 Integration**: New modal components (RadioGroup, CheckboxGroup, Checkbox, Label)
+  - Raw API component helpers (`modalComponents.ts`) for discord-api-types enums
+  - Bait channel settings modal with radio groups and checkboxes
+  - Ticket restriction checkbox group modal (replaces button grid)
+  - Ticket workflow settings modal (enable/disable workflow + auto-close)
+  - Announcement setup with optional modal flow (role + channel selects)
+  - Channel and role select menus in modals
+- **Context Menu Commands**: 6 right-click actions for messages and users
+  - Capture to Memory, Post as Announcement, Close Application (message context)
+  - Open Ticket For User, View Bait Score, Manage Restrictions (user context)
+- **Bot Setup Dashboard**: Unified setup flow replacing 3 separate wizards
+  - Persistent `SetupState` entity tracks configuration progress per guild
+  - Checkbox group for system selection, StringSelectMenu for per-system config
+  - Partial save support (resume later without re-entering data)
+  - Real-time DB state detection for accurate status display
+- **Auto Channel Creation**: Detects guild channel naming patterns and auto-creates channels
+  - Channel format detector analyzes emoji prefixes, separators, casing conventions
+  - Channel creator utility with permission overwrites and category support
+- **Bot Reset (`/bot-reset`)**: Factory reset with archive compilation
+  - Two-stage confirmation (initial warning + final "are you ABSOLUTELY sure")
+  - Compiles all archived data into gzipped JSON and DMs to admin
+  - Cleans up all bot-sent messages (buttons, menus, embeds)
+  - Purges all guild data from database
+- **Archive Cleanup (`/archive cleanup`)**: Export and clean up archived data
+  - Export archived tickets, applications, or all to compressed JSON
+  - DM export file to admin, then optionally delete archived DB entries
+- **Admin Guide Revamp**: Full rewrite covering all v3 systems (removed from .gitignore)
 
 ### Improved
+- **Single-Message Bot Setup UX**: Eliminated stale ephemeral message clutter
+  - Channel choice uses `update()` to morph dashboard in-place (no new messages)
+  - Auto-create shows loading state, modals use `deferUpdate()`
+  - Dashboard always refreshes after system flows (restores from any intermediate state)
+- **Bot-Setup Existing-Channel Parity**: All existing-channel paths now match auto-create functionality
+  - Bait channel: sends warning message + seeds default keywords
+  - Memory: creates default forum tags + welcome thread
+  - Ticket/Application archive: creates welcome thread + pin
+- **Monster Function Refactoring**: Extracted 26 helper functions from 6 oversized handlers
+  - `memory/delete.ts`, `memory/update.ts`, `ticket/emailImport.ts`, `ticketSetup.ts`, `applicationSetup.ts`, `insights/setup.ts`
+- **Dead Code Removal**: Removed 8 dead exports, 1 dead barrel re-export, deduplicated `getTicketCreationTime` and `deleteForumThreads`
+- **Security Hardening**: Added `requireAdmin()` to 9 ticket/application sub-handlers that were missing auth checks
+  - `typeAdd`, `typeEdit`, `typeFields`, `typeList`, `typeRemove`, `typeToggle`, `typeDefault`, `applicationEdit`, `applicationFields`
+- **API Runtime Validation**: Replaced 69 unsafe `as string` type casts in API handlers with runtime body validators
+  - New helpers in `src/utils/api/helpers.ts`: `requireString`, `optionalString`, `requireNumber`, `optionalNumber`, `requireBoolean`, `optionalStringArray`
+  - All API handler body fields now validated at runtime before use (throws 400 on bad input)
+- **Admin Boilerplate Migration**: 33 handlers migrated from manual `requireAdmin` + `rateLimiter.check` (~18 lines each) to single `guardAdminRateLimit()` call (~5 lines)
+- **Deprecated Code Removal**: Removed `minecraftRoleId` fallback reads from 3 announcement files; unified duplicate snowflake validators into single `isValidSnowflake()` in `api/helpers.ts`
 - **Code Quality (Desloppify)**: Comprehensive AI debt cleanup and type safety improvements
   - Removed section separator comments, trivial JSDoc, and restating comments across 30+ files
   - Fixed nullable entity types (BaitActionType union, ExtendedClient assertion reduction)
@@ -184,8 +245,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All remaining `logger()` calls migrated to `enhancedLogger` with proper categories
   - Silent catch blocks documented with intent comments
   - Shared REST client pattern eliminates duplicate Discord REST instances
+- **Code Consolidation**: Reduced duplication across key systems
+  - Unified announcement preview/send: 3 functions → 1 `previewAndSend()` (~150 lines saved)
+  - Shared ticket close workflow: `archiveAndCloseTicket()` used by both event and API handlers — fixes API handler missing legacy type support and forum tag merging
+  - Shared legacy type info: `LEGACY_TYPE_INFO` with display names and emojis
+  - Removed 2,802 lines of orphaned dead code (comprehensiveWizard, modalWizard, channelSetupFlow, 5 step files)
+- **Type Safety**: Tightened types across permission and routing systems
+  - `requireAdmin`/`requireOwner`/`requireGuild` accept any `Interaction` (not just commands)
+  - `TicketConfig.routingStrategy` typed as `RoutingStrategy` union instead of `string`
+  - Announcement setup: `| any` replaced with `| ModalSubmitInteraction`
+  - `askChannelChoice` return typed with `ButtonInteraction` instead of `any`
+- **Documentation**: README revamp with full v3 feature grid, ARCHITECTURE.md with mermaid diagrams
 
 ### Fixed
+- **Archive Cleanup "Unknown Interaction"**: Defer button update before slow async deletion (was timing out)
+- **Bot Setup Buttons Missing After Flow**: Dashboard refresh now clears stale `content` field
+- **Bot Setup Heap Watchdog**: Uses `heap_size_limit` instead of `heapTotal` for accurate threshold
+- **Duplicate Shutdown**: Added re-entry guard to prevent double graceful shutdown on Ctrl+C
+- **Bot Reset**: 3-stage flow (warning → save data choice → confirm), reset confirmation prompt added
+- **Command Registration**: Now registers commands for unconfigured guilds on startup
+- **Bot Reset Forum Cleanup**: Deletes forum threads (archived tickets, applications, memory) during reset
+- **Archive Cleanup Forum Threads**: Deletes forum threads before DB records
+- **Removed All `.setTimestamp()`**: 82 instances across 50 files (embeds no longer show stale timestamps)
 - **Memory Close/Complete**: Fixed "internal error" — reply now sent before thread archive
 - **Memory Close Reply**: Now visible (non-ephemeral) as archive notice in thread
 - **Bot Setup Wizard Duplicate Messages**: Wizard now cleans up old messages before sending new ones on re-setup
@@ -193,6 +274,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Internal API Query Param Routing**: Fixed route matching for endpoints with query parameters (e.g., `?limit=5`)
 
 ### Changed
+- **Command Structure**: `/ticket` and `/baitchannel` refactored from flat subcommands to subcommand groups
+  - `/ticket` (31 subcommands → 5 groups): `type`, `manage`, `workflow`, `sla`, `routing` — e.g., `/ticket type add`, `/ticket manage status`, `/ticket sla stats`
+  - `/baitchannel` (20 subcommands → 5 groups): `setup`, `detection`, `escalation`, `dm`, `stats` — e.g., `/baitchannel setup toggle`, `/baitchannel escalation enable`
+  - Subcommand prefixes dropped within groups (e.g., `type-add` → `type add`, `escalation-enable` → `escalation enable`)
+- **Biome Config**: `lineWidth` 150 → 120, `noFloatingPromises` set to `error` (12 violations fixed)
+- **Discord.js Cache**: Added guild member + message sweepers, cache limits for messages (200) and threads (100)
+- **Connection Pool**: MySQL pool tuning (min: 2, max: 10), `keepAliveInitialDelay` fix
+- **Docker**: Added `docker-compose.yml` for containerized deployment
 - **`MemoryConfig`**: No longer has unique constraint on `guildId` (supports multiple channels)
 - **`MemoryTag` and `MemoryItem`**: Now reference `memoryConfigId` for per-channel scoping
 - **TypeORM Migrations**: Production uses `migrationsRun: true` instead of `synchronize: true`

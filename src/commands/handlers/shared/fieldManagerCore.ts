@@ -76,11 +76,7 @@ export interface FieldManagerConfig<T extends FieldBearingEntity> {
   showEdit?: boolean;
   /** Session management callbacks (optional, used by application fields) */
   session?: {
-    check: (
-      userId: string,
-      guildId: string,
-      entityId?: string,
-    ) => 'active' | 'expired' | 'completed' | 'none';
+    check: (userId: string, guildId: string, entityId?: string) => 'active' | 'expired' | 'completed' | 'none';
     complete: (userId: string, guildId: string, entityId?: string) => void;
     expiredMessage: string;
     completedMessage: string;
@@ -119,11 +115,7 @@ export function stopFieldDraftCleanup(): void {
  * Show the main field management interface
  */
 export async function showFieldManager<T extends FieldBearingEntity>(
-  interaction:
-    | ChatInputCommandInteraction
-    | ButtonInteraction
-    | StringSelectMenuInteraction
-    | ModalSubmitInteraction,
+  interaction: ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
   entity: T,
   config: FieldManagerConfig<T>,
 ): Promise<void> {
@@ -139,10 +131,7 @@ export async function showFieldManager<T extends FieldBearingEntity>(
         ? `*${config.messages.noFields}*`
         : `**Current Fields (${fields.length}/${MAX.CUSTOM_FIELDS_PER_ENTITY})**\n` +
             fields
-              .map(
-                (f, i) =>
-                  `${i + 1}. **${f.label}** (${f.style}${f.required ? ', required' : ', optional'})`,
-              )
+              .map((f, i) => `${i + 1}. **${f.label}** (${f.style}${f.required ? ', required' : ', optional'})`)
               .join('\n'),
     )
     .setFooter({ text: config.getFooterText(entity) });
@@ -211,7 +200,7 @@ export async function showFieldManager<T extends FieldBearingEntity>(
 /**
  * Show modal to add a new field
  */
-export async function showAddFieldModal<T extends FieldBearingEntity>(
+async function showAddFieldModal<T extends FieldBearingEntity>(
   interaction: ButtonInteraction,
   entityId: string,
   config: FieldManagerConfig<T>,
@@ -220,9 +209,7 @@ export async function showAddFieldModal<T extends FieldBearingEntity>(
   const cacheKey = `${userId}_${config.prefix}${entityId}`;
   const cached = fieldDraftCache.get(cacheKey);
 
-  const modal = new ModalBuilder()
-    .setCustomId(`${config.prefix}add_modal_${entityId}`)
-    .setTitle(fm.modalTitle);
+  const modal = new ModalBuilder().setCustomId(`${config.prefix}add_modal_${entityId}`).setTitle(fm.modalTitle);
 
   const fieldId = new TextInputBuilder()
     .setCustomId('field_id')
@@ -307,10 +294,7 @@ export async function handleAddFieldModal<T extends FieldBearingEntity>(
       const sessionStatus = config.session.check(userId, guildId, entityId);
       if (sessionStatus !== 'active') {
         await interaction.reply({
-          content:
-            sessionStatus === 'completed'
-              ? config.session.completedMessage
-              : config.session.expiredMessage,
+          content: sessionStatus === 'completed' ? config.session.completedMessage : config.session.expiredMessage,
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -320,12 +304,8 @@ export async function handleAddFieldModal<T extends FieldBearingEntity>(
     const fieldId = interaction.fields.getTextInputValue('field_id').toLowerCase().trim();
     const fieldLabel = sanitizeUserInput(interaction.fields.getTextInputValue('field_label'));
     const fieldStyle = interaction.fields.getTextInputValue('field_style').toLowerCase().trim();
-    const fieldRequired = interaction.fields
-      .getTextInputValue('field_required')
-      .toLowerCase()
-      .trim();
-    const fieldPlaceholder =
-      sanitizeUserInput(interaction.fields.getTextInputValue('field_placeholder')) || undefined;
+    const fieldRequired = interaction.fields.getTextInputValue('field_required').toLowerCase().trim();
+    const fieldPlaceholder = sanitizeUserInput(interaction.fields.getTextInputValue('field_placeholder')) || undefined;
 
     // Cache the values in case of validation failure
     fieldDraftCache.set(cacheKey, {
@@ -395,11 +375,11 @@ export async function handleAddFieldModal<T extends FieldBearingEntity>(
     // Clear the cache on success
     fieldDraftCache.delete(cacheKey);
 
-    enhancedLogger.info(
-      `Field added to ${config.entityLabel}: ${entityId}`,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId, entityId, fieldId },
-    );
+    enhancedLogger.info(`Field added to ${config.entityLabel}: ${entityId}`, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+      entityId,
+      fieldId,
+    });
 
     await interaction.deferUpdate();
     await showFieldManager(interaction, entity, config);
@@ -411,7 +391,7 @@ export async function handleAddFieldModal<T extends FieldBearingEntity>(
 /**
  * Show select menu to choose a field (for delete or edit)
  */
-export async function showFieldSelectMenu<T extends FieldBearingEntity>(
+async function showFieldSelectMenu<T extends FieldBearingEntity>(
   interaction: ButtonInteraction,
   entity: T,
   config: FieldManagerConfig<T>,
@@ -436,10 +416,7 @@ export async function showFieldSelectMenu<T extends FieldBearingEntity>(
   const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
 
   const cancelButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`${prefix}cancel_${entityId}`)
-      .setLabel(btn.cancel)
-      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`${prefix}cancel_${entityId}`).setLabel(btn.cancel).setStyle(ButtonStyle.Secondary),
   );
 
   await interaction.update({
@@ -452,7 +429,7 @@ export async function showFieldSelectMenu<T extends FieldBearingEntity>(
 /**
  * Show reorder interface with up/down buttons for each field
  */
-export async function showReorderInterface<T extends FieldBearingEntity>(
+async function showReorderInterface<T extends FieldBearingEntity>(
   interaction: ButtonInteraction,
   entity: T,
   config: FieldManagerConfig<T>,
@@ -467,10 +444,7 @@ export async function showReorderInterface<T extends FieldBearingEntity>(
     .setDescription(
       `**${fm.currentOrder}**\n` +
         fields
-          .map(
-            (f, i) =>
-              `${i + 1}. **${f.label}** (${f.style}${f.required ? ', required' : ', optional'})`,
-          )
+          .map((f, i) => `${i + 1}. **${f.label}** (${f.style}${f.required ? ', required' : ', optional'})`)
           .join('\n') +
         `\n\n*${fm.reorderHint}*`,
     );
@@ -528,7 +502,7 @@ export async function showReorderInterface<T extends FieldBearingEntity>(
 /**
  * Show preview of the modal with configured fields
  */
-export async function showModalPreview<T extends FieldBearingEntity>(
+async function showModalPreview<T extends FieldBearingEntity>(
   interaction: ButtonInteraction,
   entity: T,
   config: FieldManagerConfig<T>,
@@ -572,7 +546,7 @@ export async function showModalPreview<T extends FieldBearingEntity>(
 /**
  * Handle field deletion
  */
-export async function handleDeleteField<T extends FieldBearingEntity>(
+async function handleDeleteField<T extends FieldBearingEntity>(
   interaction: StringSelectMenuInteraction,
   entity: T,
   config: FieldManagerConfig<T>,
@@ -596,7 +570,11 @@ export async function handleDeleteField<T extends FieldBearingEntity>(
   enhancedLogger.info(
     `Field deleted from ${config.entityLabel}: ${config.getEntityId(entity)}`,
     LogCategory.COMMAND_EXECUTION,
-    { guildId: entity.guildId, entityId: config.getEntityId(entity), fieldId },
+    {
+      guildId: entity.guildId,
+      entityId: config.getEntityId(entity),
+      fieldId,
+    },
   );
 
   await interaction.deferUpdate();
@@ -606,7 +584,7 @@ export async function handleDeleteField<T extends FieldBearingEntity>(
 /**
  * Handle moving a field up or down
  */
-export async function handleMoveField<T extends FieldBearingEntity>(
+async function handleMoveField<T extends FieldBearingEntity>(
   interaction: ButtonInteraction,
   direction: 'up' | 'down',
   fieldIndex: number,
@@ -680,10 +658,7 @@ export async function handleFieldButton<T extends FieldBearingEntity>(
       const sessionStatus = config.session.check(interaction.user.id, guildId, entityId);
       if (sessionStatus !== 'active') {
         await interaction.update({
-          content:
-            sessionStatus === 'completed'
-              ? config.session.completedMessage
-              : config.session.expiredMessage,
+          content: sessionStatus === 'completed' ? config.session.completedMessage : config.session.expiredMessage,
           embeds: [],
           components: [],
         });
@@ -770,10 +745,7 @@ export async function handleFieldSelectMenu<T extends FieldBearingEntity>(
       const sessionStatus = config.session.check(interaction.user.id, guildId, entityId);
       if (sessionStatus !== 'active') {
         await interaction.update({
-          content:
-            sessionStatus === 'completed'
-              ? config.session.completedMessage
-              : config.session.expiredMessage,
+          content: sessionStatus === 'completed' ? config.session.completedMessage : config.session.expiredMessage,
           embeds: [],
           components: [],
         });

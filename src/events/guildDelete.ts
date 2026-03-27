@@ -22,14 +22,8 @@ export default {
       const guildId = guild.id;
       const memberCount = guild.memberCount;
 
-      enhancedLogger.guildEvent(
-        `Left guild: ${guildName} (ID: ${guildId}) - Members: ${memberCount}`,
-        guildId,
-      );
-      enhancedLogger.info(
-        `Starting GDPR-compliant data deletion for guild ${guildId}...`,
-        LogCategory.DATABASE,
-      );
+      enhancedLogger.guildEvent(`Left guild: ${guildName} (ID: ${guildId}) - Members: ${memberCount}`, guildId);
+      enhancedLogger.info(`Starting GDPR-compliant data deletion for guild ${guildId}...`, LogCategory.DATABASE);
 
       // Invalidate in-memory caches for this guild
       invalidateRulesCache(guildId);
@@ -46,12 +40,10 @@ export default {
           { guildId, details: deletionResult.details },
         );
       } else {
-        enhancedLogger.error(
-          `Failed to delete data for guild ${guildName}`,
-          undefined,
-          LogCategory.DATABASE,
-          { guildId, error: deletionResult.error },
-        );
+        enhancedLogger.error(`Failed to delete data for guild ${guildName}`, undefined, LogCategory.DATABASE, {
+          guildId,
+          error: deletionResult.error,
+        });
         enhancedLogger.warn('Manual cleanup may be required', LogCategory.DATABASE, { guildId });
       }
 
@@ -74,16 +66,15 @@ export default {
       }
 
       // Log final bot statistics
-      enhancedLogger.info(
-        `Bot now serving ${client.guilds.cache.size} servers`,
-        LogCategory.SYSTEM,
-      );
+      enhancedLogger.info(`Bot now serving ${client.guilds.cache.size} servers`, LogCategory.SYSTEM);
     } catch (error) {
       enhancedLogger.error(
         `Error handling guild delete for ${guild.name} (${guild.id})`,
         error as Error,
         LogCategory.DATABASE,
-        { guildId: guild.id },
+        {
+          guildId: guild.id,
+        },
       );
       enhancedLogger.warn(
         'Guild data may not have been fully deleted - manual cleanup required',

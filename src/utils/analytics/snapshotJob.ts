@@ -28,9 +28,7 @@ let snapshotInterval: ReturnType<typeof setInterval> | null = null;
  */
 function msUntilMidnightUtc(): number {
   const now = new Date();
-  const tomorrow = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
-  );
+  const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
   return tomorrow.getTime() - now.getTime();
 }
 
@@ -48,10 +46,7 @@ async function runDailySnapshot(client: Client): Promise<void> {
     const enabledConfigs = await configRepo.find({ where: { enabled: true } });
 
     if (enabledConfigs.length === 0) {
-      enhancedLogger.info(
-        'No guilds with analytics enabled, skipping snapshot',
-        LogCategory.SYSTEM,
-      );
+      enhancedLogger.info('No guilds with analytics enabled, skipping snapshot', LogCategory.SYSTEM);
       return;
     }
 
@@ -87,10 +82,7 @@ async function runDailySnapshot(client: Client): Promise<void> {
     });
 
     if (deleteResult.affected && deleteResult.affected > 0) {
-      enhancedLogger.info(
-        `Cleaned ${deleteResult.affected} old analytics snapshots`,
-        LogCategory.DATABASE,
-      );
+      enhancedLogger.info(`Cleaned ${deleteResult.affected} old analytics snapshots`, LogCategory.DATABASE);
     }
 
     // Send digests for configured guilds
@@ -101,12 +93,9 @@ async function runDailySnapshot(client: Client): Promise<void> {
       try {
         await sendDigest(client, config, today);
       } catch (error) {
-        enhancedLogger.error(
-          'Failed to send analytics digest',
-          error as Error,
-          LogCategory.SYSTEM,
-          { guildId: config.guildId },
-        );
+        enhancedLogger.error('Failed to send analytics digest', error as Error, LogCategory.SYSTEM, {
+          guildId: config.guildId,
+        });
       }
     }
 

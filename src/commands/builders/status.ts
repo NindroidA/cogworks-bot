@@ -19,9 +19,7 @@ const set = new SlashCommandSubcommandBuilder()
         { name: 'Scheduled Maintenance', value: 'maintenance' },
       ),
   )
-  .addStringOption(option =>
-    option.setName('message').setDescription(tl.set.message).setRequired(false),
-  )
+  .addStringOption(option => option.setName('message').setDescription(tl.set.message).setRequired(false))
   .addStringOption(option =>
     option.setName('systems').setDescription(tl.set.systems).setRequired(false).setMaxLength(500),
   );
@@ -29,9 +27,7 @@ const set = new SlashCommandSubcommandBuilder()
 const clear = new SlashCommandSubcommandBuilder()
   .setName('clear')
   .setDescription(tl.clear.descrp)
-  .addStringOption(option =>
-    option.setName('message').setDescription(tl.clear.message).setRequired(false),
-  );
+  .addStringOption(option => option.setName('message').setDescription(tl.clear.message).setRequired(false));
 
 const view = new SlashCommandSubcommandBuilder().setName('view').setDescription(tl.view.descrp);
 

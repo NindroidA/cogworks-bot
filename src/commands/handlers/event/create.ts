@@ -17,14 +17,7 @@ import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
 import type { RecurringPattern } from '../../../typeorm/entities/event/EventTemplate';
 import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
-import {
-  enhancedLogger,
-  LANGF,
-  LogCategory,
-  parseTimeInput,
-  requireAdmin,
-  sanitizeUserInput,
-} from '../../../utils';
+import { enhancedLogger, LANGF, LogCategory, parseTimeInput, requireAdmin, sanitizeUserInput } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const eventConfigRepo = lazyRepo(EventConfig);
@@ -159,13 +152,7 @@ export async function handleEventCreate(
 
     // Create auto-reminder if configured
     if (config.reminderChannelId && config.defaultReminderMinutes > 0) {
-      await createAutoReminder(
-        guildId,
-        scheduledEvent.id,
-        title,
-        startDate,
-        config.defaultReminderMinutes,
-      );
+      await createAutoReminder(guildId, scheduledEvent.id, title, startDate, config.defaultReminderMinutes);
     }
 
     let replyContent = LANGF(tl.create.success, title);
@@ -271,31 +258,16 @@ export async function handleFromTemplate(
 
     // Create auto-reminder
     if (config.reminderChannelId && config.defaultReminderMinutes > 0) {
-      await createAutoReminder(
-        guildId,
-        scheduledEvent.id,
-        template.title,
-        startDate,
-        config.defaultReminderMinutes,
-      );
+      await createAutoReminder(guildId, scheduledEvent.id, template.title, startDate, config.defaultReminderMinutes);
     }
 
     await interaction.editReply({
       content: LANGF(tl.fromTemplate.success, template.title),
     });
 
-    enhancedLogger.command(
-      `Event created from template '${templateName}'`,
-      interaction.user.id,
-      guildId,
-    );
+    enhancedLogger.command(`Event created from template '${templateName}'`, interaction.user.id, guildId);
   } catch (error) {
-    enhancedLogger.error(
-      'Event from-template failed',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    enhancedLogger.error('Event from-template failed', error as Error, LogCategory.COMMAND_EXECUTION, { guildId });
     const content = tl.fromTemplate.error;
     if (interaction.deferred) {
       await interaction.editReply({ content });
@@ -348,11 +320,7 @@ export async function handleEventCancel(
       flags: [MessageFlags.Ephemeral],
     });
 
-    enhancedLogger.command(
-      `Event '${scheduledEvent.name}' cancelled`,
-      interaction.user.id,
-      guildId,
-    );
+    enhancedLogger.command(`Event '${scheduledEvent.name}' cancelled`, interaction.user.id, guildId);
   } catch (error) {
     enhancedLogger.error('Event cancel failed', error as Error, LogCategory.COMMAND_EXECUTION, {
       guildId,
@@ -452,13 +420,7 @@ export async function handleRecurring(
 
     // Create auto-reminder
     if (config.reminderChannelId && config.defaultReminderMinutes > 0) {
-      await createAutoReminder(
-        guildId,
-        scheduledEvent.id,
-        template.title,
-        startDate,
-        config.defaultReminderMinutes,
-      );
+      await createAutoReminder(guildId, scheduledEvent.id, template.title, startDate, config.defaultReminderMinutes);
     }
 
     const startTimestamp = `<t:${Math.floor(startDate.getTime() / 1000)}:F>`;
@@ -467,20 +429,11 @@ export async function handleRecurring(
       content: LANGF(tl.recurring.success, template.title, pattern, startTimestamp),
     });
 
-    enhancedLogger.command(
-      `Recurring event '${template.title}' created (${pattern})`,
-      interaction.user.id,
-      guildId,
-    );
+    enhancedLogger.command(`Recurring event '${template.title}' created (${pattern})`, interaction.user.id, guildId);
   } catch (error) {
-    enhancedLogger.error(
-      'Recurring event create failed',
-      error as Error,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        guildId,
-      },
-    );
+    enhancedLogger.error('Recurring event create failed', error as Error, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+    });
     const content = tl.recurring.error;
     if (interaction.deferred) {
       await interaction.editReply({ content });

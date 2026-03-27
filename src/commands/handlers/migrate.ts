@@ -17,9 +17,7 @@ import {
  * Migrate existing archived tickets to use forum tags
  * Available in both dev and production modes
  */
-export async function migrateTicketTagsHandler(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function migrateTicketTagsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     // Admin-only command
     const ownerCheck = requireAdmin(interaction);
@@ -66,6 +64,12 @@ export async function migrateTicketTagsHandler(
       where: { guildId },
     });
 
+    // Batch-fetch all custom ticket types for this guild into a Map (avoids N+1 queries)
+    const allCustomTypes = await customTicketTypeRepo.find({
+      where: { guildId },
+    });
+    const customTypeMap = new Map(allCustomTypes.map(ct => [ct.typeId, ct]));
+
     let updated = 0;
     let skipped = 0;
     let errors = 0;
@@ -78,9 +82,7 @@ export async function migrateTicketTagsHandler(
 
         // Try to get type info
         if (archived.customTypeId) {
-          const customType = await customTicketTypeRepo.findOne({
-            where: { guildId, typeId: archived.customTypeId },
-          });
+          const customType = customTypeMap.get(archived.customTypeId) ?? null;
           if (customType) {
             typeId = customType.typeId;
             displayName = customType.displayName;
@@ -138,21 +140,13 @@ export async function migrateTicketTagsHandler(
           updated++;
         }
       } catch (error) {
-        enhancedLogger.error(
-          `Error migrating ticket ${archived.id}`,
-          error as Error,
-          LogCategory.DATABASE,
-        );
+        enhancedLogger.error(`Error migrating ticket ${archived.id}`, error as Error, LogCategory.DATABASE);
         errors++;
       }
     }
 
     await interaction.editReply(
-      '✅ Migration complete!\n' +
-        '📊 **Results:**\n' +
-        `• Updated: ${updated}\n` +
-        `• Skipped: ${skipped}\n` +
-        `• Errors: ${errors}`,
+      `✅ Migration complete!\n📊 **Results:**\n• Updated: ${updated}\n• Skipped: ${skipped}\n• Errors: ${errors}`,
     );
   } catch (error) {
     await handleInteractionError(interaction, error, 'migrateTicketTagsHandler');
@@ -163,9 +157,7 @@ export async function migrateTicketTagsHandler(
  * Migrate existing archived applications to use forum tags
  * Not currently supported - applications don't have types/tags yet
  */
-export async function migrateApplicationTagsHandler(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function migrateApplicationTagsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     // Admin-only command
     const ownerCheck = requireAdmin(interaction);

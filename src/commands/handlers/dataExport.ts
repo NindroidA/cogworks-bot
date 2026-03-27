@@ -54,16 +54,7 @@ import { UserActivity } from '../../typeorm/entities/UserActivity';
 import { XPConfig } from '../../typeorm/entities/xp/XPConfig';
 import { XPRoleReward } from '../../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../../typeorm/entities/xp/XPUser';
-import {
-  createRateLimitKey,
-  enhancedLogger,
-  LANGF,
-  LogCategory,
-  lang,
-  RateLimits,
-  rateLimiter,
-  requireAdmin,
-} from '../../utils';
+import { enhancedLogger, guardAdminRateLimit, LANGF, LogCategory, lang, RateLimits } from '../../utils';
 
 /**
  * Handle data export command
@@ -84,35 +75,17 @@ export const dataExportHandler = async (
       return;
     }
 
-    // Check admin permission
-    const permissionCheck = requireAdmin(interaction);
-    if (!permissionCheck.allowed) {
-      await interaction.reply({
-        content: permissionCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    // Check rate limit
-    const rateLimitKey = createRateLimitKey.guild(guildId, 'data-export');
-    const rateLimit = rateLimiter.check(rateLimitKey, RateLimits.DATA_EXPORT);
-
-    if (!rateLimit.allowed) {
-      await interaction.reply({
-        content: rateLimit.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdminRateLimit(interaction, {
+      action: 'data-export',
+      limit: RateLimits.DATA_EXPORT,
+      scope: 'guild',
+    });
+    if (!guard.allowed) return;
 
     // Defer reply as export may take time
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-    enhancedLogger.info(
-      LANGF(tl.starting, guildId, interaction.user.tag),
-      LogCategory.COMMAND_EXECUTION,
-    );
+    enhancedLogger.info(LANGF(tl.starting, guildId, interaction.user.tag), LogCategory.COMMAND_EXECUTION);
 
     // Collect all data in parallel for performance
     const [
@@ -300,9 +273,7 @@ export const dataExportHandler = async (
       },
       totalRecords: totalRecords,
       tables: Object.keys(exportData).length,
-      recordCounts: Object.fromEntries(
-        Object.entries(exportData).map(([key, arr]) => [key, arr.length]),
-      ),
+      recordCounts: Object.fromEntries(Object.entries(exportData).map(([key, arr]) => [key, arr.length])),
     };
 
     const fullExport = {
@@ -349,8 +320,7 @@ export const dataExportHandler = async (
           },
         )
         .setColor(0x00ff00)
-        .setFooter({ text: tl.footer })
-        .setTimestamp();
+        .setFooter({ text: tl.footer });
 
       await dmChannel.send({
         embeds: [embed],
@@ -378,11 +348,7 @@ export const dataExportHandler = async (
       });
     }
   } catch (error) {
-    enhancedLogger.error(
-      `Error in data export: ${(error as Error).message}`,
-      undefined,
-      LogCategory.COMMAND_EXECUTION,
-    );
+    enhancedLogger.error(`Error in data export: ${(error as Error).message}`, undefined, LogCategory.COMMAND_EXECUTION);
 
     const errorContent = lang.dataExport.error;
 

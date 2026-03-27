@@ -8,10 +8,7 @@ import { xpSetupHandler } from './setup';
 /**
  * /xp-setup handler — admin only, routes to setup subcommands
  */
-export const xpSetupCommandHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-) => {
+export const xpSetupCommandHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
   try {
     const adminCheck = requireAdmin(interaction);
     if (!adminCheck.allowed) {
@@ -33,10 +30,7 @@ export const xpSetupCommandHandler = async (
 /**
  * /xp handler — admin only, routes to admin subcommands (set/reset/reset-all)
  */
-export const xpAdminCommandHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-) => {
+export const xpAdminCommandHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
   try {
     const adminCheck = requireAdmin(interaction);
     if (!adminCheck.allowed) {
@@ -58,10 +52,7 @@ export const xpAdminCommandHandler = async (
 /**
  * /rank handler — any user can use
  */
-export const rankCommandHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-) => {
+export const rankCommandHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
   try {
     if (!interaction.guildId) return;
     await rankHandler(client, interaction);
@@ -73,10 +64,7 @@ export const rankCommandHandler = async (
 /**
  * /leaderboard handler — any user can use
  */
-export const leaderboardCommandHandler = async (
-  client: Client,
-  interaction: ChatInputCommandInteraction,
-) => {
+export const leaderboardCommandHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
   try {
     if (!interaction.guildId) return;
     await leaderboardHandler(client, interaction);

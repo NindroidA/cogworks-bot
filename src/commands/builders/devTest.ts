@@ -11,15 +11,9 @@ export const devTest = new SlashCommandBuilder()
     sub
       .setName('starboard-simulate')
       .setDescription('Simulate stars on a message (bypasses reaction requirement)')
-      .addStringOption(opt =>
-        opt.setName('message-id').setDescription('Message ID to star').setRequired(true),
-      )
+      .addStringOption(opt => opt.setName('message-id').setDescription('Message ID to star').setRequired(true))
       .addIntegerOption(opt =>
-        opt
-          .setName('count')
-          .setDescription('Star count to simulate (default: 5)')
-          .setMinValue(1)
-          .setMaxValue(100),
+        opt.setName('count').setDescription('Star count to simulate (default: 5)').setMinValue(1).setMaxValue(100),
       ),
   )
 
@@ -28,20 +22,14 @@ export const devTest = new SlashCommandBuilder()
     sub
       .setName('xp-grant')
       .setDescription('Grant XP to a user (bypass cooldown)')
-      .addUserOption(opt =>
-        opt.setName('user').setDescription('User to grant XP').setRequired(true),
-      )
-      .addIntegerOption(opt =>
-        opt.setName('amount').setDescription('XP amount').setRequired(true).setMinValue(1),
-      ),
+      .addUserOption(opt => opt.setName('user').setDescription('User to grant XP').setRequired(true))
+      .addIntegerOption(opt => opt.setName('amount').setDescription('XP amount').setRequired(true).setMinValue(1)),
   )
   .addSubcommand(sub =>
     sub
       .setName('xp-force-levelup')
       .setDescription('Force a user to the next level')
-      .addUserOption(opt =>
-        opt.setName('user').setDescription('User to level up').setRequired(true),
-      ),
+      .addUserOption(opt => opt.setName('user').setDescription('User to level up').setRequired(true)),
   )
   .addSubcommand(sub =>
     sub
@@ -49,27 +37,19 @@ export const devTest = new SlashCommandBuilder()
       .setDescription('Simulate voice XP for a user (as if they were in voice for N minutes)')
       .addUserOption(opt => opt.setName('user').setDescription('User').setRequired(true))
       .addIntegerOption(opt =>
-        opt
-          .setName('minutes')
-          .setDescription('Minutes of voice to simulate')
-          .setRequired(true)
-          .setMinValue(1),
+        opt.setName('minutes').setDescription('Minutes of voice to simulate').setRequired(true).setMinValue(1),
       ),
   )
 
   // SLA testing
   .addSubcommand(sub =>
-    sub
-      .setName('sla-force-check')
-      .setDescription('Force an immediate SLA breach check (normally runs hourly)'),
+    sub.setName('sla-force-check').setDescription('Force an immediate SLA breach check (normally runs hourly)'),
   )
   .addSubcommand(sub =>
     sub
       .setName('sla-backdate-ticket')
       .setDescription('Backdate a ticket creation time to simulate SLA breach')
-      .addIntegerOption(opt =>
-        opt.setName('ticket-id').setDescription('Ticket ID to backdate').setRequired(true),
-      )
+      .addIntegerOption(opt => opt.setName('ticket-id').setDescription('Ticket ID to backdate').setRequired(true))
       .addIntegerOption(opt =>
         opt
           .setName('minutes-ago')
@@ -90,20 +70,14 @@ export const devTest = new SlashCommandBuilder()
   .addSubcommand(sub =>
     sub
       .setName('analytics-flush')
-      .setDescription(
-        'Force flush analytics counters to snapshot (normally runs daily at midnight)',
-      ),
+      .setDescription('Force flush analytics counters to snapshot (normally runs daily at midnight)'),
   )
   .addSubcommand(sub =>
     sub
       .setName('analytics-seed')
       .setDescription('Seed 30 days of fake analytics data for testing charts')
       .addIntegerOption(opt =>
-        opt
-          .setName('days')
-          .setDescription('Number of days to seed (default: 30)')
-          .setMinValue(1)
-          .setMaxValue(90),
+        opt.setName('days').setDescription('Number of days to seed (default: 30)').setMinValue(1).setMaxValue(90),
       ),
   )
 
@@ -119,9 +93,7 @@ export const devTest = new SlashCommandBuilder()
     sub
       .setName('routing-simulate')
       .setDescription('Simulate ticket routing without creating a ticket')
-      .addStringOption(opt =>
-        opt.setName('ticket-type').setDescription('Ticket type ID to route').setRequired(true),
-      ),
+      .addStringOption(opt => opt.setName('ticket-type').setDescription('Ticket type ID to route').setRequired(true)),
   )
 
   // Import testing
@@ -130,11 +102,7 @@ export const devTest = new SlashCommandBuilder()
       .setName('import-seed-xp')
       .setDescription('Seed fake XP data for 10 test users (for testing leaderboard/rank)')
       .addIntegerOption(opt =>
-        opt
-          .setName('count')
-          .setDescription('Number of users to seed (default: 10)')
-          .setMinValue(1)
-          .setMaxValue(50),
+        opt.setName('count').setDescription('Number of users to seed (default: 10)').setMinValue(1).setMaxValue(50),
       ),
   )
 
@@ -155,14 +123,10 @@ export const devTest = new SlashCommandBuilder()
             { name: 'Maintenance', value: 'maintenance' },
           ),
       )
-      .addStringOption(opt =>
-        opt.setName('message').setDescription('Incident message').setRequired(true),
-      ),
+      .addStringOption(opt => opt.setName('message').setDescription('Incident message').setRequired(true)),
   )
 
   // Cleanup
   .addSubcommand(sub =>
-    sub
-      .setName('cleanup-test-data')
-      .setDescription('Remove all test/seeded data created by dev-test commands'),
+    sub.setName('cleanup-test-data').setDescription('Remove all test/seeded data created by dev-test commands'),
   );

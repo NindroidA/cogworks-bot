@@ -2,11 +2,7 @@ import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
 const API_URL = process.env.API_URL;
 
-export async function notifyGuildJoin(
-  guildId: string,
-  guildName: string,
-  memberCount: number,
-): Promise<void> {
+export async function notifyGuildJoin(guildId: string, guildName: string, memberCount: number): Promise<void> {
   await sendWebhook('guild-join', {
     guildId,
     guildName,

@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  cogworks-bot:
+    image: cogworks-bot:latest
+    container_name: cogworks
+    restart: unless-stopped
+    env_file: services/cogworks/.env
+    network_mode: host
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3003/health/live']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s

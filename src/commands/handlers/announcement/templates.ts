@@ -21,12 +21,9 @@ import {
 } from 'discord.js';
 import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
 import { AnnouncementTemplate } from '../../../typeorm/entities/announcement/AnnouncementTemplate';
-import { enhancedLogger, lang, requireAdmin, sanitizeUserInput } from '../../../utils';
+import { enhancedLogger, lang, notifyModalTimeout, requireAdmin, sanitizeUserInput } from '../../../utils';
 import { DEFAULT_ANNOUNCEMENT_TEMPLATES } from '../../../utils/announcement/defaultTemplates';
-import {
-  detectDynamicPlaceholders,
-  renderPreview,
-} from '../../../utils/announcement/templateEngine';
+import { detectDynamicPlaceholders, renderPreview } from '../../../utils/announcement/templateEngine';
 import { validateHexColor } from '../../../utils/api/helpers';
 import { MAX } from '../../../utils/constants';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -58,7 +55,7 @@ export async function templateHandler(
   const subcommand = interaction.options.getSubcommand();
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
-  const tl = lang.announcement;
+  const _tl = lang.announcement;
 
   // Permission check
   const adminCheck = requireAdmin(interaction);
@@ -101,10 +98,7 @@ export async function templateHandler(
 // Create
 // ============================================================================
 
-async function handleCreate(
-  interaction: ChatInputCommandInteraction<CacheType>,
-  guildId: string,
-): Promise<void> {
+async function handleCreate(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
   const tl = lang.announcement.template;
 
   // Check limit
@@ -170,7 +164,10 @@ async function handleCreate(
 
   await interaction.showModal(modal);
 
-  const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(() => null);
+  const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
+    await notifyModalTimeout(interaction);
+    return null;
+  });
   if (!modalInteraction) return;
 
   const name = modalInteraction.fields.getTextInputValue('name').toLowerCase().trim();
@@ -237,10 +234,7 @@ async function handleCreate(
 // Edit
 // ============================================================================
 
-async function handleEdit(
-  interaction: ChatInputCommandInteraction<CacheType>,
-  guildId: string,
-): Promise<void> {
+async function handleEdit(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
   const tl = lang.announcement.template;
   const templateName = interaction.options.getString('template', true);
 
@@ -300,7 +294,10 @@ async function handleEdit(
 
   await interaction.showModal(modal);
 
-  const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(() => null);
+  const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
+    await notifyModalTimeout(interaction);
+    return null;
+  });
   if (!modalInteraction) return;
 
   const displayName = sanitizeUserInput(modalInteraction.fields.getTextInputValue('display_name'));
@@ -340,10 +337,7 @@ async function handleEdit(
 // Delete
 // ============================================================================
 
-async function handleDelete(
-  interaction: ChatInputCommandInteraction<CacheType>,
-  guildId: string,
-): Promise<void> {
+async function handleDelete(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
   const tl = lang.announcement.template;
   const templateName = interaction.options.getString('template', true);
 
@@ -389,8 +383,7 @@ async function handleDelete(
     const btn = await interaction.channel?.awaitMessageComponent({
       filter: (i: ButtonInteraction) =>
         i.user.id === interaction.user.id &&
-        (i.customId === 'announcement_tpl_delete_confirm' ||
-          i.customId === 'announcement_tpl_delete_cancel'),
+        (i.customId === 'announcement_tpl_delete_confirm' || i.customId === 'announcement_tpl_delete_cancel'),
       componentType: ComponentType.Button,
       time: 60_000,
     });
@@ -419,10 +412,7 @@ async function handleDelete(
 // List
 // ============================================================================
 
-async function handleList(
-  interaction: ChatInputCommandInteraction<CacheType>,
-  guildId: string,
-): Promise<void> {
+async function handleList(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
   const tl = lang.announcement.template;
 
   const templates = await templateRepo.find({
@@ -442,8 +432,7 @@ async function handleList(
 
   for (const tmpl of templates.slice(0, 25)) {
     const placeholders = detectDynamicPlaceholders(tmpl);
-    const placeholderText =
-      placeholders.length > 0 ? placeholders.map(p => `\`{${p.name}}\``).join(', ') : 'None';
+    const placeholderText = placeholders.length > 0 ? placeholders.map(p => `\`{${p.name}}\``).join(', ') : 'None';
     const defaultBadge = tmpl.isDefault ? ' (default)' : '';
 
     embed.addFields({
@@ -489,7 +478,7 @@ async function handlePreview(
 
   // Get role for preview
   const config = await configRepo.findOneBy({ guildId });
-  const roleId = config?.defaultRoleId || config?.minecraftRoleId;
+  const roleId = config?.defaultRoleId;
 
   const preview = renderPreview(template, interaction.guild, interaction.user, roleId);
 
@@ -504,10 +493,7 @@ async function handlePreview(
 // Reset
 // ============================================================================
 
-async function handleReset(
-  interaction: ChatInputCommandInteraction<CacheType>,
-  guildId: string,
-): Promise<void> {
+async function handleReset(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
   const tl = lang.announcement.template;
 
   // Confirmation
@@ -532,8 +518,7 @@ async function handleReset(
     const btn = await interaction.channel?.awaitMessageComponent({
       filter: (i: ButtonInteraction) =>
         i.user.id === interaction.user.id &&
-        (i.customId === 'announcement_tpl_reset_confirm' ||
-          i.customId === 'announcement_tpl_reset_cancel'),
+        (i.customId === 'announcement_tpl_reset_confirm' || i.customId === 'announcement_tpl_reset_cancel'),
       componentType: ComponentType.Button,
       time: 60_000,
     });
