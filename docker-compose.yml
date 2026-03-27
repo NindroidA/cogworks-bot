@@ -9,9 +9,9 @@ services:
     network_mode: host
     read_only: true
     tmpfs:
-      - /tmp
-      - /app/logs
-      - /app/temp
+      - /tmp:uid=1001,gid=1001
+      - /app/logs:uid=1001,gid=1001
+      - /app/temp:uid=1001,gid=1001
     security_opt:
       - no-new-privileges:true
     healthcheck:
