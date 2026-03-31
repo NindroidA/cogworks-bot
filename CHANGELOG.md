@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.11]
+
+### Changed
+- **API Surface Consistency**: Unified validation patterns and handler signatures
+  - `validateHexColor` and `validateSafeUrl` now return `{ valid, error? }` instead of inverted `string | null` - matches `ValidationResult` convention from validators.ts
+  - All `register*Handlers` functions now accept `(client, routes)` for consistent signatures (setupHandlers, commandHandlers, maintenanceHandlers updated)
+  - Updated 6 call sites and 20+ test assertions for the new return shape
+
 ## [3.0.10]
 
 ### Changed

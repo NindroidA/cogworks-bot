@@ -20,7 +20,7 @@ async function sendWebhook(event: string, body: Record<string, unknown>): Promis
   if (!API_URL) return;
 
   const IS_DEV = (process.env.RELEASE || 'prod').toLowerCase().trim() === 'dev';
-  if (!IS_DEV && validateSafeUrl(API_URL) !== null) {
+  if (!IS_DEV && !validateSafeUrl(API_URL).valid) {
     enhancedLogger.warn('API_URL blocked by URL safety check', LogCategory.API, { url: API_URL });
     return;
   }

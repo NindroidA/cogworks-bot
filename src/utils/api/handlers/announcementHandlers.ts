@@ -82,8 +82,8 @@ export function registerAnnouncementHandlers(client: Client, routes: Map<string,
     const description = sanitizeUserInput(requireString(body, 'description'));
 
     const color = optionalString(body, 'color') ?? '#5865F2';
-    const colorError = validateHexColor(color);
-    if (colorError) throw ApiError.badRequest(colorError);
+    const colorCheck = validateHexColor(color);
+    if (!colorCheck.valid) throw ApiError.badRequest(colorCheck.error!);
 
     const embed = new EmbedBuilder()
       .setTitle(title)
@@ -151,8 +151,8 @@ export function registerAnnouncementHandlers(client: Client, routes: Map<string,
     }
 
     const color = optionalString(body, 'color') ?? '#5865F2';
-    const colorError = validateHexColor(color);
-    if (colorError) throw ApiError.badRequest(colorError);
+    const colorCheck = validateHexColor(color);
+    if (!colorCheck.valid) throw ApiError.badRequest(colorCheck.error!);
 
     const template = templateRepo.create({
       guildId,

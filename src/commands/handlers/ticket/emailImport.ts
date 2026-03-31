@@ -138,8 +138,8 @@ async function parseAttachmentUrls(
       return null;
     }
 
-    const urlError = validateSafeUrl(url);
-    if (urlError) {
+    const urlCheck = validateSafeUrl(url);
+    if (!urlCheck.valid) {
       await interaction.reply({
         content: LANGF(tl.invalidUrl, url),
         flags: [MessageFlags.Ephemeral],

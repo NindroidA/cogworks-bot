@@ -48,25 +48,27 @@ export function maskEmail(email: string): string {
 
 /**
  * Validates a URL is safe (HTTPS only, no internal/private IPs).
- * Returns null if safe, or an error reason string if blocked.
  */
-export function validateSafeUrl(url: string): string | null {
+export function validateSafeUrl(url: string): {
+  valid: boolean;
+  error?: string;
+} {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    return 'Invalid URL format';
+    return { valid: false, error: 'Invalid URL format' };
   }
 
   if (parsed.protocol !== 'https:') {
-    return 'Only HTTPS URLs are allowed';
+    return { valid: false, error: 'Only HTTPS URLs are allowed' };
   }
 
   const hostname = parsed.hostname.toLowerCase();
 
   // Block localhost variants
   if (hostname === 'localhost' || hostname === '[::1]' || hostname.endsWith('.local')) {
-    return 'Internal hostnames are not allowed';
+    return { valid: false, error: 'Internal hostnames are not allowed' };
   }
 
   // Block private/internal IP ranges
@@ -81,7 +83,10 @@ export function validateSafeUrl(url: string): string | null {
       (a === 169 && b === 254) || // 169.254.0.0/16 (link-local + cloud metadata)
       a === 0 // 0.0.0.0/8
     ) {
-      return 'Private/internal IP addresses are not allowed';
+      return {
+        valid: false,
+        error: 'Private/internal IP addresses are not allowed',
+      };
     }
   }
 
@@ -89,11 +94,14 @@ export function validateSafeUrl(url: string): string | null {
   if (hostname.startsWith('[')) {
     const ipv6 = hostname.slice(1, -1).toLowerCase();
     if (ipv6 === '::1' || ipv6.startsWith('fe80:') || ipv6.startsWith('fc') || ipv6.startsWith('fd')) {
-      return 'Private/internal IP addresses are not allowed';
+      return {
+        valid: false,
+        error: 'Private/internal IP addresses are not allowed',
+      };
     }
   }
 
-  return null;
+  return { valid: true };
 }
 
 /**

@@ -23,8 +23,8 @@ export function registerHandlers(client: Client): Map<string, RouteHandler> {
 
   // Top-level routes (no guildId required)
   registerGuildHandlers(client, routes);
-  registerCommandHandlers(routes);
-  registerMaintenanceHandlers(routes);
+  registerCommandHandlers(client, routes);
+  registerMaintenanceHandlers(client, routes);
 
   // Guild-scoped routes
   registerTicketHandlers(client, routes);
@@ -35,7 +35,7 @@ export function registerHandlers(client: Client): Map<string, RouteHandler> {
   registerReactionRoleHandlers(client, routes);
   registerConfigHandlers(client, routes);
   registerBaitChannelHandlers(client, routes);
-  registerSetupHandlers(routes);
+  registerSetupHandlers(client, routes);
 
   return routes;
 }

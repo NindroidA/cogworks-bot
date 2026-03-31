@@ -179,8 +179,8 @@ async function handleCreate(interaction: ChatInputCommandInteraction<CacheType>,
   }
 
   // Validate color
-  const colorError = validateHexColor(colorInput);
-  if (colorError) {
+  const colorCheck = validateHexColor(colorInput);
+  if (!colorCheck.valid) {
     await modalInteraction.reply({
       content: tl.create.invalidColor,
       flags: [MessageFlags.Ephemeral],
@@ -294,8 +294,8 @@ async function handleEdit(interaction: ChatInputCommandInteraction<CacheType>, g
   const colorInput = modalInteraction.fields.getTextInputValue('color').trim() || template.color;
 
   // Validate color
-  const colorError = validateHexColor(colorInput);
-  if (colorError) {
+  const colorCheck = validateHexColor(colorInput);
+  if (!colorCheck.valid) {
     await modalInteraction.reply({
       content: tl.create.invalidColor,
       flags: [MessageFlags.Ephemeral],

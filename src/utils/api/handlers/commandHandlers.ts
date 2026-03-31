@@ -5,6 +5,7 @@
  * for the webapp's interactive command browser.
  */
 
+import type { Client } from 'discord.js';
 import type { RouteHandler } from '../router';
 
 // Discord API option types
@@ -68,7 +69,12 @@ interface SubcommandInfo {
   name: string;
   description: string;
   usage: string;
-  options?: Array<{ name: string; description: string; required: boolean; type: string }>;
+  options?: Array<{
+    name: string;
+    description: string;
+    required: boolean;
+    type: string;
+  }>;
 }
 
 interface SubcommandGroupInfo {
@@ -188,7 +194,7 @@ function parseCommand(cmd: CommandJson): CommandInfo | null {
   };
 }
 
-export function registerCommandHandlers(routes: Map<string, RouteHandler>): void {
+export function registerCommandHandlers(_client: Client, routes: Map<string, RouteHandler>): void {
   // Lazy-load to avoid circular dependency with command builders
   let cachedResponse: Record<string, unknown> | null = null;
 

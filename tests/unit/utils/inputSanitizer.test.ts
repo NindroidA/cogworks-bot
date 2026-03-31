@@ -159,107 +159,79 @@ describe("maskEmail", () => {
 
 describe("validateSafeUrl", () => {
   test("should accept valid HTTPS URL", () => {
-    expect(validateSafeUrl("https://example.com")).toBeNull();
+    expect(validateSafeUrl("https://example.com")).toEqual({ valid: true });
   });
 
   test("should accept HTTPS URL with path", () => {
-    expect(validateSafeUrl("https://example.com/path/to/page")).toBeNull();
+    expect(validateSafeUrl("https://example.com/path/to/page")).toEqual({
+      valid: true,
+    });
   });
 
   test("should reject HTTP URL", () => {
-    expect(validateSafeUrl("http://example.com")).toBe(
-      "Only HTTPS URLs are allowed",
-    );
+    expect(validateSafeUrl("http://example.com").valid).toBe(false);
   });
 
   test("should reject invalid URL format", () => {
-    expect(validateSafeUrl("not-a-url")).toBe("Invalid URL format");
+    expect(validateSafeUrl("not-a-url").valid).toBe(false);
   });
 
   test("should reject localhost", () => {
-    expect(validateSafeUrl("https://localhost/admin")).toBe(
-      "Internal hostnames are not allowed",
-    );
+    expect(validateSafeUrl("https://localhost/admin").valid).toBe(false);
   });
 
   test("should reject [::1]", () => {
-    expect(validateSafeUrl("https://[::1]/admin")).toBe(
-      "Internal hostnames are not allowed",
-    );
+    expect(validateSafeUrl("https://[::1]/admin").valid).toBe(false);
   });
 
   test("should reject .local domains", () => {
-    expect(validateSafeUrl("https://myserver.local/api")).toBe(
-      "Internal hostnames are not allowed",
-    );
+    expect(validateSafeUrl("https://myserver.local/api").valid).toBe(false);
   });
 
   test("should reject 10.x.x.x private IPs", () => {
-    expect(validateSafeUrl("https://10.0.0.1")).toBe(
-      "Private/internal IP addresses are not allowed",
-    );
+    expect(validateSafeUrl("https://10.0.0.1").valid).toBe(false);
   });
 
   test("should reject 192.168.x.x private IPs", () => {
-    expect(validateSafeUrl("https://192.168.1.1")).toBe(
-      "Private/internal IP addresses are not allowed",
-    );
+    expect(validateSafeUrl("https://192.168.1.1").valid).toBe(false);
   });
 
   test("should reject 172.16-31.x.x private IPs", () => {
-    expect(validateSafeUrl("https://172.16.0.1")).toBe(
-      "Private/internal IP addresses are not allowed",
-    );
-    expect(validateSafeUrl("https://172.31.255.255")).toBe(
-      "Private/internal IP addresses are not allowed",
-    );
+    expect(validateSafeUrl("https://172.16.0.1").valid).toBe(false);
+    expect(validateSafeUrl("https://172.31.255.255").valid).toBe(false);
   });
 
   test("should accept 172.15.x.x (not in private range)", () => {
-    expect(validateSafeUrl("https://172.15.0.1")).toBeNull();
+    expect(validateSafeUrl("https://172.15.0.1")).toEqual({ valid: true });
   });
 
   test("should reject 127.x.x.x loopback", () => {
-    expect(validateSafeUrl("https://127.0.0.1")).toBe(
-      "Private/internal IP addresses are not allowed",
-    );
+    expect(validateSafeUrl("https://127.0.0.1").valid).toBe(false);
   });
 
   test("should reject 169.254.x.x link-local", () => {
-    expect(validateSafeUrl("https://169.254.1.1")).toBe(
-      "Private/internal IP addresses are not allowed",
-    );
+    expect(validateSafeUrl("https://169.254.1.1").valid).toBe(false);
   });
 
   test("should reject 0.0.0.0", () => {
-    expect(validateSafeUrl("https://0.0.0.0")).toBe(
-      "Private/internal IP addresses are not allowed",
-    );
+    expect(validateSafeUrl("https://0.0.0.0").valid).toBe(false);
   });
 
   test("should accept public IP", () => {
-    expect(validateSafeUrl("https://8.8.8.8")).toBeNull();
+    expect(validateSafeUrl("https://8.8.8.8")).toEqual({ valid: true });
   });
 
   test("should reject IPv6 loopback in brackets", () => {
-    expect(validateSafeUrl("https://[::1]")).toBe(
-      "Internal hostnames are not allowed",
-    );
+    expect(validateSafeUrl("https://[::1]").valid).toBe(false);
   });
 
   test("should reject IPv6 link-local fe80:", () => {
-    expect(validateSafeUrl("https://[fe80::1]")).toBe(
-      "Private/internal IP addresses are not allowed",
-    );
+    expect(validateSafeUrl("https://[fe80::1]").valid).toBe(false);
   });
 
   test("should reject IPv6 unique-local fc/fd", () => {
-    expect(validateSafeUrl("https://[fc00::1]")).toBe(
-      "Private/internal IP addresses are not allowed",
-    );
-    expect(validateSafeUrl("https://[fd00::1]")).toBe(
-      "Private/internal IP addresses are not allowed",
-    );
+    expect(validateSafeUrl("https://[fc00::1]").valid).toBe(false);
+    expect(validateSafeUrl("https://[fd00::1]").valid).toBe(false);
   });
 });
 

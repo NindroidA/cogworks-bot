@@ -28,9 +28,12 @@ export function isValidSnowflake(id: string): boolean {
   return SNOWFLAKE_RE.test(id);
 }
 
-/** Validates a hex color string (#RRGGBB). Returns null if valid, error string if not. */
-export function validateHexColor(color: string): string | null {
-  return HEX_COLOR_RE.test(color) ? null : 'Invalid color format, expected #RRGGBB';
+/** Validates a hex color string (#RRGGBB). */
+export function validateHexColor(color: string): {
+  valid: boolean;
+  error?: string;
+} {
+  return HEX_COLOR_RE.test(color) ? { valid: true } : { valid: false, error: 'Invalid color format, expected #RRGGBB' };
 }
 
 // ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@
  * to the webapp dashboard so it stays in sync with the bot's setup dashboard.
  */
 
+import type { Client } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
@@ -69,7 +70,7 @@ async function detectSystemStates(guildId: string): Promise<SystemStates> {
   return states;
 }
 
-export function registerSetupHandlers(routes: Map<string, RouteHandler>): void {
+export function registerSetupHandlers(_client: Client, routes: Map<string, RouteHandler>): void {
   /**
    * GET /internal/guilds/:guildId/setup/state
    *
