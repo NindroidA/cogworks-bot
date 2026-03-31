@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.13]
+
+### Changed
+- **Design Coherence**: Structural cleanup
+  - Removed `botSetup.ts` passthrough wrapper (18 LOC) - commands.ts now imports directly from `botSetup/index`
+  - Moved `PendingBan.ts` to `entities/bait/` alongside other bait entities (5 import sites updated)
+
+## [3.0.12]
+
+### Changed
+- **Type Safety Hardening**: Removed unnecessary type casts and vestigial abstractions
+  - Deleted vestigial `RoutingConfig` interface, `getRoutingFields()`, and `setRoutingFields()` from routing.ts - replaced 12 call sites with direct `config.X` property access (columns already exist on TicketConfig entity)
+  - Widened `showAndAwaitModal` to accept `MessageComponentInteraction` and `ContextMenuCommandInteraction` - removes 3 unnecessary `interaction as any` casts
+  - Removed 3 `null as unknown as string` / `null as unknown as Date` casts on already-nullable entity properties
+  - `as any` count: 39 -> 34 (remaining are justified discord.js raw modal API casts)
+
 ## [3.0.11]
 
 ### Changed

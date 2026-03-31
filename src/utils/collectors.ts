@@ -10,6 +10,7 @@ import {
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   ComponentType,
+  type ContextMenuCommandInteraction,
   type InteractionResponse,
   type Message,
   type MessageComponentInteraction,
@@ -170,7 +171,11 @@ export function createRoleSelectCollector(
  * Use in awaitModalSubmit catch blocks to replace silent failures.
  */
 export async function notifyModalTimeout(
-  interaction: ChatInputCommandInteraction | ButtonInteraction | MessageComponentInteraction,
+  interaction:
+    | ChatInputCommandInteraction
+    | ButtonInteraction
+    | MessageComponentInteraction
+    | ContextMenuCommandInteraction,
 ): Promise<void> {
   try {
     const message = lang.errors.timeout;

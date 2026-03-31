@@ -199,7 +199,7 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     const { ReactionRoleMenu } = await import('../../typeorm/entities/reactionRole');
     const { CustomTicketType } = await import('../../typeorm/entities/ticket/CustomTicketType');
     const { UserTicketRestriction } = await import('../../typeorm/entities/ticket/UserTicketRestriction');
-    const { PendingBan } = await import('../../typeorm/entities/PendingBan');
+    const { PendingBan } = await import('../../typeorm/entities/bait/PendingBan');
     const { AnnouncementLog } = await import('../../typeorm/entities/announcement/AnnouncementLog');
     const { AnnouncementTemplate } = await import('../../typeorm/entities/announcement/AnnouncementTemplate');
     const { AuditLog } = await import('../../typeorm/entities/AuditLog');

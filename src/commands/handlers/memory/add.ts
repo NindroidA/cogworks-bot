@@ -108,7 +108,7 @@ async function showAddModal(
     new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput),
   );
 
-  const modalSubmit = await showAndAwaitModal(interaction as any, modal);
+  const modalSubmit = await showAndAwaitModal(interaction, modal);
   if (!modalSubmit) return;
 
   await handleModalSubmit(modalSubmit, selectionState, guildId, forumChannelId, memoryConfigId);

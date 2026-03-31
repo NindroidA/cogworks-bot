@@ -27,33 +27,6 @@ const MAX_ROUTING_RULES = 25;
 const VALID_STRATEGIES: RoutingStrategy[] = ['round-robin', 'least-load', 'random'];
 
 // ============================================================================
-// Helper: Get config with routing fields
-// ============================================================================
-
-interface RoutingConfig {
-  smartRoutingEnabled: boolean;
-  routingRules: RoutingRule[] | null;
-  routingStrategy: RoutingStrategy;
-}
-
-function getRoutingFields(config: TicketConfig): RoutingConfig {
-  // Access the routing columns (added by separate migration)
-  const c = config as TicketConfig & RoutingConfig;
-  return {
-    smartRoutingEnabled: c.smartRoutingEnabled ?? false,
-    routingRules: c.routingRules ?? null,
-    routingStrategy: c.routingStrategy ?? 'least-load',
-  };
-}
-
-function setRoutingFields(config: TicketConfig, fields: Partial<RoutingConfig>): void {
-  const c = config as TicketConfig & RoutingConfig;
-  if (fields.smartRoutingEnabled !== undefined) c.smartRoutingEnabled = fields.smartRoutingEnabled;
-  if (fields.routingRules !== undefined) c.routingRules = fields.routingRules;
-  if (fields.routingStrategy !== undefined) c.routingStrategy = fields.routingStrategy;
-}
-
-// ============================================================================
 // /ticket routing-enable
 // ============================================================================
 
@@ -80,8 +53,7 @@ export async function routingEnableHandler(interaction: ChatInputCommandInteract
     return;
   }
 
-  const routing = getRoutingFields(config);
-  if (routing.smartRoutingEnabled) {
+  if (config.smartRoutingEnabled) {
     await interaction.reply({
       content: tl.alreadyEnabled,
       flags: [MessageFlags.Ephemeral],
@@ -89,7 +61,7 @@ export async function routingEnableHandler(interaction: ChatInputCommandInteract
     return;
   }
 
-  setRoutingFields(config, { smartRoutingEnabled: true });
+  config.smartRoutingEnabled = true;
   await ticketConfigRepo.save(config);
 
   await interaction.reply({
@@ -121,8 +93,7 @@ export async function routingDisableHandler(interaction: ChatInputCommandInterac
     return;
   }
 
-  const routing = getRoutingFields(config);
-  if (!routing.smartRoutingEnabled) {
+  if (!config.smartRoutingEnabled) {
     await interaction.reply({
       content: tl.alreadyDisabled,
       flags: [MessageFlags.Ephemeral],
@@ -130,7 +101,7 @@ export async function routingDisableHandler(interaction: ChatInputCommandInterac
     return;
   }
 
-  setRoutingFields(config, { smartRoutingEnabled: false });
+  config.smartRoutingEnabled = false;
   await ticketConfigRepo.save(config);
 
   // Clear round-robin state for this guild
@@ -165,8 +136,7 @@ export async function routingRuleAddHandler(interaction: ChatInputCommandInterac
     return;
   }
 
-  const routing = getRoutingFields(config);
-  if (!routing.smartRoutingEnabled) {
+  if (!config.smartRoutingEnabled) {
     await interaction.reply({
       content: tl.notEnabled,
       flags: [MessageFlags.Ephemeral],
@@ -178,7 +148,7 @@ export async function routingRuleAddHandler(interaction: ChatInputCommandInterac
   const role = interaction.options.getRole('role', true);
   const maxOpen = interaction.options.getInteger('max-open') ?? undefined;
 
-  const rules: RoutingRule[] = routing.routingRules ?? [];
+  const rules: RoutingRule[] = config.routingRules ?? [];
 
   // Check for duplicate type
   if (rules.some(r => r.ticketTypeId === ticketTypeId)) {
@@ -205,7 +175,7 @@ export async function routingRuleAddHandler(interaction: ChatInputCommandInterac
   };
 
   rules.push(newRule);
-  setRoutingFields(config, { routingRules: rules });
+  config.routingRules = rules;
   await ticketConfigRepo.save(config);
 
   const maxOpenText = maxOpen != null ? ` (max ${maxOpen} open per staff)` : '';
@@ -241,8 +211,7 @@ export async function routingRuleRemoveHandler(interaction: ChatInputCommandInte
     return;
   }
 
-  const routing = getRoutingFields(config);
-  if (!routing.smartRoutingEnabled) {
+  if (!config.smartRoutingEnabled) {
     await interaction.reply({
       content: tl.notEnabled,
       flags: [MessageFlags.Ephemeral],
@@ -251,7 +220,7 @@ export async function routingRuleRemoveHandler(interaction: ChatInputCommandInte
   }
 
   const ticketTypeId = interaction.options.getString('type', true);
-  const rules: RoutingRule[] = routing.routingRules ?? [];
+  const rules: RoutingRule[] = config.routingRules ?? [];
 
   const ruleIndex = rules.findIndex(r => r.ticketTypeId === ticketTypeId);
   if (ruleIndex === -1) {
@@ -263,7 +232,7 @@ export async function routingRuleRemoveHandler(interaction: ChatInputCommandInte
   }
 
   rules.splice(ruleIndex, 1);
-  setRoutingFields(config, { routingRules: rules });
+  config.routingRules = rules;
   await ticketConfigRepo.save(config);
 
   await interaction.reply({
@@ -296,8 +265,7 @@ export async function routingStrategyHandler(interaction: ChatInputCommandIntera
     return;
   }
 
-  const routing = getRoutingFields(config);
-  if (!routing.smartRoutingEnabled) {
+  if (!config.smartRoutingEnabled) {
     await interaction.reply({
       content: tl.notEnabled,
       flags: [MessageFlags.Ephemeral],
@@ -316,11 +284,11 @@ export async function routingStrategyHandler(interaction: ChatInputCommandIntera
   }
 
   // Reset round-robin index when switching away from it
-  if (routing.routingStrategy === 'round-robin' && strategy !== 'round-robin') {
+  if (config.routingStrategy === 'round-robin' && strategy !== 'round-robin') {
     resetRoundRobin(guildId);
   }
 
-  setRoutingFields(config, { routingStrategy: strategy });
+  config.routingStrategy = strategy;
   await ticketConfigRepo.save(config);
 
   await interaction.reply({
@@ -353,8 +321,7 @@ export async function routingStatsHandler(interaction: ChatInputCommandInteracti
     return;
   }
 
-  const routing = getRoutingFields(config);
-  if (!routing.smartRoutingEnabled) {
+  if (!config.smartRoutingEnabled) {
     await interaction.reply({
       content: tl.notEnabled,
       flags: [MessageFlags.Ephemeral],
@@ -362,7 +329,7 @@ export async function routingStatsHandler(interaction: ChatInputCommandInteracti
     return;
   }
 
-  const rules: RoutingRule[] = routing.routingRules ?? [];
+  const rules: RoutingRule[] = config.routingRules ?? [];
 
   // Count assigned vs unassigned open tickets
   const assignedCount = await ticketRepo
@@ -426,7 +393,7 @@ export async function routingStatsHandler(interaction: ChatInputCommandInteracti
     .addFields(
       {
         name: tl.statsStrategy,
-        value: routing.routingStrategy,
+        value: config.routingStrategy,
         inline: true,
       },
       {
@@ -472,13 +439,12 @@ export async function routingRuleAutocomplete(interaction: {
     return;
   }
 
-  const routing = getRoutingFields(config);
-  if (!routing.smartRoutingEnabled) {
+  if (!config.smartRoutingEnabled) {
     await interaction.respond([]);
     return;
   }
 
-  const rules: RoutingRule[] = routing.routingRules ?? [];
+  const rules: RoutingRule[] = config.routingRules ?? [];
   const choices = rules.map(r => ({
     name: r.ticketTypeId,
     value: r.ticketTypeId,

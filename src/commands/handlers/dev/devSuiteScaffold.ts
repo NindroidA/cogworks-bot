@@ -14,6 +14,7 @@ import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelCon
 import { BaitChannelLog } from '../../../typeorm/entities/bait/BaitChannelLog';
 import { BaitKeyword } from '../../../typeorm/entities/bait/BaitKeyword';
 import { JoinEvent } from '../../../typeorm/entities/bait/JoinEvent';
+import { PendingBan } from '../../../typeorm/entities/bait/PendingBan';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
 import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
@@ -22,7 +23,6 @@ import { MemoryItem } from '../../../typeorm/entities/memory/MemoryItem';
 import { MemoryTag } from '../../../typeorm/entities/memory/MemoryTag';
 import { OnboardingCompletion } from '../../../typeorm/entities/onboarding/OnboardingCompletion';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
-import { PendingBan } from '../../../typeorm/entities/PendingBan';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole/ReactionRoleMenu';
 import { ReactionRoleOption } from '../../../typeorm/entities/reactionRole/ReactionRoleOption';
 import { RulesConfig } from '../../../typeorm/entities/rules/RulesConfig';

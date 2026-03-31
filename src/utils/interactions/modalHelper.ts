@@ -8,6 +8,8 @@
 import type {
   ButtonInteraction,
   ChatInputCommandInteraction,
+  ContextMenuCommandInteraction,
+  MessageComponentInteraction,
   ModalBuilder,
   ModalSubmitInteraction,
   StringSelectMenuInteraction,
@@ -15,7 +17,12 @@ import type {
 import { notifyModalTimeout } from '../collectors';
 import { TIMEOUTS } from '../constants';
 
-type ModalSourceInteraction = ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction;
+type ModalSourceInteraction =
+  | ChatInputCommandInteraction
+  | ButtonInteraction
+  | StringSelectMenuInteraction
+  | MessageComponentInteraction
+  | ContextMenuCommandInteraction;
 
 /**
  * Show a modal and await its submission.

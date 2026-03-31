@@ -32,7 +32,7 @@ import { archiveCleanupHandler } from './handlers/archive/cleanup';
 import { automodHandler } from './handlers/automod';
 import { baitChannelHandler } from './handlers/baitChannel';
 import { botResetHandler } from './handlers/botReset';
-import { botSetupHandler } from './handlers/botSetup';
+import { botSetupHandler } from './handlers/botSetup/index';
 import { coffeeHandler } from './handlers/coffee';
 import { dashboardHandler } from './handlers/dashboard';
 import { dataExportHandler } from './handlers/dataExport';

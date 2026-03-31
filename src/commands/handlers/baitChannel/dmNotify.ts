@@ -78,7 +78,7 @@ export async function dmNotifyHandler(client: Client, interaction: ChatInputComm
       }
 
       case 'clear-appeal': {
-        config.appealInfo = null as unknown as string;
+        config.appealInfo = null;
         await safeDbOperation(() => configRepo.save(config), 'Clear appeal info');
         (client as ExtendedClient).baitChannelManager?.clearConfigCache(interaction.guildId!);
 

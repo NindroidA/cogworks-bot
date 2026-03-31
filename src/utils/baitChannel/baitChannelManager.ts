@@ -16,7 +16,7 @@ import type { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelC
 import type { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
 import type { BaitKeyword } from '../../typeorm/entities/bait/BaitKeyword';
 import { JoinEvent } from '../../typeorm/entities/bait/JoinEvent';
-import type { PendingBan as PendingBanEntity } from '../../typeorm/entities/PendingBan';
+import type { PendingBan as PendingBanEntity } from '../../typeorm/entities/bait/PendingBan';
 import type { UserActivity } from '../../typeorm/entities/UserActivity';
 import { Colors } from '../colors';
 import { CACHE_TTL, INTERVALS } from '../constants';

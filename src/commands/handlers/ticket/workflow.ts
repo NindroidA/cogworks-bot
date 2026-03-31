@@ -258,8 +258,8 @@ export async function ticketUnassignHandler(interaction: ChatInputCommandInterac
   }
 
   const previousAssignee = ticket.assignedTo;
-  ticket.assignedTo = null as unknown as string;
-  ticket.assignedAt = null as unknown as Date;
+  ticket.assignedTo = null;
+  ticket.assignedAt = null;
   ticket.lastActivityAt = new Date();
   await ticketRepo.save(ticket);
 

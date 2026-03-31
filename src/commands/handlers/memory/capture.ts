@@ -229,7 +229,7 @@ async function showCaptureModal(
     new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput),
   );
 
-  const modalSubmit = await showAndAwaitModal(interaction as any, modal);
+  const modalSubmit = await showAndAwaitModal(interaction, modal);
   if (!modalSubmit) return;
 
   await handleCaptureModalSubmit(modalSubmit, selectionState, guildId, forumChannelId, memoryConfigId);
