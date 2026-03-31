@@ -13,8 +13,8 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
-  notifyModalTimeout,
   RateLimits,
+  showAndAwaitModal,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { channelSelect, labelWrap, rawModal, roleSelect } from '../../../utils/modalComponents';
@@ -57,12 +57,7 @@ export const announcementSetupHandler = async (
       ),
     ]);
 
-    await interaction.showModal(modal as any);
-
-    const modalSubmit = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-      await notifyModalTimeout(interaction);
-      return null;
-    });
+    const modalSubmit = await showAndAwaitModal(interaction, modal as any);
     if (!modalSubmit) return;
 
     const roleId = (modalSubmit.fields as any).getField('ann_role')?.value;

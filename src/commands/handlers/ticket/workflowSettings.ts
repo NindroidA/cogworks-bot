@@ -14,8 +14,8 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
-  notifyModalTimeout,
   requireAdmin,
+  showAndAwaitModal,
 } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -58,12 +58,7 @@ export const workflowSettingsHandler = async (interaction: ChatInputCommandInter
       ),
     ]);
 
-    await interaction.showModal(modal as any);
-
-    const modalSubmit = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-      await notifyModalTimeout(interaction);
-      return null;
-    });
+    const modalSubmit = await showAndAwaitModal(interaction, modal as any);
     if (!modalSubmit) return;
 
     const enableWorkflow = (modalSubmit.fields as any).getField('wf_enable')?.value as boolean;

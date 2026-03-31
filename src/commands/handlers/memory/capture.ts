@@ -19,9 +19,9 @@ import {
   guardAdminRateLimit,
   LogCategory,
   lang,
-  notifyModalTimeout,
   RateLimits,
   sanitizeUserInput,
+  showAndAwaitModal,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveMemoryConfig } from './channelPicker';
@@ -229,19 +229,10 @@ async function showCaptureModal(
     new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput),
   );
 
-  await interaction.showModal(modal);
+  const modalSubmit = await showAndAwaitModal(interaction as any, modal);
+  if (!modalSubmit) return;
 
-  try {
-    const modalSubmit = await interaction.awaitModalSubmit({
-      time: 300000,
-      filter: (i: ModalSubmitInteraction) =>
-        i.customId.startsWith('memory_capture_modal_') && i.user.id === interaction.user.id,
-    });
-
-    await handleCaptureModalSubmit(modalSubmit, selectionState, guildId, forumChannelId, memoryConfigId);
-  } catch {
-    await notifyModalTimeout(interaction);
-  }
+  await handleCaptureModalSubmit(modalSubmit, selectionState, guildId, forumChannelId, memoryConfigId);
 }
 
 async function handleCaptureModalSubmit(

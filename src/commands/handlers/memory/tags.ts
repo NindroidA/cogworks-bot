@@ -22,8 +22,8 @@ import {
   guardAdminRateLimit,
   LogCategory,
   lang,
-  notifyModalTimeout,
   RateLimits,
+  showAndAwaitModal,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveMemoryConfig } from './channelPicker';
@@ -100,18 +100,10 @@ async function handleAddTag(
     new ActionRowBuilder<TextInputBuilder>().addComponents(typeInput),
   );
 
-  await interaction.showModal(modal);
+  const modalSubmit = await showAndAwaitModal(interaction, modal);
+  if (!modalSubmit) return;
 
-  try {
-    const modalSubmit = await interaction.awaitModalSubmit({
-      time: 300000,
-      filter: i => i.customId === 'memory_tag_add_modal' && i.user.id === interaction.user.id,
-    });
-
-    await handleAddTagSubmit(modalSubmit, guildId, forumChannelId, memoryConfigId);
-  } catch {
-    await notifyModalTimeout(interaction);
-  }
+  await handleAddTagSubmit(modalSubmit, guildId, forumChannelId, memoryConfigId);
 }
 
 async function handleAddTagSubmit(
@@ -298,18 +290,10 @@ async function showEditModal(interaction: StringSelectMenuInteraction, guildId: 
     new ActionRowBuilder<TextInputBuilder>().addComponents(emojiInput),
   );
 
-  await interaction.showModal(modal);
+  const modalSubmit = await showAndAwaitModal(interaction, modal);
+  if (!modalSubmit) return;
 
-  try {
-    const modalSubmit = await interaction.awaitModalSubmit({
-      time: 300000,
-      filter: i => i.customId === `memory_tag_edit_modal_${tagId}` && i.user.id === interaction.user.id,
-    });
-
-    await handleEditTagSubmit(modalSubmit, tagId, guildId, forumChannelId);
-  } catch {
-    await notifyModalTimeout(interaction);
-  }
+  await handleEditTagSubmit(modalSubmit, tagId, guildId, forumChannelId);
 }
 
 async function handleEditTagSubmit(

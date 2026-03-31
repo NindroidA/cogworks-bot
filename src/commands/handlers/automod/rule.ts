@@ -9,18 +9,24 @@ import {
   AutoModerationActionType,
   AutoModerationRuleEventType,
   AutoModerationRuleTriggerType,
-  ButtonBuilder,
   ButtonStyle,
   type ChatInputCommandInteraction,
   type Client,
-  ComponentType,
   EmbedBuilder,
   MessageFlags,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang, showAndAwaitModal } from '../../../utils';
+import {
+  awaitConfirmation,
+  enhancedLogger,
+  handleInteractionError,
+  LANGF,
+  LogCategory,
+  lang,
+  showAndAwaitModal,
+} from '../../../utils';
 import {
   createAutoModRule,
   deleteAutoModRule,
@@ -211,55 +217,30 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
     }
 
     // Confirmation
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId('automod_delete_confirm').setLabel('Confirm Delete').setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId('automod_delete_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
-    );
+    const result = await awaitConfirmation(interaction, {
+      message: LANGF(tl.rule.delete.confirmMessage, rule.name),
+      confirmLabel: 'Confirm Delete',
+      confirmStyle: ButtonStyle.Danger,
+    });
+    if (!result) return;
 
-    const reply = await interaction.reply({
-      content: LANGF(tl.rule.delete.confirmMessage, rule.name),
-      components: [row],
-      flags: [MessageFlags.Ephemeral],
+    await deleteAutoModRule(guild, ruleId);
+
+    enhancedLogger.info(`AutoMod rule deleted: ${rule.name}`, LogCategory.COMMAND_EXECUTION, {
+      guildId: guild.id,
+      ruleId,
+      userId: interaction.user.id,
     });
 
-    try {
-      const buttonInteraction = await reply.awaitMessageComponent({
-        componentType: ComponentType.Button,
-        filter: i => i.user.id === interaction.user.id,
-        time: 30_000,
-      });
+    const embed = new EmbedBuilder()
+      .setColor('#FF0000')
+      .setTitle(tl.rule.delete.title)
+      .setDescription(LANGF(tl.rule.delete.success, rule.name));
 
-      if (buttonInteraction.customId === 'automod_delete_confirm') {
-        await deleteAutoModRule(guild, ruleId);
-
-        enhancedLogger.info(`AutoMod rule deleted: ${rule.name}`, LogCategory.COMMAND_EXECUTION, {
-          guildId: guild.id,
-          ruleId,
-          userId: interaction.user.id,
-        });
-
-        const embed = new EmbedBuilder()
-          .setColor('#FF0000')
-          .setTitle(tl.rule.delete.title)
-          .setDescription(LANGF(tl.rule.delete.success, rule.name));
-
-        await buttonInteraction.update({
-          embeds: [embed],
-          content: '',
-          components: [],
-        });
-      } else {
-        await buttonInteraction.update({
-          content: lang.errors.cancelled,
-          components: [],
-        });
-      }
-    } catch {
-      await interaction.editReply({
-        content: lang.errors.cancelled,
-        components: [],
-      });
-    }
+    await result.interaction.editReply({
+      embeds: [embed],
+      content: '',
+    });
   } catch (error) {
     await handleInteractionError(interaction, error, tl.rule.delete.error);
   }

@@ -6,13 +6,10 @@
 
 import {
   ActionRowBuilder,
-  ButtonBuilder,
-  type ButtonInteraction,
   ButtonStyle,
   type CacheType,
   type ChatInputCommandInteraction,
   type Client,
-  ComponentType,
   EmbedBuilder,
   MessageFlags,
   ModalBuilder,
@@ -21,7 +18,15 @@ import {
 } from 'discord.js';
 import eventLang from '../../../lang/event.json';
 import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
-import { enhancedLogger, LogCategory, lang, notifyModalTimeout, requireAdmin, sanitizeUserInput } from '../../../utils';
+import {
+  awaitConfirmation,
+  enhancedLogger,
+  LogCategory,
+  lang,
+  requireAdmin,
+  sanitizeUserInput,
+  showAndAwaitModal,
+} from '../../../utils';
 import { MAX } from '../../../utils/constants';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
@@ -138,12 +143,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction<CacheType>,
       ),
     );
 
-  await interaction.showModal(modal);
-
-  const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-    await notifyModalTimeout(interaction);
-    return null;
-  });
+  const modalInteraction = await showAndAwaitModal(interaction, modal);
   if (!modalInteraction) return;
 
   const name = modalInteraction.fields.getTextInputValue('name').toLowerCase().trim();
@@ -279,12 +279,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction<CacheType>, g
       ),
     );
 
-  await interaction.showModal(modal);
-
-  const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-    await notifyModalTimeout(interaction);
-    return null;
-  });
+  const modalInteraction = await showAndAwaitModal(interaction, modal);
   if (!modalInteraction) return;
 
   try {
@@ -346,50 +341,20 @@ async function handleDelete(interaction: ChatInputCommandInteraction<CacheType>,
     return;
   }
 
-  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('event_tpl_delete_confirm')
-      .setLabel(lang.general.buttons.confirm)
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId('event_tpl_delete_cancel')
-      .setLabel(lang.general.buttons.cancel)
-      .setStyle(ButtonStyle.Secondary),
-  );
+  const result = await awaitConfirmation(interaction, {
+    message: tl.delete.confirmMessage.replace('{0}', template.title),
+    confirmStyle: ButtonStyle.Danger,
+    timeout: 60_000,
+  });
+  if (!result) return;
 
-  await interaction.reply({
-    content: tl.delete.confirmMessage.replace('{0}', template.title),
-    components: [buttons],
-    flags: [MessageFlags.Ephemeral],
+  await templateRepo.remove(template);
+
+  await result.interaction.editReply({
+    content: tl.delete.success.replace('{0}', templateName),
   });
 
-  try {
-    const btn = await interaction.channel?.awaitMessageComponent({
-      filter: (i: ButtonInteraction) =>
-        i.user.id === interaction.user.id &&
-        (i.customId === 'event_tpl_delete_confirm' || i.customId === 'event_tpl_delete_cancel'),
-      componentType: ComponentType.Button,
-      time: 60_000,
-    });
-
-    if (!btn || btn.customId === 'event_tpl_delete_cancel') {
-      if (btn) {
-        await btn.update({ content: tl.delete.cancelled, components: [] });
-      }
-      return;
-    }
-
-    await templateRepo.remove(template);
-
-    await btn.update({
-      content: tl.delete.success.replace('{0}', templateName),
-      components: [],
-    });
-
-    enhancedLogger.command(`Event template '${templateName}' deleted`, interaction.user.id, guildId);
-  } catch {
-    // Timeout
-  }
+  enhancedLogger.command(`Event template '${templateName}' deleted`, interaction.user.id, guildId);
 }
 
 // ============================================================================

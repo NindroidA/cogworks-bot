@@ -1,17 +1,14 @@
 import {
-  ActionRowBuilder,
   type AutocompleteInteraction,
-  ButtonBuilder,
   ButtonStyle,
   type ChatInputCommandInteraction,
   type Client,
-  ComponentType,
   EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
 import { BaitKeyword } from '../../../typeorm/entities/bait/BaitKeyword';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { handleInteractionError, lang, stripZeroWidthChars } from '../../../utils';
+import { awaitConfirmation, handleInteractionError, lang, stripZeroWidthChars } from '../../../utils';
 import { DEFAULT_KEYWORDS } from '../../../utils/baitChannel/defaultKeywords';
 import { MAX } from '../../../utils/constants';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -219,58 +216,32 @@ async function handleList(interaction: ChatInputCommandInteraction, guildId: str
 }
 
 async function handleReset(client: Client, interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('keyword_reset_confirm').setLabel('Confirm Reset').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('keyword_reset_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
-  );
-
-  const reply = await interaction.reply({
-    content: tl.keywords.reset.confirm,
-    components: [row],
-    flags: [MessageFlags.Ephemeral],
+  const result = await awaitConfirmation(interaction, {
+    message: tl.keywords.reset.confirm,
+    confirmLabel: 'Confirm Reset',
+    confirmStyle: ButtonStyle.Danger,
   });
+  if (!result) return;
 
-  try {
-    const buttonInteraction = await reply.awaitMessageComponent({
-      componentType: ComponentType.Button,
-      filter: i => i.user.id === interaction.user.id,
-      time: 30_000,
-    });
+  // Delete all and re-seed
+  await keywordRepo.delete({ guildId });
 
-    if (buttonInteraction.customId === 'keyword_reset_confirm') {
-      // Delete all and re-seed
-      await keywordRepo.delete({ guildId });
+  const entities = DEFAULT_KEYWORDS.map(k =>
+    keywordRepo.create({
+      guildId,
+      keyword: k.keyword,
+      weight: k.weight,
+      createdBy: 'system',
+    }),
+  );
+  await keywordRepo.save(entities);
 
-      const entities = DEFAULT_KEYWORDS.map(k =>
-        keywordRepo.create({
-          guildId,
-          keyword: k.keyword,
-          weight: k.weight,
-          createdBy: 'system',
-        }),
-      );
-      await keywordRepo.save(entities);
+  const { baitChannelManager } = client as ExtendedClient;
+  baitChannelManager?.clearKeywordCache(guildId);
 
-      const { baitChannelManager } = client as ExtendedClient;
-      baitChannelManager?.clearKeywordCache(guildId);
-
-      await buttonInteraction.update({
-        content: tl.keywords.reset.success.replace('{count}', DEFAULT_KEYWORDS.length.toString()),
-        components: [],
-      });
-    } else {
-      await buttonInteraction.update({
-        content: tl.keywords.reset.cancelled,
-        components: [],
-      });
-    }
-  } catch {
-    // Timeout
-    await interaction.editReply({
-      content: tl.keywords.reset.cancelled,
-      components: [],
-    });
-  }
+  await result.interaction.editReply({
+    content: tl.keywords.reset.success.replace('{count}', DEFAULT_KEYWORDS.length.toString()),
+  });
 }
 
 /** Autocomplete handler for keyword remove action */

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.4]
+
+### Changed
+- **Interaction Helper Migration**: Migrated all handlers to standardized interaction helpers
+  - All `showModal` + `awaitModalSubmit` patterns replaced with `showAndAwaitModal()` (13 files, 20 sites)
+  - Confirm/cancel button flows replaced with `awaitConfirmation()` (5 files: keywords, automod rule, manageTags, announcement templates, event templates)
+  - Removed `channel?.awaitMessageComponent` anti-pattern from delete/reset confirms (scoped to response instead)
+  - Net reduction: ~300 lines of boilerplate removed across 16 files
+  - Consistent timeout handling and UX patterns across all handlers
+  - Only remaining manual pattern: announcement preview+send flow (intentionally different UX)
+
 ## [3.0.3]
 
 ### Fixed

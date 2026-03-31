@@ -1,7 +1,5 @@
 import {
-  ActionRowBuilder,
   type AutocompleteInteraction,
-  ButtonBuilder,
   ButtonStyle,
   type ChatInputCommandInteraction,
   EmbedBuilder,
@@ -11,6 +9,7 @@ import {
 } from 'discord.js';
 import { MemoryConfig, MemoryTag, type MemoryTagType } from '../../../typeorm/entities/memory';
 import {
+  awaitConfirmation,
   Colors,
   E,
   enhancedLogger,
@@ -429,126 +428,92 @@ async function handleTagReset(interaction: ChatInputCommandInteraction, guildId:
   const config = await resolveConfigForTags(interaction, guildId);
   if (!config) return;
 
-  // Confirmation button
-  const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('memory_tag_reset_confirm')
-      .setLabel(lang.general.buttons.confirm)
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId('memory_tag_reset_cancel')
-      .setLabel(lang.general.buttons.cancel)
-      .setStyle(ButtonStyle.Secondary),
-  );
-
-  const response = await interaction.reply({
-    content: `${E.warning} ${tl.manageTags.reset.confirm}`,
-    components: [confirmRow],
-    flags: [MessageFlags.Ephemeral],
+  const result = await awaitConfirmation(interaction, {
+    message: `${E.warning} ${tl.manageTags.reset.confirm}`,
+    confirmStyle: ButtonStyle.Danger,
   });
+  if (!result) return;
+
+  await result.interaction.editReply({ content: `${E.loading} Processing...` });
 
   try {
-    const i = await response.awaitMessageComponent({
-      filter: ci => ci.user.id === interaction.user.id,
-      time: 30000,
+    // Delete all custom tags from DB
+    await memoryTagRepo.delete({
+      guildId,
+      memoryConfigId: config.id,
+      isDefault: false,
     });
 
-    if (i.customId === 'memory_tag_reset_cancel') {
-      await i.update({ content: lang.errors.cancelled, components: [] });
-      return;
-    }
+    // Delete all existing default tags too (we'll re-create)
+    await memoryTagRepo.delete({
+      guildId,
+      memoryConfigId: config.id,
+      isDefault: true,
+    });
 
-    if (i.customId === 'memory_tag_reset_confirm') {
-      await i.update({
-        content: `${E.loading} Processing...`,
-        components: [],
-      });
+    // Rebuild default tags on the forum
+    const forum = (await interaction.guild!.channels.fetch(config.forumChannelId)) as ForumChannel;
+    if (forum) {
+      const allTags: GuildForumTagData[] = [];
+      const dbTags: Partial<MemoryTag>[] = [];
 
-      try {
-        // Delete all custom tags from DB
-        await memoryTagRepo.delete({
-          guildId,
-          memoryConfigId: config.id,
-          isDefault: false,
+      for (const tag of DEFAULT_CATEGORY_TAGS) {
+        allTags.push({
+          name: tag.name,
+          emoji: { id: null, name: tag.emoji },
         });
-
-        // Delete all existing default tags too (we'll re-create)
-        await memoryTagRepo.delete({
+        dbTags.push({
           guildId,
           memoryConfigId: config.id,
+          name: tag.name,
+          emoji: tag.emoji,
+          tagType: 'category' as MemoryTagType,
           isDefault: true,
         });
-
-        // Rebuild default tags on the forum
-        const forum = (await interaction.guild!.channels.fetch(config.forumChannelId)) as ForumChannel;
-        if (forum) {
-          const allTags: GuildForumTagData[] = [];
-          const dbTags: Partial<MemoryTag>[] = [];
-
-          for (const tag of DEFAULT_CATEGORY_TAGS) {
-            allTags.push({
-              name: tag.name,
-              emoji: { id: null, name: tag.emoji },
-            });
-            dbTags.push({
-              guildId,
-              memoryConfigId: config.id,
-              name: tag.name,
-              emoji: tag.emoji,
-              tagType: 'category' as MemoryTagType,
-              isDefault: true,
-            });
-          }
-
-          for (const tag of DEFAULT_STATUS_TAGS) {
-            allTags.push({
-              name: tag.name,
-              emoji: { id: null, name: tag.emoji },
-            });
-            dbTags.push({
-              guildId,
-              memoryConfigId: config.id,
-              name: tag.name,
-              emoji: tag.emoji,
-              tagType: 'status' as MemoryTagType,
-              isDefault: true,
-            });
-          }
-
-          const updatedForum = await forum.setAvailableTags(allTags);
-
-          for (const dbTag of dbTags) {
-            const discordTag = updatedForum.availableTags.find(t => t.name === dbTag.name);
-            if (discordTag) {
-              dbTag.discordTagId = discordTag.id;
-            }
-          }
-
-          await memoryTagRepo.save(dbTags as MemoryTag[]);
-        }
-
-        await i.editReply({
-          content: `${E.success} ${tl.manageTags.reset.success}`,
-        });
-      } catch (error) {
-        enhancedLogger.error(
-          `Memory tag-reset error: ${error}`,
-          error instanceof Error ? error : undefined,
-          LogCategory.COMMAND_EXECUTION,
-          {
-            guildId,
-          },
-        );
-        await i.editReply({ content: `${E.error} ${tl.setup.error}` });
       }
+
+      for (const tag of DEFAULT_STATUS_TAGS) {
+        allTags.push({
+          name: tag.name,
+          emoji: { id: null, name: tag.emoji },
+        });
+        dbTags.push({
+          guildId,
+          memoryConfigId: config.id,
+          name: tag.name,
+          emoji: tag.emoji,
+          tagType: 'status' as MemoryTagType,
+          isDefault: true,
+        });
+      }
+
+      const updatedForum = await forum.setAvailableTags(allTags);
+
+      for (const dbTag of dbTags) {
+        const discordTag = updatedForum.availableTags.find(t => t.name === dbTag.name);
+        if (discordTag) {
+          dbTag.discordTagId = discordTag.id;
+        }
+      }
+
+      await memoryTagRepo.save(dbTags as MemoryTag[]);
     }
-  } catch {
-    await interaction
-      .editReply({
-        content: lang.errors.timeout,
-        components: [],
-      })
-      .catch(() => null);
+
+    await result.interaction.editReply({
+      content: `${E.success} ${tl.manageTags.reset.success}`,
+    });
+  } catch (error) {
+    enhancedLogger.error(
+      `Memory tag-reset error: ${error}`,
+      error instanceof Error ? error : undefined,
+      LogCategory.COMMAND_EXECUTION,
+      {
+        guildId,
+      },
+    );
+    await result.interaction.editReply({
+      content: `${E.error} ${tl.setup.error}`,
+    });
   }
 }
 

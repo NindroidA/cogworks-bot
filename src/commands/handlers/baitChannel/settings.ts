@@ -7,9 +7,9 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
-  notifyModalTimeout,
   RateLimits,
   safeDbOperation,
+  showAndAwaitModal,
 } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -97,12 +97,7 @@ export const settingsHandler = async (client: Client, interaction: ChatInputComm
       ),
     ]);
 
-    await interaction.showModal(modal as any);
-
-    const modalSubmit = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-      await notifyModalTimeout(interaction);
-      return null;
-    });
+    const modalSubmit = await showAndAwaitModal(interaction, modal as any);
     if (!modalSubmit) return;
 
     // Extract and validate values

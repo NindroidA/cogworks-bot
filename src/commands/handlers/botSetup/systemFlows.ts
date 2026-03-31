@@ -46,7 +46,7 @@ import {
 import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { enhancedLogger, LogCategory, lang, notifyModalTimeout } from '../../../utils';
+import { enhancedLogger, LogCategory, lang, showAndAwaitModal } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { channelSelect, checkbox, labelWrap, radioGroup, rawModal, roleSelect } from '../../../utils/modalComponents';
 import { createSystemChannels, type SystemType } from '../../../utils/setup/channelCreator';
@@ -117,12 +117,7 @@ async function configureStaffRole(
     labelWrap('Enable Staff Role', checkbox('setup_staff_enable', true), 'Use a global staff role across systems'),
   ]);
 
-  await interaction.showModal(modal as any);
-
-  const submit = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-    await notifyModalTimeout(interaction);
-    return null;
-  });
+  const submit = await showAndAwaitModal(interaction, modal as any);
   if (!submit) return { updated: false, states: setupState.systemStates };
 
   const roleId = getModalFieldValue(submit.fields, 'setup_staff_role');
@@ -340,12 +335,7 @@ async function configureTicket(
     ),
   ]);
 
-  await choice.btnInteraction.showModal(modal as any);
-
-  const submit = await choice.btnInteraction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-    await notifyModalTimeout(choice.btnInteraction);
-    return null;
-  });
+  const submit = await showAndAwaitModal(choice.btnInteraction, modal as any);
   if (!submit) return { updated: false, states: setupState.systemStates };
 
   const channelId = getModalFieldValue(submit.fields, 'setup_ticket_ch') || partial?.channelId;
@@ -553,12 +543,7 @@ async function configureApplication(
     ),
   ]);
 
-  await choice.btnInteraction.showModal(modal as any);
-
-  const submit = await choice.btnInteraction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-    await notifyModalTimeout(choice.btnInteraction);
-    return null;
-  });
+  const submit = await showAndAwaitModal(choice.btnInteraction, modal as any);
   if (!submit) return { updated: false, states: setupState.systemStates };
 
   const channelId = getModalFieldValue(submit.fields, 'setup_app_ch') || partial?.channelId;
@@ -693,12 +678,7 @@ async function configureAnnouncement(
     ),
   ]);
 
-  await choice.btnInteraction.showModal(modal as any);
-
-  const submit = await choice.btnInteraction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-    await notifyModalTimeout(choice.btnInteraction);
-    return null;
-  });
+  const submit = await showAndAwaitModal(choice.btnInteraction, modal as any);
   if (!submit) return { updated: false, states: setupState.systemStates };
 
   const roleId = getModalFieldValue(submit.fields, 'setup_ann_role');
@@ -847,12 +827,7 @@ async function configureBaitChannel(
     ),
   ]);
 
-  await choice.btnInteraction.showModal(modal as any);
-
-  const submit = await choice.btnInteraction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-    await notifyModalTimeout(choice.btnInteraction);
-    return null;
-  });
+  const submit = await showAndAwaitModal(choice.btnInteraction, modal as any);
   if (!submit) return { updated: false, states: setupState.systemStates };
 
   const channelId = getModalFieldValue(submit.fields, 'setup_bait_ch');
@@ -988,12 +963,7 @@ async function configureMemory(
     ),
   ]);
 
-  await choice.btnInteraction.showModal(modal as any);
-
-  const submit = await choice.btnInteraction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-    await notifyModalTimeout(choice.btnInteraction);
-    return null;
-  });
+  const submit = await showAndAwaitModal(choice.btnInteraction, modal as any);
   if (!submit) return { updated: false, states: setupState.systemStates };
 
   const forumChannelId = getModalFieldValue(submit.fields, 'setup_memory_forum');
@@ -1127,12 +1097,7 @@ async function configureRules(
     labelWrap('Verified Role', roleSelect('setup_rules_role'), 'Role to give when user accepts rules'),
   ]);
 
-  await choice.btnInteraction.showModal(modal as any);
-
-  const submit = await choice.btnInteraction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-    await notifyModalTimeout(choice.btnInteraction);
-    return null;
-  });
+  const submit = await showAndAwaitModal(choice.btnInteraction, modal as any);
   if (!submit) return { updated: false, states: setupState.systemStates };
 
   const channelId = getModalFieldValue(submit.fields, 'setup_rules_ch');

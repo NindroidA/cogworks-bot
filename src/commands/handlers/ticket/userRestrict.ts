@@ -17,8 +17,8 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
-  notifyModalTimeout,
   requireAdmin,
+  showAndAwaitModal,
 } from '../../../utils';
 import { checkboxGroup, labelWrap, rawModal } from '../../../utils/modalComponents';
 
@@ -274,12 +274,7 @@ async function showRestrictionsModal(
     ),
   ]);
 
-  await interaction.showModal(modal as any);
-
-  const modalSubmit = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-    await notifyModalTimeout(interaction);
-    return null;
-  });
+  const modalSubmit = await showAndAwaitModal(interaction, modal as any);
   if (!modalSubmit) return;
 
   // Get selected (restricted) type IDs from checkbox group

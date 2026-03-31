@@ -30,9 +30,9 @@ import {
   guardAdminRateLimit,
   LogCategory,
   lang,
-  notifyModalTimeout,
   parseTimeInput,
   RateLimits,
+  showAndAwaitModal,
 } from '../../../utils';
 import {
   detectDynamicPlaceholders,
@@ -169,12 +169,7 @@ async function handleTemplateSend(
       modal.addComponents(row);
     }
 
-    await interaction.showModal(modal);
-
-    const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-      await notifyModalTimeout(interaction);
-      return null;
-    });
+    const modalInteraction = await showAndAwaitModal(interaction, modal);
     if (!modalInteraction) return;
 
     // Extract values from modal

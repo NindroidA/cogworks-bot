@@ -6,13 +6,10 @@
 
 import {
   ActionRowBuilder,
-  ButtonBuilder,
-  type ButtonInteraction,
   ButtonStyle,
   type CacheType,
   type ChatInputCommandInteraction,
   type Client,
-  ComponentType,
   EmbedBuilder,
   MessageFlags,
   ModalBuilder,
@@ -21,7 +18,14 @@ import {
 } from 'discord.js';
 import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
 import { AnnouncementTemplate } from '../../../typeorm/entities/announcement/AnnouncementTemplate';
-import { enhancedLogger, lang, notifyModalTimeout, requireAdmin, sanitizeUserInput } from '../../../utils';
+import {
+  awaitConfirmation,
+  enhancedLogger,
+  lang,
+  requireAdmin,
+  sanitizeUserInput,
+  showAndAwaitModal,
+} from '../../../utils';
 import { DEFAULT_ANNOUNCEMENT_TEMPLATES } from '../../../utils/announcement/defaultTemplates';
 import { detectDynamicPlaceholders, renderPreview } from '../../../utils/announcement/templateEngine';
 import { validateHexColor } from '../../../utils/api/helpers';
@@ -162,12 +166,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction<CacheType>,
       ),
     );
 
-  await interaction.showModal(modal);
-
-  const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-    await notifyModalTimeout(interaction);
-    return null;
-  });
+  const modalInteraction = await showAndAwaitModal(interaction, modal);
   if (!modalInteraction) return;
 
   const name = modalInteraction.fields.getTextInputValue('name').toLowerCase().trim();
@@ -292,12 +291,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction<CacheType>, g
       ),
     );
 
-  await interaction.showModal(modal);
-
-  const modalInteraction = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-    await notifyModalTimeout(interaction);
-    return null;
-  });
+  const modalInteraction = await showAndAwaitModal(interaction, modal);
   if (!modalInteraction) return;
 
   const displayName = sanitizeUserInput(modalInteraction.fields.getTextInputValue('display_name'));
@@ -361,51 +355,18 @@ async function handleDelete(interaction: ChatInputCommandInteraction<CacheType>,
     return;
   }
 
-  // Confirmation
-  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('announcement_tpl_delete_confirm')
-      .setLabel(lang.general.buttons.confirm)
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId('announcement_tpl_delete_cancel')
-      .setLabel(lang.general.buttons.cancel)
-      .setStyle(ButtonStyle.Secondary),
-  );
-
-  await interaction.reply({
-    content: `Are you sure you want to delete template **${template.displayName}** (\`${template.name}\`)?`,
-    components: [buttons],
-    flags: [MessageFlags.Ephemeral],
+  const result = await awaitConfirmation(interaction, {
+    message: `Are you sure you want to delete template **${template.displayName}** (\`${template.name}\`)?`,
+    confirmStyle: ButtonStyle.Danger,
+    timeout: 60_000,
   });
+  if (!result) return;
 
-  try {
-    const btn = await interaction.channel?.awaitMessageComponent({
-      filter: (i: ButtonInteraction) =>
-        i.user.id === interaction.user.id &&
-        (i.customId === 'announcement_tpl_delete_confirm' || i.customId === 'announcement_tpl_delete_cancel'),
-      componentType: ComponentType.Button,
-      time: 60_000,
-    });
+  await templateRepo.remove(template);
 
-    if (!btn || btn.customId === 'announcement_tpl_delete_cancel') {
-      if (btn) {
-        await btn.update({ content: lang.errors.cancelled, components: [] });
-      }
-      return;
-    }
+  await result.interaction.editReply({ content: tl.delete.success });
 
-    await templateRepo.remove(template);
-
-    await btn.update({
-      content: tl.delete.success,
-      components: [],
-    });
-
-    enhancedLogger.command(`Template '${templateName}' deleted`, interaction.user.id, guildId);
-  } catch {
-    // Timeout
-  }
+  enhancedLogger.command(`Template '${templateName}' deleted`, interaction.user.id, guildId);
 }
 
 // ============================================================================
@@ -496,55 +457,24 @@ async function handlePreview(
 async function handleReset(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
   const tl = lang.announcement.template;
 
-  // Confirmation
-  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('announcement_tpl_reset_confirm')
-      .setLabel(lang.general.buttons.confirm)
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId('announcement_tpl_reset_cancel')
-      .setLabel(lang.general.buttons.cancel)
-      .setStyle(ButtonStyle.Secondary),
-  );
+  const result = await awaitConfirmation(interaction, {
+    message: tl.reset.confirm,
+    confirmStyle: ButtonStyle.Danger,
+    timeout: 60_000,
+  });
+  if (!result) return;
 
-  await interaction.reply({
-    content: tl.reset.confirm,
-    components: [buttons],
-    flags: [MessageFlags.Ephemeral],
+  // Delete all templates for this guild
+  await templateRepo.delete({ guildId });
+
+  // Re-seed defaults
+  const seeded = await seedDefaultTemplates(guildId);
+
+  await result.interaction.editReply({
+    content: `${tl.reset.success} ${seeded} templates seeded.`,
   });
 
-  try {
-    const btn = await interaction.channel?.awaitMessageComponent({
-      filter: (i: ButtonInteraction) =>
-        i.user.id === interaction.user.id &&
-        (i.customId === 'announcement_tpl_reset_confirm' || i.customId === 'announcement_tpl_reset_cancel'),
-      componentType: ComponentType.Button,
-      time: 60_000,
-    });
-
-    if (!btn || btn.customId === 'announcement_tpl_reset_cancel') {
-      if (btn) {
-        await btn.update({ content: lang.errors.cancelled, components: [] });
-      }
-      return;
-    }
-
-    // Delete all templates for this guild
-    await templateRepo.delete({ guildId });
-
-    // Re-seed defaults
-    const seeded = await seedDefaultTemplates(guildId);
-
-    await btn.update({
-      content: `${tl.reset.success} ${seeded} templates seeded.`,
-      components: [],
-    });
-
-    enhancedLogger.command('Templates reset to defaults', interaction.user.id, guildId);
-  } catch {
-    // Timeout
-  }
+  enhancedLogger.command('Templates reset to defaults', interaction.user.id, guildId);
 }
 
 /**

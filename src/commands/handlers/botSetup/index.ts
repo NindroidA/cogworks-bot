@@ -17,8 +17,8 @@ import {
   guardAdminRateLimit,
   LogCategory,
   lang,
-  notifyModalTimeout,
   RateLimits,
+  showAndAwaitModal,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { checkboxGroup, labelWrap, rawModal } from '../../../utils/modalComponents';
@@ -123,12 +123,7 @@ async function showSystemSelection(
     ),
   ]);
 
-  await interaction.showModal(modal as any);
-
-  const submit = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-    await notifyModalTimeout(interaction);
-    return null;
-  });
+  const submit = await showAndAwaitModal(interaction, modal as any);
   if (!submit) return;
 
   const selectedSystems: string[] = (submit.fields as any).getField('setup_systems')?.values ?? [];
@@ -297,12 +292,7 @@ async function collectDashboardInteractions(
         ),
       ]);
 
-      await btnInteraction.showModal(modal as any);
-
-      const modalSubmit = await btnInteraction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-        await notifyModalTimeout(btnInteraction);
-        return null;
-      });
+      const modalSubmit = await showAndAwaitModal(btnInteraction, modal as any);
       if (!modalSubmit) return;
 
       const enabledValues: string[] = (modalSubmit.fields as any).getField('setup_enabled_systems')?.values ?? [];

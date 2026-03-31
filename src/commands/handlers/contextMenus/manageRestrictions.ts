@@ -12,8 +12,8 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
-  notifyModalTimeout,
   requireAdmin,
+  showAndAwaitModal,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { checkboxGroup, labelWrap, rawModal } from '../../../utils/modalComponents';
@@ -72,12 +72,7 @@ export async function manageRestrictionsHandler(interaction: UserContextMenuComm
       ),
     ]);
 
-    await interaction.showModal(modal as any);
-
-    const modalSubmit = await interaction.awaitModalSubmit({ time: 300_000 }).catch(async () => {
-      await notifyModalTimeout(interaction as any);
-      return null;
-    });
+    const modalSubmit = await showAndAwaitModal(interaction as any, modal as any);
     if (!modalSubmit) return;
 
     // Get selected restricted types — validate against guild-owned types
