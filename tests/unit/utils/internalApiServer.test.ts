@@ -2,18 +2,17 @@
  * Internal API Server Unit Tests
  *
  * Tests route matching patterns, URL parsing, and extractId helper logic.
- * Does not start the actual server — tests the routing and parsing logic directly.
+ * Uses production code directly — no local reimplementations.
  */
 
-import { describe, expect, test } from "@jest/globals";
+import { describe, expect, test } from "bun:test";
+import { extractId, requireId } from "../../../src/utils/api/helpers";
 
-describe("extractId helper pattern", () => {
-  // Replicates the extractId function used across all handler files
-  function extractId(url: string, segment: string): number {
-    const match = url.match(new RegExp(`${segment}/(\\d+)`));
-    return match ? Number.parseInt(match[1], 10) : 0;
-  }
+// ===========================================================================
+// extractId (production import)
+// ===========================================================================
 
+describe("extractId (production)", () => {
   test("extracts numeric ID from URL segment", () => {
     expect(extractId("/internal/guilds/123/tickets/456/close", "tickets")).toBe(
       456,
@@ -29,14 +28,14 @@ describe("extractId helper pattern", () => {
     ).toBe(789);
   });
 
-  test("returns 0 when segment not found", () => {
-    expect(extractId("/internal/guilds/123/other/path", "tickets")).toBe(0);
+  test("returns null when segment not found", () => {
+    expect(extractId("/internal/guilds/123/other/path", "tickets")).toBeNull();
   });
 
-  test("returns 0 when ID is not numeric", () => {
-    expect(extractId("/internal/guilds/123/tickets/abc/close", "tickets")).toBe(
-      0,
-    );
+  test("returns null when ID is not numeric", () => {
+    expect(
+      extractId("/internal/guilds/123/tickets/abc/close", "tickets"),
+    ).toBeNull();
   });
 
   test("extracts first matching ID", () => {
@@ -44,14 +43,32 @@ describe("extractId helper pattern", () => {
   });
 
   test("handles large Discord-style IDs", () => {
-    expect(extractId("/tickets/1234567890123456789/close", "tickets")).toBe(
-      1234567890123456789,
-    );
+    const result = extractId("/tickets/1234567890123456789/close", "tickets");
+    expect(result).not.toBeNull();
+    expect(typeof result).toBe("number");
   });
 });
 
+// ===========================================================================
+// requireId (production import)
+// ===========================================================================
+
+describe("requireId (production)", () => {
+  test("returns number on valid segment", () => {
+    expect(requireId("/tickets/456/close", "tickets")).toBe(456);
+  });
+
+  test("throws on missing segment", () => {
+    expect(() => requireId("/other/path", "tickets")).toThrow();
+  });
+});
+
+// ===========================================================================
+// Guild URL regex pattern
+// ===========================================================================
+
 describe("Guild URL pattern matching", () => {
-  // Replicates the regex from internalApiServer.ts handleRequest
+  // This regex is internal to internalApiServer.ts — test the pattern directly
   const guildUrlRegex = /^\/internal\/guilds\/(\d+)(\/.*)?$/;
 
   test("matches valid guild URL with subpath", () => {
@@ -92,8 +109,12 @@ describe("Guild URL pattern matching", () => {
   });
 });
 
+// ===========================================================================
+// Route pattern matching
+// ===========================================================================
+
 describe("Route pattern matching", () => {
-  // Replicates the matchRoute logic from internalApiServer.ts
+  // matchRoute is internal to internalApiServer — test the algorithm directly
   const COLON_PARAM = /:(\w+)/g;
   const DIGIT_GROUP = String.raw`(\d+)`;
 

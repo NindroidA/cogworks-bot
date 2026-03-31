@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.14]
+
+### Added
+- **Test Coverage Push (Session 2)**: +162 new tests (864 -> 1026), 1994 assertions across 33 files
+  - Expanded `errorHandler.test.ts` with 64 behavioral tests for `classifyError` — covers all 7 error categories, priority ordering, case insensitivity, non-Error inputs
+  - Expanded `urlAnalyzer.test.ts` with 42 new tests — additional shortener domains, phishing lookalikes, legitimate domain whitelisting, embedded URLs, mixed content
+  - Expanded `usernameAnalyzer.test.ts` with 29 new tests — Unicode/emoji/Cyrillic, boundary conditions, bot patterns, combined weak signals
+  - Fixed `internalApiServer.test.ts` to import `extractId`/`requireId` from production code (was reimplementing locally), migrated from jest to bun:test
+
 ## [3.0.13]
 
 ### Changed
