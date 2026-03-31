@@ -10,8 +10,8 @@ import { ApplicationConfig } from '../../../typeorm/entities/application/Applica
 import { ArchivedApplication } from '../../../typeorm/entities/application/ArchivedApplication';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
-import { BaitChannelLog } from '../../../typeorm/entities/BaitChannelLog';
+import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
+import { BaitChannelLog } from '../../../typeorm/entities/bait/BaitChannelLog';
 import { BaitKeyword } from '../../../typeorm/entities/bait/BaitKeyword';
 import { JoinEvent } from '../../../typeorm/entities/bait/JoinEvent';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';

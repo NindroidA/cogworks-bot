@@ -1,6 +1,6 @@
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
-import { BaitChannelLog } from '../../../typeorm/entities/BaitChannelLog';
+import { BaitChannelLog } from '../../../typeorm/entities/bait/BaitChannelLog';
 import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
@@ -61,10 +61,26 @@ export const overrideHandler = async (_client: Client, interaction: ChatInputCom
       .setTitle(tl.override.title)
       .setDescription(tl.override.success.replace('{0}', targetUser.tag))
       .addFields(
-        { name: tl.override.user, value: `${targetUser.tag} (${targetUser.id})`, inline: true },
-        { name: tl.override.action, value: recentLog.actionTaken, inline: true },
-        { name: tl.override.score, value: `${recentLog.suspicionScore}/100`, inline: true },
-        { name: tl.override.overriddenBy, value: `<@${interaction.user.id}>`, inline: true },
+        {
+          name: tl.override.user,
+          value: `${targetUser.tag} (${targetUser.id})`,
+          inline: true,
+        },
+        {
+          name: tl.override.action,
+          value: recentLog.actionTaken,
+          inline: true,
+        },
+        {
+          name: tl.override.score,
+          value: `${recentLog.suspicionScore}/100`,
+          inline: true,
+        },
+        {
+          name: tl.override.overriddenBy,
+          value: `<@${interaction.user.id}>`,
+          inline: true,
+        },
         {
           name: tl.override.detectedAt,
           value: `<t:${Math.floor(recentLog.createdAt.getTime() / 1000)}:R>`,
@@ -72,7 +88,10 @@ export const overrideHandler = async (_client: Client, interaction: ChatInputCom
         },
       );
 
-    await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      embeds: [embed],
+      flags: [MessageFlags.Ephemeral],
+    });
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.override);
   }

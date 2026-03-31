@@ -11,20 +11,20 @@ import {
   type TextChannel,
 } from 'discord.js';
 import { Between, LessThan, type Repository } from 'typeorm';
-import { AppDataSource } from '../typeorm';
-import type { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
-import type { BaitChannelLog } from '../typeorm/entities/BaitChannelLog';
-import type { BaitKeyword } from '../typeorm/entities/bait/BaitKeyword';
-import { JoinEvent } from '../typeorm/entities/bait/JoinEvent';
-import type { PendingBan as PendingBanEntity } from '../typeorm/entities/PendingBan';
-import type { UserActivity } from '../typeorm/entities/UserActivity';
-import type { JoinVelocityTracker } from './baitChannel/joinVelocityTracker';
-import { analyzeUrls } from './baitChannel/urlAnalyzer';
-import { analyzeUsername } from './baitChannel/usernameAnalyzer';
-import { Colors } from './colors';
-import { CACHE_TTL, INTERVALS } from './constants';
-import { ErrorCategory, ErrorSeverity, logError } from './errorHandler';
-import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
+import { AppDataSource } from '../../typeorm';
+import type { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelConfig';
+import type { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
+import type { BaitKeyword } from '../../typeorm/entities/bait/BaitKeyword';
+import { JoinEvent } from '../../typeorm/entities/bait/JoinEvent';
+import type { PendingBan as PendingBanEntity } from '../../typeorm/entities/PendingBan';
+import type { UserActivity } from '../../typeorm/entities/UserActivity';
+import { Colors } from '../colors';
+import { CACHE_TTL, INTERVALS } from '../constants';
+import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
+import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+import type { JoinVelocityTracker } from './joinVelocityTracker';
+import { analyzeUrls } from './urlAnalyzer';
+import { analyzeUsername } from './usernameAnalyzer';
 
 interface PurgeResult {
   totalDeleted: number;

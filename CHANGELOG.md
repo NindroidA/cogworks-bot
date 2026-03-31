@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.5]
+
+### Changed
+- **Architecture Cleanup**: Deduplicated and consolidated bait channel files
+  - Extracted shared `configureForumSystem()` from near-identical `configureTicket`/`configureApplication` (~380 lines → ~170 lines)
+  - Moved `BaitChannelManager` from `utils/` root to `utils/baitChannel/`
+  - Consolidated `BaitChannelConfig` and `BaitChannelLog` into `entities/bait/` alongside `BaitKeyword` and `JoinEvent`
+  - Net reduction: ~2000 lines removed across 39 files (mostly import path updates)
+
 ## [3.0.4]
 
 ### Changed

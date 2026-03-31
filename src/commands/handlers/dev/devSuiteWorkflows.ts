@@ -12,7 +12,7 @@ import { AppDataSource } from '../../../typeorm';
 import { AnalyticsSnapshot } from '../../../typeorm/entities/analytics/AnalyticsSnapshot';
 import { AnnouncementLog } from '../../../typeorm/entities/announcement/AnnouncementLog';
 import { ArchivedApplication } from '../../../typeorm/entities/application/ArchivedApplication';
-import { BaitChannelLog } from '../../../typeorm/entities/BaitChannelLog';
+import { BaitChannelLog } from '../../../typeorm/entities/bait/BaitChannelLog';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
 import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
 import { MemoryConfig } from '../../../typeorm/entities/memory/MemoryConfig';

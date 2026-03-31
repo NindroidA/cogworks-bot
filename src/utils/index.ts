@@ -6,7 +6,7 @@ export { lang } from '../lang';
 // Import directly: import { internalApiServer } from './utils/api/internalApiServer';
 // Core utilities
 export * from './apiConnector';
-export * from './baitChannelManager';
+export * from './baitChannel/baitChannelManager';
 export * from './collectors';
 export * from './colors';
 // Constants

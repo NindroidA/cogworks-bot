@@ -7,7 +7,7 @@
  */
 
 import { AppDataSource } from '../../../typeorm';
-import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
+import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { LegacyMigration } from '../legacyMigration';
 
 export const baitChannelIdsBackfill: LegacyMigration = {
@@ -30,7 +30,11 @@ export const baitChannelIdsBackfill: LegacyMigration = {
     const config = await repo.findOneBy({ guildId });
 
     if (!config || !config.channelId) {
-      return { success: true, changes: 0, details: 'No config or channelId to backfill' };
+      return {
+        success: true,
+        changes: 0,
+        details: 'No config or channelId to backfill',
+      };
     }
 
     config.channelIds = [config.channelId];

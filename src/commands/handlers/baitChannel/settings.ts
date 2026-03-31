@@ -1,5 +1,5 @@
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
-import { type BaitActionType, BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
+import { type BaitActionType, BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
 import {
   enhancedLogger,

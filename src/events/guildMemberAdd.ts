@@ -1,6 +1,6 @@
 import type { GuildMember } from 'discord.js';
 import { AppDataSource } from '../typeorm';
-import { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
+import { BaitChannelConfig } from '../typeorm/entities/bait/BaitChannelConfig';
 import { JoinEvent } from '../typeorm/entities/bait/JoinEvent';
 import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';

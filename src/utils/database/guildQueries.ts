@@ -191,8 +191,8 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     const { ArchivedApplication } = await import('../../typeorm/entities/application/ArchivedApplication');
     const { Position } = await import('../../typeorm/entities/application/Position');
     const { AnnouncementConfig } = await import('../../typeorm/entities/announcement/AnnouncementConfig');
-    const { BaitChannelConfig } = await import('../../typeorm/entities/BaitChannelConfig');
-    const { BaitChannelLog } = await import('../../typeorm/entities/BaitChannelLog');
+    const { BaitChannelConfig } = await import('../../typeorm/entities/bait/BaitChannelConfig');
+    const { BaitChannelLog } = await import('../../typeorm/entities/bait/BaitChannelLog');
     const { SavedRole } = await import('../../typeorm/entities/SavedRole');
     const { UserActivity } = await import('../../typeorm/entities/UserActivity');
     const { RulesConfig } = await import('../../typeorm/entities/rules');

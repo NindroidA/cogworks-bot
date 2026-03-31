@@ -7,7 +7,7 @@ import {
   TextChannel,
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
-import { type BaitActionType, BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
+import { type BaitActionType, BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
 import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang, safeDbOperation } from '../../../utils';
 import { Colors } from '../../../utils/colors';

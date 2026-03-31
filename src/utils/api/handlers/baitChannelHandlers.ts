@@ -1,11 +1,11 @@
 import type { Client } from 'discord.js';
 import { MoreThanOrEqual } from 'typeorm';
 import { AppDataSource } from '../../../typeorm';
-import { BaitChannelLog } from '../../../typeorm/entities/BaitChannelLog';
+import { BaitChannelLog } from '../../../typeorm/entities/bait/BaitChannelLog';
 import { BaitKeyword } from '../../../typeorm/entities/bait/BaitKeyword';
 import { JoinEvent } from '../../../typeorm/entities/bait/JoinEvent';
+import type { BaitChannelManager } from '../../baitChannel/baitChannelManager';
 import { DEFAULT_KEYWORDS } from '../../baitChannel/defaultKeywords';
-import type { BaitChannelManager } from '../../baitChannelManager';
 import { MAX } from '../../constants';
 import { ApiError } from '../apiError';
 import { optionalString, requireString } from '../helpers';

@@ -10,8 +10,8 @@
 import { type Client, EmbedBuilder, type TextChannel } from 'discord.js';
 import { MoreThan } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
-import { BaitChannelConfig } from '../../typeorm/entities/BaitChannelConfig';
-import { BaitChannelLog } from '../../typeorm/entities/BaitChannelLog';
+import { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelConfig';
+import { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
 import { Colors } from '../colors';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 

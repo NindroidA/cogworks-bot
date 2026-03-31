@@ -4,7 +4,7 @@ import { AnalyticsConfig } from '../typeorm/entities/analytics/AnalyticsConfig';
 import { AnnouncementConfig } from '../typeorm/entities/announcement/AnnouncementConfig';
 import { ApplicationConfig } from '../typeorm/entities/application/ApplicationConfig';
 import { ArchivedApplicationConfig } from '../typeorm/entities/application/ArchivedApplicationConfig';
-import { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
+import { BaitChannelConfig } from '../typeorm/entities/bait/BaitChannelConfig';
 import { EventConfig } from '../typeorm/entities/event/EventConfig';
 import { MemoryConfig } from '../typeorm/entities/memory';
 import { ReactionRoleMenu } from '../typeorm/entities/reactionRole';

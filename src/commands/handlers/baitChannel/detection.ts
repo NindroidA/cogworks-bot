@@ -1,6 +1,6 @@
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
-import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
+import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
 import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
 

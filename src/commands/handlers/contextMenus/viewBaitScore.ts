@@ -5,7 +5,7 @@
  */
 
 import { type Client, EmbedBuilder, MessageFlags, type UserContextMenuCommandInteraction } from 'discord.js';
-import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
+import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
 import { enhancedLogger, handleInteractionError, LogCategory, lang, requireAdmin } from '../../../utils';
 import { Colors } from '../../../utils/colors';

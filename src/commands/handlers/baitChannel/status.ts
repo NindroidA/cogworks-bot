@@ -1,6 +1,6 @@
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
-import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
+import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;

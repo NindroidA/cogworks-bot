@@ -2,7 +2,7 @@ import { LessThan } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
 import { AuditLog } from '../../typeorm/entities/AuditLog';
 import { AnnouncementLog } from '../../typeorm/entities/announcement/AnnouncementLog';
-import { BaitChannelLog } from '../../typeorm/entities/BaitChannelLog';
+import { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
 import { JoinEvent } from '../../typeorm/entities/bait/JoinEvent';
 import { INTERVALS, RETENTION_DAYS } from '../constants';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';

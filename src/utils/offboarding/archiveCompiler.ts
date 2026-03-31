@@ -10,7 +10,7 @@ import { AppDataSource } from '../../typeorm';
 import { AuditLog } from '../../typeorm/entities/AuditLog';
 import { AnnouncementLog } from '../../typeorm/entities/announcement/AnnouncementLog';
 import { ArchivedApplication } from '../../typeorm/entities/application/ArchivedApplication';
-import { BaitChannelLog } from '../../typeorm/entities/BaitChannelLog';
+import { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
 import { MemoryItem } from '../../typeorm/entities/memory/MemoryItem';
 import { ArchivedTicket } from '../../typeorm/entities/ticket/ArchivedTicket';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';

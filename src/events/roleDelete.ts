@@ -9,8 +9,8 @@
 import type { Role } from 'discord.js';
 import { AppDataSource } from '../typeorm';
 import { AnnouncementConfig } from '../typeorm/entities/announcement/AnnouncementConfig';
-import { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
 import { BotConfig } from '../typeorm/entities/BotConfig';
+import { BaitChannelConfig } from '../typeorm/entities/bait/BaitChannelConfig';
 import { OnboardingConfig } from '../typeorm/entities/onboarding/OnboardingConfig';
 import { ReactionRoleOption } from '../typeorm/entities/reactionRole/ReactionRoleOption';
 import { RulesConfig } from '../typeorm/entities/rules';

@@ -2,7 +2,7 @@ import type { Message, PartialMessage } from 'discord.js';
 import { AppDataSource } from '../typeorm';
 import { ApplicationConfig } from '../typeorm/entities/application/ApplicationConfig';
 import { ArchivedApplicationConfig } from '../typeorm/entities/application/ArchivedApplicationConfig';
-import { BaitChannelConfig } from '../typeorm/entities/BaitChannelConfig';
+import { BaitChannelConfig } from '../typeorm/entities/bait/BaitChannelConfig';
 import { MemoryConfig } from '../typeorm/entities/memory';
 import { ReactionRoleMenu } from '../typeorm/entities/reactionRole';
 import { RulesConfig } from '../typeorm/entities/rules';

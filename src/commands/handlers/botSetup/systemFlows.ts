@@ -23,6 +23,7 @@ import {
   ComponentType,
   EmbedBuilder,
   type ForumChannel,
+  type Guild,
   type GuildForumTagData,
   MessageFlags,
   type StringSelectMenuInteraction,
@@ -33,8 +34,8 @@ import { AnnouncementConfig } from '../../../typeorm/entities/announcement/Annou
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { type BaitActionType, BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
 import { BotConfig } from '../../../typeorm/entities/BotConfig';
+import { type BaitActionType, BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import { MemoryConfig } from '../../../typeorm/entities/memory/MemoryConfig';
 import { MemoryTag, type MemoryTagType } from '../../../typeorm/entities/memory/MemoryTag';
 import {
@@ -196,19 +197,170 @@ async function askChannelChoice(
   };
 }
 
-/**
- * Save system config to DB after channel selection/creation.
- */
-async function saveTicketConfig(
+// ---------------------------------------------------------------------------
+// Shared forum-based system setup (ticket + application share this structure)
+// ---------------------------------------------------------------------------
+
+interface ForumSystemData {
+  channelId: string;
+  archiveId: string;
+  categoryId: string;
+  messageId?: string;
+  archiveMessageId?: string;
+}
+
+interface ForumSystemConfig {
+  systemKey: SystemType;
+  systemLabel: string;
+  loadingMessage: string;
+  archiveThreadName: string;
+  archiveInitialMsg: string;
+  modalId: string;
+  modalTitle: string;
+  channelLabel: string;
+  channelFieldId: string;
+  archiveFieldId: string;
+  categoryLabel: string;
+  categoryFieldId: string;
+  sendButtonMessage: (guild: Guild, channelId: string, guildId: string) => Promise<string | undefined>;
+  saveConfig: (guildId: string, data: ForumSystemData) => Promise<void>;
+}
+
+async function configureForumSystem(
+  interaction: StringSelectMenuInteraction | ButtonInteraction,
   guildId: string,
-  data: {
-    channelId: string;
-    archiveId: string;
-    categoryId: string;
-    messageId?: string;
-    archiveMessageId?: string;
-  },
+  setupState: SetupState,
+  cfg: ForumSystemConfig,
 ) {
+  const partial = (setupState.partialData as Record<string, any>)?.[cfg.systemKey];
+
+  const choice = await askChannelChoice(interaction, cfg.systemLabel, cfg.systemKey);
+  if (!choice) return { updated: false, states: setupState.systemStates };
+
+  if (choice.autoCreate) {
+    await choice.btnInteraction.update({
+      content: `⏳ ${cfg.loadingMessage}`,
+      embeds: [],
+      components: [],
+    });
+    const guild = interaction.guild!;
+    const format = detectGuildChannelFormat(guild);
+    const created = await createSystemChannels(guild, cfg.systemKey, format);
+
+    const data: ForumSystemData = {
+      channelId: created.button!,
+      archiveId: created.archive!,
+      categoryId: created.threadCategory || created.category!,
+    };
+
+    if (data.channelId && data.archiveId && data.categoryId) {
+      data.messageId = await cfg.sendButtonMessage(guild, data.channelId, guildId);
+
+      try {
+        const archiveForum = (await guild.channels.fetch(data.archiveId)) as ForumChannel;
+        const thread = await archiveForum.threads.create({
+          name: cfg.archiveThreadName,
+          message: { content: cfg.archiveInitialMsg },
+        });
+        try {
+          await thread.pin();
+        } catch {}
+        data.archiveMessageId = thread.id;
+      } catch (_error) {
+        enhancedLogger.warn(
+          `Failed to create archive welcome thread during auto-setup (${cfg.systemKey})`,
+          LogCategory.COMMAND_EXECUTION,
+          { guildId },
+        );
+      }
+
+      await cfg.saveConfig(guildId, data);
+      const states = {
+        ...setupState.systemStates,
+        [cfg.systemKey]: 'complete' as const,
+      };
+      await saveSetupState(setupState, states, { [cfg.systemKey]: data });
+      return { updated: true, states };
+    }
+
+    return { updated: false, states: setupState.systemStates };
+  }
+
+  // Manual channel selection via modal
+  const modal = rawModal(`${cfg.modalId}_${Date.now()}`, cfg.modalTitle, [
+    labelWrap(
+      cfg.channelLabel,
+      channelSelect(cfg.channelFieldId, [ChannelType.GuildText]),
+      `Channel for the ${cfg.systemKey} button`,
+    ),
+    labelWrap(
+      'Archive Forum',
+      channelSelect(cfg.archiveFieldId, [ChannelType.GuildForum]),
+      `Forum for closed ${cfg.systemKey} archives`,
+    ),
+    labelWrap(
+      cfg.categoryLabel,
+      channelSelect(cfg.categoryFieldId, [ChannelType.GuildCategory]),
+      `Category where ${cfg.systemKey} threads are created`,
+    ),
+  ]);
+
+  const submit = await showAndAwaitModal(choice.btnInteraction, modal as any);
+  if (!submit) return { updated: false, states: setupState.systemStates };
+
+  const channelId = getModalFieldValue(submit.fields, cfg.channelFieldId) || partial?.channelId;
+  const archiveId = getModalFieldValue(submit.fields, cfg.archiveFieldId) || partial?.archiveId;
+  const categoryId = getModalFieldValue(submit.fields, cfg.categoryFieldId) || partial?.categoryId;
+
+  const data: Partial<ForumSystemData> = { channelId, archiveId, categoryId };
+
+  if (data.channelId && data.archiveId && data.categoryId) {
+    const guild = submit.guild!;
+
+    data.messageId = await cfg.sendButtonMessage(guild, data.channelId, guildId);
+
+    try {
+      const archiveForum = (await guild.channels.fetch(data.archiveId)) as ForumChannel;
+      const thread = await archiveForum.threads.create({
+        name: cfg.archiveThreadName,
+        message: { content: cfg.archiveInitialMsg },
+      });
+      try {
+        await thread.pin();
+      } catch {}
+      data.archiveMessageId = thread.id;
+    } catch {
+      enhancedLogger.warn(
+        `Failed to create archive welcome thread during existing-channel setup (${cfg.systemKey})`,
+        LogCategory.COMMAND_EXECUTION,
+        { guildId },
+      );
+    }
+
+    await cfg.saveConfig(guildId, data as ForumSystemData);
+    const states = {
+      ...setupState.systemStates,
+      [cfg.systemKey]: 'complete' as const,
+    };
+    await saveSetupState(setupState, states, { [cfg.systemKey]: data });
+    await submit.deferUpdate();
+    return { updated: true, states };
+  }
+
+  const states = {
+    ...setupState.systemStates,
+    [cfg.systemKey]: 'partial' as const,
+  };
+  await saveSetupState(setupState, states, { [cfg.systemKey]: data });
+  await submit.deferUpdate();
+  return { updated: true, states };
+}
+
+// ---------------------------------------------------------------------------
+// Per-system save helpers
+// ---------------------------------------------------------------------------
+
+async function saveTicketConfig(guildId: string, data: ForumSystemData) {
   const ticketRepo = AppDataSource.getRepository(TicketConfig);
   let config = await ticketRepo.findOneBy({ guildId });
   if (!config) config = ticketRepo.create({ guildId, messageId: '' });
@@ -225,202 +377,7 @@ async function saveTicketConfig(
   await archiveRepo.save(archive);
 }
 
-// --- Ticket System ---
-
-async function configureTicket(
-  interaction: StringSelectMenuInteraction | ButtonInteraction,
-  _client: Client,
-  guildId: string,
-  setupState: SetupState,
-) {
-  const partial = setupState.partialData?.ticket;
-
-  // Step 1: Ask create or select existing
-  const choice = await askChannelChoice(interaction, 'Ticket System', 'ticket');
-  if (!choice) return { updated: false, states: setupState.systemStates };
-
-  if (choice.autoCreate) {
-    // Auto-create channels — show loading state in the dashboard message
-    await choice.btnInteraction.update({
-      content: '⏳ Creating ticket channels...',
-      embeds: [],
-      components: [],
-    });
-    const guild = interaction.guild!;
-    const format = detectGuildChannelFormat(guild);
-    const created = await createSystemChannels(guild, 'ticket', format);
-
-    // threadCategory is where ticket threads populate; category is the parent for button/archive
-    const data: {
-      channelId: string;
-      archiveId: string;
-      categoryId: string;
-      messageId?: string;
-      archiveMessageId?: string;
-    } = {
-      channelId: created.button!,
-      archiveId: created.archive!,
-      categoryId: created.threadCategory || created.category!,
-    };
-
-    if (data.channelId && data.archiveId && data.categoryId) {
-      // Send ticket creation button in the button channel
-      try {
-        const buttonChannel = (await guild.channels.fetch(data.channelId)) as TextChannel;
-        const ticketButton = new ActionRowBuilder<ButtonBuilder>().setComponents(
-          new ButtonBuilder()
-            .setCustomId('create_ticket')
-            .setEmoji('🎫')
-            .setLabel(lang.general.buttons.createTicket)
-            .setStyle(ButtonStyle.Primary),
-        );
-        const msg = await buttonChannel.send({
-          content: lang.ticketSetup.createTicket,
-          components: [ticketButton],
-        });
-        data.messageId = msg.id;
-      } catch (_error) {
-        enhancedLogger.warn('Failed to send ticket button message during auto-setup', LogCategory.COMMAND_EXECUTION, {
-          guildId,
-        });
-      }
-
-      // Create welcome thread in archive forum
-      try {
-        const archiveForum = (await guild.channels.fetch(data.archiveId)) as ForumChannel;
-        const thread = await archiveForum.threads.create({
-          name: 'Ticket Archive',
-          message: { content: lang.ticketSetup.archiveInitialMsg },
-        });
-        try {
-          await thread.pin();
-        } catch {}
-        data.archiveMessageId = thread.id;
-      } catch (_error) {
-        enhancedLogger.warn(
-          'Failed to create archive welcome thread during auto-setup',
-          LogCategory.COMMAND_EXECUTION,
-          { guildId },
-        );
-      }
-
-      await saveTicketConfig(guildId, data);
-      const states = {
-        ...setupState.systemStates,
-        ticket: 'complete' as const,
-      };
-      await saveSetupState(setupState, states, { ticket: data });
-      return { updated: true, states };
-    }
-
-    return { updated: false, states: setupState.systemStates };
-  }
-
-  // Step 2: Show modal with channel selects (from the button interaction — modal must be first response)
-  const modal = rawModal(`setup_ticket_${Date.now()}`, 'Ticket System Setup', [
-    labelWrap(
-      'Ticket Channel',
-      channelSelect('setup_ticket_ch', [ChannelType.GuildText]),
-      'Channel for the ticket creation button',
-    ),
-    labelWrap(
-      'Archive Forum',
-      channelSelect('setup_ticket_archive', [ChannelType.GuildForum]),
-      'Forum channel for closed ticket archives',
-    ),
-    labelWrap(
-      'Ticket Category',
-      channelSelect('setup_ticket_cat', [ChannelType.GuildCategory]),
-      'Category where ticket threads are created',
-    ),
-  ]);
-
-  const submit = await showAndAwaitModal(choice.btnInteraction, modal as any);
-  if (!submit) return { updated: false, states: setupState.systemStates };
-
-  const channelId = getModalFieldValue(submit.fields, 'setup_ticket_ch') || partial?.channelId;
-  const archiveId = getModalFieldValue(submit.fields, 'setup_ticket_archive') || partial?.archiveId;
-  const categoryId = getModalFieldValue(submit.fields, 'setup_ticket_cat') || partial?.categoryId;
-
-  const data = { channelId, archiveId, categoryId };
-
-  if (data.channelId && data.archiveId && data.categoryId) {
-    const guild = submit.guild!;
-
-    // Send ticket creation button to the selected channel
-    try {
-      const buttonChannel = (await guild.channels.fetch(data.channelId)) as TextChannel;
-      const ticketButton = new ActionRowBuilder<ButtonBuilder>().setComponents(
-        new ButtonBuilder()
-          .setCustomId('create_ticket')
-          .setEmoji('🎫')
-          .setLabel(lang.general.buttons.createTicket)
-          .setStyle(ButtonStyle.Primary),
-      );
-      const msg = await buttonChannel.send({
-        content: lang.ticketSetup.createTicket,
-        components: [ticketButton],
-      });
-      (data as any).messageId = msg.id;
-    } catch (_error) {
-      enhancedLogger.warn('Failed to send ticket button during existing-channel setup', LogCategory.COMMAND_EXECUTION, {
-        guildId,
-      });
-    }
-
-    // Create welcome thread in archive forum (matches auto-create path)
-    try {
-      const archiveForum = (await guild.channels.fetch(data.archiveId)) as ForumChannel;
-      const thread = await archiveForum.threads.create({
-        name: 'Ticket Archive',
-        message: { content: lang.ticketSetup.archiveInitialMsg },
-      });
-      try {
-        await thread.pin();
-      } catch {}
-      (data as any).archiveMessageId = thread.id;
-    } catch {
-      enhancedLogger.warn(
-        'Failed to create archive welcome thread during existing-channel setup',
-        LogCategory.COMMAND_EXECUTION,
-        { guildId },
-      );
-    }
-
-    await saveTicketConfig(
-      guildId,
-      data as {
-        channelId: string;
-        archiveId: string;
-        categoryId: string;
-        messageId?: string;
-        archiveMessageId?: string;
-      },
-    );
-    const states = { ...setupState.systemStates, ticket: 'complete' as const };
-    await saveSetupState(setupState, states, { ticket: data });
-    await submit.deferUpdate();
-    return { updated: true, states };
-  }
-
-  const states = { ...setupState.systemStates, ticket: 'partial' as const };
-  await saveSetupState(setupState, states, { ticket: data });
-  await submit.deferUpdate();
-  return { updated: true, states };
-}
-
-// --- Application System ---
-
-async function saveApplicationConfig(
-  guildId: string,
-  data: {
-    channelId: string;
-    archiveId: string;
-    categoryId: string;
-    messageId?: string;
-    archiveMessageId?: string;
-  },
-) {
+async function saveApplicationConfig(guildId: string, data: ForumSystemData) {
   const appRepo = AppDataSource.getRepository(ApplicationConfig);
   let config = await appRepo.findOneBy({ guildId });
   if (!config) config = appRepo.create({ guildId, messageId: '' });
@@ -437,188 +394,98 @@ async function saveApplicationConfig(
   await archiveRepo.save(archive);
 }
 
+// ---------------------------------------------------------------------------
+// Per-system button message senders
+// ---------------------------------------------------------------------------
+
+async function sendTicketButton(guild: Guild, channelId: string, _guildId: string): Promise<string | undefined> {
+  try {
+    const buttonChannel = (await guild.channels.fetch(channelId)) as TextChannel;
+    const ticketButton = new ActionRowBuilder<ButtonBuilder>().setComponents(
+      new ButtonBuilder()
+        .setCustomId('create_ticket')
+        .setEmoji('🎫')
+        .setLabel(lang.general.buttons.createTicket)
+        .setStyle(ButtonStyle.Primary),
+    );
+    const msg = await buttonChannel.send({
+      content: lang.ticketSetup.createTicket,
+      components: [ticketButton],
+    });
+    return msg.id;
+  } catch (_error) {
+    enhancedLogger.warn('Failed to send ticket button message', LogCategory.COMMAND_EXECUTION, { guildId: guild.id });
+    return undefined;
+  }
+}
+
+async function sendApplicationButton(guild: Guild, channelId: string, guildId: string): Promise<string | undefined> {
+  try {
+    const buttonChannel = (await guild.channels.fetch(channelId)) as TextChannel;
+    const positionRepo = AppDataSource.getRepository(Position);
+    const activePositions = await positionRepo.find({
+      where: { guildId, isActive: true },
+      order: { displayOrder: 'ASC' },
+    });
+    const { content, components } = await buildApplicationMessage(activePositions);
+    const msg = await buttonChannel.send({ content, components });
+    return msg.id;
+  } catch (_error) {
+    enhancedLogger.warn('Failed to send application button message', LogCategory.COMMAND_EXECUTION, { guildId });
+    return undefined;
+  }
+}
+
+// --- Ticket System ---
+
+async function configureTicket(
+  interaction: StringSelectMenuInteraction | ButtonInteraction,
+  _client: Client,
+  guildId: string,
+  setupState: SetupState,
+) {
+  return configureForumSystem(interaction, guildId, setupState, {
+    systemKey: 'ticket',
+    systemLabel: 'Ticket System',
+    loadingMessage: 'Creating ticket channels...',
+    archiveThreadName: 'Ticket Archive',
+    archiveInitialMsg: lang.ticketSetup.archiveInitialMsg,
+    modalId: 'setup_ticket',
+    modalTitle: 'Ticket System Setup',
+    channelLabel: 'Ticket Channel',
+    channelFieldId: 'setup_ticket_ch',
+    archiveFieldId: 'setup_ticket_archive',
+    categoryLabel: 'Ticket Category',
+    categoryFieldId: 'setup_ticket_cat',
+    sendButtonMessage: sendTicketButton,
+    saveConfig: saveTicketConfig,
+  });
+}
+
+// --- Application System ---
+
 async function configureApplication(
   interaction: StringSelectMenuInteraction | ButtonInteraction,
   _client: Client,
   guildId: string,
   setupState: SetupState,
 ) {
-  const partial = setupState.partialData?.application;
-
-  // Step 1: Ask create or select existing
-  const choice = await askChannelChoice(interaction, 'Application System', 'application');
-  if (!choice) return { updated: false, states: setupState.systemStates };
-
-  if (choice.autoCreate) {
-    // Auto-create channels
-    await choice.btnInteraction.update({
-      content: '⏳ Creating application channels...',
-      embeds: [],
-      components: [],
-    });
-    const guild = interaction.guild!;
-    const format = detectGuildChannelFormat(guild);
-    const created = await createSystemChannels(guild, 'application', format);
-
-    // threadCategory is where application threads populate; category is the parent for button/archive
-    const data: {
-      channelId: string;
-      archiveId: string;
-      categoryId: string;
-      messageId?: string;
-      archiveMessageId?: string;
-    } = {
-      channelId: created.button!,
-      archiveId: created.archive!,
-      categoryId: created.threadCategory || created.category!,
-    };
-
-    if (data.channelId && data.archiveId && data.categoryId) {
-      // Send application button message in the button channel
-      try {
-        const buttonChannel = (await guild.channels.fetch(data.channelId)) as TextChannel;
-        const positionRepo = AppDataSource.getRepository(Position);
-        const activePositions = await positionRepo.find({
-          where: { guildId, isActive: true },
-          order: { displayOrder: 'ASC' },
-        });
-        const { content, components } = await buildApplicationMessage(activePositions);
-        const msg = await buttonChannel.send({ content, components });
-        data.messageId = msg.id;
-      } catch (_error) {
-        enhancedLogger.warn(
-          'Failed to send application button message during auto-setup',
-          LogCategory.COMMAND_EXECUTION,
-          { guildId },
-        );
-      }
-
-      // Create welcome thread in archive forum
-      try {
-        const archiveForum = (await guild.channels.fetch(data.archiveId)) as ForumChannel;
-        const thread = await archiveForum.threads.create({
-          name: 'Application Archive',
-          message: { content: lang.application.setup.archiveInitialMsg },
-        });
-        try {
-          await thread.pin();
-        } catch {}
-        data.archiveMessageId = thread.id;
-      } catch (_error) {
-        enhancedLogger.warn(
-          'Failed to create archive welcome thread during auto-setup',
-          LogCategory.COMMAND_EXECUTION,
-          { guildId },
-        );
-      }
-
-      await saveApplicationConfig(guildId, data);
-      const states = {
-        ...setupState.systemStates,
-        application: 'complete' as const,
-      };
-      await saveSetupState(setupState, states, { application: data });
-      return { updated: true, states };
-    }
-
-    return { updated: false, states: setupState.systemStates };
-  }
-
-  // Step 2: Show modal with channel selects (from the button interaction — modal must be first response)
-  const modal = rawModal(`setup_app_${Date.now()}`, 'Application System Setup', [
-    labelWrap(
-      'Application Channel',
-      channelSelect('setup_app_ch', [ChannelType.GuildText]),
-      'Channel for the application button',
-    ),
-    labelWrap(
-      'Archive Forum',
-      channelSelect('setup_app_archive', [ChannelType.GuildForum]),
-      'Forum for closed application archives',
-    ),
-    labelWrap(
-      'Application Category',
-      channelSelect('setup_app_cat', [ChannelType.GuildCategory]),
-      'Category where application threads are created',
-    ),
-  ]);
-
-  const submit = await showAndAwaitModal(choice.btnInteraction, modal as any);
-  if (!submit) return { updated: false, states: setupState.systemStates };
-
-  const channelId = getModalFieldValue(submit.fields, 'setup_app_ch') || partial?.channelId;
-  const archiveId = getModalFieldValue(submit.fields, 'setup_app_archive') || partial?.archiveId;
-  const categoryId = getModalFieldValue(submit.fields, 'setup_app_cat') || partial?.categoryId;
-
-  const data = { channelId, archiveId, categoryId };
-
-  if (data.channelId && data.archiveId && data.categoryId) {
-    const guild = submit.guild!;
-
-    // Send application button message to the selected channel
-    try {
-      const buttonChannel = (await guild.channels.fetch(data.channelId)) as TextChannel;
-      const positionRepo = AppDataSource.getRepository(Position);
-      const activePositions = await positionRepo.find({
-        where: { guildId, isActive: true },
-        order: { displayOrder: 'ASC' },
-      });
-      const { content, components } = await buildApplicationMessage(activePositions);
-      const msg = await buttonChannel.send({ content, components });
-      (data as any).messageId = msg.id;
-    } catch (_error) {
-      enhancedLogger.warn(
-        'Failed to send application button during existing-channel setup',
-        LogCategory.COMMAND_EXECUTION,
-        { guildId },
-      );
-    }
-
-    // Create welcome thread in archive forum (matches auto-create path)
-    try {
-      const archiveForum = (await guild.channels.fetch(data.archiveId)) as ForumChannel;
-      const thread = await archiveForum.threads.create({
-        name: 'Application Archive',
-        message: { content: lang.application.setup.archiveInitialMsg },
-      });
-      try {
-        await thread.pin();
-      } catch {}
-      (data as any).archiveMessageId = thread.id;
-    } catch {
-      enhancedLogger.warn(
-        'Failed to create archive welcome thread during existing-channel setup',
-        LogCategory.COMMAND_EXECUTION,
-        { guildId },
-      );
-    }
-
-    await saveApplicationConfig(
-      guildId,
-      data as {
-        channelId: string;
-        archiveId: string;
-        categoryId: string;
-        messageId?: string;
-        archiveMessageId?: string;
-      },
-    );
-    const states = {
-      ...setupState.systemStates,
-      application: 'complete' as const,
-    };
-    await saveSetupState(setupState, states, { application: data });
-    await submit.deferUpdate();
-    return { updated: true, states };
-  }
-
-  const states = {
-    ...setupState.systemStates,
-    application: 'partial' as const,
-  };
-  await saveSetupState(setupState, states, { application: data });
-  await submit.deferUpdate();
-  return { updated: true, states };
+  return configureForumSystem(interaction, guildId, setupState, {
+    systemKey: 'application',
+    systemLabel: 'Application System',
+    loadingMessage: 'Creating application channels...',
+    archiveThreadName: 'Application Archive',
+    archiveInitialMsg: lang.application.setup.archiveInitialMsg,
+    modalId: 'setup_app',
+    modalTitle: 'Application System Setup',
+    channelLabel: 'Application Channel',
+    channelFieldId: 'setup_app_ch',
+    archiveFieldId: 'setup_app_archive',
+    categoryLabel: 'Application Category',
+    categoryFieldId: 'setup_app_cat',
+    sendButtonMessage: sendApplicationButton,
+    saveConfig: saveApplicationConfig,
+  });
 }
 
 // --- Announcements ---

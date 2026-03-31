@@ -5,7 +5,7 @@
 - **Runtime**: Bun
 - **Deployment**: Docker containers
 - **Branches**: `main` (production)
-- **Version**: 3.0.4
+- **Version**: 3.0.5
 
 ## Critical Rules
 
@@ -208,8 +208,7 @@ const repo = AppDataSource.getRepository(Ticket);
 ```
 src/typeorm/entities/
 ├── AuditLog.ts           # Dashboard action audit log (90-day TTL)
-├── BaitChannelConfig.ts  # Bait channel detection config
-├── BaitChannelLog.ts     # Detection event logs
+├── bait/                 # BaitChannelConfig, BaitChannelLog, BaitKeyword, JoinEvent
 ├── BotConfig.ts          # Per-guild bot configuration
 ├── PendingBan.ts         # Pending ban queue
 ├── SavedRole.ts          # Staff/saved roles
@@ -218,7 +217,6 @@ src/typeorm/entities/
 ├── analytics/            # AnalyticsConfig, AnalyticsSnapshot
 ├── announcement/         # AnnouncementConfig, AnnouncementLog, AnnouncementTemplate
 ├── application/          # ApplicationConfig, ArchivedApplicationConfig, Position, Application, ArchivedApplication
-├── bait/                 # BaitKeyword, JoinEvent
 ├── event/                # EventConfig, EventTemplate, EventReminder
 ├── import/               # ImportLog
 ├── memory/               # MemoryConfig, MemoryItem, MemoryTag

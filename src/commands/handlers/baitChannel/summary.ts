@@ -6,7 +6,7 @@
 
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
-import { BaitChannelConfig } from '../../../typeorm/entities/BaitChannelConfig';
+import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import { handleInteractionError, lang } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
@@ -58,7 +58,10 @@ export const summaryHandler = async (_client: Client, interaction: ChatInputComm
       });
     }
 
-    await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      embeds: [embed],
+      flags: [MessageFlags.Ephemeral],
+    });
   } catch (error) {
     await handleInteractionError(
       interaction,
