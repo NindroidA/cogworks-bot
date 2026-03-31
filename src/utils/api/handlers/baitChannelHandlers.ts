@@ -1,14 +1,14 @@
 import type { Client } from 'discord.js';
 import { MoreThanOrEqual } from 'typeorm';
-import { AppDataSource } from '../../../typeorm';
 import { BaitChannelLog } from '../../../typeorm/entities/bait/BaitChannelLog';
 import { BaitKeyword } from '../../../typeorm/entities/bait/BaitKeyword';
 import { JoinEvent } from '../../../typeorm/entities/bait/JoinEvent';
 import type { BaitChannelManager } from '../../baitChannel/baitChannelManager';
 import { DEFAULT_KEYWORDS } from '../../baitChannel/defaultKeywords';
 import { MAX } from '../../constants';
+import { lazyRepo } from '../../database/lazyRepo';
 import { ApiError } from '../apiError';
-import { optionalString, requireString } from '../helpers';
+import { optionalNumber, optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
@@ -16,9 +16,11 @@ type ClientWithBaitManager = Client & {
   baitChannelManager?: BaitChannelManager;
 };
 
-export function registerBaitChannelHandlers(client: Client, routes: Map<string, RouteHandler>): void {
-  const keywordRepo = AppDataSource.getRepository(BaitKeyword);
+const keywordRepo = lazyRepo(BaitKeyword);
+const logRepo = lazyRepo(BaitChannelLog);
+const joinEventRepo = lazyRepo(JoinEvent);
 
+export function registerBaitChannelHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // GET /internal/guilds/:guildId/bait-channel/keywords
   routes.set('GET /bait-channel/keywords', async guildId => {
     const keywords = await keywordRepo.find({
@@ -31,7 +33,7 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
   // POST /internal/guilds/:guildId/bait-channel/keywords/add
   routes.set('POST /bait-channel/keywords/add', async (guildId, body) => {
     const keyword = requireString(body, 'keyword').toLowerCase();
-    const weight = typeof body.weight === 'number' ? body.weight : 5;
+    const weight = optionalNumber(body, 'weight') ?? 5;
     const triggeredBy = optionalString(body, 'triggeredBy');
 
     if (keyword.length < 1 || keyword.length > 100) {
@@ -114,9 +116,6 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
 
     return { success: true, count: DEFAULT_KEYWORDS.length };
   });
-
-  const logRepo = AppDataSource.getRepository(BaitChannelLog);
-  const joinEventRepo = AppDataSource.getRepository(JoinEvent);
 
   // POST /internal/guilds/:guildId/bait-channel/override
   // Mark the most recent BaitChannelLog for a user as overridden

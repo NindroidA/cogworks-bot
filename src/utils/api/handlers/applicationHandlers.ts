@@ -20,7 +20,7 @@ export function registerApplicationHandlers(client: Client, routes: Map<string, 
   // POST /internal/guilds/:guildId/applications/:id/approve
   routes.set('POST /applications/:id/approve', async (guildId, body, url) => {
     const appId = requireId(url, 'applications');
-    const approvedBy = requireString(body, 'approvedBy');
+    const approvedBy = optionalString(body, 'triggeredBy') ?? requireString(body, 'approvedBy');
 
     const app = await applicationRepo.findOneBy({ guildId, id: appId });
     if (!app) throw ApiError.notFound('Application not found');
@@ -44,7 +44,7 @@ export function registerApplicationHandlers(client: Client, routes: Map<string, 
   // POST /internal/guilds/:guildId/applications/:id/deny
   routes.set('POST /applications/:id/deny', async (guildId, body, url) => {
     const appId = requireId(url, 'applications');
-    const deniedBy = requireString(body, 'deniedBy');
+    const deniedBy = optionalString(body, 'triggeredBy') ?? requireString(body, 'deniedBy');
 
     const app = await applicationRepo.findOneBy({ guildId, id: appId });
     if (!app) throw ApiError.notFound('Application not found');

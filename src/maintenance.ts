@@ -8,6 +8,7 @@
  * Activated by MAINTENANCE_MODE=true in env.
  */
 
+import { timingSafeEqual } from 'node:crypto';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import { ActivityType, Client, EmbedBuilder, GatewayIntentBits, type Interaction, MessageFlags } from 'discord.js';
 import { version } from '../package.json';
@@ -113,9 +114,14 @@ function startMaintenanceApi(): Server {
   }
 
   const server = createServer((req, res: ServerResponse) => {
-    // Auth check
+    // Auth check (timing-safe to prevent timing attacks)
     const authHeader = req.headers.authorization;
-    if (!authHeader || authHeader !== `Bearer ${token}`) {
+    const expected = `Bearer ${token}`;
+    if (
+      !authHeader ||
+      authHeader.length !== expected.length ||
+      !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+    ) {
       sendJson(res, 401, { error: 'Unauthorized' });
       return;
     }

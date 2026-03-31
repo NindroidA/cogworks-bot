@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.8]
+
+### Fixed
+- **Desloppify Rescore + Fixes**: Fresh 20-dimension subjective review and targeted fixes
+  - Timing-safe auth comparison in `maintenance.ts` (was using string `!==` instead of `timingSafeEqual`)
+  - Removed 3 dead exports from `utils/types.ts` (getGuildId, DownloadOptions, SavedRoleTypes)
+  - Replaced duplicate SSRF-weak `isUrlSafe` in guildWebhook.ts with shared `validateSafeUrl`
+  - Fixed raw `typeof body.weight` in baitChannelHandlers.ts — now uses `optionalNumber()` helper
+  - Unified repo access: baitChannelHandlers.ts and setupHandlers.ts now use `lazyRepo()` like all other API handlers
+  - API field name consistency: approve/deny endpoints now accept `triggeredBy` (alongside legacy `approvedBy`/`deniedBy`)
+- **Scorecard**: Strict score 82.8/100 (up from 74.9), objective score 100%, scorecard regenerated
+
 ## [3.0.7]
 
 ### Changed

@@ -17,10 +17,11 @@ import { RulesConfig } from '../../../typeorm/entities/rules';
 import { DEFAULT_SYSTEM_STATES, SetupState, type SystemStates } from '../../../typeorm/entities/SetupState';
 import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
+import { lazyRepo } from '../../database/lazyRepo';
 import { optionalStringArray, requireBoolean, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 
-const setupStateRepo = () => AppDataSource.getRepository(SetupState);
+const setupStateRepo = lazyRepo(SetupState);
 
 /**
  * Detect system states from actual DB configs (same logic as setupDashboard.ts).
@@ -77,7 +78,7 @@ export function registerSetupHandlers(routes: Map<string, RouteHandler>): void {
    */
   routes.set('GET /setup/state', async guildId => {
     const dbStates = await detectSystemStates(guildId);
-    const setupState = await setupStateRepo().findOneBy({ guildId });
+    const setupState = await setupStateRepo.findOneBy({ guildId });
 
     return {
       guildId,
@@ -98,10 +99,10 @@ export function registerSetupHandlers(routes: Map<string, RouteHandler>): void {
   routes.set('POST /setup/systems', async (guildId, body) => {
     const enabledSystems = optionalStringArray(body, 'enabledSystems') ?? null;
 
-    let state = await setupStateRepo().findOneBy({ guildId });
+    let state = await setupStateRepo.findOneBy({ guildId });
     if (!state) {
       const dbStates = await detectSystemStates(guildId);
-      state = setupStateRepo().create({
+      state = setupStateRepo.create({
         guildId,
         selectedSystems: enabledSystems ?? null,
         systemStates: dbStates,
@@ -111,7 +112,7 @@ export function registerSetupHandlers(routes: Map<string, RouteHandler>): void {
       state.selectedSystems = enabledSystems ?? null;
     }
 
-    await setupStateRepo().save(state);
+    await setupStateRepo.save(state);
 
     return {
       success: true,
@@ -130,16 +131,16 @@ export function registerSetupHandlers(routes: Map<string, RouteHandler>): void {
     const systemId = requireString(body, 'systemId');
     const enabled = requireBoolean(body, 'enabled');
 
-    let state = await setupStateRepo().findOneBy({ guildId });
+    let state = await setupStateRepo.findOneBy({ guildId });
     if (!state) {
       const dbStates = await detectSystemStates(guildId);
-      state = setupStateRepo().create({
+      state = setupStateRepo.create({
         guildId,
         selectedSystems: null,
         systemStates: dbStates,
         partialData: null,
       });
-      await setupStateRepo().save(state);
+      await setupStateRepo.save(state);
     }
 
     // Build the current enabled set
@@ -162,7 +163,7 @@ export function registerSetupHandlers(routes: Map<string, RouteHandler>): void {
     }
 
     state.selectedSystems = currentEnabled.size === allSystemIds.length ? null : [...currentEnabled];
-    await setupStateRepo().save(state);
+    await setupStateRepo.save(state);
 
     return {
       success: true,
