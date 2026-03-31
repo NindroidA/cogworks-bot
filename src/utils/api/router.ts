@@ -5,6 +5,7 @@ import { registerBaitChannelHandlers } from './handlers/baitChannelHandlers';
 import { registerCommandHandlers } from './handlers/commandHandlers';
 import { registerConfigHandlers } from './handlers/configHandlers';
 import { registerGuildHandlers } from './handlers/guildHandlers';
+import { registerMaintenanceHandlers } from './handlers/maintenanceHandlers';
 import { registerMemoryHandlers } from './handlers/memoryHandlers';
 import { registerReactionRoleHandlers } from './handlers/reactionRoleHandlers';
 import { registerRulesHandlers } from './handlers/rulesHandlers';
@@ -23,6 +24,7 @@ export function registerHandlers(client: Client): Map<string, RouteHandler> {
   // Top-level routes (no guildId required)
   registerGuildHandlers(client, routes);
   registerCommandHandlers(routes);
+  registerMaintenanceHandlers(routes);
 
   // Guild-scoped routes
   registerTicketHandlers(client, routes);

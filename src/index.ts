@@ -296,6 +296,11 @@ client.once('clientReady', async () => {
   // Initialize internal API server (for dashboard integration)
   if (process.env.COGWORKS_INTERNAL_API_TOKEN) {
     internalApiServer.initialize(client);
+
+    // Register status handlers (needs statusManager which is created above)
+    const { registerStatusHandlers } = await import('./utils/api/handlers/statusHandlers');
+    internalApiServer.registerLateRoutes(routes => registerStatusHandlers(client, statusManager, routes));
+
     const INTERNAL_API_PORT = Number.parseInt(process.env.BOT_INTERNAL_PORT || '3002', 10);
     internalApiServer.start(INTERNAL_API_PORT);
   }
@@ -417,6 +422,13 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // main function to do all the things
 async function main() {
+  // Maintenance mode — lightweight startup, no DB
+  if (process.env.MAINTENANCE_MODE === 'true') {
+    const { startMaintenanceMode } = await import('./maintenance');
+    await startMaintenanceMode();
+    return;
+  }
+
   try {
     const startupStart = Date.now();
 

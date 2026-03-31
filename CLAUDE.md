@@ -5,7 +5,7 @@
 - **Runtime**: Bun
 - **Deployment**: Docker containers
 - **Branches**: `main` (production)
-- **Version**: 3.0.1
+- **Version**: 3.0.2
 
 ## Critical Rules
 
@@ -255,6 +255,7 @@ await runner.runAll(guildIds);
 ### Environment Variables
 - `RELEASE=dev` → `DEV_BOT_TOKEN` + `DEV_CLIENT_ID` (separate bot)
 - `RELEASE=prod` → `BOT_TOKEN` + `CLIENT_ID` (production)
+- `MAINTENANCE_MODE=true` — Lightweight mode, no DB, replies with maintenance message (see `src/maintenance.ts`)
 - `BOT_OWNER_ID` — Required for `/status` commands
 - `DEV_GUILD_ID` — Skips API webhooks and join velocity for this guild
 - `COGWORKS_INTERNAL_API_TOKEN` — Bearer token for internal API

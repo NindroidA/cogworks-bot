@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.2]
+
+### Added
+- **Maintenance Mode**: `MAINTENANCE_MODE=true` env var for lightweight operation without a database
+  - Bot stays online on Discord, replies to all interactions with a maintenance embed
+  - Sets presence to "Under Maintenance" with idle status
+  - Own lightweight health server (live returns 200, ready returns 503)
+  - Minimal internal API (`GET /internal/maintenance`, `GET /internal/health`)
+  - Suitable for running on a Raspberry Pi during downtime
+- **Status API Endpoints**: Dashboard integration for bot status management
+  - `GET /internal/maintenance` — check if bot is in maintenance mode
+  - `GET /internal/status` — current bot status, presence text, override state, uptime
+  - `POST /internal/status/override` — set a fixed presence message + status level
+  - `DELETE /internal/status/override` — clear override, resume normal presence rotation
+- Internal API now supports DELETE method
+
 ## [3.0.1]
 
 ### Hotfix

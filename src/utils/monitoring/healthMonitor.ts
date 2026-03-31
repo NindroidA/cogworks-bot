@@ -98,6 +98,13 @@ class HealthMonitor {
   private statusManager?: StatusManager;
   private readonly rssThresholdBytes: number;
   private periodicCheckIntervals: NodeJS.Timeout[] = [];
+  private healthSnapshots: Array<{
+    timestamp: string;
+    latencyMs: number;
+    memoryMB: number;
+    guilds: number;
+  }> = [];
+  private readonly maxSnapshots = 288; // 24h at 5-minute intervals
 
   constructor() {
     const thresholdMB = Number.parseInt(process.env.MEMORY_THRESHOLD_MB || '512', 10);
@@ -193,6 +200,24 @@ class HealthMonitor {
     if (this.errorLog.length > this.maxErrorLogSize) {
       this.errorLog.shift();
     }
+  }
+
+  /** Get recent errors for API exposure */
+  public getRecentErrors(limit = 50): Array<{
+    message: string;
+    severity: string;
+    timestamp: string;
+    context?: string;
+  }> {
+    return this.errorLog
+      .slice(-limit)
+      .reverse()
+      .map(e => ({
+        message: e.message,
+        severity: 'error',
+        timestamp: e.timestamp.toISOString(),
+        context: e.category,
+      }));
   }
 
   /**
@@ -463,6 +488,28 @@ class HealthMonitor {
     }
 
     this.previousStatus = status.status;
+
+    // Record snapshot for health history API
+    this.healthSnapshots.push({
+      timestamp: new Date().toISOString(),
+      latencyMs: this.client?.ws.ping ?? -1,
+      memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      guilds: status.activeGuilds,
+    });
+    if (this.healthSnapshots.length > this.maxSnapshots) {
+      this.healthSnapshots.shift();
+    }
+  }
+
+  /** Get health history snapshots for API */
+  public getHealthHistory(hours = 24): Array<{
+    timestamp: string;
+    latencyMs: number;
+    memoryMB: number;
+    guilds: number;
+  }> {
+    const cutoff = Date.now() - hours * 60 * 60 * 1000;
+    return this.healthSnapshots.filter(s => new Date(s.timestamp).getTime() > cutoff);
   }
 }
 

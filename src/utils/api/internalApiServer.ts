@@ -17,6 +17,17 @@ class InternalApiServer {
   initialize(client: Client): void {
     this.client = client;
     this.routes = registerHandlers(client);
+    this.recompilePatterns();
+    enhancedLogger.info('Internal API server initialized', LogCategory.SYSTEM);
+  }
+
+  /** Register additional routes after initialization (e.g., status handlers that need StatusManager) */
+  registerLateRoutes(register: (routes: Map<string, RouteHandler>) => void): void {
+    register(this.routes);
+    this.recompilePatterns();
+  }
+
+  private recompilePatterns(): void {
     // Pre-compile parameterized route patterns for O(n) matching without per-request regex creation
     this.compiledPatterns = [];
     for (const [pattern, handler] of this.routes) {
@@ -25,7 +36,6 @@ class InternalApiServer {
         this.compiledPatterns.push({ regex, handler });
       }
     }
-    enhancedLogger.info('Internal API server initialized', LogCategory.SYSTEM);
   }
 
   start(port = 3002): void {
@@ -54,8 +64,8 @@ class InternalApiServer {
       return;
     }
 
-    // Only GET and POST allowed
-    if (method !== 'GET' && method !== 'POST') {
+    // Only GET, POST, and DELETE allowed
+    if (method !== 'GET' && method !== 'POST' && method !== 'DELETE') {
       sendJson(res, 405, { error: 'Method not allowed' });
       return;
     }

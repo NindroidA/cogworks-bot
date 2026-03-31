@@ -23,6 +23,20 @@ export function registerGuildHandlers(client: Client, routes: Map<string, RouteH
     return (await healthMonitor.getHealthStatus()) as unknown as Record<string, unknown>;
   });
 
+  // GET /internal/health/history — health snapshots for charting
+  routes.set('GET /internal/health/history', async (_guildId, _body, url) => {
+    const params = new URL(url, 'http://localhost').searchParams;
+    const hours = Math.min(Number.parseInt(params.get('hours') || '24', 10), 72);
+    return { snapshots: healthMonitor.getHealthHistory(hours) };
+  });
+
+  // GET /internal/errors — recent bot errors
+  routes.set('GET /internal/errors', async (_guildId, _body, url) => {
+    const params = new URL(url, 'http://localhost').searchParams;
+    const limit = Math.min(Number.parseInt(params.get('limit') || '50', 10), 100);
+    return { errors: healthMonitor.getRecentErrors(limit) };
+  });
+
   // GET /internal/guilds/:guildId/members/:userId/permissions
   routes.set('GET /members/:userId/permissions', async (guildId, _body, url) => {
     const userIdMatch = url.match(/members\/(\d+)\/permissions/);

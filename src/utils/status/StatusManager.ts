@@ -170,7 +170,19 @@ export class StatusManager {
 
     const presenceConfig = STATUS_PRESENCE_MAP[status.level];
 
-    if (presenceConfig.activity) {
+    // Manual override with custom message → use that as presence text
+    if (this.isManualOverrideActive(status) && status.message) {
+      this.client.user?.setPresence({
+        activities: [
+          {
+            name: 'Status',
+            type: ActivityType.Custom,
+            state: status.message,
+          },
+        ],
+        status: presenceConfig.status,
+      });
+    } else if (presenceConfig.activity) {
       this.client.user?.setPresence({
         activities: [
           {
@@ -182,7 +194,7 @@ export class StatusManager {
         status: presenceConfig.status,
       });
     } else {
-      // Operational — use default presence
+      // Operational — use rotating presence
       this.client.user?.setPresence({
         activities: [
           {
