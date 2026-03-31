@@ -1,10 +1,10 @@
 import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
-import { SavedRole } from '../../../typeorm/entities/SavedRole';
+import { StaffRole } from '../../../typeorm/entities/StaffRole';
 import { enhancedLogger, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.removeRole;
-const savedRoleRepo = lazyRepo(SavedRole);
+const staffRoleRepo = lazyRepo(StaffRole);
 
 export async function roleRemoveHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardAdminRateLimit(interaction, {
@@ -18,8 +18,8 @@ export async function roleRemoveHandler(interaction: ChatInputCommandInteraction
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
   const role = interaction.options.getRole('role_id')!.toString() || '';
-  const roleFinder = await savedRoleRepo.findOneBy({ guildId, role });
-  const guildFinder = await savedRoleRepo.findOneBy({ guildId });
+  const roleFinder = await staffRoleRepo.findOneBy({ guildId, role });
+  const guildFinder = await staffRoleRepo.findOneBy({ guildId });
 
   // check to see if the discord server has any saved roles
   if (!guildFinder) {
@@ -40,7 +40,7 @@ export async function roleRemoveHandler(interaction: ChatInputCommandInteraction
   }
 
   try {
-    const typeFinder = await savedRoleRepo.findOneBy({
+    const typeFinder = await staffRoleRepo.findOneBy({
       guildId,
       type: subCommand,
     });
@@ -53,7 +53,7 @@ export async function roleRemoveHandler(interaction: ChatInputCommandInteraction
       return;
     }
 
-    await savedRoleRepo
+    await staffRoleRepo
       .createQueryBuilder()
       .delete()
       .where('role = :role', { role: role })

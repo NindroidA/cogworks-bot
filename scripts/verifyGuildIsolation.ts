@@ -13,7 +13,7 @@ import { Application } from "../src/typeorm/entities/application/Application";
 import { Position } from "../src/typeorm/entities/application/Position";
 import { BaitChannelLog } from "../src/typeorm/entities/bait/BaitChannelLog";
 import { BotConfig } from "../src/typeorm/entities/BotConfig";
-import { SavedRole } from "../src/typeorm/entities/SavedRole";
+import { StaffRole } from "../src/typeorm/entities/StaffRole";
 import { Ticket } from "../src/typeorm/entities/ticket/Ticket";
 
 interface GuildDataSummary {
@@ -145,7 +145,7 @@ async function getGuildDataSummary(guildId: string): Promise<GuildDataSummary> {
   const applicationRepo = AppDataSource.getRepository(Application);
   const positionRepo = AppDataSource.getRepository(Position);
   const baitLogRepo = AppDataSource.getRepository(BaitChannelLog);
-  const savedRoleRepo = AppDataSource.getRepository(SavedRole);
+  const staffRoleRepo = AppDataSource.getRepository(StaffRole);
 
   const [botConfigs, tickets, applications, positions, baitLogs, savedRoles] =
     await Promise.all([
@@ -154,7 +154,7 @@ async function getGuildDataSummary(guildId: string): Promise<GuildDataSummary> {
       applicationRepo.count({ where: { guildId } }),
       positionRepo.count({ where: { guildId } }),
       baitLogRepo.count({ where: { guildId } }),
-      savedRoleRepo.count({ where: { guildId } }),
+      staffRoleRepo.count({ where: { guildId } }),
     ]);
 
   return {
@@ -179,7 +179,7 @@ async function checkForNullGuildIds(): Promise<{
   const applicationRepo = AppDataSource.getRepository(Application);
   const positionRepo = AppDataSource.getRepository(Position);
   const baitLogRepo = AppDataSource.getRepository(BaitChannelLog);
-  const savedRoleRepo = AppDataSource.getRepository(SavedRole);
+  const staffRoleRepo = AppDataSource.getRepository(StaffRole);
 
   // Use raw query to find NULL values
   const counts: Record<string, number> = {
@@ -189,7 +189,7 @@ async function checkForNullGuildIds(): Promise<{
     }),
     Positions: await positionRepo.count({ where: { guildId: null as any } }),
     BaitLogs: await baitLogRepo.count({ where: { guildId: null as any } }),
-    SavedRoles: await savedRoleRepo.count({ where: { guildId: null as any } }),
+    StaffRoles: await staffRoleRepo.count({ where: { guildId: null as any } }),
   };
 
   const totalNulls = Object.values(counts).reduce(

@@ -40,7 +40,7 @@ import { OnboardingCompletion } from '../../typeorm/entities/onboarding/Onboardi
 import { OnboardingConfig } from '../../typeorm/entities/onboarding/OnboardingConfig';
 import { ReactionRoleMenu } from '../../typeorm/entities/reactionRole/ReactionRoleMenu';
 import { RulesConfig } from '../../typeorm/entities/rules/RulesConfig';
-import { SavedRole } from '../../typeorm/entities/SavedRole';
+import { StaffRole } from '../../typeorm/entities/StaffRole';
 import { StarboardConfig } from '../../typeorm/entities/starboard/StarboardConfig';
 import { StarboardEntry } from '../../typeorm/entities/starboard/StarboardEntry';
 import { BotStatus } from '../../typeorm/entities/status/BotStatus';
@@ -137,7 +137,7 @@ export async function dataExportHandler(
         where: { guildId },
       }),
       AppDataSource.getRepository(BaitChannelLog).find({ where: { guildId } }),
-      AppDataSource.getRepository(SavedRole).find({ where: { guildId } }),
+      AppDataSource.getRepository(StaffRole).find({ where: { guildId } }),
       AppDataSource.getRepository(AnnouncementConfig).find({
         where: { guildId },
       }),

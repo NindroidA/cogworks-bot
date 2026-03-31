@@ -1,10 +1,10 @@
 import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
-import { SavedRole } from '../../../typeorm/entities/SavedRole';
+import { StaffRole } from '../../../typeorm/entities/StaffRole';
 import { enhancedLogger, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.addRole;
-const savedRoleRepo = lazyRepo(SavedRole);
+const staffRoleRepo = lazyRepo(StaffRole);
 
 export async function roleAddHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardAdminRateLimit(interaction, {
@@ -19,7 +19,7 @@ export async function roleAddHandler(interaction: ChatInputCommandInteraction<Ca
   const guildId = interaction.guildId;
   const role = interaction.options.getRole('role_id')!.toString() || '';
   const alias = interaction.options.getString('alias') || '';
-  const roleFinder = await savedRoleRepo.findOneBy({ guildId, role });
+  const roleFinder = await staffRoleRepo.findOneBy({ guildId, role });
 
   // check to see if role id is already saved
   if (roleFinder) {
@@ -34,7 +34,7 @@ export async function roleAddHandler(interaction: ChatInputCommandInteraction<Ca
     const values = [{ guildId: guildId, type: subCommand, role: role, alias: alias }];
 
     // insert a new entry to the table
-    await savedRoleRepo.createQueryBuilder().insert().values(values).execute();
+    await staffRoleRepo.createQueryBuilder().insert().values(values).execute();
 
     // after completion, send an ephemeral success message
     const successMsg = subCommand === 'staff' ? tl.successStaff : tl.successAdmin;

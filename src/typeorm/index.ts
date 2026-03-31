@@ -26,8 +26,8 @@ import { OnboardingCompletion } from './entities/onboarding/OnboardingCompletion
 import { OnboardingConfig } from './entities/onboarding/OnboardingConfig';
 import { ReactionRoleMenu, ReactionRoleOption } from './entities/reactionRole';
 import { RulesConfig } from './entities/rules';
-import { SavedRole } from './entities/SavedRole';
 import { SetupState } from './entities/SetupState';
+import { StaffRole } from './entities/StaffRole';
 import { StarboardConfig, StarboardEntry } from './entities/starboard';
 import { BotStatus, StatusIncident } from './entities/status';
 import { ArchivedTicket } from './entities/ticket/ArchivedTicket';
@@ -69,7 +69,7 @@ export const AppDataSource = new DataSource({
     ArchivedTicket,
     CustomTicketType,
     UserTicketRestriction,
-    SavedRole,
+    StaffRole,
     BotConfig,
     Application,
     ApplicationConfig,

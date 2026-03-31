@@ -193,7 +193,7 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     const { AnnouncementConfig } = await import('../../typeorm/entities/announcement/AnnouncementConfig');
     const { BaitChannelConfig } = await import('../../typeorm/entities/bait/BaitChannelConfig');
     const { BaitChannelLog } = await import('../../typeorm/entities/bait/BaitChannelLog');
-    const { SavedRole } = await import('../../typeorm/entities/SavedRole');
+    const { StaffRole } = await import('../../typeorm/entities/StaffRole');
     const { UserActivity } = await import('../../typeorm/entities/UserActivity');
     const { RulesConfig } = await import('../../typeorm/entities/rules');
     const { ReactionRoleMenu } = await import('../../typeorm/entities/reactionRole');
@@ -331,7 +331,7 @@ export async function deleteAllGuildData(guildId: string): Promise<{
         name: 'BaitChannelLog',
         repo: AppDataSource.getRepository(BaitChannelLog),
       },
-      { name: 'SavedRole', repo: AppDataSource.getRepository(SavedRole) },
+      { name: 'StaffRole', repo: AppDataSource.getRepository(StaffRole) },
       { name: 'UserActivity', repo: AppDataSource.getRepository(UserActivity) },
       { name: 'SetupState', repo: AppDataSource.getRepository(SetupState) },
       { name: 'RulesConfig', repo: AppDataSource.getRepository(RulesConfig) },

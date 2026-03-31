@@ -1,10 +1,10 @@
 import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
-import { SavedRole } from '../../../typeorm/entities/SavedRole';
+import { StaffRole } from '../../../typeorm/entities/StaffRole';
 import { enhancedLogger, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.getRoles;
-const savedRoleRepo = lazyRepo(SavedRole);
+const staffRoleRepo = lazyRepo(StaffRole);
 
 export async function roleListHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardAdminRateLimit(interaction, {
@@ -17,7 +17,7 @@ export async function roleListHandler(interaction: ChatInputCommandInteraction<C
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
 
-  const guildFinder = await savedRoleRepo.findOneBy({ guildId });
+  const guildFinder = await staffRoleRepo.findOneBy({ guildId });
 
   // check to see if the discord server has any saved roles
   if (!guildFinder) {
@@ -33,7 +33,7 @@ export async function roleListHandler(interaction: ChatInputCommandInteraction<C
     let message = '';
 
     // select the saved roles for the guild
-    const foundRoles = await savedRoleRepo
+    const foundRoles = await staffRoleRepo
       .createQueryBuilder()
       .select('type')
       .addSelect('role')

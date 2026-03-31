@@ -9,7 +9,7 @@ import {
 } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
-import { SavedRole } from '../../typeorm/entities/SavedRole';
+import { StaffRole } from '../../typeorm/entities/StaffRole';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
 import { enhancedLogger, extractIdFromMention, LogCategory, lang } from '../../utils';
@@ -17,7 +17,7 @@ import { lazyRepo } from '../../utils/database/lazyRepo';
 
 const tl = lang.ticket.adminOnly;
 const ticketRepo = lazyRepo(Ticket);
-const savedRoleRepo = lazyRepo(SavedRole);
+const staffRoleRepo = lazyRepo(StaffRole);
 const ticketConfigRepo = lazyRepo(TicketConfig);
 
 export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonInteraction) => {
@@ -66,7 +66,7 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
     return;
   }
 
-  const savedRoles = await savedRoleRepo
+  const savedRoles = await staffRoleRepo
     .createQueryBuilder()
     .select(['role'])
     .where('guildId = :guildId', { guildId })

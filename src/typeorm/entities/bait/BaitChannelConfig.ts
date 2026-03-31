@@ -72,9 +72,6 @@ export class BaitChannelConfig {
   @Column({ default: false })
   deleteUserMessages: boolean;
 
-  @Column({ default: 7 })
-  deleteMessageDays: number;
-
   @Column({ default: 24 })
   deleteMessageHours: number;
 

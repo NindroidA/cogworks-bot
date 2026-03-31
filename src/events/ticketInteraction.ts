@@ -16,7 +16,7 @@ import { emailImportModalHandler } from '../commands/handlers/ticket/emailImport
 import { typeAddModalHandler } from '../commands/handlers/ticket/typeAdd';
 import { typeEditModalHandler } from '../commands/handlers/ticket/typeEdit';
 import { BotConfig } from '../typeorm/entities/BotConfig';
-import { SavedRole } from '../typeorm/entities/SavedRole';
+import { StaffRole } from '../typeorm/entities/StaffRole';
 import { CustomTicketType } from '../typeorm/entities/ticket/CustomTicketType';
 import { Ticket } from '../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../typeorm/entities/ticket/TicketConfig';
@@ -82,7 +82,7 @@ async function buildLegacyTicketDescription(typeId: string, fields: ModalSubmitF
 
 const ticketConfigRepo = lazyRepo(TicketConfig);
 const ticketRepo = lazyRepo(Ticket);
-const savedRoleRepo = lazyRepo(SavedRole);
+const staffRoleRepo = lazyRepo(StaffRole);
 const botConfigRepo = lazyRepo(BotConfig);
 const customTypeRepo = lazyRepo(CustomTicketType);
 
@@ -541,7 +541,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
       const channelName = `${savedTicket.id}_${sanitizedDisplayName}_${sanitizedUsername}`.substring(0, 100);
 
       // get the staff/admin roles from the database
-      const rolePerms = await savedRoleRepo
+      const rolePerms = await staffRoleRepo
         .createQueryBuilder()
         .select(['type', 'role'])
         .where('guildId = :guildId', { guildId: guildId })

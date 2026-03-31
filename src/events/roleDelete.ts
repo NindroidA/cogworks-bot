@@ -14,7 +14,7 @@ import { BaitChannelConfig } from '../typeorm/entities/bait/BaitChannelConfig';
 import { OnboardingConfig } from '../typeorm/entities/onboarding/OnboardingConfig';
 import { ReactionRoleOption } from '../typeorm/entities/reactionRole/ReactionRoleOption';
 import { RulesConfig } from '../typeorm/entities/rules';
-import { SavedRole } from '../typeorm/entities/SavedRole';
+import { StaffRole } from '../typeorm/entities/StaffRole';
 import { XPConfig } from '../typeorm/entities/xp/XPConfig';
 import { XPRoleReward } from '../typeorm/entities/xp/XPRoleReward';
 import type { ExtendedClient } from '../types/ExtendedClient';
@@ -100,14 +100,14 @@ export default {
         }
       })(),
 
-      // SavedRole — role (delete the record)
+      // StaffRole — role (delete the record)
       (async () => {
-        const repo = AppDataSource.getRepository(SavedRole);
+        const repo = AppDataSource.getRepository(StaffRole);
         const saved = await repo.find({ where: { guildId, role: roleId } });
         if (saved.length === 0) return;
 
         await repo.remove(saved);
-        enhancedLogger.info(`Deleted ${saved.length} SavedRole(s) for deleted role`, LogCategory.SYSTEM, {
+        enhancedLogger.info(`Deleted ${saved.length} StaffRole(s) for deleted role`, LogCategory.SYSTEM, {
           guildId,
           roleId,
         });
@@ -173,7 +173,7 @@ export default {
       'RulesConfig',
       'ReactionRoleOption',
       'AnnouncementConfig',
-      'SavedRole',
+      'StaffRole',
       'XPConfig',
       'XPRoleReward',
       'OnboardingConfig',

@@ -14,7 +14,7 @@ import {
 import { Application } from '../typeorm/entities/application/Application';
 import { ApplicationConfig } from '../typeorm/entities/application/ApplicationConfig';
 import { Position } from '../typeorm/entities/application/Position';
-import { SavedRole } from '../typeorm/entities/SavedRole';
+import { StaffRole } from '../typeorm/entities/StaffRole';
 import {
   createPrivateChannelPermissions,
   createRateLimitKey,
@@ -35,7 +35,7 @@ const pl = lang.application.position;
 const applicationRepo = lazyRepo(Application);
 const applicationConfigRepo = lazyRepo(ApplicationConfig);
 const positionRepo = lazyRepo(Position);
-const savedRoleRepo = lazyRepo(SavedRole);
+const staffRoleRepo = lazyRepo(StaffRole);
 
 export const handleApplicationInteraction = async (client: Client, interaction: Interaction) => {
   if (!interaction.guildId) return;
@@ -253,7 +253,7 @@ export const handleApplicationInteraction = async (client: Client, interaction: 
       const channelName = `${savedApplication.id}-${position.title.toLowerCase().replace(/\s+/g, '-')}-${member.user.username}`;
 
       // get the admin roles from the database
-      const rolePerms = await savedRoleRepo
+      const rolePerms = await staffRoleRepo
         .createQueryBuilder()
         .select(['role'])
         .where('guildId = :guildId', { guildId: guildId })
