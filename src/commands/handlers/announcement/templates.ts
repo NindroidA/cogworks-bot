@@ -21,8 +21,8 @@ import { AnnouncementTemplate } from '../../../typeorm/entities/announcement/Ann
 import {
   awaitConfirmation,
   enhancedLogger,
+  guardAdmin,
   lang,
-  requireAdmin,
   sanitizeUserInput,
   showAndAwaitModal,
 } from '../../../utils';
@@ -62,14 +62,8 @@ export async function templateHandler(
   const _tl = lang.announcement;
 
   // Permission check
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   switch (subcommand) {
     case 'create':

@@ -10,11 +10,11 @@ import {
   awaitConfirmation,
   buildErrorMessage,
   enhancedLogger,
+  guardAdmin,
   handleInteractionError,
   invalidateMenuCache,
   LogCategory,
   lang,
-  requireAdmin,
   verifiedMessageDelete,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -23,14 +23,8 @@ const tl = lang.reactionRole;
 const menuRepo = lazyRepo(ReactionRoleMenu);
 
 export async function reactionRoleDeleteHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;

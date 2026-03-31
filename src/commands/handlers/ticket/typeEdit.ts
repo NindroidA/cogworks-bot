@@ -13,10 +13,10 @@ import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import {
   enhancedLogger,
+  guardAdmin,
   handleInteractionError,
   LogCategory,
   lang,
-  requireAdmin,
   sanitizeUserInput,
 } from '../../../utils';
 import { buildTypeConfirmationEmbed } from './typeAdd';
@@ -29,27 +29,12 @@ const tl = lang.ticket.customTypes.typeEdit;
  */
 export async function typeEditHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message ?? '',
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     const user = interaction.user.username;
 
-    if (!interaction.guild) {
-      enhancedLogger.warn('Type-edit failed: guild not found', LogCategory.COMMAND_EXECUTION);
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const typeId = interaction.options.getString('type', true);
     enhancedLogger.info(`User ${user} opening type-edit modal for '${typeId}'`, LogCategory.COMMAND_EXECUTION);
 
@@ -124,16 +109,7 @@ export async function typeEditModalHandler(interaction: ModalSubmitInteraction, 
     const user = interaction.user.username;
     enhancedLogger.info(`User ${user} submitted type-edit modal for '${typeId}'`, LogCategory.COMMAND_EXECUTION);
 
-    if (!interaction.guild) {
-      enhancedLogger.warn('Type-edit modal failed: guild not found', LogCategory.COMMAND_EXECUTION);
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
 
     // Get modal inputs
     const displayName = sanitizeUserInput(interaction.fields.getTextInputValue('displayName'));

@@ -19,12 +19,12 @@ import { TicketConfig, type WorkflowStatus } from '../../../typeorm/entities/tic
 import {
   DEFAULT_TICKET_STATUSES,
   enhancedLogger,
+  guardAdmin,
   LANGF,
   LogCategory,
   lang,
   MAX,
   REQUIRED_WORKFLOW_STATUSES,
-  requireAdmin,
   sanitizeUserInput,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -366,14 +366,8 @@ export async function ticketInfoHandler(interaction: ChatInputCommandInteraction
 // ============================================================================
 
 export async function workflowEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const config = await ticketConfigRepo.findOneBy({ guildId });
@@ -413,14 +407,8 @@ export async function workflowEnableHandler(interaction: ChatInputCommandInterac
 // ============================================================================
 
 export async function workflowDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const config = await ticketConfigRepo.findOneBy({ guildId });
@@ -460,14 +448,8 @@ export async function workflowDisableHandler(interaction: ChatInputCommandIntera
 const STATUS_ID_REGEX = /^[a-z0-9-]{1,20}$/;
 
 export async function workflowAddStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const config = await ticketConfigRepo.findOneBy({ guildId });
@@ -556,14 +538,8 @@ export async function workflowAddStatusHandler(interaction: ChatInputCommandInte
 // ============================================================================
 
 export async function workflowRemoveStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const config = await ticketConfigRepo.findOneBy({ guildId });
@@ -634,14 +610,8 @@ export async function workflowRemoveStatusHandler(interaction: ChatInputCommandI
 // ============================================================================
 
 export async function autoCloseEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const config = await ticketConfigRepo.findOneBy({ guildId });
@@ -690,14 +660,8 @@ export async function autoCloseEnableHandler(interaction: ChatInputCommandIntera
 // ============================================================================
 
 export async function autoCloseDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const config = await ticketConfigRepo.findOneBy({ guildId });

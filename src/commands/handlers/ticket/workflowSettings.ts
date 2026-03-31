@@ -11,10 +11,10 @@ import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import {
   DEFAULT_TICKET_STATUSES,
   enhancedLogger,
+  guardAdmin,
   handleInteractionError,
   LogCategory,
   lang,
-  requireAdmin,
   showAndAwaitModal,
 } from '../../../utils';
 import { Colors } from '../../../utils/colors';
@@ -25,14 +25,8 @@ const ticketConfigRepo = lazyRepo(TicketConfig);
 
 export async function workflowSettingsHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   try {
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message ?? '',
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
     const config = await ticketConfigRepo.findOneBy({ guildId });

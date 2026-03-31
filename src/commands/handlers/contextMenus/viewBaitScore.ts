@@ -7,7 +7,7 @@
 import { type Client, EmbedBuilder, MessageFlags, type UserContextMenuCommandInteraction } from 'discord.js';
 import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { enhancedLogger, handleInteractionError, LogCategory, lang, requireAdmin } from '../../../utils';
+import { enhancedLogger, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
@@ -19,14 +19,8 @@ export async function viewBaitScoreHandler(
   interaction: UserContextMenuCommandInteraction,
 ): Promise<void> {
   try {
-    const adminCheck = requireAdmin(interaction as any);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
     const targetUser = interaction.targetUser;

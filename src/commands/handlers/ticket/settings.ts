@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'di
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { Colors, E, enhancedLogger, LANGF, LogCategory, lang, requireAdmin } from '../../../utils';
+import { Colors, E, enhancedLogger, guardAdmin, LANGF, LogCategory, lang } from '../../../utils';
 
 const tl = lang.ticket.settings;
 
@@ -47,14 +47,8 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
   }
 
   // Permission check: only admins can modify ticket settings
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const setting = interaction.options.getString('setting', true);
   const enabled = interaction.options.getBoolean('enabled', true);

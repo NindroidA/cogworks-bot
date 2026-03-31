@@ -6,7 +6,7 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, handleInteractionError, LogCategory, lang, requireAdmin } from '../../../utils';
+import { enhancedLogger, guardAdmin, handleInteractionError, LogCategory } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import {
   handleAddFieldModal as coreHandleAddFieldModal,
@@ -53,27 +53,10 @@ const ticketFieldConfig: FieldManagerConfig<CustomTicketType> = {
  */
 export async function typeFieldsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message ?? '',
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
-    if (!interaction.guild) {
-      enhancedLogger.warn('Type-fields handler: guild not found', LogCategory.COMMAND_EXECUTION, {
-        userId: interaction.user.id,
-      });
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const typeId = interaction.options.getString('type', true);
 
     enhancedLogger.debug(`Command: /ticket type-fields type=${typeId}`, LogCategory.COMMAND_EXECUTION, {

@@ -14,10 +14,10 @@ import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketT
 import { UserTicketRestriction } from '../../../typeorm/entities/ticket/UserTicketRestriction';
 import {
   enhancedLogger,
+  guardAdmin,
   handleInteractionError,
   LogCategory,
   lang,
-  requireAdmin,
   showAndAwaitModal,
 } from '../../../utils';
 import { checkboxGroup, labelWrap, rawModal } from '../../../utils/modalComponents';
@@ -30,28 +30,11 @@ const tl = lang.ticket.customTypes.userRestrict;
  */
 export async function userRestrictHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    if (!interaction.guild) {
-      enhancedLogger.warn('User-restrict handler: guild not found', LogCategory.COMMAND_EXECUTION, {
-        userId: interaction.user.id,
-      });
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
     // Permission check: only admins can restrict users
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const targetUser = interaction.options.getUser('user', true);
     const typeId = interaction.options.getString('type');
 

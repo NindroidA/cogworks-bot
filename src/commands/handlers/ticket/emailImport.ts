@@ -39,17 +39,6 @@ const tl = lang.ticket.customTypes.emailImport;
  */
 export async function emailImportHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    if (!interaction.guild) {
-      enhancedLogger.warn('Email-import handler: guild not found', LogCategory.COMMAND_EXECUTION, {
-        userId: interaction.user.id,
-      });
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
     // Permission check — email import is an admin-level operation
     const guard = await guardAdminRateLimit(interaction, {
       action: 'email-import',
@@ -60,7 +49,7 @@ export async function emailImportHandler(interaction: ChatInputCommandInteractio
 
     enhancedLogger.debug(`Command: /ticket import-email`, LogCategory.COMMAND_EXECUTION, {
       userId: interaction.user.id,
-      guildId: interaction.guild.id,
+      guildId: interaction.guildId!,
     });
 
     // Create modal
@@ -275,18 +264,7 @@ function buildEmailTicketEmbed(opts: {
  */
 export async function emailImportModalHandler(interaction: ModalSubmitInteraction): Promise<void> {
   try {
-    if (!interaction.guild) {
-      enhancedLogger.warn('Email-import modal: guild not found', LogCategory.COMMAND_EXECUTION, {
-        userId: interaction.user.id,
-      });
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const userId = interaction.user.id;
 
     // Rate limit: shares TICKET_CREATE budget with manual ticket creation
@@ -363,7 +341,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
     const emailType = await ensureEmailImportType(guildId);
 
     // Validate ticket category
-    const category = await interaction.guild.channels.fetch(ticketConfig.categoryId);
+    const category = await interaction.guild!.channels.fetch(ticketConfig.categoryId);
     if (!category || category.type !== ChannelType.GuildCategory) {
       await interaction.reply({
         content: lang.ticket.ticketCategoryNotFound,
@@ -381,7 +359,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
 
     try {
       // Create ticket channel
-      const ticketChannel = await interaction.guild.channels.create({
+      const ticketChannel = await interaction.guild!.channels.create({
         name: channelName,
         type: ChannelType.GuildText,
         parent: category.id,

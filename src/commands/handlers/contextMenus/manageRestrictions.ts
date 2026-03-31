@@ -9,10 +9,10 @@ import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketT
 import { UserTicketRestriction } from '../../../typeorm/entities/ticket/UserTicketRestriction';
 import {
   enhancedLogger,
+  guardAdmin,
   handleInteractionError,
   LogCategory,
   lang,
-  requireAdmin,
   showAndAwaitModal,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -24,14 +24,8 @@ const restrictionRepo = lazyRepo(UserTicketRestriction);
 
 export async function manageRestrictionsHandler(interaction: UserContextMenuCommandInteraction): Promise<void> {
   try {
-    const adminCheck = requireAdmin(interaction as any);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
     const targetUser = interaction.targetUser;

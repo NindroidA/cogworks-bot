@@ -21,17 +21,9 @@ export async function bulkCloseTicketsHandler(interaction: ChatInputCommandInter
       return;
     }
 
-    if (!interaction.guild) {
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const ticketRepo = AppDataSource.getRepository(Ticket);
 
     // Get all open tickets for this guild
@@ -52,7 +44,7 @@ export async function bulkCloseTicketsHandler(interaction: ChatInputCommandInter
       try {
         // Try to delete the channel
         const channel = ticket.channelId
-          ? await interaction.guild.channels.fetch(ticket.channelId).catch(() => null)
+          ? await interaction.guild!.channels.fetch(ticket.channelId).catch(() => null)
           : null;
 
         if (channel) {
@@ -97,16 +89,8 @@ export async function deleteArchivedTicketHandler(interaction: ChatInputCommandI
       return;
     }
 
-    if (!interaction.guild) {
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
     const user = interaction.options.getUser('user', true);
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const archivedTicketRepo = AppDataSource.getRepository(ArchivedTicket);
 
     const archivedTicket = await archivedTicketRepo.findOne({
@@ -165,17 +149,9 @@ export async function deleteAllArchivedTicketsHandler(interaction: ChatInputComm
       return;
     }
 
-    if (!interaction.guild) {
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const archivedTicketRepo = AppDataSource.getRepository(ArchivedTicket);
 
     // Get all archived tickets first

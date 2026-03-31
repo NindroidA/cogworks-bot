@@ -21,7 +21,7 @@ export async function automodHandler(client: Client, interaction: ChatInputComma
     });
     if (!guard.allowed) return;
 
-    if (!interaction.guildId || !interaction.guild) return;
+    if (!interaction.guildId) return;
     const subcommandGroup = interaction.options.getSubcommandGroup(true);
 
     switch (subcommandGroup) {

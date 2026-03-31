@@ -42,8 +42,7 @@ export async function botResetHandler(client: Client, interaction: ChatInputComm
     });
     if (!guard.allowed) return;
 
-    if (!interaction.guild) return;
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
 
     // --- Stage 1: Initial warning ---
     const stage1Embed = new EmbedBuilder()

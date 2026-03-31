@@ -1,7 +1,7 @@
 import type { CacheType, ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import { StarboardConfig } from '../../../typeorm/entities/starboard';
-import { handleInteractionError, LANGF, lang, requireAdmin } from '../../../utils';
+import { guardAdmin, handleInteractionError, LANGF, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const configRepo = lazyRepo(StarboardConfig);
@@ -12,14 +12,8 @@ const tl = lang.starboard;
  */
 export async function starboardIgnoreHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
     const config = await configRepo.findOneBy({ guildId });
@@ -55,14 +49,8 @@ export async function starboardIgnoreHandler(interaction: ChatInputCommandIntera
  */
 export async function starboardUnignoreHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
     const config = await configRepo.findOneBy({ guildId });

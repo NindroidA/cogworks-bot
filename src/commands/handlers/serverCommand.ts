@@ -6,7 +6,7 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
-import { Colors, handleInteractionError, lang, requireAdmin } from '../../utils';
+import { Colors, guardAdmin, handleInteractionError, lang } from '../../utils';
 
 const tl = lang.general.server;
 const INVITE_URL = 'https://discord.gg/nkwMUaVSYH';
@@ -16,14 +16,8 @@ const INVITE_URL = 'https://discord.gg/nkwMUaVSYH';
  * Shows the Cogworks development Discord server invite link
  */
 export async function serverCommandHandler(interaction: ChatInputCommandInteraction): Promise<void> {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   try {
     const embed = new EmbedBuilder().setTitle(tl.title).setDescription(tl.description).setColor(Colors.brand.primary);

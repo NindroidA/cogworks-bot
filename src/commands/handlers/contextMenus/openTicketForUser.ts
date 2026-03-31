@@ -11,23 +11,17 @@ import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import {
   enhancedLogger,
   escapeDiscordMarkdown,
+  guardAdmin,
   handleInteractionError,
   LogCategory,
   lang,
-  requireAdmin,
 } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
 export async function openTicketForUserHandler(interaction: UserContextMenuCommandInteraction): Promise<void> {
   try {
-    const adminCheck = requireAdmin(interaction as any);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
     const targetUser = interaction.targetUser;

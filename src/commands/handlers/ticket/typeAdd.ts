@@ -15,11 +15,11 @@ import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketT
 import {
   E,
   enhancedLogger,
+  guardAdmin,
   handleInteractionError,
   LANGF,
   LogCategory,
   lang,
-  requireAdmin,
   sanitizeUserInput,
 } from '../../../utils';
 
@@ -31,26 +31,11 @@ const tl = lang.ticket.customTypes.typeAdd;
  */
 export async function typeAddHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message ?? '',
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     const user = interaction.user.username;
     enhancedLogger.info(`User ${user} opened ticket type-add modal`, LogCategory.COMMAND_EXECUTION);
-
-    if (!interaction.guild) {
-      enhancedLogger.warn('Type-add failed: guild not found', LogCategory.COMMAND_EXECUTION);
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
 
     // Create modal
     const modal = new ModalBuilder().setCustomId('ticket-type-add-modal').setTitle(tl.modalTitle);
@@ -123,16 +108,7 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
     const user = interaction.user.username;
     enhancedLogger.info(`User ${user} submitted ticket type-add modal`, LogCategory.COMMAND_EXECUTION);
 
-    if (!interaction.guild) {
-      enhancedLogger.warn('Type-add modal failed: guild not found', LogCategory.COMMAND_EXECUTION);
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
 
     // Get modal inputs
     const typeId = interaction.fields.getTextInputValue('typeId').toLowerCase().trim();

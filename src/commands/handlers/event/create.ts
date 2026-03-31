@@ -17,7 +17,7 @@ import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
 import type { RecurringPattern } from '../../../typeorm/entities/event/EventTemplate';
 import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
-import { enhancedLogger, LANGF, LogCategory, parseTimeInput, requireAdmin, sanitizeUserInput } from '../../../utils';
+import { enhancedLogger, guardAdmin, LANGF, LogCategory, parseTimeInput, sanitizeUserInput } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const eventConfigRepo = lazyRepo(EventConfig);
@@ -66,14 +66,8 @@ export async function handleEventCreate(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   if (!interaction.guildId || !interaction.guild) return;
   const guildId = interaction.guildId;
@@ -184,14 +178,8 @@ export async function handleFromTemplate(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   if (!interaction.guildId || !interaction.guild) return;
   const guildId = interaction.guildId;
@@ -208,7 +196,10 @@ export async function handleFromTemplate(
   const templateName = interaction.options.getString('template', true);
   const startInput = interaction.options.getString('start', true);
 
-  const template = await eventTemplateRepo.findOneBy({ guildId, name: templateName });
+  const template = await eventTemplateRepo.findOneBy({
+    guildId,
+    name: templateName,
+  });
   if (!template) {
     await interaction.reply({
       content: tl.fromTemplate.templateNotFound,
@@ -285,14 +276,8 @@ export async function handleEventCancel(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   if (!interaction.guildId || !interaction.guild) return;
   const guildId = interaction.guildId;
@@ -340,14 +325,8 @@ export async function handleRecurring(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   if (!interaction.guildId || !interaction.guild) return;
   const guildId = interaction.guildId;
@@ -365,7 +344,10 @@ export async function handleRecurring(
   const startInput = interaction.options.getString('start', true);
   const pattern = interaction.options.getString('pattern', true) as RecurringPattern;
 
-  const template = await eventTemplateRepo.findOneBy({ guildId, name: templateName });
+  const template = await eventTemplateRepo.findOneBy({
+    guildId,
+    name: templateName,
+  });
   if (!template) {
     await interaction.reply({
       content: tl.recurring.templateNotFound,

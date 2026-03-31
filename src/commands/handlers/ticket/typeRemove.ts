@@ -8,7 +8,7 @@ import {
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang, requireAdmin } from '../../../utils';
+import { enhancedLogger, guardAdmin, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeRemove;
 
@@ -18,27 +18,10 @@ const tl = lang.ticket.customTypes.typeRemove;
  */
 export async function typeRemoveHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message ?? '',
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
-    if (!interaction.guild) {
-      enhancedLogger.warn('Type-remove handler: guild not found', LogCategory.COMMAND_EXECUTION, {
-        userId: interaction.user.id,
-      });
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const typeId = interaction.options.getString('type', true);
 
     enhancedLogger.debug(`Command: /ticket type-remove type=${typeId}`, LogCategory.COMMAND_EXECUTION, {

@@ -28,6 +28,31 @@ interface GuardOptions {
 }
 
 /**
+ * Admin permission guard (no rate limiting).
+ * Replies with an ephemeral error and returns `{ allowed: false }` on failure.
+ *
+ * @example
+ * const guard = await guardAdmin(interaction);
+ * if (!guard.allowed) return;
+ */
+export async function guardAdmin(interaction: Interaction): Promise<GuardResult> {
+  if (!interaction.isRepliable()) {
+    return { allowed: false };
+  }
+
+  const adminCheck = requireAdmin(interaction);
+  if (!adminCheck.allowed) {
+    await interaction.reply({
+      content: adminCheck.message,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return { allowed: false };
+  }
+
+  return { allowed: true };
+}
+
+/**
  * Combined admin permission + rate limit guard.
  * Replies with an ephemeral error and returns `{ allowed: false }` on failure.
  *

@@ -7,7 +7,7 @@
 import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { enhancedLogger, LANGF, LogCategory, lang, requireAdmin } from '../../../utils';
+import { enhancedLogger, guardAdmin, LANGF, LogCategory, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { getTicketCreationTime } from '../../../utils/ticket/slaChecker';
 
@@ -20,14 +20,8 @@ const ticketRepo = lazyRepo(Ticket);
 // ============================================================================
 
 export async function slaEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const config = await ticketConfigRepo.findOneBy({ guildId });
@@ -87,14 +81,8 @@ export async function slaEnableHandler(interaction: ChatInputCommandInteraction<
 // ============================================================================
 
 export async function slaDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const config = await ticketConfigRepo.findOneBy({ guildId });
@@ -134,14 +122,8 @@ export async function slaDisableHandler(interaction: ChatInputCommandInteraction
 // ============================================================================
 
 export async function slaPerTypeHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const config = await ticketConfigRepo.findOneBy({ guildId });
@@ -209,14 +191,8 @@ export async function slaPerTypeHandler(interaction: ChatInputCommandInteraction
 // ============================================================================
 
 export async function slaStatsHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const days = interaction.options.getInteger('days') || 30;

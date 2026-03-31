@@ -1,5 +1,5 @@
-import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import { handleInteractionError, requireAdmin } from '../../../utils';
+import type { ChatInputCommandInteraction, Client } from 'discord.js';
+import { guardAdmin, handleInteractionError } from '../../../utils';
 import { xpAdminHandler } from './admin';
 import { leaderboardHandler } from './leaderboard';
 import { rankHandler } from './rank';
@@ -10,14 +10,8 @@ import { xpSetupHandler } from './setup';
  */
 export async function xpSetupCommandHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     if (!interaction.guildId) return;
 
@@ -32,14 +26,8 @@ export async function xpSetupCommandHandler(client: Client, interaction: ChatInp
  */
 export async function xpAdminCommandHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     if (!interaction.guildId) return;
 

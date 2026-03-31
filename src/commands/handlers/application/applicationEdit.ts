@@ -8,7 +8,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { enhancedLogger, handleInteractionError, LogCategory, lang, requireAdmin } from '../../../utils';
+import { enhancedLogger, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { updateApplicationMessage } from './applicationPosition';
 
@@ -21,24 +21,10 @@ const positionRepo = lazyRepo(Position);
  */
 export async function applicationEditHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message ?? '',
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
-    if (!interaction.guild) {
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const positionValue = interaction.options.getString('position', true);
     const positionId = parseInt(positionValue, 10);
 
@@ -112,15 +98,7 @@ export async function applicationEditModalHandler(
   positionId: number,
 ): Promise<void> {
   try {
-    if (!interaction.guild) {
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
 
     const title = interaction.fields.getTextInputValue('title').trim();
     const description = interaction.fields.getTextInputValue('description')?.trim() || '';

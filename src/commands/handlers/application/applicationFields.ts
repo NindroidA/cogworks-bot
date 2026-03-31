@@ -6,7 +6,7 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { handleInteractionError, lang, requireAdmin } from '../../../utils';
+import { guardAdmin, handleInteractionError, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import {
   handleAddFieldModal as coreHandleAddFieldModal,
@@ -102,24 +102,10 @@ const appFieldConfig: FieldManagerConfig<Position> = {
  */
 export async function applicationFieldsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message ?? '',
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
-    if (!interaction.guild) {
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const positionValue = interaction.options.getString('position', true);
     const positionId = parseInt(positionValue, 10);
 

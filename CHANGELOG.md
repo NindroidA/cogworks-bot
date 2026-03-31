@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.10]
+
+### Changed
+- **AI Generated Debt Cleanup**: Eliminated copy-pasted boilerplate across handlers
+  - Created `guardAdmin()` helper (admin check without rate limiting) — replaces 57 occurrences of 5-line `requireAdmin` boilerplate across 33 files
+  - Removed 25 redundant `if (!interaction.guild)` null checks across 17 files — central dispatcher already validates guildId
+  - Only remaining guild check: automod autocomplete handler (different dispatch path, intentionally kept)
+
+## [3.0.9]
+
+### Changed
+- **GitHub Actions Node 24 Migration**: Bumped all actions to Node 24 compatible versions
+  - `actions/checkout` v4 → v5 (all 4 instances)
+  - `docker/setup-buildx-action` v3 → v4
+  - `appleboy/scp-action` v0.1.7 → v0.1.9
+  - `appleboy/ssh-action` v1.0.3 → v1.2.2
+  - Removed `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` env workaround from both workflows
+
 ## [3.0.8]
 
 ### Fixed

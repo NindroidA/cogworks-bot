@@ -9,7 +9,6 @@ import {
   ensureForumTag,
   handleInteractionError,
   LogCategory,
-  lang,
   requireAdmin,
 } from '../../utils';
 
@@ -29,17 +28,9 @@ export async function migrateTicketTagsHandler(interaction: ChatInputCommandInte
       return;
     }
 
-    if (!interaction.guild) {
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const client = interaction.client;
     const archivedTicketRepo = AppDataSource.getRepository(ArchivedTicket);
     const archivedConfigRepo = AppDataSource.getRepository(ArchivedTicketConfig);

@@ -6,26 +6,13 @@
  */
 
 import { EmbedBuilder, type MessageContextMenuCommandInteraction, MessageFlags } from 'discord.js';
-import {
-  enhancedLogger,
-  escapeDiscordMarkdown,
-  handleInteractionError,
-  LogCategory,
-  requireAdmin,
-} from '../../../utils';
+import { enhancedLogger, escapeDiscordMarkdown, guardAdmin, handleInteractionError, LogCategory } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
 export async function captureToMemoryHandler(interaction: MessageContextMenuCommandInteraction): Promise<void> {
   try {
-    // Admin check — cast to any to satisfy requireAdmin which expects ChatInputCommandInteraction
-    const adminCheck = requireAdmin(interaction as any);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     const targetMessage = interaction.targetMessage;
     const author = escapeDiscordMarkdown(targetMessage.author?.displayName ?? 'Unknown');

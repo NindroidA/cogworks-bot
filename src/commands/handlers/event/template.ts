@@ -21,9 +21,9 @@ import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
 import {
   awaitConfirmation,
   enhancedLogger,
+  guardAdmin,
   LogCategory,
   lang,
-  requireAdmin,
   sanitizeUserInput,
   showAndAwaitModal,
 } from '../../../utils';
@@ -48,14 +48,8 @@ export async function eventTemplateHandler(
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
 
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   switch (subcommand) {
     case 'create':

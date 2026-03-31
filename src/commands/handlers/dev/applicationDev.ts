@@ -19,16 +19,8 @@ export async function deleteArchivedApplicationHandler(interaction: ChatInputCom
       return;
     }
 
-    if (!interaction.guild) {
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
     const user = interaction.options.getUser('user', true);
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const archivedAppRepo = AppDataSource.getRepository(ArchivedApplication);
 
     const archivedApp = await archivedAppRepo.findOne({
@@ -87,17 +79,9 @@ export async function deleteAllArchivedApplicationsHandler(interaction: ChatInpu
       return;
     }
 
-    if (!interaction.guild) {
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const archivedAppRepo = AppDataSource.getRepository(ArchivedApplication);
 
     // Get all archived applications first

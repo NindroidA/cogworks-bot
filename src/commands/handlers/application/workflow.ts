@@ -21,12 +21,12 @@ import {
 import {
   DEFAULT_APPLICATION_STATUSES,
   enhancedLogger,
+  guardAdmin,
   LANGF,
   LogCategory,
   lang,
   MAX,
   REQUIRED_APPLICATION_STATUSES,
-  requireAdmin,
   sanitizeUserInput,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -434,14 +434,8 @@ export async function applicationCheckHandler(interaction: ChatInputCommandInter
 // ============================================================================
 
 export async function applicationWorkflowEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const config = await applicationConfigRepo.findOneBy({ guildId });
@@ -481,14 +475,8 @@ export async function applicationWorkflowEnableHandler(interaction: ChatInputCom
 // ============================================================================
 
 export async function applicationWorkflowDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const config = await applicationConfigRepo.findOneBy({ guildId });
@@ -527,14 +515,8 @@ export async function applicationWorkflowDisableHandler(interaction: ChatInputCo
 const STATUS_ID_REGEX = /^[a-z0-9-]{1,20}$/;
 
 export async function applicationWorkflowAddStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const config = await applicationConfigRepo.findOneBy({ guildId });
@@ -620,14 +602,8 @@ export async function applicationWorkflowAddStatusHandler(interaction: ChatInput
 // ============================================================================
 
 export async function applicationWorkflowRemoveStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message ?? '',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const config = await applicationConfigRepo.findOneBy({ guildId });

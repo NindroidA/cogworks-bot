@@ -1,7 +1,7 @@
 import { type AutocompleteInteraction, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang, requireAdmin } from '../../../utils';
+import { enhancedLogger, guardAdmin, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeToggle;
 
@@ -11,27 +11,10 @@ const tl = lang.ticket.customTypes.typeToggle;
  */
 export async function typeToggleHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message ?? '',
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
-    if (!interaction.guild) {
-      enhancedLogger.warn('Type-toggle handler: guild not found', LogCategory.COMMAND_EXECUTION, {
-        userId: interaction.user.id,
-      });
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const typeId = interaction.options.getString('type', true);
 
     enhancedLogger.debug(`Command: /ticket type-toggle type=${typeId}`, LogCategory.COMMAND_EXECUTION, {
@@ -93,9 +76,7 @@ export async function typeToggleHandler(interaction: ChatInputCommandInteraction
  */
 export async function ticketTypeAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
   try {
-    if (!interaction.guild) return;
-
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const focusedValue = interaction.options.getFocused().toLowerCase();
 
     const typeRepo = AppDataSource.getRepository(CustomTicketType);
@@ -147,9 +128,7 @@ const LEGACY_TYPE_IDS = LEGACY_TYPES.map(t => t.typeId);
  */
 export async function ticketTypeAutocompleteWithLegacy(interaction: AutocompleteInteraction): Promise<void> {
   try {
-    if (!interaction.guild) return;
-
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     const focusedValue = interaction.options.getFocused().toLowerCase();
 
     const typeRepo = AppDataSource.getRepository(CustomTicketType);

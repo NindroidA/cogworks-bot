@@ -12,11 +12,11 @@ import {
   Colors,
   cleanupOldMessage,
   enhancedLogger,
+  guardAdmin,
   guardAdminRateLimit,
   LogCategory,
   lang,
   RateLimits,
-  requireAdmin,
   truncateWithNotice,
   validateEmoji,
 } from '../../utils';
@@ -161,14 +161,8 @@ async function handleSetup(_client: Client, interaction: ChatInputCommandInterac
 
 async function handleView(interaction: ChatInputCommandInteraction<CacheType>) {
   // Require admin permissions
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
@@ -201,14 +195,8 @@ async function handleView(interaction: ChatInputCommandInteraction<CacheType>) {
 
 async function handleRemove(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   // Require admin permissions
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;

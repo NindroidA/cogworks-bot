@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang, requireAdmin } from '../../../utils';
+import { enhancedLogger, guardAdmin, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeList;
 
@@ -11,27 +11,10 @@ const tl = lang.ticket.customTypes.typeList;
  */
 export async function typeListHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const adminCheck = requireAdmin(interaction);
-    if (!adminCheck.allowed) {
-      await interaction.reply({
-        content: adminCheck.message ?? '',
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
-    if (!interaction.guild) {
-      enhancedLogger.warn('Type-list handler: guild not found', LogCategory.COMMAND_EXECUTION, {
-        userId: interaction.user.id,
-      });
-      await interaction.reply({
-        content: lang.general.cmdGuildNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    const guildId = interaction.guild.id;
+    const guildId = interaction.guildId!;
     enhancedLogger.debug(`Command: /ticket type-list`, LogCategory.COMMAND_EXECUTION, {
       userId: interaction.user.id,
       guildId,

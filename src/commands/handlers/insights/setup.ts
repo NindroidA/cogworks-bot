@@ -2,8 +2,8 @@ import { type CacheType, type ChatInputCommandInteraction, type Client, EmbedBui
 import { AnalyticsConfig } from '../../../typeorm/entities/analytics/AnalyticsConfig';
 import { Colors } from '../../../utils/colors';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { guardAdmin } from '../../../utils/interactions/guardHelper';
 import { enhancedLogger, LogCategory } from '../../../utils/monitoring/enhancedLogger';
-import { requireAdmin } from '../../../utils/validation/permissionValidator';
 
 const configRepo = lazyRepo(AnalyticsConfig);
 
@@ -193,14 +193,8 @@ async function handleStatusAction(interaction: ChatInputCommandInteraction<Cache
 
 export async function insightsSetupHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   // Require admin permissions for setup
-  const adminCheck = requireAdmin(interaction);
-  if (!adminCheck.allowed) {
-    await interaction.reply({
-      content: adminCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardAdmin(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId;
   if (!guildId) return;

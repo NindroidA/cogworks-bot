@@ -16,7 +16,6 @@ import {
   enhancedLogger,
   guardAdminRateLimit,
   LogCategory,
-  lang,
   RateLimits,
   showAndAwaitModal,
 } from '../../../utils';
@@ -32,14 +31,6 @@ export async function botSetupHandler(
   client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  if (!interaction.guild) {
-    await interaction.reply({
-      embeds: [createErrorEmbed(lang.botSetup.errors.serverOnly)],
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
-
   const guard = await guardAdminRateLimit(interaction, {
     action: 'bot-setup',
     limit: RateLimits.BOT_SETUP,
@@ -47,7 +38,7 @@ export async function botSetupHandler(
   });
   if (!guard.allowed) return;
 
-  const guildId = interaction.guild.id;
+  const guildId = interaction.guildId!;
 
   try {
     // Ensure BotConfig exists (required for the bot to function)
