@@ -57,7 +57,7 @@ function setRoutingFields(config: TicketConfig, fields: Partial<RoutingConfig>):
 // /ticket routing-enable
 // ============================================================================
 
-export const routingEnableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function routingEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -106,13 +106,13 @@ export const routingEnableHandler = async (interaction: ChatInputCommandInteract
   enhancedLogger.info('Smart routing enabled', LogCategory.COMMAND_EXECUTION, {
     guildId,
   });
-};
+}
 
 // ============================================================================
 // /ticket routing-disable
 // ============================================================================
 
-export const routingDisableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function routingDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -156,13 +156,13 @@ export const routingDisableHandler = async (interaction: ChatInputCommandInterac
   enhancedLogger.info('Smart routing disabled', LogCategory.COMMAND_EXECUTION, {
     guildId,
   });
-};
+}
 
 // ============================================================================
 // /ticket routing-rule-add <type> <role> [max-open]
 // ============================================================================
 
-export const routingRuleAddHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function routingRuleAddHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -238,13 +238,13 @@ export const routingRuleAddHandler = async (interaction: ChatInputCommandInterac
     staffRoleId: role.id,
     maxOpen,
   });
-};
+}
 
 // ============================================================================
 // /ticket routing-rule-remove <type>
 // ============================================================================
 
-export const routingRuleRemoveHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function routingRuleRemoveHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -299,13 +299,13 @@ export const routingRuleRemoveHandler = async (interaction: ChatInputCommandInte
     guildId,
     ticketTypeId,
   });
-};
+}
 
 // ============================================================================
 // /ticket routing-strategy <strategy>
 // ============================================================================
 
-export const routingStrategyHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function routingStrategyHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -362,13 +362,13 @@ export const routingStrategyHandler = async (interaction: ChatInputCommandIntera
     guildId,
     strategy,
   });
-};
+}
 
 // ============================================================================
 // /ticket routing-stats
 // ============================================================================
 
-export const routingStatsHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function routingStatsHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -489,16 +489,16 @@ export const routingStatsHandler = async (interaction: ChatInputCommandInteracti
   }
 
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
-};
+}
 
 // ============================================================================
 // Autocomplete: routing rule types (for removal)
 // ============================================================================
 
-export const routingRuleAutocomplete = async (interaction: {
+export async function routingRuleAutocomplete(interaction: {
   guildId: string | null;
   respond: (choices: { name: string; value: string }[]) => Promise<void>;
-}) => {
+}) {
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
   const config = await ticketConfigRepo.findOneBy({ guildId });
@@ -521,4 +521,4 @@ export const routingRuleAutocomplete = async (interaction: {
   }));
 
   await interaction.respond(choices.slice(0, 25));
-};
+}

@@ -23,7 +23,7 @@ import { checkbox, labelWrap, rawModal } from '../../../utils/modalComponents';
 
 const ticketConfigRepo = lazyRepo(TicketConfig);
 
-export const workflowSettingsHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function workflowSettingsHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   try {
     const adminCheck = requireAdmin(interaction);
     if (!adminCheck.allowed) {
@@ -119,4 +119,4 @@ export const workflowSettingsHandler = async (interaction: ChatInputCommandInter
   } catch (error) {
     await handleInteractionError(interaction, error, 'Failed to update workflow settings');
   }
-};
+}

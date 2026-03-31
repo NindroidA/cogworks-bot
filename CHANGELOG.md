@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.7]
+
+### Changed
+- **Cosmetic Cleanup**: Normalized handler export style and file naming
+  - Converted all 118 `export const = async () =>` arrow handlers to `export async function` declarations across 75 files
+  - Renamed `StatusManager.ts` to `statusManager.ts` (camelCase, matches project convention)
+  - Zero `export const = async` patterns remaining in `src/commands/handlers/`
+
 ## [3.0.6]
 
 ### Added

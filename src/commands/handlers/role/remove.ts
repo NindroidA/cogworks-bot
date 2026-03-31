@@ -6,7 +6,7 @@ import { lazyRepo } from '../../../utils/database/lazyRepo';
 const tl = lang.removeRole;
 const savedRoleRepo = lazyRepo(SavedRole);
 
-export const roleRemoveHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function roleRemoveHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardAdminRateLimit(interaction, {
     action: 'role-save',
     limit: RateLimits.ROLE_SAVE,
@@ -77,4 +77,4 @@ export const roleRemoveHandler = async (interaction: ChatInputCommandInteraction
       flags: [MessageFlags.Ephemeral],
     });
   }
-};
+}

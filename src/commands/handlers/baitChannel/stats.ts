@@ -6,7 +6,7 @@ import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
-export const statsHandler = async (_client: Client, interaction: ChatInputCommandInteraction) => {
+export async function statsHandler(_client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const days = interaction.options.getInteger('days') || 7;
     const cutoff = new Date();
@@ -144,4 +144,4 @@ export const statsHandler = async (_client: Client, interaction: ChatInputComman
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.fetchStats);
   }
-};
+}

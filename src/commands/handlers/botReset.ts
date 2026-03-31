@@ -33,7 +33,7 @@ import { compileGuildArchive } from '../../utils/offboarding/archiveCompiler';
 import { cleanupGuildMessages } from '../../utils/offboarding/messageCleanup';
 import { CLIENT_ID, rest } from '../../utils/restClient';
 
-export const botResetHandler = async (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function botResetHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   try {
     const guard = await guardAdminRateLimit(interaction, {
       action: 'bot-reset',
@@ -368,4 +368,4 @@ export const botResetHandler = async (client: Client, interaction: ChatInputComm
   } catch (error) {
     await handleInteractionError(interaction, error, 'Bot reset');
   }
-};
+}

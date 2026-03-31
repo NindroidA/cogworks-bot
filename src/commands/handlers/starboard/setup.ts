@@ -10,7 +10,7 @@ const tl = lang.starboard;
 /**
  * Handle /starboard setup <channel> [emoji] [threshold]
  */
-export const starboardSetupHandler = async (interaction: ChatInputCommandInteraction<CacheType>): Promise<void> => {
+export async function starboardSetupHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
     const adminCheck = requireAdmin(interaction);
     if (!adminCheck.allowed) {
@@ -52,12 +52,12 @@ export const starboardSetupHandler = async (interaction: ChatInputCommandInterac
   } catch (error) {
     await handleInteractionError(interaction, error, 'Starboard setup failed');
   }
-};
+}
 
 /**
  * Handle /starboard config <setting> <value>
  */
-export const starboardConfigHandler = async (interaction: ChatInputCommandInteraction<CacheType>): Promise<void> => {
+export async function starboardConfigHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
     const adminCheck = requireAdmin(interaction);
     if (!adminCheck.allowed) {
@@ -118,12 +118,12 @@ export const starboardConfigHandler = async (interaction: ChatInputCommandIntera
   } catch (error) {
     await handleInteractionError(interaction, error, 'Starboard config update failed');
   }
-};
+}
 
 /**
  * Handle /starboard toggle
  */
-export const starboardToggleHandler = async (interaction: ChatInputCommandInteraction<CacheType>): Promise<void> => {
+export async function starboardToggleHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
     const adminCheck = requireAdmin(interaction);
     if (!adminCheck.allowed) {
@@ -155,4 +155,4 @@ export const starboardToggleHandler = async (interaction: ChatInputCommandIntera
   } catch (error) {
     await handleInteractionError(interaction, error, 'Starboard toggle failed');
   }
-};
+}

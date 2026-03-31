@@ -30,7 +30,7 @@ import type { AutoModRuleConfig } from '../../../utils/automod/templates';
 
 const tl = lang.automod;
 
-export const backupHandler = async (_client: Client, interaction: ChatInputCommandInteraction): Promise<void> => {
+export async function backupHandler(_client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   const subcommand = interaction.options.getSubcommand();
 
   switch (subcommand) {
@@ -41,7 +41,7 @@ export const backupHandler = async (_client: Client, interaction: ChatInputComma
       await handleRestore(interaction);
       break;
   }
-};
+}
 
 async function handleBackup(interaction: ChatInputCommandInteraction): Promise<void> {
   const guild = interaction.guild;

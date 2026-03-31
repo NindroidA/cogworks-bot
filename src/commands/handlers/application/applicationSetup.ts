@@ -165,7 +165,7 @@ function buildApplicationStatusEmbed(
   });
 }
 
-export const applicationSetupHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function applicationSetupHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardAdminRateLimit(interaction, {
     action: 'application-setup',
     limit: RateLimits.APPLICATION_SETUP,
@@ -213,4 +213,4 @@ export const applicationSetupHandler = async (_client: Client, interaction: Chat
       flags: [MessageFlags.Ephemeral],
     });
   }
-};
+}

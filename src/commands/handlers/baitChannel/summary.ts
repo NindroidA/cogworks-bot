@@ -12,7 +12,7 @@ import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
 
-export const summaryHandler = async (_client: Client, interaction: ChatInputCommandInteraction) => {
+export async function summaryHandler(_client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const guildId = interaction.guildId!;
     const enabled = interaction.options.getBoolean('enabled', true);
@@ -69,4 +69,4 @@ export const summaryHandler = async (_client: Client, interaction: ChatInputComm
       tl.error.weeklySummary || 'Failed to update weekly summary settings',
     );
   }
-};
+}

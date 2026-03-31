@@ -11,7 +11,7 @@ import { hoursHandler } from './hours';
 import { overviewHandler } from './overview';
 import { insightsSetupHandler } from './setup';
 
-export const insightsHandler = async (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function insightsHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -40,4 +40,4 @@ export const insightsHandler = async (client: Client, interaction: ChatInputComm
       await insightsSetupHandler(client, interaction);
       break;
   }
-};
+}

@@ -12,7 +12,7 @@ import { reactionRoleValidateHandler } from './validate';
 
 const menuRepo = lazyRepo(ReactionRoleMenu);
 
-export const reactionRoleHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function reactionRoleHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const subcommand = interaction.options.getSubcommand();
 
   switch (subcommand) {
@@ -38,7 +38,7 @@ export const reactionRoleHandler = async (_client: Client, interaction: ChatInpu
       await reactionRoleValidateHandler(interaction);
       break;
   }
-};
+}
 
 /**
  * Autocomplete for the menu option — returns menus from this guild

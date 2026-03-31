@@ -10,7 +10,7 @@ const tl = lang.starboard;
 /**
  * Handle /starboard ignore <channel>
  */
-export const starboardIgnoreHandler = async (interaction: ChatInputCommandInteraction<CacheType>): Promise<void> => {
+export async function starboardIgnoreHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
     const adminCheck = requireAdmin(interaction);
     if (!adminCheck.allowed) {
@@ -48,12 +48,12 @@ export const starboardIgnoreHandler = async (interaction: ChatInputCommandIntera
   } catch (error) {
     await handleInteractionError(interaction, error, 'Starboard ignore failed');
   }
-};
+}
 
 /**
  * Handle /starboard unignore <channel>
  */
-export const starboardUnignoreHandler = async (interaction: ChatInputCommandInteraction<CacheType>): Promise<void> => {
+export async function starboardUnignoreHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
     const adminCheck = requireAdmin(interaction);
     if (!adminCheck.allowed) {
@@ -98,4 +98,4 @@ export const starboardUnignoreHandler = async (interaction: ChatInputCommandInte
   } catch (error) {
     await handleInteractionError(interaction, error, 'Starboard unignore failed');
   }
-};
+}

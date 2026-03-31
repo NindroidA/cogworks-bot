@@ -31,7 +31,7 @@ import { resolveMemoryConfig } from './channelPicker';
 const tl = lang.memory;
 const memoryTagRepo = lazyRepo(MemoryTag);
 
-export const memoryTagsHandler = async (interaction: ChatInputCommandInteraction) => {
+export async function memoryTagsHandler(interaction: ChatInputCommandInteraction) {
   const guard = await guardAdminRateLimit(interaction, {
     action: 'memory-tags',
     limit: RateLimits.MEMORY_OPERATION,
@@ -60,7 +60,7 @@ export const memoryTagsHandler = async (interaction: ChatInputCommandInteraction
       await handleListTags(interaction, guildId, config.id);
       break;
   }
-};
+}
 
 async function handleAddTag(
   interaction: ChatInputCommandInteraction,

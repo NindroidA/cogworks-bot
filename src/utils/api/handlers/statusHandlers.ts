@@ -9,7 +9,7 @@ import type { Client } from 'discord.js';
 import { version } from '../../../../package.json';
 import { AppDataSource } from '../../../typeorm';
 import { StatusIncident, type StatusLevel } from '../../../typeorm/entities/status';
-import type { StatusManager } from '../../status/StatusManager';
+import type { StatusManager } from '../../status/statusManager';
 import { ApiError } from '../apiError';
 import { optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';

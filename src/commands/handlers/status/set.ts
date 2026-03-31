@@ -11,7 +11,7 @@ import {
   rateLimiter,
   requireBotOwner,
 } from '../../../utils';
-import type { StatusManager } from '../../../utils/status/StatusManager';
+import type { StatusManager } from '../../../utils/status/statusManager';
 
 const tl = lang.status;
 

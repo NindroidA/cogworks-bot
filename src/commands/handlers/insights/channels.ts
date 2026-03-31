@@ -9,7 +9,7 @@ import { enhancedLogger, LogCategory } from '../../../utils/monitoring/enhancedL
 const configRepo = lazyRepo(AnalyticsConfig);
 const snapshotRepo = lazyRepo(AnalyticsSnapshot);
 
-export const channelsHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function channelsHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId;
   if (!guildId) return;
 
@@ -46,4 +46,4 @@ export const channelsHandler = async (_client: Client, interaction: ChatInputCom
       flags: [MessageFlags.Ephemeral],
     });
   }
-};
+}

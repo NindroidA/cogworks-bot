@@ -9,7 +9,7 @@ import { csvImportHandler } from './csv';
 import { mee6ImportHandler } from './mee6';
 import { importStatusHandler } from './status';
 
-export const importHandler = async (interaction: ChatInputCommandInteraction): Promise<void> => {
+export async function importHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     // All import commands require admin
     const permissionCheck = requireAdmin(interaction);
@@ -49,4 +49,4 @@ export const importHandler = async (interaction: ChatInputCommandInteraction): P
     );
     await handleInteractionError(interaction, error as Error, 'Import command failed');
   }
-};
+}

@@ -11,7 +11,7 @@ import { getXPConfig } from './setup';
 const userRepo = lazyRepo(XPUser);
 const rewardRepo = lazyRepo(XPRoleReward);
 
-export const rankHandler = async (_client: Client, interaction: ChatInputCommandInteraction) => {
+export async function rankHandler(_client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const guildId = interaction.guildId;
     if (!guildId) return;
@@ -66,4 +66,4 @@ export const rankHandler = async (_client: Client, interaction: ChatInputCommand
   } catch (error) {
     await handleInteractionError(interaction, error, 'Failed to fetch rank');
   }
-};
+}

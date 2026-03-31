@@ -169,7 +169,7 @@ function buildTicketStatusEmbed(
   });
 }
 
-export const ticketSetupHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function ticketSetupHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardAdminRateLimit(interaction, {
     action: 'ticket-setup',
     limit: RateLimits.TICKET_SETUP,
@@ -221,4 +221,4 @@ export const ticketSetupHandler = async (_client: Client, interaction: ChatInput
       flags: [MessageFlags.Ephemeral],
     });
   }
-};
+}

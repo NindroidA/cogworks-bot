@@ -41,7 +41,7 @@ const DEFAULT_STATUS_TAGS = [
   { name: 'Completed', emoji: '\u2705' },
 ];
 
-export const memorySetupHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
+export async function memorySetupHandler(client: Client, interaction: ChatInputCommandInteraction) {
   const guard = await guardAdminRateLimit(interaction, {
     action: 'memory-setup',
     limit: RateLimits.BOT_SETUP,
@@ -74,7 +74,7 @@ export const memorySetupHandler = async (client: Client, interaction: ChatInputC
       await manageTagsHandler(interaction, subcommand);
       break;
   }
-};
+}
 
 async function handleSetup(client: Client, interaction: ChatInputCommandInteraction, guildId: string) {
   const existingConfigs = await memoryConfigRepo.find({ where: { guildId } });

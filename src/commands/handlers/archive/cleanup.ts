@@ -28,7 +28,7 @@ import {
 import { type ArchiveSystem, deleteArchivedEntries, exportArchives } from '../../../utils/archive/archiveExporter';
 import { Colors } from '../../../utils/colors';
 
-export const archiveCleanupHandler = async (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function archiveCleanupHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   try {
     const guard = await guardAdminRateLimit(interaction, {
       action: 'archive-cleanup',
@@ -164,4 +164,4 @@ export const archiveCleanupHandler = async (client: Client, interaction: ChatInp
   } catch (error) {
     await handleInteractionError(interaction, error, 'Archive cleanup');
   }
-};
+}

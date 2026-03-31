@@ -13,7 +13,7 @@ const tl = onboardingLang;
 /**
  * View onboarding completion statistics.
  */
-export const onboardingStatsHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function onboardingStatsHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const days = 30;
   const cutoff = new Date();
@@ -112,4 +112,4 @@ export const onboardingStatsHandler = async (_client: Client, interaction: ChatI
     embeds: [embed],
     flags: [MessageFlags.Ephemeral],
   });
-};
+}

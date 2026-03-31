@@ -14,7 +14,7 @@ import { testModeHandler } from './testMode';
 import { toggleHandler } from './toggle';
 import { whitelistHandler } from './whitelist';
 
-export const baitChannelHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
+export async function baitChannelHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const guard = await guardAdminRateLimit(interaction, {
       action: 'baitchannel',
@@ -105,4 +105,4 @@ export const baitChannelHandler = async (client: Client, interaction: ChatInputC
   } catch (error) {
     await handleInteractionError(interaction, error, 'Failed to execute bait channel command');
   }
-};
+}

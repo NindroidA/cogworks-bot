@@ -24,7 +24,7 @@ const VALID_ACTION_TYPES: BaitActionType[] = ['ban', 'kick', 'timeout', 'log-onl
  * Opens a settings modal with radio groups and checkboxes for bait channel configuration.
  * Pre-populates current values from the database.
  */
-export const settingsHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
+export async function settingsHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const guildId = interaction.guildId!;
     const guard = await guardAdminRateLimit(interaction, {
@@ -166,4 +166,4 @@ export const settingsHandler = async (client: Client, interaction: ChatInputComm
   } catch (error) {
     await handleInteractionError(interaction, error, 'Failed to update bait channel settings');
   }
-};
+}

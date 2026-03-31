@@ -138,7 +138,7 @@ async function handleCompletedStatus(threadChannel: ThreadChannel, userId: strin
   }
 }
 
-export const memoryUpdateHandler = async (interaction: ChatInputCommandInteraction) => {
+export async function memoryUpdateHandler(interaction: ChatInputCommandInteraction) {
   const guard = await guardAdminRateLimit(interaction, {
     action: 'memory-update',
     limit: RateLimits.MEMORY_OPERATION,
@@ -296,4 +296,4 @@ export const memoryUpdateHandler = async (interaction: ChatInputCommandInteracti
         .catch(() => null);
     }
   });
-};
+}

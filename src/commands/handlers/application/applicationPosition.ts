@@ -18,10 +18,7 @@ import { getTemplate } from './applicationTemplates';
 const positionRepo = lazyRepo(Position);
 const pl = lang.application.position;
 
-export const applicationPositionHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export async function applicationPositionHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const subCommand = interaction.options.getSubcommand();
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
@@ -347,7 +344,7 @@ export const applicationPositionHandler = async (
       });
     }
   }
-};
+}
 
 // function to update the application message with current positions
 export async function updateApplicationMessage(client: Client, guildId: string) {

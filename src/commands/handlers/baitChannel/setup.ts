@@ -14,7 +14,7 @@ import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
 
-export const setupHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
+export async function setupHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const channel = interaction.options.getChannel('channel', true);
     const gracePeriod = interaction.options.getInteger('grace_period', true);
@@ -147,9 +147,9 @@ export const setupHandler = async (client: Client, interaction: ChatInputCommand
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.setup);
   }
-};
+}
 
-export const handleBaitChannelAddChannel = async (client: Client, interaction: ChatInputCommandInteraction) => {
+export async function handleBaitChannelAddChannel(client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const channel = interaction.options.getChannel('channel', true);
 
@@ -232,9 +232,9 @@ export const handleBaitChannelAddChannel = async (client: Client, interaction: C
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.addChannel);
   }
-};
+}
 
-export const handleBaitChannelRemoveChannel = async (client: Client, interaction: ChatInputCommandInteraction) => {
+export async function handleBaitChannelRemoveChannel(client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const channel = interaction.options.getChannel('channel', true);
 
@@ -308,4 +308,4 @@ export const handleBaitChannelRemoveChannel = async (client: Client, interaction
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.removeChannel);
   }
-};
+}

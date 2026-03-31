@@ -18,7 +18,7 @@ const memoryConfigRepo = lazyRepo(MemoryConfig);
 const memoryTagRepo = lazyRepo(MemoryTag);
 const memoryItemRepo = lazyRepo(MemoryItem);
 
-export const memoryUpdateStatusHandler = async (interaction: ChatInputCommandInteraction) => {
+export async function memoryUpdateStatusHandler(interaction: ChatInputCommandInteraction) {
   const startTime = Date.now();
   const guard = await guardAdminRateLimit(interaction, {
     action: 'memory-update-status',
@@ -158,4 +158,4 @@ export const memoryUpdateStatusHandler = async (interaction: ChatInputCommandInt
     });
     healthMonitor.recordCommand('memory update-status', Date.now() - startTime, true);
   }
-};
+}

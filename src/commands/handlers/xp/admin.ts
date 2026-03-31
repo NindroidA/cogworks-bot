@@ -7,7 +7,7 @@ import { calculateLevel } from '../../../utils/xp/xpCalculator';
 
 const userRepo = lazyRepo(XPUser);
 
-export const xpAdminHandler = async (_client: Client, interaction: ChatInputCommandInteraction) => {
+export async function xpAdminHandler(_client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const guildId = interaction.guildId;
     if (!guildId) return;
@@ -33,7 +33,7 @@ export const xpAdminHandler = async (_client: Client, interaction: ChatInputComm
   } catch (error) {
     await handleInteractionError(interaction, error, 'Failed to execute XP admin command');
   }
-};
+}
 
 async function handleSet(interaction: ChatInputCommandInteraction, guildId: string) {
   const targetUser = interaction.options.getUser('user', true);

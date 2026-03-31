@@ -22,10 +22,7 @@ import { seedDefaultTemplates } from './templates';
 
 const announcementConfigRepo = lazyRepo(AnnouncementConfig);
 
-export const announcementSetupHandler = async (
-  _client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-) => {
+export async function announcementSetupHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardAdminRateLimit(interaction, {
     action: 'announcement-setup',
     limit: RateLimits.ANNOUNCEMENT_SETUP,
@@ -75,7 +72,7 @@ export const announcementSetupHandler = async (
   } catch (error) {
     await handleInteractionError(interaction, error, 'Announcement setup');
   }
-};
+}
 
 async function saveConfig(
   interaction: ChatInputCommandInteraction<CacheType> | ModalSubmitInteraction<CacheType>,

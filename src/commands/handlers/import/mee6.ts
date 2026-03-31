@@ -12,7 +12,7 @@ import { importManager } from '../../../utils/import/importManager';
 
 const tl = lang.import.commands;
 
-export const mee6ImportHandler = async (interaction: ChatInputCommandInteraction): Promise<void> => {
+export async function mee6ImportHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;
   const overwrite = interaction.options.getBoolean('overwrite') ?? false;
   const dryRun = interaction.options.getBoolean('dry-run') ?? false;
@@ -97,4 +97,4 @@ export const mee6ImportHandler = async (interaction: ChatInputCommandInteraction
       content: LANGF(tl.importFailed, errorMsg),
     });
   }
-};
+}

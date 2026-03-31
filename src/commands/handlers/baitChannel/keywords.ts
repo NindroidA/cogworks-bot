@@ -42,7 +42,7 @@ export async function seedDefaultKeywords(guildId: string, createdBy = 'system')
   return DEFAULT_KEYWORDS.length;
 }
 
-export const handleKeywords = async (client: Client, interaction: ChatInputCommandInteraction): Promise<void> => {
+export async function handleKeywords(client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     const action = interaction.options.getString('action', true);
     const guildId = interaction.guildId!;
@@ -69,7 +69,7 @@ export const handleKeywords = async (client: Client, interaction: ChatInputComma
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.keywords);
   }
-};
+}
 
 async function handleAdd(client: Client, interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const rawKeyword = interaction.options.getString('keyword');

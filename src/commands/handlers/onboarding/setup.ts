@@ -10,7 +10,7 @@ const tl = onboardingLang;
 /**
  * Enable the onboarding flow.
  */
-export const enableHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function enableHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
 
   let config = await configRepo.findOneBy({ guildId });
@@ -45,12 +45,12 @@ export const enableHandler = async (_client: Client, interaction: ChatInputComma
   });
 
   enhancedLogger.command('Onboarding enabled', interaction.user.id, guildId);
-};
+}
 
 /**
  * Disable the onboarding flow.
  */
-export const disableHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function disableHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
 
   const config = await configRepo.findOneBy({ guildId });
@@ -72,12 +72,12 @@ export const disableHandler = async (_client: Client, interaction: ChatInputComm
   });
 
   enhancedLogger.command('Onboarding disabled', interaction.user.id, guildId);
-};
+}
 
 /**
  * Set the welcome message.
  */
-export const welcomeMessageHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function welcomeMessageHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const message = interaction.options.getString('message', true);
 
@@ -95,12 +95,12 @@ export const welcomeMessageHandler = async (_client: Client, interaction: ChatIn
   });
 
   enhancedLogger.command('Onboarding welcome message updated', interaction.user.id, guildId);
-};
+}
 
 /**
  * Set or clear the completion role.
  */
-export const completionRoleHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function completionRoleHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const role = interaction.options.getRole('role', false);
 
@@ -125,4 +125,4 @@ export const completionRoleHandler = async (_client: Client, interaction: ChatIn
   }
 
   enhancedLogger.command('Onboarding completion role updated', interaction.user.id, guildId);
-};
+}

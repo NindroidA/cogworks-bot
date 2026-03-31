@@ -13,7 +13,7 @@ import { lazyRepo } from '../../../utils/database/lazyRepo';
 const eventConfigRepo = lazyRepo(EventConfig);
 const tl = eventLang.setup;
 
-export const eventSetupHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function eventSetupHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardAdminRateLimit(interaction, {
     action: 'event-setup',
     limit: RateLimits.ANNOUNCEMENT_SETUP,
@@ -143,4 +143,4 @@ export const eventSetupHandler = async (_client: Client, interaction: ChatInputC
       flags: [MessageFlags.Ephemeral],
     });
   }
-};
+}

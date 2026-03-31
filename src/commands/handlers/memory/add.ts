@@ -28,7 +28,7 @@ const tl = lang.memory;
 const memoryTagRepo = lazyRepo(MemoryTag);
 const memoryItemRepo = lazyRepo(MemoryItem);
 
-export const memoryAddHandler = async (interaction: ChatInputCommandInteraction) => {
+export async function memoryAddHandler(interaction: ChatInputCommandInteraction) {
   const guard = await guardAdminRateLimit(interaction, {
     action: 'memory-add',
     limit: RateLimits.MEMORY_OPERATION,
@@ -74,7 +74,7 @@ export const memoryAddHandler = async (interaction: ChatInputCommandInteraction)
       await showAddModal(i, selectionState, guildId, config.forumChannelId, config.id);
     },
   );
-};
+}
 
 async function showAddModal(
   interaction: MessageComponentInteraction,

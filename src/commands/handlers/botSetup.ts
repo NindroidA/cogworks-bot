@@ -10,9 +10,9 @@ import { botSetupHandler as setupWizard } from './botSetup/index';
 /**
  * Main bot setup handler - delegates to the new modular wizard
  */
-export const botSetupHandler = async (
+export async function botSetupHandler(
   client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
-): Promise<void> => {
+): Promise<void> {
   await setupWizard(client, interaction);
-};
+}

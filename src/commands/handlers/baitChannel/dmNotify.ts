@@ -7,7 +7,7 @@ import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
 
-export const dmNotifyHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
+export async function dmNotifyHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const subcommand = interaction.options.getSubcommand();
     const configRepo = AppDataSource.getRepository(BaitChannelConfig);
@@ -98,4 +98,4 @@ export const dmNotifyHandler = async (client: Client, interaction: ChatInputComm
   } catch (error) {
     await handleInteractionError(interaction, error, 'Failed to update DM notification settings');
   }
-};
+}

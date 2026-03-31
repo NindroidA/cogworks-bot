@@ -2,7 +2,7 @@ import { type CacheType, ChannelType, type ChatInputCommandInteraction, MessageF
 import { AppDataSource } from '../../../typeorm';
 import { BotStatus } from '../../../typeorm/entities/status';
 import { enhancedLogger, LogCategory, lang, requireBotOwner } from '../../../utils';
-import type { StatusManager } from '../../../utils/status/StatusManager';
+import type { StatusManager } from '../../../utils/status/statusManager';
 
 const tl = lang.status;
 

@@ -25,7 +25,7 @@ function generateStepId(title: string): string {
 /**
  * Add a new step to the onboarding flow.
  */
-export const stepAddHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function stepAddHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const type = interaction.options.getString('type', true) as OnboardingStepType;
   const title = interaction.options.getString('title', true);
@@ -76,12 +76,12 @@ export const stepAddHandler = async (_client: Client, interaction: ChatInputComm
   });
 
   enhancedLogger.command(`Onboarding step added: ${stepId}`, interaction.user.id, guildId);
-};
+}
 
 /**
  * Remove a step from the onboarding flow.
  */
-export const stepRemoveHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function stepRemoveHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const stepId = interaction.options.getString('step', true);
 
@@ -118,12 +118,12 @@ export const stepRemoveHandler = async (_client: Client, interaction: ChatInputC
   });
 
   enhancedLogger.command(`Onboarding step removed: ${stepId}`, interaction.user.id, guildId);
-};
+}
 
 /**
  * List all onboarding steps.
  */
-export const stepListHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function stepListHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
 
   const config = await configRepo.findOneBy({ guildId });
@@ -157,4 +157,4 @@ export const stepListHandler = async (_client: Client, interaction: ChatInputCom
     embeds: [embed],
     flags: [MessageFlags.Ephemeral],
   });
-};
+}

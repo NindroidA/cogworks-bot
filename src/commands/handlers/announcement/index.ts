@@ -7,7 +7,7 @@ import type { CacheType, ChatInputCommandInteraction, Client } from 'discord.js'
 import { announcementHandler as sendHandler } from './handler';
 import { templateHandler } from './templates';
 
-export const announcementHandler = async (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function announcementHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const subcommandGroup = interaction.options.getSubcommandGroup(false);
 
   if (subcommandGroup === 'template') {
@@ -17,4 +17,4 @@ export const announcementHandler = async (client: Client, interaction: ChatInput
 
   // send subcommand and legacy subcommands
   await sendHandler(client, interaction);
-};
+}

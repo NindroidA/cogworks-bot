@@ -191,7 +191,7 @@ async function handleStatusAction(interaction: ChatInputCommandInteraction<Cache
   });
 }
 
-export const insightsSetupHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function insightsSetupHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   // Require admin permissions for setup
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
@@ -237,7 +237,7 @@ export const insightsSetupHandler = async (_client: Client, interaction: ChatInp
       flags: [MessageFlags.Ephemeral],
     });
   }
-};
+}
 
 function getOrdinalSuffix(n: number): string {
   const s = ['th', 'st', 'nd', 'rd'];

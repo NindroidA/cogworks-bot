@@ -19,7 +19,7 @@ const ticketRepo = lazyRepo(Ticket);
 // /ticket sla-enable [target-minutes] [breach-channel]
 // ============================================================================
 
-export const slaEnableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function slaEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -80,13 +80,13 @@ export const slaEnableHandler = async (interaction: ChatInputCommandInteraction<
     targetMinutes,
     breachChannelId: breachChannel?.id || null,
   });
-};
+}
 
 // ============================================================================
 // /ticket sla-disable
 // ============================================================================
 
-export const slaDisableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function slaDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -127,13 +127,13 @@ export const slaDisableHandler = async (interaction: ChatInputCommandInteraction
   enhancedLogger.info('SLA tracking disabled', LogCategory.COMMAND_EXECUTION, {
     guildId,
   });
-};
+}
 
 // ============================================================================
 // /ticket sla-per-type <type> [minutes]
 // ============================================================================
 
-export const slaPerTypeHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function slaPerTypeHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -202,13 +202,13 @@ export const slaPerTypeHandler = async (interaction: ChatInputCommandInteraction
     typeId,
     minutes,
   });
-};
+}
 
 // ============================================================================
 // /ticket sla-stats [days]
 // ============================================================================
 
-export const slaStatsHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function slaStatsHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -282,4 +282,4 @@ export const slaStatsHandler = async (interaction: ChatInputCommandInteraction<C
     )
     .setColor(complianceRate >= 90 ? 0x00ff00 : complianceRate >= 70 ? 0xffa500 : 0xff0000);
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
-};
+}

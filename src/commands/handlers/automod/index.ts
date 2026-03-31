@@ -12,7 +12,7 @@ import { keywordHandler } from './keyword';
 import { ruleHandler } from './rule';
 import { templateHandler } from './template';
 
-export const automodHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
+export async function automodHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const guard = await guardAdminRateLimit(interaction, {
       action: 'automod',
@@ -52,7 +52,7 @@ export const automodHandler = async (client: Client, interaction: ChatInputComma
   } catch (error) {
     await handleInteractionError(interaction, error, lang.automod.error.general);
   }
-};
+}
 
 /**
  * Autocomplete handler for AutoMod rule selection.

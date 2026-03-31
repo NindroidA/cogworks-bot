@@ -11,7 +11,7 @@ import { AUTOMOD_TEMPLATES } from '../../../utils/automod/templates';
 
 const tl = lang.automod;
 
-export const templateHandler = async (_client: Client, interaction: ChatInputCommandInteraction): Promise<void> => {
+export async function templateHandler(_client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   const guild = interaction.guild;
   if (!guild) return;
 
@@ -83,4 +83,4 @@ export const templateHandler = async (_client: Client, interaction: ChatInputCom
   } catch (error) {
     await handleInteractionError(interaction, error, tl.template.error);
   }
-};
+}

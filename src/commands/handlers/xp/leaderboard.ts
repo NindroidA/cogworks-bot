@@ -11,7 +11,7 @@ const PAGE_SIZE = 10;
 
 const userRepo = lazyRepo(XPUser);
 
-export const leaderboardHandler = async (_client: Client, interaction: ChatInputCommandInteraction) => {
+export async function leaderboardHandler(_client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const guildId = interaction.guildId;
     if (!guildId) return;
@@ -68,4 +68,4 @@ export const leaderboardHandler = async (_client: Client, interaction: ChatInput
   } catch (error) {
     await handleInteractionError(interaction, error, 'Failed to fetch leaderboard');
   }
-};
+}

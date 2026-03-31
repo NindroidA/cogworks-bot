@@ -10,7 +10,7 @@ const tl = lang.starboard;
 /**
  * Handle /starboard stats
  */
-export const starboardStatsHandler = async (interaction: ChatInputCommandInteraction<CacheType>): Promise<void> => {
+export async function starboardStatsHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
     const guildId = interaction.guildId!;
     const entries = await entryRepo.find({
@@ -53,4 +53,4 @@ export const starboardStatsHandler = async (interaction: ChatInputCommandInterac
   } catch (error) {
     await handleInteractionError(interaction, error, 'Starboard stats failed');
   }
-};
+}

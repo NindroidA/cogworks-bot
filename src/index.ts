@@ -65,7 +65,7 @@ import { announcementRoleRename } from './utils/database/migrations/announcement
 import { baitChannelIdsBackfill } from './utils/database/migrations/baitChannelIdsBackfill';
 import { setupGlobalErrorHandlers } from './utils/errorHandler';
 import { setDescription, setStatus } from './utils/profileFunctions';
-import { StatusManager } from './utils/status/StatusManager';
+import { StatusManager } from './utils/status/statusManager';
 import { checkAndAutoCloseTickets } from './utils/ticket/autoClose';
 
 dotenv.config();

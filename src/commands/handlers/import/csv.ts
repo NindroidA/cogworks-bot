@@ -13,7 +13,7 @@ import { importManager } from '../../../utils/import/importManager';
 
 const tl = lang.import.commands;
 
-export const csvImportHandler = async (interaction: ChatInputCommandInteraction): Promise<void> => {
+export async function csvImportHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;
   const overwrite = interaction.options.getBoolean('overwrite') ?? false;
   const dryRun = interaction.options.getBoolean('dry-run') ?? false;
@@ -140,4 +140,4 @@ export const csvImportHandler = async (interaction: ChatInputCommandInteraction)
       content: LANGF(tl.importFailed, errorMsg),
     });
   }
-};
+}

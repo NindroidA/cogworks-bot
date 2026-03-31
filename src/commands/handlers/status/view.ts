@@ -1,6 +1,6 @@
 import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags, time } from 'discord.js';
 import { Colors, handleInteractionError, lang, requireBotOwner } from '../../../utils';
-import type { StatusManager } from '../../../utils/status/StatusManager';
+import type { StatusManager } from '../../../utils/status/statusManager';
 
 const tl = lang.status;
 

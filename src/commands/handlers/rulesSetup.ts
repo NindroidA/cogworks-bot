@@ -25,7 +25,7 @@ import { lazyRepo } from '../../utils/database/lazyRepo';
 const tl = lang.rules;
 const rulesConfigRepo = lazyRepo(RulesConfig);
 
-export const rulesSetupHandler = async (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function rulesSetupHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const subcommand = interaction.options.getSubcommand();
 
   switch (subcommand) {
@@ -39,7 +39,7 @@ export const rulesSetupHandler = async (client: Client, interaction: ChatInputCo
       await handleRemove(client, interaction);
       break;
   }
-};
+}
 
 async function handleSetup(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardAdminRateLimit(interaction, {

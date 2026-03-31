@@ -117,7 +117,7 @@ async function resolveTargetMessage(
   return null;
 }
 
-export const memoryCaptureHandler = async (interaction: ChatInputCommandInteraction) => {
+export async function memoryCaptureHandler(interaction: ChatInputCommandInteraction) {
   const guard = await guardAdminRateLimit(interaction, {
     action: 'memory-capture',
     limit: RateLimits.MEMORY_OPERATION,
@@ -191,7 +191,7 @@ export const memoryCaptureHandler = async (interaction: ChatInputCommandInteract
       await showCaptureModal(i, selectionState, guildId, config.forumChannelId, config.id);
     },
   );
-};
+}
 
 async function showCaptureModal(
   interaction: MessageComponentInteraction,

@@ -42,7 +42,7 @@ export function clearXPConfigCache(): void {
   configCache.clear();
 }
 
-export const xpSetupHandler = async (_client: Client, interaction: ChatInputCommandInteraction) => {
+export async function xpSetupHandler(_client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const guildId = interaction.guildId;
     if (!guildId) return;
@@ -92,7 +92,7 @@ export const xpSetupHandler = async (_client: Client, interaction: ChatInputComm
   } catch (error) {
     await handleInteractionError(interaction, error, 'Failed to execute XP setup command');
   }
-};
+}
 
 async function getOrCreateConfig(guildId: string): Promise<XPConfig> {
   let config = await configRepo.findOne({ where: { guildId } });

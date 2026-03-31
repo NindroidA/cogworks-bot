@@ -94,7 +94,7 @@ function findStatus(statuses: ApplicationWorkflowStatus[], statusId: string): Ap
 // /application status <status>
 // ============================================================================
 
-export const applicationStatusHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function applicationStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -161,13 +161,13 @@ export const applicationStatusHandler = async (interaction: ChatInputCommandInte
     to: newStatusId,
     changedBy: interaction.user.id,
   });
-};
+}
 
 // ============================================================================
 // /application note <text>
 // ============================================================================
 
-export const applicationNoteHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function applicationNoteHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -227,13 +227,13 @@ export const applicationNoteHandler = async (interaction: ChatInputCommandIntera
     applicationId: application.id,
     addedBy: interaction.user.id,
   });
-};
+}
 
 // ============================================================================
 // /application claim
 // ============================================================================
 
-export const applicationClaimHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function applicationClaimHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -283,13 +283,13 @@ export const applicationClaimHandler = async (interaction: ChatInputCommandInter
     applicationId: application.id,
     claimedBy: interaction.user.id,
   });
-};
+}
 
 // ============================================================================
 // /application info
 // ============================================================================
 
-export const applicationInfoHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function applicationInfoHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -373,13 +373,13 @@ export const applicationInfoHandler = async (interaction: ChatInputCommandIntera
   }
 
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
-};
+}
 
 // ============================================================================
 // /application check (applicant self-check)
 // ============================================================================
 
-export const applicationCheckHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function applicationCheckHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
 
@@ -427,13 +427,13 @@ export const applicationCheckHandler = async (interaction: ChatInputCommandInter
     .setColor(statusDef ? parseInt(statusDef.color.replace('#', ''), 16) : 0x5865f2);
 
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
-};
+}
 
 // ============================================================================
 // /application workflow-enable
 // ============================================================================
 
-export const applicationWorkflowEnableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function applicationWorkflowEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -474,13 +474,13 @@ export const applicationWorkflowEnableHandler = async (interaction: ChatInputCom
   });
 
   enhancedLogger.info('Application workflow enabled', LogCategory.COMMAND_EXECUTION, { guildId });
-};
+}
 
 // ============================================================================
 // /application workflow-disable
 // ============================================================================
 
-export const applicationWorkflowDisableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function applicationWorkflowDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -518,7 +518,7 @@ export const applicationWorkflowDisableHandler = async (interaction: ChatInputCo
   });
 
   enhancedLogger.info('Application workflow disabled', LogCategory.COMMAND_EXECUTION, { guildId });
-};
+}
 
 // ============================================================================
 // /application workflow-add-status <id> <label> [emoji]
@@ -526,7 +526,7 @@ export const applicationWorkflowDisableHandler = async (interaction: ChatInputCo
 
 const STATUS_ID_REGEX = /^[a-z0-9-]{1,20}$/;
 
-export const applicationWorkflowAddStatusHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function applicationWorkflowAddStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -613,13 +613,13 @@ export const applicationWorkflowAddStatusHandler = async (interaction: ChatInput
     statusId,
     label,
   });
-};
+}
 
 // ============================================================================
 // /application workflow-remove-status <status>
 // ============================================================================
 
-export const applicationWorkflowRemoveStatusHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function applicationWorkflowRemoveStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -688,16 +688,16 @@ export const applicationWorkflowRemoveStatusHandler = async (interaction: ChatIn
     statusId,
     applicationsAffected: applicationsWithStatus,
   });
-};
+}
 
 // ============================================================================
 // Autocomplete: application workflow statuses
 // ============================================================================
 
-export const applicationWorkflowStatusAutocomplete = async (interaction: {
+export async function applicationWorkflowStatusAutocomplete(interaction: {
   guildId: string | null;
   respond: (choices: { name: string; value: string }[]) => Promise<void>;
-}) => {
+}) {
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
   const config = await applicationConfigRepo.findOneBy({ guildId });
@@ -714,16 +714,16 @@ export const applicationWorkflowStatusAutocomplete = async (interaction: {
   }));
 
   await interaction.respond(choices.slice(0, 25));
-};
+}
 
 // ============================================================================
 // Autocomplete: removable application workflow statuses
 // ============================================================================
 
-export const applicationRemovableStatusAutocomplete = async (interaction: {
+export async function applicationRemovableStatusAutocomplete(interaction: {
   guildId: string | null;
   respond: (choices: { name: string; value: string }[]) => Promise<void>;
-}) => {
+}) {
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
   const config = await applicationConfigRepo.findOneBy({ guildId });
@@ -742,4 +742,4 @@ export const applicationRemovableStatusAutocomplete = async (interaction: {
     }));
 
   await interaction.respond(choices.slice(0, 25));
-};
+}

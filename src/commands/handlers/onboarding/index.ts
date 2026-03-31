@@ -15,7 +15,7 @@ import { stepAddHandler, stepListHandler, stepRemoveHandler } from './steps';
 
 const tl = onboardingLang;
 
-export const onboardingHandler = async (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function onboardingHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   try {
     const guard = await guardAdminRateLimit(interaction, {
       action: 'onboarding',
@@ -78,7 +78,7 @@ export const onboardingHandler = async (client: Client, interaction: ChatInputCo
   } catch (error) {
     await handleInteractionError(interaction, error, tl.errors.general);
   }
-};
+}
 
 /**
  * Preview the onboarding flow by DM'ing the invoking admin.

@@ -6,7 +6,7 @@ import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
-export const detectionHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
+export async function detectionHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const enabled = interaction.options.getBoolean('enabled', true);
     const minAge = interaction.options.getInteger('min_account_age');
@@ -102,4 +102,4 @@ export const detectionHandler = async (client: Client, interaction: ChatInputCom
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.updateDetection);
   }
-};
+}

@@ -10,7 +10,7 @@ const memoryConfigRepo = lazyRepo(MemoryConfig);
 const memoryTagRepo = lazyRepo(MemoryTag);
 const memoryItemRepo = lazyRepo(MemoryItem);
 
-export const memoryUpdateTagsHandler = async (interaction: ChatInputCommandInteraction) => {
+export async function memoryUpdateTagsHandler(interaction: ChatInputCommandInteraction) {
   const startTime = Date.now();
   const guard = await guardAdminRateLimit(interaction, {
     action: 'memory-update-tags',
@@ -97,7 +97,7 @@ export const memoryUpdateTagsHandler = async (interaction: ChatInputCommandInter
       await applyTagUpdate(i, selectionState, guildId, config.forumChannelId, threadId, memoryItem, startTime);
     },
   );
-};
+}
 
 async function applyTagUpdate(
   interaction: MessageComponentInteraction,

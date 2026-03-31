@@ -60,10 +60,10 @@ import { enhancedLogger, guardAdminRateLimit, LANGF, LogCategory, lang, RateLimi
  * Handle data export command
  * Exports all guild data to JSON and sends via DM
  */
-export const dataExportHandler = async (
+export async function dataExportHandler(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
-): Promise<void> => {
+): Promise<void> {
   try {
     const tl = lang.dataExport;
     const guildId = interaction.guildId;
@@ -361,4 +361,4 @@ export const dataExportHandler = async (
       });
     }
   }
-};
+}

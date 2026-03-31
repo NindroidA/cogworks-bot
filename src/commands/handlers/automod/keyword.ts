@@ -30,7 +30,7 @@ function validateRegexSyntax(pattern: string): boolean {
   }
 }
 
-export const keywordHandler = async (_client: Client, interaction: ChatInputCommandInteraction): Promise<void> => {
+export async function keywordHandler(_client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   const group = interaction.options.getSubcommandGroup(true);
   const subcommand = interaction.options.getSubcommand();
 
@@ -48,7 +48,7 @@ export const keywordHandler = async (_client: Client, interaction: ChatInputComm
       else await handleExemptRemove(interaction);
       break;
   }
-};
+}
 
 /* =========================================================================
  * Keyword add/remove

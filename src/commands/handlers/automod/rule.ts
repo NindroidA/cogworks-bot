@@ -38,7 +38,7 @@ import {
 
 const tl = lang.automod;
 
-export const ruleHandler = async (_client: Client, interaction: ChatInputCommandInteraction): Promise<void> => {
+export async function ruleHandler(_client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   const subcommand = interaction.options.getSubcommand();
 
   switch (subcommand) {
@@ -55,7 +55,7 @@ export const ruleHandler = async (_client: Client, interaction: ChatInputCommand
       await handleList(interaction);
       break;
   }
-};
+}
 
 async function handleCreate(interaction: ChatInputCommandInteraction): Promise<void> {
   const guild = interaction.guild;

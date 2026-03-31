@@ -6,7 +6,7 @@ import { statusSetHandler } from './set';
 import { statusMonitorSetHandler, statusSubscribeHandler, statusUnsubscribeHandler } from './subscribe';
 import { statusViewHandler } from './view';
 
-export const statusHandler = async (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function statusHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const statusManager = (client as ExtendedClient).statusManager;
   const subcommand = interaction.options.getSubcommand();
 
@@ -33,4 +33,4 @@ export const statusHandler = async (client: Client, interaction: ChatInputComman
       await statusMonitorSetHandler(interaction, statusManager);
       break;
   }
-};
+}

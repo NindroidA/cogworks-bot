@@ -5,7 +5,7 @@ import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
-export const statusHandler = async (_client: Client, interaction: ChatInputCommandInteraction) => {
+export async function statusHandler(_client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const configRepo = AppDataSource.getRepository(BaitChannelConfig);
     const config = await safeDbOperation(
@@ -109,4 +109,4 @@ export const statusHandler = async (_client: Client, interaction: ChatInputComma
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.fetchStatus);
   }
-};
+}

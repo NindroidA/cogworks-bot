@@ -91,7 +91,7 @@ function findStatus(statuses: WorkflowStatus[], statusId: string): WorkflowStatu
 // /ticket status <status>
 // ============================================================================
 
-export const ticketStatusHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function ticketStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -169,13 +169,13 @@ export const ticketStatusHandler = async (interaction: ChatInputCommandInteracti
 
   // If status is 'closed', the existing close flow will be triggered by the button
   // We don't auto-trigger archive here — user should use the close button for full archive
-};
+}
 
 // ============================================================================
 // /ticket assign <user>
 // ============================================================================
 
-export const ticketAssignHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function ticketAssignHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -221,13 +221,13 @@ export const ticketAssignHandler = async (interaction: ChatInputCommandInteracti
     assignedTo: user.id,
     assignedBy: interaction.user.id,
   });
-};
+}
 
 // ============================================================================
 // /ticket unassign
 // ============================================================================
 
-export const ticketUnassignHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function ticketUnassignHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -280,13 +280,13 @@ export const ticketUnassignHandler = async (interaction: ChatInputCommandInterac
     previousAssignee,
     unassignedBy: interaction.user.id,
   });
-};
+}
 
 // ============================================================================
 // /ticket info
 // ============================================================================
 
-export const ticketInfoHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function ticketInfoHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -359,13 +359,13 @@ export const ticketInfoHandler = async (interaction: ChatInputCommandInteraction
   }
 
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
-};
+}
 
 // ============================================================================
 // /ticket workflow-enable
 // ============================================================================
 
-export const workflowEnableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function workflowEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -406,13 +406,13 @@ export const workflowEnableHandler = async (interaction: ChatInputCommandInterac
   });
 
   enhancedLogger.info('Ticket workflow enabled', LogCategory.COMMAND_EXECUTION, { guildId });
-};
+}
 
 // ============================================================================
 // /ticket workflow-disable
 // ============================================================================
 
-export const workflowDisableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function workflowDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -451,7 +451,7 @@ export const workflowDisableHandler = async (interaction: ChatInputCommandIntera
   });
 
   enhancedLogger.info('Ticket workflow disabled', LogCategory.COMMAND_EXECUTION, { guildId });
-};
+}
 
 // ============================================================================
 // /ticket workflow-add-status <id> <label> [emoji]
@@ -459,7 +459,7 @@ export const workflowDisableHandler = async (interaction: ChatInputCommandIntera
 
 const STATUS_ID_REGEX = /^[a-z0-9-]{1,20}$/;
 
-export const workflowAddStatusHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function workflowAddStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -549,13 +549,13 @@ export const workflowAddStatusHandler = async (interaction: ChatInputCommandInte
     statusId,
     label,
   });
-};
+}
 
 // ============================================================================
 // /ticket workflow-remove-status <status>
 // ============================================================================
 
-export const workflowRemoveStatusHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function workflowRemoveStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -627,13 +627,13 @@ export const workflowRemoveStatusHandler = async (interaction: ChatInputCommandI
     statusId,
     ticketsAffected: ticketsWithStatus,
   });
-};
+}
 
 // ============================================================================
 // /ticket autoclose-enable [days] [warning-hours] [status]
 // ============================================================================
 
-export const autoCloseEnableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function autoCloseEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -683,13 +683,13 @@ export const autoCloseEnableHandler = async (interaction: ChatInputCommandIntera
     warningHours,
     status,
   });
-};
+}
 
 // ============================================================================
 // /ticket autoclose-disable
 // ============================================================================
 
-export const autoCloseDisableHandler = async (interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function autoCloseDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const adminCheck = requireAdmin(interaction);
   if (!adminCheck.allowed) {
     await interaction.reply({
@@ -729,16 +729,16 @@ export const autoCloseDisableHandler = async (interaction: ChatInputCommandInter
   enhancedLogger.info('Auto-close disabled', LogCategory.COMMAND_EXECUTION, {
     guildId,
   });
-};
+}
 
 // ============================================================================
 // Autocomplete: workflow statuses
 // ============================================================================
 
-export const workflowStatusAutocomplete = async (interaction: {
+export async function workflowStatusAutocomplete(interaction: {
   guildId: string | null;
   respond: (choices: { name: string; value: string }[]) => Promise<void>;
-}) => {
+}) {
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
   const config = await ticketConfigRepo.findOneBy({ guildId });
@@ -755,16 +755,16 @@ export const workflowStatusAutocomplete = async (interaction: {
   }));
 
   await interaction.respond(choices.slice(0, 25));
-};
+}
 
 // ============================================================================
 // Autocomplete: removable workflow statuses (excludes open/closed)
 // ============================================================================
 
-export const removableStatusAutocomplete = async (interaction: {
+export async function removableStatusAutocomplete(interaction: {
   guildId: string | null;
   respond: (choices: { name: string; value: string }[]) => Promise<void>;
-}) => {
+}) {
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
   const config = await ticketConfigRepo.findOneBy({ guildId });
@@ -783,4 +783,4 @@ export const removableStatusAutocomplete = async (interaction: {
     }));
 
   await interaction.respond(choices.slice(0, 25));
-};
+}

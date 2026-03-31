@@ -15,7 +15,7 @@
 import type { Client } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
-import type { StatusManager } from '../status/StatusManager';
+import type { StatusManager } from '../status/statusManager';
 import { enhancedLogger, LogCategory } from './enhancedLogger';
 
 /**

@@ -5,7 +5,7 @@ import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
-export const overrideHandler = async (_client: Client, interaction: ChatInputCommandInteraction) => {
+export async function overrideHandler(_client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const guildId = interaction.guildId!;
     const targetUser = interaction.options.getUser('user', true);
@@ -95,4 +95,4 @@ export const overrideHandler = async (_client: Client, interaction: ChatInputCom
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.override);
   }
-};
+}

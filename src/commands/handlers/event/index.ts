@@ -10,7 +10,7 @@ import { handleRemind } from './remind';
 import { eventSetupHandler } from './setup';
 import { eventTemplateHandler } from './template';
 
-export const eventHandler = async (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function eventHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const subcommandGroup = interaction.options.getSubcommandGroup(false);
   const subcommand = interaction.options.getSubcommand();
 
@@ -42,4 +42,4 @@ export const eventHandler = async (client: Client, interaction: ChatInputCommand
       await handleRecurring(client, interaction);
       break;
   }
-};
+}

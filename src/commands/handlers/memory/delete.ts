@@ -100,7 +100,7 @@ async function executeMemoryDeletion(
   return { success: true };
 }
 
-export const memoryDeleteHandler = async (interaction: ChatInputCommandInteraction) => {
+export async function memoryDeleteHandler(interaction: ChatInputCommandInteraction) {
   const guard = await guardAdminRateLimit(interaction, {
     action: 'memory-delete',
     limit: RateLimits.MEMORY_OPERATION,
@@ -191,4 +191,4 @@ export const memoryDeleteHandler = async (interaction: ChatInputCommandInteracti
         .catch(() => null);
     }
   });
-};
+}

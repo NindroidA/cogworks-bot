@@ -7,7 +7,7 @@ import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
 
-export const testModeHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
+export async function testModeHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const enabled = interaction.options.getBoolean('enabled', true);
 
@@ -46,4 +46,4 @@ export const testModeHandler = async (client: Client, interaction: ChatInputComm
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.testMode);
   }
-};
+}

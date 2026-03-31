@@ -6,7 +6,7 @@ import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
-export const toggleHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
+export async function toggleHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const enabled = interaction.options.getBoolean('enabled', true);
 
@@ -39,4 +39,4 @@ export const toggleHandler = async (client: Client, interaction: ChatInputComman
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.toggle);
   }
-};
+}

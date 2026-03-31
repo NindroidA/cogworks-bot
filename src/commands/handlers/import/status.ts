@@ -13,10 +13,7 @@ import { importManager } from '../../../utils/import/importManager';
 
 const tl = lang.import.commands;
 
-export const importStatusHandler = async (
-  interaction: ChatInputCommandInteraction,
-  subcommand: string,
-): Promise<void> => {
+export async function importStatusHandler(interaction: ChatInputCommandInteraction, subcommand: string): Promise<void> {
   const guildId = interaction.guildId!;
 
   switch (subcommand) {
@@ -98,4 +95,4 @@ export const importStatusHandler = async (
       break;
     }
   }
-};
+}

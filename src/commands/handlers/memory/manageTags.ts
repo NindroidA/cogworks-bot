@@ -601,7 +601,7 @@ export async function memoryTagAutocomplete(interaction: AutocompleteInteraction
 // Main exported handler
 // ---------------------------------------------------------------------------
 
-export const manageTagsHandler = async (interaction: ChatInputCommandInteraction, subcommand: string) => {
+export async function manageTagsHandler(interaction: ChatInputCommandInteraction, subcommand: string) {
   const startTime = Date.now();
   const guard = await guardAdminRateLimit(interaction, {
     action: 'memory-setup',
@@ -631,4 +631,4 @@ export const manageTagsHandler = async (interaction: ChatInputCommandInteraction
   }
 
   healthMonitor.recordCommand('memory-setup', Date.now() - startTime, false);
-};
+}

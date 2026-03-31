@@ -6,7 +6,7 @@ import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
-export const whitelistHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
+export async function whitelistHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const action = interaction.options.getString('action', true);
     const role = interaction.options.getRole('role');
@@ -141,4 +141,4 @@ export const whitelistHandler = async (client: Client, interaction: ChatInputCom
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.updateWhitelist);
   }
-};
+}

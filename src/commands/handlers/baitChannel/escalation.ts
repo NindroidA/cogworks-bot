@@ -7,7 +7,7 @@ import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
 
-export const escalationHandler = async (client: Client, interaction: ChatInputCommandInteraction) => {
+export async function escalationHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const subcommand = interaction.options.getSubcommand();
     const configRepo = AppDataSource.getRepository(BaitChannelConfig);
@@ -128,4 +128,4 @@ export const escalationHandler = async (client: Client, interaction: ChatInputCo
   } catch (error) {
     await handleInteractionError(interaction, error, 'Failed to update escalation settings');
   }
-};
+}

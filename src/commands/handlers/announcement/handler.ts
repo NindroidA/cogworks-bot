@@ -58,7 +58,7 @@ const LEGACY_TEMPLATE_MAP: Record<string, string> = {
 /**
  * Main announcement handler
  */
-export const announcementHandler = async (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
+export async function announcementHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const tl = lang.announcement;
   const tlErr = lang.errors;
   const subCommand = interaction.options.getSubcommand();
@@ -113,7 +113,7 @@ export const announcementHandler = async (client: Client, interaction: ChatInput
       });
     }
   }
-};
+}
 
 /**
  * Handle the new /announcement send <template> flow

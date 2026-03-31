@@ -10,7 +10,7 @@ const tl = lang.starboard;
 /**
  * Handle /starboard random
  */
-export const starboardRandomHandler = async (interaction: ChatInputCommandInteraction<CacheType>): Promise<void> => {
+export async function starboardRandomHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
     const guildId = interaction.guildId!;
     const count = await entryRepo.count({ where: { guildId } });
@@ -66,4 +66,4 @@ export const starboardRandomHandler = async (interaction: ChatInputCommandIntera
   } catch (error) {
     await handleInteractionError(interaction, error, 'Starboard random failed');
   }
-};
+}
