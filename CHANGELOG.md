@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.3]
+
+### Fixed
+- **Bait Channel Message Deletion Hardening**: Messages from detected offenders are now aggressively cleaned up
+  - Ban always deletes messages via Discord API (default 24 hours), no longer opt-in
+  - Kick uses softban (ban + immediate unban) to leverage Discord's message deletion
+  - Kick falls back to regular kick + bot-side purge if bot lacks Ban Members permission
+  - Timeout always runs bot-side purge across all channels
+  - Cross-channel purge no longer skips bait channels
+
+### Changed
+- Added `deleteMessageHours` column to BaitChannelConfig (default: 24, replaces impractical `deleteMessageDays`)
+- Repurposed `deleteUserMessages` toggle — now controls additional cross-channel sweep (ban/kick always delete via Discord regardless)
+- Renamed settings UI label from "Delete User Messages" to "Extra Message Sweep" with updated description
+
 ## [3.0.2]
 
 ### Added

@@ -766,18 +766,18 @@ export class BaitChannelManager {
    * Scan all text channels in a guild and delete recent messages from a banned user.
    * Processes channels sequentially to avoid rate limits.
    */
-  private async purgeUserMessages(guild: Guild, userId: string, baitChannelIds: string[]): Promise<PurgeResult> {
+  private async purgeUserMessages(guild: Guild, userId: string, skipChannelIds: string[] = []): Promise<PurgeResult> {
     let totalDeleted = 0;
     let channelCount = 0;
 
     try {
-      const skipChannels = new Set(baitChannelIds);
+      const skipChannels = new Set(skipChannelIds);
       const channels = guild.channels.cache.filter(
         ch =>
           (ch.type === ChannelType.GuildText ||
             ch.type === ChannelType.GuildAnnouncement ||
             ch.type === ChannelType.GuildVoice) &&
-          !skipChannels.has(ch.id),
+          (skipChannels.size === 0 || !skipChannels.has(ch.id)),
       );
 
       for (const [, channel] of channels) {
@@ -912,6 +912,7 @@ export class BaitChannelManager {
 
     // Test mode: still delete message but skip ban/kick/timeout and purge
     const isTestMode = config.testMode === true;
+    let purgeResult: PurgeResult | undefined;
 
     // Step 2: Send DM notification BEFORE action (user must still be in server)
     let dmSent = false;
@@ -935,32 +936,72 @@ export class BaitChannelManager {
     } else {
       try {
         switch (resolvedAction) {
-          case 'ban':
+          case 'ban': {
+            const deleteHours = config.deleteMessageHours ?? 24;
             await member.ban({
               reason: `${config.banReason} (${reason})`,
-              deleteMessageSeconds: config.deleteUserMessages ? config.deleteMessageDays * 24 * 60 * 60 : 0,
+              deleteMessageSeconds: deleteHours * 3600,
             });
             enhancedLogger.info(`Banned user ${member.user.tag} (Score: ${analysis.score})`, LogCategory.SECURITY, {
               userId: member.id,
               score: analysis.score,
               action: 'ban',
+              deleteMessageHours: deleteHours,
               guildId: message.guild!.id,
             });
             break;
+          }
 
-          case 'kick':
-            await member.kick(`${config.banReason} (${reason})`);
-            enhancedLogger.info(`Kicked user ${member.user.tag} (Score: ${analysis.score})`, LogCategory.SECURITY, {
-              userId: member.id,
-              score: analysis.score,
-              action: 'kick',
-              guildId: message.guild!.id,
-            });
+          case 'kick': {
+            const deleteHoursKick = config.deleteMessageHours ?? 24;
+            const hasBanPermission = message.guild!.members.me?.permissions.has(PermissionFlagsBits.BanMembers);
+            if (hasBanPermission) {
+              // Softban: ban to delete messages, then immediately unban
+              await member.ban({
+                reason: `Softban — ${config.banReason} (${reason})`,
+                deleteMessageSeconds: deleteHoursKick * 3600,
+              });
+              await new Promise(r => setTimeout(r, 500));
+              await message.guild!.bans.remove(member.id, 'Softban complete — user may rejoin');
+              enhancedLogger.info(
+                `Softbanned (kick) user ${member.user.tag} (Score: ${analysis.score})`,
+                LogCategory.SECURITY,
+                {
+                  userId: member.id,
+                  score: analysis.score,
+                  action: 'kick-softban',
+                  deleteMessageHours: deleteHoursKick,
+                  guildId: message.guild!.id,
+                },
+              );
+            } else {
+              // Fallback: regular kick (no message deletion via Discord API)
+              await member.kick(`${config.banReason} (${reason})`);
+              // Run purge since we couldn't softban
+              if (message.guild) {
+                await this.purgeUserMessages(message.guild, member.id, []);
+              }
+              enhancedLogger.info(
+                `Kicked user ${member.user.tag} (Score: ${analysis.score}) — no ban perms, used fallback kick + purge`,
+                LogCategory.SECURITY,
+                {
+                  userId: member.id,
+                  score: analysis.score,
+                  action: 'kick-fallback',
+                  guildId: message.guild!.id,
+                },
+              );
+            }
             break;
+          }
 
           case 'timeout': {
             const timeoutMs = (config.timeoutDurationMinutes ?? 60) * 60 * 1000;
             await member.timeout(timeoutMs, `${config.banReason} (${reason})`);
+            // Timeout can't use softban — purge messages bot-side
+            if (message.guild) {
+              purgeResult = await this.purgeUserMessages(message.guild, member.id, []);
+            }
             enhancedLogger.info(
               `Timed out user ${member.user.tag} for ${config.timeoutDurationMinutes ?? 60}min (Score: ${analysis.score})`,
               LogCategory.SECURITY,
@@ -968,6 +1009,7 @@ export class BaitChannelManager {
                 userId: member.id,
                 score: analysis.score,
                 action: 'timeout',
+                purgedMessages: purgeResult?.totalDeleted ?? 0,
                 guildId: message.guild!.id,
               },
             );
@@ -1025,17 +1067,24 @@ export class BaitChannelManager {
       }
     }
 
-    // Step 4: Purge user messages (ban, or timeout with deleteUserMessages) — skip in test mode
-    let purgeResult: PurgeResult | undefined;
-    const baitChannelIds = config.channelIds?.length ? config.channelIds : config.channelId ? [config.channelId] : [];
+    // Step 4: Additional cross-channel purge (beyond Discord's ban deletion) — skip in test mode
+    // Ban/kick already delete messages via Discord API (deleteMessageSeconds).
+    // This additional sweep catches anything Discord missed. Timeout purge runs inside the switch above.
     if (
       !isTestMode &&
       actionResult === 'success' &&
       config.deleteUserMessages &&
-      (resolvedAction === 'ban' || resolvedAction === 'timeout') &&
+      (resolvedAction === 'ban' || resolvedAction === 'kick') &&
       message.guild
     ) {
-      purgeResult = await this.purgeUserMessages(message.guild, member.id, baitChannelIds);
+      const additionalPurge = await this.purgeUserMessages(message.guild, member.id, []);
+      // Merge with any purge already done (e.g. kick fallback)
+      if (purgeResult) {
+        purgeResult.totalDeleted += additionalPurge.totalDeleted;
+        purgeResult.channelCount += additionalPurge.channelCount;
+      } else {
+        purgeResult = additionalPurge;
+      }
     }
 
     // Step 4b: Detect repeat offenders (for ban/kick actions only)

@@ -86,9 +86,9 @@ export const settingsHandler = async (client: Client, interaction: ChatInputComm
         'Send a DM to the user before taking action',
       ),
       labelWrap(
-        'Delete User Messages',
+        'Extra Message Sweep',
         checkbox('bait_delete_msgs', config.deleteUserMessages),
-        'Purge recent messages from the user',
+        'Additional bot-side purge across all channels (ban/kick always delete via Discord)',
       ),
       labelWrap(
         'Escalation Mode',
@@ -145,7 +145,7 @@ export const settingsHandler = async (client: Client, interaction: ChatInputComm
           inline: true,
         },
         {
-          name: 'Delete Messages',
+          name: 'Extra Message Sweep',
           value: config.deleteUserMessages ? 'Enabled' : 'Disabled',
           inline: true,
         },

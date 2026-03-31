@@ -75,6 +75,9 @@ export class BaitChannelConfig {
   @Column({ default: 7 })
   deleteMessageDays: number;
 
+  @Column({ default: 24 })
+  deleteMessageHours: number;
+
   // Timeout settings (Plan 03)
   @Column({ default: 60 })
   timeoutDurationMinutes: number; // 1-40320 (1 min to 28 days)
