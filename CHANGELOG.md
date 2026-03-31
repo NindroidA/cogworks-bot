@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.6]
+
+### Added
+- **Test Coverage Push (Session 1)**: +117 new tests (747 → 864), 1797 assertions across 33 files
+  - New `tests/unit/utils/api/helpers.test.ts` — 74 tests covering all 10 API body extraction helpers (requireString, optionalString, requireNumber, etc.) plus extractId, isValidSnowflake, validateHexColor
+  - New `tests/unit/utils/setup/channelFormatDetector.test.ts` — 25 tests for formatChannelName and formatCategoryName pure functions
+  - Expanded `tests/unit/utils/rateLimiter.test.ts` — 20 new tests for getRemaining, getResetTime, getStats, userGuild key, custom messages, formatTime edge cases
+
 ## [3.0.5]
 
 ### Changed
