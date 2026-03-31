@@ -490,14 +490,18 @@ class HealthMonitor {
     this.previousStatus = status.status;
 
     // Record snapshot for health history API
-    this.healthSnapshots.push({
-      timestamp: new Date().toISOString(),
-      latencyMs: this.client?.ws.ping ?? -1,
-      memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
-      guilds: status.activeGuilds,
-    });
-    if (this.healthSnapshots.length > this.maxSnapshots) {
-      this.healthSnapshots.shift();
+    try {
+      this.healthSnapshots.push({
+        timestamp: new Date().toISOString(),
+        latencyMs: this.client?.ws?.ping ?? -1,
+        memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+        guilds: status.activeGuilds,
+      });
+      if (this.healthSnapshots.length > this.maxSnapshots) {
+        this.healthSnapshots.shift();
+      }
+    } catch {
+      // Snapshot recording is best-effort
     }
   }
 
