@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.16]
+
+### Changed
+- **Desloppify Rescore (Post-Cleanup)**: Fresh 20-dimension subjective review after v3.0.9-v3.0.15 patches
+  - Strict score: 82.5/100 (target was 90+, gap driven by test coverage and mechanical issues)
+  - Biggest dimension improvements: Test strategy +28.5% (33.5->62.0%), AI debt +16.5% (62.0->78.5%), Error consistency +8.5%, Init coupling +8.0%, API coherence +8.0%, Design coherence +7.0%
+  - 12 of 20 subjective dimensions now above 84%
+  - Scorecard regenerated at `public/scorecard.png`
+  - 39 new review items identified for future work
+
 ## [3.0.15]
 
 ### Changed
