@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.17]
+
+### Changed
+- **Quick Fixes (Pre-3.1 Cleanup)**
+  - Fixed CLAUDE.md entity listing (PendingBan location, SavedRole -> StaffRole)
+  - Removed `@discordjs/rest` from direct dependencies (unused, transitive dep of discord.js)
+  - Removed 11 dead exports from permissionValidator.ts (hasAnyPermission, hasAllPermissions, hasRole, hasAnyRole, isGuildOwner, isRoleAbove, requireOwner, requireGuild, ValidationPermissionSets, PermissionNames, hasAdminPermission made private)
+  - Dropped deprecated `minecraftRoleId` column from AnnouncementConfig (migration copies remaining data to defaultRoleId first)
+
 ## [3.0.16]
 
 ### Changed

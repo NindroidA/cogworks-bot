@@ -9,10 +9,6 @@ export class AnnouncementConfig {
   @Column({ unique: true })
   guildId: string;
 
-  // @deprecated — Use defaultRoleId instead. Kept for legacy migration.
-  @Column({ default: '' })
-  minecraftRoleId: string;
-
   @Column({ type: 'varchar', nullable: true })
   defaultRoleId: string | null;
 
