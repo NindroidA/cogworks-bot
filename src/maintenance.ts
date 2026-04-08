@@ -29,24 +29,12 @@ async function handleInteraction(interaction: Interaction): Promise<void> {
     }
 
     if (interaction.isRepliable()) {
-      if (interaction.isMessageComponent()) {
-        try {
-          await interaction.update({
-            embeds: [MAINTENANCE_EMBED],
-            components: [],
-          });
-        } catch {
-          await interaction.reply({
-            embeds: [MAINTENANCE_EMBED],
-            flags: [MessageFlags.Ephemeral],
-          });
-        }
-      } else {
-        await interaction.reply({
-          embeds: [MAINTENANCE_EMBED],
-          flags: [MessageFlags.Ephemeral],
-        });
-      }
+      // Always reply ephemerally — never update() the original message,
+      // as that destroys persistent UI elements (ticket buttons, etc.)
+      await interaction.reply({
+        embeds: [MAINTENANCE_EMBED],
+        flags: [MessageFlags.Ephemeral],
+      });
     }
   } catch {
     // Interaction may have expired — silently ignore

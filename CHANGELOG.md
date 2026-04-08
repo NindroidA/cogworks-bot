@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.18]
+
+### Fixed
+- **Maintenance mode no longer destroys persistent UI**: Button clicks during maintenance now reply ephemerally instead of using `update()` which was replacing ticket creation buttons and other persistent messages with the maintenance embed
+
 ## [3.0.17]
 
 ### Changed

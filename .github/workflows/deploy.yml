@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     name: Build and Deploy
     if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
 
@@ -19,59 +19,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Build Docker image
+      - name: Build and deploy
         run: |
           docker build -t cogworks-bot:latest .
-          docker save cogworks-bot:latest | gzip > cogworks-bot.tar.gz
-
-      - name: Copy image to server
-        uses: appleboy/scp-action@v1.0.0
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
-          source: "cogworks-bot.tar.gz"
-          target: "/tmp/"
-
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v1.2.2
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
-          script: |
-            gunzip -c /tmp/cogworks-bot.tar.gz | docker load
-            rm /tmp/cogworks-bot.tar.gz
-            cd /opt/docker
-            docker-compose stop cogworks 2>/dev/null || true
-            docker-compose rm -f cogworks 2>/dev/null || true
-            docker-compose up -d cogworks
-            docker image prune -f
-            docker-compose ps cogworks
+          cd /opt/docker
+          docker-compose stop cogworks 2>/dev/null || true
+          docker-compose rm -f cogworks 2>/dev/null || true
+          docker-compose up -d cogworks
+          docker image prune -f
+          echo "=== Deployment complete ==="
+          docker-compose ps cogworks
 
       - name: Verify deployment
-        uses: appleboy/ssh-action@v1.2.2
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
-          script: |
-            echo "Waiting for health check..."
-            sleep 15
-            if docker-compose -f /opt/docker/docker-compose.yml ps cogworks | grep -q "Up"; then
-              echo "Deployment successful!"
-              docker-compose -f /opt/docker/docker-compose.yml logs --tail=20 cogworks
-            else
-              echo "Deployment may have failed. Checking logs..."
-              docker-compose -f /opt/docker/docker-compose.yml logs --tail=50 cogworks
-              exit 1
-            fi
+        run: |
+          echo "Waiting for health check..."
+          sleep 15
+          if docker-compose -f /opt/docker/docker-compose.yml ps cogworks | grep -q "Up"; then
+            echo "Deployment successful!"
+            docker-compose -f /opt/docker/docker-compose.yml logs --tail=20 cogworks
+          else
+            echo "Deployment may have failed. Checking logs..."
+            docker-compose -f /opt/docker/docker-compose.yml logs --tail=50 cogworks
+            exit 1
+          fi
 
   update-badges:
     runs-on: ubuntu-latest
