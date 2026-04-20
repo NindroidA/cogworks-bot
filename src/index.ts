@@ -63,12 +63,31 @@ import { checkAndSendWeeklySummaries } from './utils/baitChannel/weeklySummary';
 import { startLogCleanup, stopLogCleanup } from './utils/database/logCleanup';
 import { announcementRoleRename } from './utils/database/migrations/announcementRoleRename';
 import { baitChannelIdsBackfill } from './utils/database/migrations/baitChannelIdsBackfill';
-import { setupGlobalErrorHandlers } from './utils/errorHandler';
+import { ErrorSeverity, setupGlobalErrorHandlers } from './utils/errorHandler';
+import { errorReporter } from './utils/monitoring/errorReporter';
 import { setDescription, setStatus } from './utils/profileFunctions';
 import { StatusManager } from './utils/status/statusManager';
 import { checkAndAutoCloseTickets } from './utils/ticket/autoClose';
 
 dotenv.config();
+
+// Configure external error reporter. Reads envs once at startup:
+//   ERROR_WEBHOOK_URL          — Discord webhook (disables reporter if empty)
+//   ERROR_REPORTING_ENABLED    — explicit override ('true' | 'false')
+// Dev defaults to disabled; prod defaults to enabled (only takes effect when
+// a webhook URL is present). The reporter gains the Discord client later in
+// `clientReady` so embeds can include guild-count metadata.
+const errorReportingEnabled =
+  process.env.ERROR_REPORTING_ENABLED !== undefined
+    ? process.env.ERROR_REPORTING_ENABLED.toLowerCase() === 'true'
+    : (process.env.RELEASE || 'prod').toLowerCase().trim() !== 'dev';
+errorReporter.configure({
+  webhookUrl: process.env.ERROR_WEBHOOK_URL,
+  enabled: errorReportingEnabled,
+  dedupeWindowMs: 60_000,
+  maxReportsPerMinute: 10,
+  minSeverity: ErrorSeverity.MEDIUM,
+});
 
 // Setup global error handlers for unhandled rejections and exceptions
 // gracefulShutdown is hoisted — safe to reference before its textual position
@@ -220,6 +239,9 @@ client.on(guildScheduledEventUserRemove.name, (event, user) => guildScheduledEve
 client.once('clientReady', async () => {
   // initialize health monitor first
   healthMonitor.initialize(client);
+
+  // attach client to error reporter so embeds can include guild count
+  errorReporter.setClient(client);
 
   // THEN initialize health server
   healthServer.initialize(client);

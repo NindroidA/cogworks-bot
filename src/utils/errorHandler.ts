@@ -21,6 +21,7 @@ import {
 } from 'discord.js';
 import { E } from './emojis';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
+import { errorReporter } from './monitoring/errorReporter';
 
 /**
  * Error severity levels
@@ -191,6 +192,21 @@ export function logError(errorInfo: ErrorInfo): void {
       LogCategory.ERROR,
     );
   }
+
+  // Fire-and-forget external reporter (Discord webhook). Disabled unless
+  // ERROR_WEBHOOK_URL + ERROR_REPORTING_ENABLED are set; gated by severity
+  // inside the reporter itself. Non-Error rejection reasons are coerced so
+  // `unhandledRejection` with a plain string still reaches the reporter.
+  const reportable = error instanceof Error ? error : new Error(String(error ?? message));
+  errorReporter.report({
+    error: reportable,
+    category,
+    severity,
+    context,
+    guildId: typeof context?.guildId === 'string' ? context.guildId : undefined,
+    userId: typeof context?.userId === 'string' ? context.userId : undefined,
+    command: typeof context?.command === 'string' ? context.command : undefined,
+  });
 }
 
 /**

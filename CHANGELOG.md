@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.1]
+
+### Added
+- **External Error Reporting**: Errors now forward to a Discord webhook in addition to stdout/file logs, with built-in deduplication, rate limiting, and bot-metadata enrichment
+  - New singleton `errorReporter` in `src/utils/monitoring/errorReporter.ts` — fire-and-forget `report()` that never throws and never blocks the caller
+  - **Deduplication**: identical errors within a 60s window (configurable) PATCH the original webhook message to increment an `Occurrences` field instead of spawning a new alert
+  - **Rate limiting**: sliding-minute cap (default 10/min) on NEW reports; dedupe edits do not consume budget, so a crash loop produces a single alert that counts up
+  - **Severity gate**: default `minSeverity=MEDIUM`; embeds are color-coded (gray / yellow / orange / red) by severity
+  - **Metadata enrichment**: bot version from `package.json`, uptime, and guild count are attached to every embed footer
+  - **Fingerprint**: category + error name + first stack-trace frame — groups "same error from same code path" while separating unrelated errors that share a message
+  - Wired into `logError()` in `errorHandler.ts`, so `handleInteractionError`, `uncaughtException`, `unhandledRejection`, and `safeDbOperation` all forward automatically
+  - Non-Error rejection reasons are coerced so `unhandledRejection('some string')` still reaches the reporter
+- **Environment variables**
+  - `ERROR_WEBHOOK_URL` — Discord webhook URL; reporter is disabled when unset
+  - `ERROR_REPORTING_ENABLED` — master toggle (defaults: enabled in prod, disabled in dev)
+- **Tests**: Added `tests/unit/utils/monitoring/errorReporter.test.ts` (+14 tests) covering enablement gate, severity gate, POST with `?wait=true`, PATCH dedupe behavior, Occurrences field, distinct fingerprints, rate-limiting budget, dedupe edits not consuming rate budget, and fault tolerance (fetch rejection + non-2xx responses)
+
+### Notes
+- Tests: 1002 pass (988 previous + 14 new), zero regressions
+- No webhook configured = default behavior unchanged — errors continue to go to stdout/file logs exactly as before
+- Circular-import between `errorHandler` and `errorReporter` resolved via `import type` + string-literal enum values as Record keys
+
 ## [3.1.0]
 
 ### Added

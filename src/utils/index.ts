@@ -39,6 +39,7 @@ export * from './logger';
 export * from './modalComponents';
 // Monitoring utilities
 export * from './monitoring/enhancedLogger';
+export * from './monitoring/errorReporter';
 export * from './monitoring/healthMonitor';
 export * from './monitoring/healthServer';
 export * from './monitoring/memoryWatchdog';
