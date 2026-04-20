@@ -4,7 +4,7 @@
  */
 
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import onboardingLang from '../../../lang/onboarding.json';
+import onboardingLang from '../../../lang/en/onboarding.json';
 import { AppDataSource } from '../../../typeorm';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
 import { enhancedLogger, guardAdminRateLimit, handleInteractionError, LANGF, lang, RateLimits } from '../../../utils';

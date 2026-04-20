@@ -1,0 +1,95 @@
+{
+  "builder": {
+    "cmdDescrp": "Configure the interactive onboarding flow for new members.",
+    "setup": {
+      "enableDescrp": "Enable the onboarding flow.",
+      "disableDescrp": "Disable the onboarding flow."
+    },
+    "config": {
+      "descrp": "Configure onboarding settings.",
+      "welcomeMessage": "Set the welcome message (supports {server} and {user} placeholders).",
+      "completionRole": "Set the role granted when a member completes onboarding."
+    },
+    "step": {
+      "addDescrp": "Add a step to the onboarding flow.",
+      "removeDescrp": "Remove a step from the onboarding flow.",
+      "listDescrp": "List all onboarding steps.",
+      "typeOption": "The type of onboarding step.",
+      "titleOption": "Step title displayed to the user.",
+      "descriptionOption": "Step description displayed to the user.",
+      "requiredOption": "Whether this step must be completed to proceed.",
+      "stepOption": "The step to remove (by ID)."
+    },
+    "stats": {
+      "descrp": "View onboarding completion statistics."
+    },
+    "preview": {
+      "descrp": "Preview the onboarding flow by sending it to yourself."
+    },
+    "resend": {
+      "descrp": "Resend the onboarding flow to a specific user.",
+      "userOption": "The user to resend onboarding to."
+    }
+  },
+  "setup": {
+    "enabled": "Onboarding flow has been **enabled**. New members will receive the onboarding DM.",
+    "disabled": "Onboarding flow has been **disabled**.",
+    "noSteps": "Cannot enable onboarding: no steps have been configured. Add steps first with `/onboarding step add`.",
+    "alreadyEnabled": "Onboarding is already enabled.",
+    "alreadyDisabled": "Onboarding is already disabled.",
+    "notConfigured": "Onboarding is not configured yet. Use `/onboarding step add` to add steps first."
+  },
+  "config": {
+    "welcomeMessage": {
+      "success": "Welcome message updated.",
+      "modalTitle": "Set Welcome Message",
+      "label": "Welcome Message",
+      "placeholder": "Welcome to {server}! We're glad to have you, {user}."
+    },
+    "completionRole": {
+      "success": "Completion role set to {0}.",
+      "cleared": "Completion role has been cleared."
+    }
+  },
+  "step": {
+    "added": "Step **{0}** added to the onboarding flow (position #{1}).",
+    "removed": "Step **{0}** removed from the onboarding flow.",
+    "notFound": "Step not found. Use `/onboarding step list` to see all steps.",
+    "maxReached": "Maximum of 10 steps reached. Remove a step before adding a new one.",
+    "duplicateId": "A step with that ID already exists. Choose a different title.",
+    "modalTitle": "Add Onboarding Step",
+    "list": {
+      "title": "Onboarding Steps",
+      "empty": "No steps configured. Use `/onboarding step add` to add steps.",
+      "footer": "{0} step(s) configured",
+      "requiredLabel": "Required",
+      "optionalLabel": "Optional"
+    }
+  },
+  "stats": {
+    "title": "Onboarding Statistics",
+    "description": "Completion data for the last {0} days.",
+    "totalStarted": "Total Started",
+    "totalCompleted": "Total Completed",
+    "completionRate": "Completion Rate",
+    "avgCompletionTime": "Avg. Completion Time",
+    "dropOffSteps": "Drop-off by Step",
+    "noData": "No onboarding data found for this period."
+  },
+  "preview": {
+    "sending": "Sending onboarding preview to your DMs...",
+    "sent": "Onboarding preview sent! Check your DMs.",
+    "failed": "Could not send preview. Make sure your DMs are open.",
+    "noSteps": "No steps configured. Add steps with `/onboarding step add` first."
+  },
+  "resend": {
+    "success": "Onboarding flow sent to {0}.",
+    "failed": "Could not send onboarding to {0}. They may have DMs disabled.",
+    "noSteps": "No steps configured. Add steps with `/onboarding step add` first."
+  },
+  "errors": {
+    "notConfigured": "Onboarding is not configured for this server.",
+    "general": "An error occurred while processing the onboarding command.",
+    "dmsClosed": "Could not DM the user. They may have DMs disabled for this server."
+  }
+}

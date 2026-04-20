@@ -3,6 +3,7 @@ import { BotConfig } from '../typeorm/entities/BotConfig';
 import {
   createRateLimitKey,
   enhancedLogger,
+  getGuildLang,
   healthMonitor,
   LogCategory,
   lang,
@@ -223,9 +224,13 @@ export const handleSlashCommand = async (client: Client, interaction: ChatInputC
     } else {
       const botConfig = await botConfigRepo.findOneBy({ guildId });
       if (!botConfig) {
-        enhancedLogger.warn(lang.botConfig.notFound, LogCategory.COMMAND_EXECUTION);
+        // Guild has no BotConfig row yet — localize the reply to the guild's
+        // locale so users see the message in their chosen language even for
+        // this pre-setup edge case.
+        const glang = await getGuildLang(guildId);
+        enhancedLogger.warn(glang.botConfig.notFound, LogCategory.COMMAND_EXECUTION);
         await interaction.reply({
-          content: lang.botConfig.notFound,
+          content: glang.botConfig.notFound,
           flags: [MessageFlags.Ephemeral],
         });
       } else {

@@ -5,7 +5,7 @@
  */
 
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import eventLang from '../../../lang/event.json';
+import eventLang from '../../../lang/en/event.json';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { enhancedLogger, guardAdminRateLimit, LANGF, LogCategory, lang, RateLimits } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';

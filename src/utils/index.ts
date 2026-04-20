@@ -1,6 +1,15 @@
-export type { Language } from '../lang';
+export type { Language, Locale } from '../lang';
 /** Re-export lang module with type safety */
-export { lang } from '../lang';
+export {
+  DEFAULT_LOCALE,
+  getGuildLang,
+  getGuildLocale,
+  getLangForLocale,
+  invalidateGuildLocaleCache,
+  isSupportedLocale,
+  lang,
+  SUPPORTED_LOCALES,
+} from '../lang';
 
 // Note: internalApiServer is NOT re-exported here to avoid a 20-file import cycle.
 // Import directly: import { internalApiServer } from './utils/api/internalApiServer';

@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0]
+
+### Added
+- **i18n Foundation**: Bot can now reply in a per-guild locale, laying the groundwork for community-contributed translations
+  - Reorganized `src/lang/` into per-locale subdirectories (`en/`, `es/`, `pt-BR/`, `fr/`, `de/`) — English remains the reference; other locales are scaffolded with English copies ready for translation
+  - New loader in `src/lang/index.ts` assembles a `Language` object per locale and overlays it on English via a recursive Proxy — partial translations transparently fall back to English for missing keys
+  - Static JSON imports ensure all 5 locales ship inside `dist/` for containerized production deploys
+  - New public API: `getGuildLang(guildId)`, `getGuildLocale(guildId)`, `getLangForLocale(locale)`, `isSupportedLocale()`, `SUPPORTED_LOCALES`, `DEFAULT_LOCALE`, `invalidateGuildLocaleCache()` — re-exported from `src/utils/index.ts`
+  - Existing `lang.x.y` synchronous access pattern is unchanged — zero breaking changes for the 200+ existing call sites
+- **Per-Guild Locale Storage**: `BotConfig.locale` column (`varchar(10)`, default `'en'`) persists each guild's chosen language
+  - Migration `1774000008000-AddBotConfigLocale` adds the column safely — the app layer guards against unknown values, so rollout order doesn't matter
+- **Language Selector in `/bot-setup`**: New "Language" button (🌐) on the dashboard opens a radio-group modal with all supported locales
+  - Persists the choice to `BotConfig.locale`, invalidates the in-memory locale cache, and refreshes the dashboard so the change is visible immediately
+- **Translation Contributor Guide**: New `src/lang/TRANSLATING.md` walks contributors through the layout, formatting tokens (`{placeholders}`, `<@{mentions}>`, markdown), tone guidance, and quality checklist
+- **Tests**: Added `tests/unit/utils/lang.test.ts` (+9 tests) covering `SUPPORTED_LOCALES`, `isSupportedLocale`, `getLangForLocale` caching + shape, and the Proxy fallback path
+
+### Changed
+- Threaded `getGuildLang(guildId)` through the top-level command dispatcher (`src/commands/commands.ts`) for the `botConfig.notFound` reply — demonstrates the localization pattern for future handler migrations
+- Updated 15 direct `lang/*.json` imports in `commands/builders/` and `commands/handlers/{xp,onboarding,event}/` to point at the new `lang/en/` directory
+- `src/utils/index.ts` barrel now re-exports the full i18n API alongside the legacy `lang` export
+
+### Notes
+- Tests: 988 pass (979 previous + 9 new), zero regressions
+- Default behavior is identical to 3.0.18: every guild starts on `en` and every non-EN locale currently contains English strings, so replies look the same until translators contribute
+
 ## [3.0.18]
 
 ### Fixed

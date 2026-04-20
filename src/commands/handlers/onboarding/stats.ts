@@ -1,6 +1,6 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { MoreThan } from 'typeorm';
-import onboardingLang from '../../../lang/onboarding.json';
+import onboardingLang from '../../../lang/en/onboarding.json';
 import { OnboardingCompletion } from '../../../typeorm/entities/onboarding/OnboardingCompletion';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
 import { LANGF } from '../../../utils';

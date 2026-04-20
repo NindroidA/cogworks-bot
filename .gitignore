@@ -79,6 +79,7 @@ temp/
 .claude/
 .plans/
 .desloppify/
+.mempalace
 
 # Docker
 *.tar.gz

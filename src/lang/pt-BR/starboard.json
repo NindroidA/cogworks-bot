@@ -1,0 +1,63 @@
+{
+  "setup": {
+    "success": "Starboard has been configured! Messages with {0}+ {1} reactions will appear in {2}.",
+    "disabled": "Starboard has been disabled.",
+    "enabled": "Starboard has been enabled.",
+    "alreadyEnabled": "Starboard is already enabled.",
+    "notConfigured": "Starboard is not configured. Use `/starboard setup` first.",
+    "channelRequired": "Please specify a starboard channel.",
+    "thresholdRange": "Threshold must be between 1 and 25.",
+    "configUpdated": "Starboard configuration updated."
+  },
+  "ignore": {
+    "added": "Channel {0} is now ignored by starboard.",
+    "removed": "Channel {0} is no longer ignored by starboard.",
+    "notIgnored": "That channel is not in the ignore list."
+  },
+  "stats": {
+    "title": "Starboard Stats",
+    "totalStarred": "Total Starred Messages",
+    "topMessage": "Most Starred Message",
+    "noEntries": "No starred messages yet."
+  },
+  "random": {
+    "noEntries": "No starred messages to show.",
+    "title": "Random Starred Message"
+  },
+  "errors": {
+    "selfStar": "You cannot star your own message.",
+    "botMessage": "Bot messages cannot be starred.",
+    "nsfwChannel": "Messages from NSFW channels cannot be starred."
+  },
+  "builder": {
+    "cmdDescrp": "Starboard system — pin popular messages automatically",
+    "setup": {
+      "descrp": "Set up the starboard channel",
+      "channel": "The channel to post starred messages in",
+      "emoji": "The emoji to track (default: star)",
+      "threshold": "Number of reactions required (default: 3)"
+    },
+    "config": {
+      "descrp": "Update starboard settings",
+      "setting": "The setting to change",
+      "value": "The new value"
+    },
+    "ignore": {
+      "descrp": "Ignore a channel from starboard",
+      "channel": "The channel to ignore"
+    },
+    "unignore": {
+      "descrp": "Stop ignoring a channel",
+      "channel": "The channel to stop ignoring"
+    },
+    "stats": {
+      "descrp": "View starboard statistics"
+    },
+    "toggle": {
+      "descrp": "Enable or disable the starboard"
+    },
+    "random": {
+      "descrp": "Show a random starred message"
+    }
+  }
+}

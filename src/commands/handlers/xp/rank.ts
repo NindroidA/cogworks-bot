@@ -1,6 +1,6 @@
 import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 // Import lang directly to avoid needing lang/index.ts changes
-import xpLang from '../../../lang/xp.json';
+import xpLang from '../../../lang/en/xp.json';
 import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
 import { handleInteractionError } from '../../../utils';

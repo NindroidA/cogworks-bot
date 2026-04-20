@@ -1,5 +1,5 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import onboardingLang from '../../../lang/onboarding.json';
+import onboardingLang from '../../../lang/en/onboarding.json';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
 import { enhancedLogger, LANGF } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';

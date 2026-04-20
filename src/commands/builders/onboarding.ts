@@ -1,5 +1,5 @@
 import { PermissionsBitField, SlashCommandBuilder } from 'discord.js';
-import onboardingLang from '../../lang/onboarding.json';
+import onboardingLang from '../../lang/en/onboarding.json';
 
 const tl = onboardingLang.builder;
 

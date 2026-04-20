@@ -1,5 +1,5 @@
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
-import xpLang from '../../../lang/xp.json';
+import xpLang from '../../../lang/en/xp.json';
 import { XPConfig } from '../../../typeorm/entities/xp/XPConfig';
 import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
 import { enhancedLogger, handleInteractionError, LogCategory } from '../../../utils';

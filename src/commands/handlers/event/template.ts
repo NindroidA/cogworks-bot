@@ -16,7 +16,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import eventLang from '../../../lang/event.json';
+import eventLang from '../../../lang/en/event.json';
 import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
 import {
   awaitConfirmation,

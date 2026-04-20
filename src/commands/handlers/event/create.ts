@@ -12,7 +12,7 @@ import {
   GuildScheduledEventPrivacyLevel,
   MessageFlags,
 } from 'discord.js';
-import eventLang from '../../../lang/event.json';
+import eventLang from '../../../lang/en/event.json';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
 import type { RecurringPattern } from '../../../typeorm/entities/event/EventTemplate';

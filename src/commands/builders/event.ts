@@ -6,7 +6,7 @@ import {
   SlashCommandSubcommandGroupBuilder,
 } from 'discord.js';
 
-import eventLang from '../../lang/event.json';
+import eventLang from '../../lang/en/event.json';
 
 const tl = eventLang.builder;
 

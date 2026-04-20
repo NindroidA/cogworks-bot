@@ -1,6 +1,6 @@
 import type { ColorResolvable } from 'discord.js';
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
-import xpLang from '../../../lang/xp.json';
+import xpLang from '../../../lang/en/xp.json';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
 import { handleInteractionError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';

@@ -1,5 +1,5 @@
 import { PermissionFlagsBits, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
-import analyticsLang from '../../lang/analytics.json';
+import analyticsLang from '../../lang/en/analytics.json';
 
 const tl = analyticsLang.builder;
 

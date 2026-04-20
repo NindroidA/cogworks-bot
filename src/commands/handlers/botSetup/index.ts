@@ -8,6 +8,7 @@
 
 import type { CacheType, ChatInputCommandInteraction, Client, MessageComponentInteraction } from 'discord.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, EmbedBuilder, MessageFlags } from 'discord.js';
+import { DEFAULT_LOCALE, invalidateGuildLocaleCache, isSupportedLocale, SUPPORTED_LOCALES } from '../../../lang';
 import { BotConfig } from '../../../typeorm/entities/BotConfig';
 import { SetupState, type SystemStates } from '../../../typeorm/entities/SetupState';
 import {
@@ -20,9 +21,17 @@ import {
   showAndAwaitModal,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
-import { checkboxGroup, labelWrap, rawModal } from '../../../utils/modalComponents';
+import { checkboxGroup, labelWrap, radioGroup, rawModal } from '../../../utils/modalComponents';
 import { buildDashboardEmbed, buildSystemSelector, detectSystemStates, mergeStates, SYSTEMS } from './setupDashboard';
 import { runSystemFlow } from './systemFlows';
+
+const LOCALE_LABELS: Record<string, string> = {
+  en: 'English',
+  es: 'Español',
+  'pt-BR': 'Português (Brasil)',
+  fr: 'Français',
+  de: 'Deutsch',
+};
 
 const setupStateRepo = lazyRepo(SetupState);
 const botConfigRepo = lazyRepo(BotConfig);
@@ -310,6 +319,77 @@ async function collectDashboardInteractions(
       } catch {
         /* interaction may have expired */
       }
+    } else if (btnInteraction.customId === 'setup_language') {
+      // Load the guild's current locale so the radio group reflects it.
+      let currentLocale: string = DEFAULT_LOCALE;
+      try {
+        const config = await botConfigRepo.findOneBy({ guildId });
+        if (config?.locale && isSupportedLocale(config.locale)) {
+          currentLocale = config.locale;
+        }
+      } catch {
+        /* fall back to DEFAULT_LOCALE */
+      }
+
+      const modal = rawModal(`setup_language_${Date.now()}`, 'Bot Language', [
+        labelWrap(
+          'Language',
+          radioGroup(
+            'setup_locale',
+            SUPPORTED_LOCALES.map(code => ({
+              label: LOCALE_LABELS[code] ?? code,
+              value: code,
+              default: code === currentLocale,
+            })),
+          ),
+          'Choose the language the bot uses when replying in this server. Untranslated strings fall back to English.',
+        ),
+      ]);
+
+      const modalSubmit = await showAndAwaitModal(btnInteraction, modal as any);
+      if (!modalSubmit) return;
+
+      const chosen: string | undefined = (modalSubmit.fields as any).getField('setup_locale')?.values?.[0];
+      const nextLocale = isSupportedLocale(chosen) ? chosen : DEFAULT_LOCALE;
+
+      try {
+        let config = await botConfigRepo.findOneBy({ guildId });
+        if (!config) {
+          config = botConfigRepo.create({
+            guildId,
+            enableGlobalStaffRole: false,
+            locale: nextLocale,
+          });
+        } else {
+          config.locale = nextLocale;
+        }
+        await botConfigRepo.save(config);
+        invalidateGuildLocaleCache(guildId);
+      } catch (err) {
+        enhancedLogger.warn('Failed to persist guild locale', LogCategory.COMMAND_EXECUTION, {
+          guildId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      await modalSubmit.deferUpdate();
+
+      // Refresh dashboard so the user sees the change take effect immediately.
+      try {
+        const dbStates = await detectSystemStates(guildId);
+        const freshStates = mergeStates(dbStates, setupState);
+        setupState.systemStates = freshStates;
+        const embed = buildDashboardEmbed(freshStates, setupState.selectedSystems);
+        const selector = buildSystemSelector(freshStates, setupState.selectedSystems);
+        const buttons = buildDashboardButtons(freshStates, setupState.selectedSystems);
+        await interaction.editReply({
+          content: '',
+          embeds: [embed],
+          components: [selector, buttons],
+        });
+      } catch {
+        /* interaction may have expired */
+      }
     } else if (btnInteraction.customId === 'setup_reset') {
       // Confirmation prompt before resetting
       await btnInteraction.update({
@@ -382,6 +462,11 @@ function buildDashboardButtons(
       .setLabel('Manage Systems')
       .setStyle(ButtonStyle.Primary)
       .setEmoji('⚙️'),
+    new ButtonBuilder()
+      .setCustomId('setup_language')
+      .setLabel('Language')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('🌐'),
     new ButtonBuilder().setCustomId('setup_reset').setLabel('Reset Setup').setStyle(ButtonStyle.Danger).setEmoji('🔄'),
   );
 }

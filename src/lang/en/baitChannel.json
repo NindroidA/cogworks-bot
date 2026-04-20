@@ -1,0 +1,272 @@
+{
+  "notConfigured": "Bait channel not configured. Use `/baitchannel setup`",
+  "setupFirst": "Please run `/baitchannel setup` first!",
+  "specifyRoleOrUser": "Please specify a role or user!",
+  "builder": {
+    "cmdDescrp": "Configure the bait channel anti-bot system",
+    "setup": {
+      "descrp": "Set up or update the bait channel configuration",
+      "channel": "The bait channel",
+      "gracePeriod": "Grace period in seconds (0 for instant action)",
+      "action": "Action to take",
+      "actionBan": "Ban",
+      "actionKick": "Kick",
+      "actionTimeout": "Timeout — Temporarily mute the user",
+      "actionLogOnly": "Log Only (Testing)",
+      "logChannel": "Channel for logging detections"
+    },
+    "detection": {
+      "descrp": "Configure smart detection settings",
+      "enabled": "Enable smart detection",
+      "minAccountAge": "Minimum account age in days (default: 7)",
+      "minMembership": "Minimum server membership in minutes (default: 5)",
+      "minMessages": "Minimum message count (default: 0)",
+      "requireVerification": "Require verification role",
+      "disableAdminWhitelist": "Disable automatic admin whitelist (for testing)",
+      "threshold": "Instant action score threshold (default: 90, range: 50-100)",
+      "joinVelocityThreshold": "Joins within window to trigger burst detection (2-100)",
+      "joinVelocityWindow": "Sliding window size in minutes for join velocity (1-30)"
+    },
+    "whitelist": {
+      "descrp": "Manage whitelist",
+      "action": "Add, remove, or list whitelist",
+      "actionAdd": "Add",
+      "actionRemove": "Remove",
+      "actionList": "List",
+      "role": "Role to whitelist",
+      "user": "User to whitelist"
+    },
+    "status": {
+      "descrp": "View current configuration and statistics"
+    },
+    "stats": {
+      "descrp": "View detailed statistics",
+      "days": "Number of days to analyze (default: 7)"
+    },
+    "toggle": {
+      "descrp": "Enable or disable the bait channel",
+      "enabled": "Enable or disable"
+    },
+    "escalation": {
+      "enableDescrp": "Enable score-based action escalation",
+      "disableDescrp": "Disable escalation (use fixed action type)",
+      "thresholdsDescrp": "Configure escalation score thresholds",
+      "logOption": "Minimum score for log-only (default: 30)",
+      "timeoutOption": "Minimum score for timeout (default: 50)",
+      "kickOption": "Minimum score for kick (default: 75)",
+      "banOption": "Minimum score for ban (default: 90)"
+    },
+    "dmNotify": {
+      "enableDescrp": "Enable DM notification before action",
+      "disableDescrp": "Disable DM notification before action",
+      "appealDescrp": "Set appeal information shown in DM",
+      "appealTextOption": "Appeal instructions text (max 500 characters)",
+      "clearAppealDescrp": "Clear appeal information from DMs"
+    },
+    "keywords": {
+      "descrp": "Manage detection keywords and weights",
+      "action": "Add, remove, list, or reset keywords",
+      "keyword": "The keyword to add or remove",
+      "weight": "Keyword weight 1-10 (default: 5, higher = more suspicious)"
+    },
+    "override": {
+      "descrp": "Override a detection action for a user",
+      "user": "The user whose most recent detection to override"
+    },
+    "addChannel": {
+      "descrp": "Add an additional bait channel (up to 3)",
+      "channel": "The text channel to add as a bait channel"
+    },
+    "removeChannel": {
+      "descrp": "Remove a bait channel",
+      "channel": "The bait channel to remove"
+    },
+    "testMode": {
+      "descrp": "Toggle test mode (detects but does not ban/kick/timeout)",
+      "enabled": "Enable or disable test mode"
+    },
+    "summary": {
+      "descrp": "Enable or disable weekly summary digest",
+      "enabled": "Enable or disable weekly summary",
+      "channel": "Channel to send the summary (defaults to log channel)"
+    },
+    "settings": {
+      "descrp": "Open settings modal to configure bait channel"
+    }
+  },
+  "status": {
+    "title": "Bait Channel Status",
+    "statusEnabled": "Enabled",
+    "statusDisabled": "Disabled",
+    "channelNotFound": "Not found",
+    "smartOn": "On",
+    "smartOff": "Off",
+    "logNone": "None",
+    "detectionSettings": "Detection Settings",
+    "minAccountAge": "- Min Account Age: {0} days",
+    "minMembership": "- Min Membership: {0} minutes",
+    "minMessages": "- Min Messages: {0}",
+    "requireVerification": "- Require Verification: {0}",
+    "actionThreshold": "- Action Threshold: {0}/100",
+    "whitelist": "Whitelist",
+    "whitelistRoles": "**Roles:** {0}",
+    "whitelistUsers": "**Users:** {0}",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "toggle": {
+    "enabled": "Bait channel enabled",
+    "disabled": "Bait channel disabled"
+  },
+  "setup": {
+    "title": "Bait Channel Configured",
+    "titleUpdated": "Bait Channel Updated",
+    "footer": "Use /baitchannel detection to configure smart detection"
+  },
+  "stats": {
+    "title": "Bait Channel Statistics",
+    "description": "Statistics for the last {0} day(s)",
+    "totalTriggers": "Total Triggers",
+    "banned": "Banned",
+    "kicked": "Kicked",
+    "deletedInTime": "Deleted in Time",
+    "whitelisted": "Whitelisted",
+    "avgSuspicion": "Avg Suspicion",
+    "recentDetections": "Recent Detections",
+    "none": "None",
+    "overrideRate": "Override Rate",
+    "scoreDistribution": "Score Distribution",
+    "topFlags": "Top Detection Flags",
+    "timedOut": "Timed Out",
+    "loggedOnly": "Logged Only",
+    "overridden": "Overridden"
+  },
+  "override": {
+    "title": "Detection Override",
+    "success": "Successfully overridden the most recent detection for {0}.",
+    "noEntry": "No actionable detection found for this user.",
+    "alreadyOverridden": "The most recent detection for this user has already been overridden.",
+    "logOnlyCannotOverride": "Log-only detections cannot be overridden (no action was taken).",
+    "user": "User",
+    "action": "Original Action",
+    "score": "Suspicion Score",
+    "overriddenBy": "Overridden By",
+    "detectedAt": "Detected At",
+    "error": "Failed to override detection"
+  },
+  "whitelist": {
+    "added": "Added {0} to whitelist",
+    "removed": "Removed {0} from whitelist",
+    "alreadyAdded": "{0} is already whitelisted",
+    "notInList": "{0} is not in the whitelist",
+    "title": "Bait Channel Whitelist",
+    "empty": "No roles or users are whitelisted",
+    "role": "Role: {0}",
+    "user": "User: {0}"
+  },
+  "detection": {
+    "title": "Smart Detection Updated",
+    "enabled": "Enabled",
+    "minAccountAge": "Min Account Age",
+    "minMembership": "Min Membership",
+    "minMessages": "Min Messages",
+    "requireVerification": "Require Verification",
+    "threshold": "Action Threshold",
+    "joinVelocityThreshold": "Join Velocity Threshold",
+    "joinVelocityWindow": "Join Velocity Window",
+    "days": "{0} days",
+    "minutes": "{0} min",
+    "yes": "Yes",
+    "no": "No",
+    "reasons": {
+      "defaultAvatar": "Default avatar (no custom avatar set)",
+      "emptyProfile": "Empty profile (no banner, no avatar)",
+      "suspiciousUsername": "Suspicious username patterns detected",
+      "noRoles": "No server roles assigned",
+      "discordInvite": "Contains Discord invite link(s)",
+      "phishingUrl": "Contains suspected phishing URL(s)",
+      "attachmentOnly": "Attachment-only message (no text)",
+      "joinBurst": "Join burst detected",
+      "coordinatedRaid": "Possible Coordinated Raid"
+    }
+  },
+  "escalation": {
+    "enabled": "Escalation mode enabled",
+    "enabledDescription": "Actions are now determined by suspicion score. The fixed action type is ignored while escalation is active.",
+    "disabled": "Escalation mode disabled — using fixed action type.",
+    "thresholdsUpdated": "Escalation Thresholds Updated",
+    "invalidThresholds": "Invalid thresholds: values must be strictly ascending (log < timeout < kick < ban).",
+    "currentThresholds": "Current Escalation Thresholds"
+  },
+  "dmNotify": {
+    "enabled": "DM notification before action is now **enabled**.",
+    "disabled": "DM notification before action is now **disabled**.",
+    "appealSet": "Appeal Information Configured",
+    "appealCleared": "Appeal information has been cleared.",
+    "appealTooLong": "Appeal text must be 500 characters or fewer.",
+    "dmTitle": "Action Taken in {guildName}",
+    "dmDescription": "Your message in a monitored channel triggered automatic detection."
+  },
+  "keywords": {
+    "add": {
+      "title": "Keyword Added",
+      "success": "Keyword added: `{keyword}` (weight: {weight})",
+      "duplicate": "Keyword `{keyword}` already exists. Use `/baitchannel keywords list` to see existing keywords.",
+      "limitReached": "Maximum 50 keywords reached. Remove some before adding more.",
+      "invalidLength": "Keyword must be 1-100 characters.",
+      "missingKeyword": "Please provide a keyword to add."
+    },
+    "remove": {
+      "success": "Keyword removed: `{keyword}`",
+      "notFound": "Keyword not found.",
+      "missingKeyword": "Please provide a keyword to remove."
+    },
+    "list": {
+      "title": "Bait Channel Keywords",
+      "empty": "No keywords configured. Use `/baitchannel keywords add` to add keywords.",
+      "footer": "{count}/50 keywords configured"
+    },
+    "reset": {
+      "confirm": "Are you sure you want to reset all keywords to defaults? This will delete all custom keywords.",
+      "success": "Keywords reset to defaults. {count} keywords seeded.",
+      "cancelled": "Keyword reset cancelled."
+    }
+  },
+  "testMode": {
+    "enabled": "Test mode **enabled** — detections will be logged but no ban/kick/timeout actions will be taken.",
+    "disabled": "Test mode **disabled** — detections will now execute real actions.",
+    "title": "Test Mode Updated",
+    "logPrefix": "[TEST MODE] ",
+    "gracePeriodNote": "\n\n**Test Mode Active** — No real action will be taken."
+  },
+  "multiChannel": {
+    "added": "Added <#{0}> as a bait channel",
+    "removed": "Removed <#{0}> from bait channels",
+    "maxReached": "Maximum of 3 bait channels reached. Remove one first.",
+    "alreadyAdded": "<#{0}> is already configured as a bait channel.",
+    "notInList": "<#{0}> is not configured as a bait channel.",
+    "mustKeepOne": "Cannot remove the last bait channel. Use `/baitchannel toggle` to disable instead.",
+    "title": "Bait Channel Updated",
+    "channelsLabel": "Configured Channels"
+  },
+  "weeklySummary": {
+    "title": "Weekly Summary Settings",
+    "enabled": "Weekly summary digest is now **enabled**. A summary will be sent every Sunday at midnight UTC.",
+    "disabled": "Weekly summary digest is now **disabled**.",
+    "channelLabel": "Summary Channel"
+  },
+  "error": {
+    "fetchStatus": "Failed to fetch bait channel status",
+    "toggle": "Failed to toggle bait channel",
+    "setup": "Failed to setup bait channel",
+    "fetchStats": "Failed to fetch bait channel statistics",
+    "updateWhitelist": "Failed to update whitelist",
+    "updateDetection": "Failed to update detection settings",
+    "keywords": "Failed to manage keywords",
+    "override": "Failed to override detection",
+    "testMode": "Failed to update test mode",
+    "addChannel": "Failed to add bait channel",
+    "removeChannel": "Failed to remove bait channel",
+    "weeklySummary": "Failed to update weekly summary settings"
+  }
+}
