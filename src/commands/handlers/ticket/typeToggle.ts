@@ -2,6 +2,7 @@ import { type AutocompleteInteraction, type ChatInputCommandInteraction, Message
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { enhancedLogger, guardAdmin, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
+import { LEGACY_TICKET_TYPE_IDS, LEGACY_TYPES } from '../../../utils/ticket/legacyTypes';
 
 const tl = lang.ticket.customTypes.typeToggle;
 
@@ -111,17 +112,6 @@ export async function ticketTypeAutocomplete(interaction: AutocompleteInteractio
   }
 }
 
-// Legacy ticket types for autocomplete
-const LEGACY_TYPES = [
-  { typeId: '18_verify', displayName: '18+ Verification', emoji: '🔞' },
-  { typeId: 'ban_appeal', displayName: 'Ban Appeal', emoji: '⚖️' },
-  { typeId: 'player_report', displayName: 'Player Report', emoji: '🚨' },
-  { typeId: 'bug_report', displayName: 'Bug Report', emoji: '🐛' },
-  { typeId: 'other', displayName: 'Other', emoji: '❓' },
-];
-
-const LEGACY_TYPE_IDS = LEGACY_TYPES.map(t => t.typeId);
-
 /**
  * Autocomplete handler that includes both legacy and custom ticket types
  * Used by settings command for ping-on-create setting
@@ -139,7 +129,9 @@ export async function ticketTypeAutocompleteWithLegacy(interaction: Autocomplete
     });
 
     // Filter out custom types that have the same typeId as legacy types to avoid duplicates
-    const filteredCustomTypes = customTypes.filter(t => !LEGACY_TYPE_IDS.includes(t.typeId));
+    const filteredCustomTypes = customTypes.filter(
+      t => !(LEGACY_TICKET_TYPE_IDS as readonly string[]).includes(t.typeId),
+    );
 
     // Combine legacy and custom types (legacy first, then custom)
     const allTypes = [

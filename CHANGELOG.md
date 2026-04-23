@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.4]
+
+### Changed
+- **Legacy ticket type cleanup** — consolidated five separate copies of the legacy ticket-type constants (typeIds, display names, emojis, ping-column mapping) into a single canonical source in `src/utils/ticket/legacyTypes.ts`. Behaviour is unchanged; the five hardcoded types (`18_verify`, `ban_appeal`, `player_report`, `bug_report`, `other`) continue to use their legacy Discord modal builders
+  - New unified `resolveTicketType(guildId, typeId)` helper returns a `ResolvedTicketType` shape that covers both legacy and custom types with a single call — replaces bespoke branching in `events/ticketInteraction.ts` and `utils/ticket/closeWorkflow.ts`
+  - New helpers: `LEGACY_TYPES` (canonical descriptor array), `legacyTypeInfo(typeId)` (pure display-info lookup), `resolveLegacyPingColumn(typeId)` (pure `TicketConfig` column mapping)
+  - `src/events/ticketInteraction.ts` modal-submission branch reduced from ~60 lines of legacy/custom branching to a single `resolveTicketType()` call plus a minimal description-builder switch; local `LEGACY_PING_COLUMNS`/`LegacyType` table removed
+  - Deduped legacy descriptor tables in `src/commands/handlers/ticket/settings.ts`, `src/commands/handlers/ticket/typeToggle.ts`, and `src/commands/handlers/migrate.ts` — all four sites now import from the canonical module
+  - Canonicalised `player_report` emoji to 📢 across the codebase (previously 🚨 in `typeToggle.ts`, diverging from every other site)
+
+### Removed
+- **Public exports from `src/utils/ticket/legacyTypes.ts`**: `LEGACY_TYPE_NAMES` and `LEGACY_TYPE_INFO` (absorbed into the new `legacyTypeInfo()` helper and the canonical `LEGACY_TYPES` descriptor array)
+
+### Tests
+- Rewrote `tests/unit/utils/ticket/legacyTypes.test.ts` around the new public API; +3 tests (1034 → 1037)
+
 ## [3.1.3]
 
 ### Added

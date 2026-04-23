@@ -11,6 +11,7 @@ import {
   LogCategory,
   requireAdmin,
 } from '../../utils';
+import { legacyTypeInfo } from '../../utils/ticket/legacyTypes';
 
 /**
  * Migrate existing archived tickets to use forum tags
@@ -80,18 +81,10 @@ export async function migrateTicketTagsHandler(interaction: ChatInputCommandInte
             emoji = customType.emoji;
           }
         } else if (archived.ticketType) {
-          // Legacy type mapping
-          const legacyTypeMap: Record<string, { display: string; emoji: string }> = {
-            '18_verify': { display: '18+ Verification', emoji: '🔞' },
-            ban_appeal: { display: 'Ban Appeal', emoji: '⚖️' },
-            player_report: { display: 'Player Report', emoji: '📢' },
-            bug_report: { display: 'Bug Report', emoji: '🐛' },
-            other: { display: 'Other', emoji: '❓' },
-          };
-          const legacyInfo = legacyTypeMap[archived.ticketType];
+          const legacyInfo = legacyTypeInfo(archived.ticketType);
           if (legacyInfo) {
-            typeId = archived.ticketType;
-            displayName = legacyInfo.display;
+            typeId = legacyInfo.typeId;
+            displayName = legacyInfo.displayName;
             emoji = legacyInfo.emoji;
           }
         }

@@ -3,30 +3,9 @@ import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import { Colors, E, enhancedLogger, guardAdmin, LANGF, LogCategory, lang } from '../../../utils';
+import { isLegacyTicketType, legacyTypeInfo, resolveLegacyPingColumn } from '../../../utils/ticket/legacyTypes';
 
 const tl = lang.ticket.settings;
-
-// Legacy ticket type IDs
-const LEGACY_TYPES = ['18_verify', 'ban_appeal', 'player_report', 'bug_report', 'other'] as const;
-type LegacyType = (typeof LEGACY_TYPES)[number];
-
-// Map legacy type IDs to their TicketConfig column names
-const LEGACY_TYPE_COLUMNS: Record<LegacyType, keyof TicketConfig> = {
-  '18_verify': 'pingStaffOn18Verify',
-  ban_appeal: 'pingStaffOnBanAppeal',
-  player_report: 'pingStaffOnPlayerReport',
-  bug_report: 'pingStaffOnBugReport',
-  other: 'pingStaffOnOther',
-};
-
-// Display names for legacy types
-const LEGACY_TYPE_NAMES: Record<LegacyType, string> = {
-  '18_verify': '18+ Verification',
-  ban_appeal: 'Ban Appeal',
-  player_report: 'Player Report',
-  bug_report: 'Bug Report',
-  other: 'Other',
-};
 
 /**
  * Handler for /ticket settings command
@@ -115,12 +94,14 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
     let displayName: string;
 
     // Check if it's a legacy type
-    if (LEGACY_TYPES.includes(typeId as LegacyType)) {
-      const columnName = LEGACY_TYPE_COLUMNS[typeId as LegacyType];
-      displayName = LEGACY_TYPE_NAMES[typeId as LegacyType];
+    if (isLegacyTicketType(typeId)) {
+      const columnName = resolveLegacyPingColumn(typeId);
+      displayName = legacyTypeInfo(typeId)?.displayName ?? typeId;
 
-      // Update the legacy type's ping setting
-      await ticketConfigRepo.update({ guildId }, { [columnName]: enabled });
+      if (columnName) {
+        // Update the legacy type's ping setting
+        await ticketConfigRepo.update({ guildId }, { [columnName]: enabled });
+      }
     } else {
       // It's a custom type
       const customTypeRepo = AppDataSource.getRepository(CustomTicketType);

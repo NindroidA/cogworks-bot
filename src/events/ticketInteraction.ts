@@ -34,7 +34,7 @@ import {
   rateLimiter,
 } from '../utils';
 import { lazyRepo } from '../utils/database/lazyRepo';
-import { isLegacyTicketType, LEGACY_TYPE_NAMES, type LegacyTicketTypeId } from '../utils/ticket/legacyTypes';
+import { isLegacyTicketType, resolveLegacyPingColumn, resolveTicketType } from '../utils/ticket/legacyTypes';
 import { customTicketOptions, ticketOptions } from './ticket';
 import { ticketAdminOnlyEvent } from './ticket/adminOnly';
 import { ageVerifyMessage, ageVerifyModal } from './ticket/ageVerify';
@@ -85,16 +85,6 @@ const ticketRepo = lazyRepo(Ticket);
 const staffRoleRepo = lazyRepo(StaffRole);
 const botConfigRepo = lazyRepo(BotConfig);
 const customTypeRepo = lazyRepo(CustomTicketType);
-
-// Legacy type column mapping for ping-on-create setting
-type LegacyType = '18_verify' | 'ban_appeal' | 'player_report' | 'bug_report' | 'other';
-const LEGACY_PING_COLUMNS: Record<LegacyType, keyof TicketConfig> = {
-  '18_verify': 'pingStaffOn18Verify',
-  ban_appeal: 'pingStaffOnBanAppeal',
-  player_report: 'pingStaffOnPlayerReport',
-  bug_report: 'pingStaffOnBugReport',
-  other: 'pingStaffOnOther',
-};
 
 export const handleTicketInteraction = async (client: Client, interaction: Interaction) => {
   if (!interaction.guildId) return;
@@ -460,39 +450,32 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
       const fields = interaction.fields;
       let description = '';
 
-      // Check if this is a LEGACY ticket type
-      const isLegacyType = isLegacyTicketType(ticketType);
+      // Resolve ticket type once — unified shape for legacy and custom types
+      const resolved = await resolveTicketType(guildId, ticketType);
 
-      // For custom types, fetch config once and reuse throughout
-      let customTypeConfig: CustomTicketType | null = null;
-      if (!isLegacyType) {
-        customTypeConfig = await customTypeRepo.findOne({
-          where: { guildId, typeId: ticketType },
+      if (!resolved) {
+        await interaction.reply({
+          content: '❌ Ticket type configuration not found!',
+          flags: [MessageFlags.Ephemeral],
         });
+        return;
       }
+
+      const isLegacyType = resolved.isLegacy;
+      const displayName = resolved.displayName || ticketType;
 
       if (isLegacyType) {
         description = await buildLegacyTicketDescription(ticketType, fields);
       } else {
-        const ticketTypeConfig = customTypeConfig;
+        // customType is guaranteed non-null when isLegacy is false
+        const customTypeConfig = resolved.customType;
+        const header = `# ${displayName}\n`;
 
-        if (!ticketTypeConfig) {
-          await interaction.reply({
-            content: '❌ Ticket type configuration not found!',
-            flags: [MessageFlags.Ephemeral],
-          });
-          return;
-        }
-
-        // Build description from custom fields or default field
-        // Add header with ticket type name
-        const header = `# ${ticketTypeConfig.displayName}\n`;
-
-        if (ticketTypeConfig.customFields && ticketTypeConfig.customFields.length > 0) {
+        if (customTypeConfig?.customFields && customTypeConfig.customFields.length > 0) {
           // Build formatted description from all custom field responses
           const fieldResponses: string[] = [];
 
-          for (const field of ticketTypeConfig.customFields) {
+          for (const field of customTypeConfig.customFields) {
             try {
               const value = fields.getTextInputValue(field.id);
               fieldResponses.push(`**${field.label}:** ${escapeDiscordMarkdown(value)}`);
@@ -506,18 +489,6 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
           // No custom fields - use default description field
           const defaultValue = fields.getTextInputValue('ticket_description');
           description = header + defaultValue;
-        }
-      }
-
-      // Get ticket type details for channel naming
-      let displayName = ticketType;
-
-      if (isLegacyType) {
-        displayName = LEGACY_TYPE_NAMES[ticketType as LegacyTicketTypeId] || ticketType;
-      } else {
-        // Reuse custom type config fetched earlier
-        if (customTypeConfig) {
-          displayName = customTypeConfig.displayName || ticketType;
         }
       }
 
@@ -603,13 +574,13 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
 
         if (isLegacyType) {
           // Check legacy type ping setting from TicketConfig
-          const pingColumn = LEGACY_PING_COLUMNS[ticketType as LegacyType];
+          const pingColumn = resolveLegacyPingColumn(ticketType);
           if (pingColumn && modalTicketConfig) {
             shouldPingStaff = modalTicketConfig[pingColumn] as boolean;
           }
         } else {
-          // Reuse custom type config fetched earlier
-          shouldPingStaff = customTypeConfig?.pingStaffOnCreate ?? true;
+          // Reuse resolved custom type config fetched earlier
+          shouldPingStaff = resolved.customType?.pingStaffOnCreate ?? true;
         }
 
         if (shouldPingStaff) {

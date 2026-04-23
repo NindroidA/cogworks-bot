@@ -11,17 +11,15 @@
 import fs from 'node:fs';
 import type { Client, ForumChannel, ForumThreadChannel, GuildTextBasedChannel } from 'discord.js';
 import { ArchivedTicket } from '../../typeorm/entities/ticket/ArchivedTicket';
-import { CustomTicketType } from '../../typeorm/entities/ticket/CustomTicketType';
 import type { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { lazyRepo } from '../database/lazyRepo';
 import { verifiedChannelDelete } from '../discord/verifiedDelete';
 import { fetchMessagesAndSaveToFile } from '../fetchAllMessages';
 import { applyForumTags, ensureForumTag } from '../forumTagManager';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
-import { isLegacyTicketType, LEGACY_TYPE_INFO } from './legacyTypes';
+import { legacyTypeInfo, resolveTicketType } from './legacyTypes';
 
 const archivedTicketRepo = lazyRepo(ArchivedTicket);
-const customTicketTypeRepo = lazyRepo(CustomTicketType);
 
 export interface ArchiveTicketResult {
   success: boolean;
@@ -39,18 +37,32 @@ interface TicketTypeInfo {
 
 /**
  * Resolve display info for a ticket's type (custom or legacy).
+ *
+ * Prefers `customTypeId` when present — an orphaned customTypeId (row deleted)
+ * returns null rather than falling back to the legacy `type` column, matching
+ * the original branching behavior.
  */
 async function resolveTicketTypeInfo(ticket: Ticket, guildId: string): Promise<TicketTypeInfo | null> {
   if (ticket.customTypeId) {
-    const customType = await customTicketTypeRepo.findOne({
-      where: { guildId, typeId: ticket.customTypeId },
-    });
-    if (customType) {
-      return { typeId: customType.typeId, displayName: customType.displayName, emoji: customType.emoji };
+    const resolved = await resolveTicketType(guildId, ticket.customTypeId);
+    if (resolved && !resolved.isLegacy) {
+      return {
+        typeId: resolved.typeId,
+        displayName: resolved.displayName,
+        emoji: resolved.emoji,
+      };
     }
-  } else if (ticket.type && isLegacyTicketType(ticket.type)) {
-    const info = LEGACY_TYPE_INFO[ticket.type];
-    return { typeId: ticket.type, displayName: info.display, emoji: info.emoji };
+    return null;
+  }
+  if (ticket.type) {
+    const legacy = legacyTypeInfo(ticket.type);
+    if (legacy) {
+      return {
+        typeId: legacy.typeId,
+        displayName: legacy.displayName,
+        emoji: legacy.emoji,
+      };
+    }
   }
   return null;
 }
@@ -60,7 +72,10 @@ async function resolveTicketTypeInfo(ticket: Ticket, guildId: string): Promise<T
  */
 async function findExistingArchive(ticket: Ticket, guildId: string): Promise<ArchivedTicket | null> {
   if (ticket.isEmailTicket && ticket.emailSender) {
-    return archivedTicketRepo.findOneBy({ emailSender: ticket.emailSender, guildId });
+    return archivedTicketRepo.findOneBy({
+      emailSender: ticket.emailSender,
+      guildId,
+    });
   }
   return archivedTicketRepo.findOneBy({ createdBy: ticket.createdBy, guildId });
 }
@@ -103,7 +118,12 @@ export async function archiveAndCloseTicket(
       guildId,
       channelId,
     });
-    return { success: false, archived: false, transcriptFailed: true, error: 'Transcript creation failed' };
+    return {
+      success: false,
+      archived: false,
+      transcriptFailed: true,
+      error: 'Transcript creation failed',
+    };
   }
 
   // Archive to forum
@@ -198,7 +218,10 @@ export async function archiveAndCloseTicket(
   enhancedLogger.info('Ticket transcript archived successfully', LogCategory.SYSTEM, { guildId, channelId });
 
   // Delete ticket channel (verified — Discord first, then DB)
-  const deleteResult = await verifiedChannelDelete(channel, { guildId, label: 'ticket channel' });
+  const deleteResult = await verifiedChannelDelete(channel, {
+    guildId,
+    label: 'ticket channel',
+  });
   if (!deleteResult.success) {
     enhancedLogger.error(
       `Ticket channel persisted after delete attempt — possible bug. Channel: ${channelId}`,
