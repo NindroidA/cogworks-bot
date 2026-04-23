@@ -47,4 +47,13 @@ export class AnalyticsSnapshot {
   /** Hour with the most message activity (0-23 UTC) */
   @Column({ type: 'int', nullable: true })
   peakHourUtc: number | null;
+
+  /**
+   * Full 24-slot hourly message histogram for the day (UTC).
+   * Index i = UTC hour i, value = message count during that hour.
+   * Nullable for backfill compatibility — rows written before this column
+   * existed keep `null` and callers should treat that as "no hourly data".
+   */
+  @Column({ type: 'simple-json', nullable: true })
+  hourlyCounts: number[] | null;
 }

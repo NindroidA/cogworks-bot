@@ -11,6 +11,7 @@ import channelDeleteEvent from './events/channelDelete';
 import guildCreateEvent from './events/guildCreate';
 import guildDeleteEvent from './events/guildDelete';
 import guildMemberAddEvent from './events/guildMemberAdd';
+import guildMemberRemoveEvent from './events/guildMemberRemove';
 import { routeInteraction } from './events/interactionRouter';
 import messageCreateEvent from './events/messageCreate';
 import messageDeleteEvent from './events/messageDelete';
@@ -31,6 +32,7 @@ import {
 } from './events/scheduledEventHandlers';
 import { handleStarboardReactionAdd, handleStarboardReactionRemove } from './events/starboardReaction';
 import threadDeleteEvent from './events/threadDelete';
+import voiceAnalyticsEvent from './events/voiceAnalytics';
 import xpMessageHandler from './events/xpMessageHandler';
 import xpVoiceHandler from './events/xpVoiceHandler';
 import { AppDataSource } from './typeorm';
@@ -218,6 +220,7 @@ client.on(threadDeleteEvent.name, thread => threadDeleteEvent.execute(thread));
 
 // register member lifecycle events
 client.on(guildMemberAddEvent.name, member => guildMemberAddEvent.execute(member, extClient));
+client.on(guildMemberRemoveEvent.name, member => guildMemberRemoveEvent.execute(member));
 
 // register onboarding join event (sends DM onboarding flow to new members)
 client.on(onboardingJoinEvent.name, member => onboardingJoinEvent.execute(member, extClient));
@@ -225,6 +228,7 @@ client.on(onboardingJoinEvent.name, member => onboardingJoinEvent.execute(member
 // register XP event handlers
 client.on('messageCreate', message => xpMessageHandler.execute(message, extClient));
 client.on('voiceStateUpdate', (oldState, newState) => xpVoiceHandler.execute(oldState, newState, extClient));
+client.on('voiceStateUpdate', (oldState, newState) => voiceAnalyticsEvent.execute(oldState, newState));
 
 // register scheduled event handlers
 client.on(guildScheduledEventCreate.name, event => guildScheduledEventCreate.execute(event, client));

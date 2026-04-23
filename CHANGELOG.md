@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.2]
+
+### Added
+- **Analytics REST API**: Five guild-scoped read-only endpoints that back the web dashboard's analytics views
+  - `GET /internal/guilds/:guildId/analytics/overview[?days=N]` — current-period totals (messages, activeMembers, joins, leaves, voiceMinutes), top 5 channels aggregated from daily snapshots, and `comparedToPrevious` % deltas vs. the immediately-prior window
+  - `GET /internal/guilds/:guildId/analytics/growth?days=30` — daily joins/leaves/totalMembers for line charts
+  - `GET /internal/guilds/:guildId/analytics/channels?days=7` — per-channel message totals (aggregated from each day's top-channels JSON); `uniqueUsers` returns 0 until per-channel unique-user tracking is added
+  - `GET /internal/guilds/:guildId/analytics/hours?days=7` — 24-slot UTC activity heatmap powered by the new `hourlyCounts` column
+  - `GET /internal/guilds/:guildId/analytics/snapshots?from=YYYY-MM-DD&to=YYYY-MM-DD` — raw snapshot rows for custom date ranges
+  - All endpoints return empty collections (not 404s) for guilds with no data
+  - All ranges clamped to 365 days; `days` must be a positive integer; `from`/`to` must be YYYY-MM-DD; `from <= to`
+- **`hourlyCounts` column** on `AnalyticsSnapshot` (nullable `simple-json` 24-slot array) with migration `1774000009000-AddAnalyticsHourlyCounts` — powers the hours heatmap so we no longer have to fake a distribution from `peakHourUtc` alone
+- **Activity tracker now persists the 24-hour histogram** alongside peak-hour when flushing snapshots; mid-day re-flushes merge rather than replace
+
+### Tests
+- Added `tests/unit/utils/api/analyticsHandlers.test.ts` (+18 tests) covering `pctChange` formatting (increase/decrease/zero/em-dash), `formatIsoDate`, `parseDaysWindow` (fallback, clamp, zero/negative/non-numeric rejection, window boundaries), and `parseFromToWindow` (valid/missing/malformed dates, reversed ranges, MAX_RANGE_DAYS enforcement)
+- Suite: 1002 → 1020 pass, zero regressions; biome clean; build clean
+
+### Notes
+- Contract note: `uniqueUsers` per channel is stubbed at 0 and will be populated in a future patch after a per-channel unique-user storage schema lands
+- Pre-existing snapshot rows have `hourlyCounts = NULL` — the hours endpoint correctly skips them rather than synthesizing data
+
+### Follow-ups from webapp/API agent review
+- **Snapshots endpoint field naming normalized**: response now returns `messages`/`joins`/`leaves` (was `messageCount`/`joinCount`/`leaveCount`) so it matches `overview`/`growth`/`channels`/`hours` and the webapp's existing `analytics.ts` types. `voiceMinutes` and `activeMembers` unchanged. No production consumers yet, so no back-compat shim.
+- **Activity tracker is now actually fed**: `activityTracker.recordMessage/recordMemberJoin/recordMemberLeave/recordVoiceMinutes` are now wired into the event pipeline
+  - `messageCreate` → `recordMessage()` (in-memory, no DB hop; pre-existing dev-guild exclusion respected)
+  - `guildMemberAdd` → `recordMemberJoin()` (fed before bait flow so missing configs don't drop the count)
+  - New `guildMemberRemove` handler → `recordMemberLeave()` (covers both voluntary leaves and kicks/bans)
+  - New `voiceAnalytics` handler (separate from `xpVoiceHandler`) tracks per-user voice sessions in memory and records minutes on disconnect, capped at 24h; runs for every guild regardless of XP config
+  - New helper `activityTracker.recordVoiceMinutes(guildId, minutes)` for bulk session recording
+
 ## [3.1.1]
 
 ### Added

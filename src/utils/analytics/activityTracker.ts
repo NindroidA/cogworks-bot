@@ -92,6 +92,16 @@ class ActivityTracker {
     this.getCounters(guildId).voiceMinutes++;
   }
 
+  /**
+   * Record N voice minutes in one call — used by voice session handlers that
+   * compute total session duration on disconnect rather than ticking every
+   * minute. Caller is responsible for any capping (e.g. stale-session guards).
+   */
+  recordVoiceMinutes(guildId: string, minutes: number): void {
+    if (minutes <= 0) return;
+    this.getCounters(guildId).voiceMinutes += minutes;
+  }
+
   /** Record a member join. */
   recordMemberJoin(guildId: string): void {
     this.getCounters(guildId).memberJoined++;
@@ -138,15 +148,21 @@ class ActivityTracker {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
-    // Peak hour
+    // Peak hour + full 24-slot histogram. The histogram powers the
+    // /analytics/hours API endpoint (heatmap). Days with no messages still
+    // get an all-zero array so downstream consumers don't need to special
+    // case "no data for today".
     let peakHourUtc: number | null = null;
     let peakCount = 0;
+    const hourlyCounts: number[] = new Array(24).fill(0);
     for (const [hour, count] of c.hourCounts) {
+      hourlyCounts[hour] = count;
       if (count > peakCount) {
         peakCount = count;
         peakHourUtc = hour;
       }
     }
+    const hasHourlyData = c.messageCount > 0;
 
     try {
       // Upsert: if a snapshot for this guild+date already exists, update it
@@ -161,6 +177,12 @@ class ActivityTracker {
         snapshot.voiceMinutes += c.voiceMinutes;
         snapshot.topChannels = topChannels.length > 0 ? topChannels : snapshot.topChannels;
         snapshot.peakHourUtc = peakHourUtc ?? snapshot.peakHourUtc;
+        if (hasHourlyData) {
+          // Merge the new window's hourly counts into whatever is already
+          // stored so mid-day flushes accumulate rather than replacing.
+          const existing = snapshot.hourlyCounts ?? new Array(24).fill(0);
+          snapshot.hourlyCounts = existing.map((v, i) => v + hourlyCounts[i]);
+        }
       } else {
         snapshot = repo.create({
           guildId,
@@ -173,6 +195,7 @@ class ActivityTracker {
           voiceMinutes: c.voiceMinutes,
           topChannels: topChannels.length > 0 ? topChannels : null,
           peakHourUtc,
+          hourlyCounts: hasHourlyData ? hourlyCounts : null,
         });
       }
 
