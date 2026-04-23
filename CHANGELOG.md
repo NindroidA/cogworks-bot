@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.3]
+
+### Added
+- **Feature-based permission system** — new `guild_permissions` table lets server admins grant Discord roles specific permission levels for individual bot features, layered non-breakingly on top of the existing admin-only behavior
+  - New entity `GuildPermission(guildId, feature, roleId, level)` with unique index on `(guildId, feature, roleId)` so POST upserts are idempotent
+  - Levels: `use` < `manage` < `admin`. Higher levels satisfy lower requirements; `none` is represented by row absence
+  - Features: `tickets`, `announcements`, `baitchannel`, `memory`, `xp`, `starboard`, `events`, `reactionroles`, `onboarding`, `automod`, `rules`, `analytics` (12 total; catalog exposed via API response so the webapp dropdown stays in sync)
+  - Migration `1774000010000-AddGuildPermissions`
+- **`hasFeatureAccess(interaction, feature, requiredLevel)`** in [src/utils/validation/featurePermission.ts](src/utils/validation/featurePermission.ts) — the core checker
+  - Discord `Administrator` permission always grants access (cannot lock yourself out)
+  - Guilds with zero permission rows fall back to legacy admin-only behavior (fully backwards compatible)
+  - 60-second in-memory cache keyed by `guildId`, invalidated on writes via `invalidateFeaturePermissionsCache(guildId)`
+  - Pure `resolveMemberLevel()` helper is exported + unit-tested separately from Discord/DB
+  - Returns a typed `FeatureAccessResult` with a `reason` discriminator (`discord-admin` / `no-config-fallback` / `role-grant` / `no-matching-role` / `insufficient-level` / `no-guild`) for diagnostics
+- **`guardFeatureAccess(interaction, feature, level)`** in [src/utils/interactions/guardHelper.ts](src/utils/interactions/guardHelper.ts) — mirrors the `guardAdmin` shape so handlers can migrate feature-by-feature
+- **Three new REST endpoints** in [src/utils/api/handlers/permissionHandlers.ts](src/utils/api/handlers/permissionHandlers.ts):
+  - `GET /internal/guilds/:guildId/permissions` — returns `{ permissions, features, levels }`; each permission includes `roleName` resolved from the guild cache (or `null` if the role was deleted)
+  - `POST /internal/guilds/:guildId/permissions` — upsert by `(guildId, feature, roleId)`; validates feature + level against the same catalog; writes an audit log entry (`permission.upsert`) with optional `triggeredBy`
+  - `DELETE /internal/guilds/:guildId/permissions/:id` — idempotent (returns `{ success: true }` even if the row was already gone); writes an audit log entry (`permission.delete`)
+
+### Tests
+- Added [tests/unit/utils/validation/featurePermission.test.ts](tests/unit/utils/validation/featurePermission.test.ts) (+14 tests) covering the FEATURES/LEVELS catalog, `isFeature`/`isLevel` type guards, `levelMeets` full rank matrix, and `resolveMemberLevel` edge cases (no match, single match, multi-role highest-wins, invalid level strings, empty inputs)
+- Suite: 1020 → 1034 pass, zero regressions; biome clean; build clean
+
+### Notes
+- **Backwards compatible**: no handlers were migrated off `guardAdmin`/`guardAdminRateLimit` yet. Unconfigured guilds behave identically to pre-v3.1.3. The first incremental migration (spec calls for tickets to go first) can land in a follow-up patch once the webapp UI is live and real permission rows exist to test against
+- **Discord slash commands deferred**: the `/bot-setup permissions view/set/remove/reset` subcommands outlined in the patch spec are not implemented yet — the webapp UI is the primary configuration surface. Slash commands can land as v3.1.3.1 if needed
+- **Audit trail**: both write endpoints call `writeAuditLog` so permission changes appear alongside other admin actions in `/internal/guilds/:guildId/audit-log`
+
 ## [3.1.2]
 
 ### Added

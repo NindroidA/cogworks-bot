@@ -8,6 +8,7 @@
 import { type Interaction, MessageFlags } from 'discord.js';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { createRateLimitKey, type RateLimitConfig, rateLimiter } from '../security/rateLimiter';
+import { type Feature, hasFeatureAccess, type Level } from '../validation/featurePermission';
 import { requireAdmin } from '../validation/permissionValidator';
 
 export interface GuardResult {
@@ -107,6 +108,36 @@ export async function guardAdminRateLimit(interaction: Interaction, options: Gua
       flags: [MessageFlags.Ephemeral],
     });
     enhancedLogger.rateLimit(`Rate limit hit: ${options.action}`, userId, guildId ?? 'unknown');
+    return { allowed: false };
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Feature-based permission guard (v3.1.3).
+ *
+ * Replies with an ephemeral error and returns `{ allowed: false }` on failure,
+ * mirroring `guardAdmin` so handlers can swap one for the other as features
+ * migrate to the new system. Unconfigured guilds fall back to admin-only.
+ *
+ * @example
+ * const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
+ * if (!guard.allowed) return;
+ */
+export async function guardFeatureAccess(
+  interaction: Interaction,
+  feature: Feature,
+  requiredLevel: Level,
+): Promise<GuardResult> {
+  if (!interaction.isRepliable()) return { allowed: false };
+
+  const result = await hasFeatureAccess(interaction, feature, requiredLevel);
+  if (!result.allowed) {
+    await interaction.reply({
+      content: result.message ?? "❌ You don't have permission to use this command.",
+      flags: [MessageFlags.Ephemeral],
+    });
     return { allowed: false };
   }
 
