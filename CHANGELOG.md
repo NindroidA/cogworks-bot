@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.5]
+
+### Fixed
+- **Error masking in `guildQueries` helpers** — `findOneByGuild`, `findManyByGuild`, `countByGuild`, `deleteByGuild`, and `verifyGuildExists` previously swallowed database errors and returned `null` / `[]` / `0` / `false`, leaving callers unable to distinguish "no row exists" from "the database is down." They now propagate errors to the caller, matching the underlying TypeORM methods. Callers that need graceful degradation should wrap the call in `safeDbOperation()` from `src/utils/errorHandler.ts`
+
+### Changed
+- Helper JSDoc updated to document the v3.1.5 error contract: a `null` / `[]` / `0` return value means "no row matches," not "the query failed"
+- `deleteAllGuildData` now wraps each per-table `deleteByGuild` call in `safeDbOperation` internally, preserving its prior best-effort behavior (one table failing does not abort the GDPR purge of the rest)
+
+### Added
+- `tests/unit/utils/database/guildQueries.test.ts` — 15 tests covering happy path, not-found, DB-error propagation, and where-clause merging for all four query helpers. Total: 1037 → 1052
+
 ## [3.1.4]
 
 ### Changed
