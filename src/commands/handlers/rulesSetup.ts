@@ -6,7 +6,6 @@ import {
   MessageFlags,
   type TextChannel,
 } from 'discord.js';
-import { invalidateRulesCache } from '../../events/rulesReaction';
 import { RulesConfig } from '../../typeorm/entities/rules';
 import {
   Colors,
@@ -21,6 +20,7 @@ import {
   validateEmoji,
 } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
+import { invalidateRulesCache } from '../../utils/rules/rulesCache';
 
 const tl = lang.rules;
 const rulesConfigRepo = lazyRepo(RulesConfig);

@@ -7,7 +7,7 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import eventLang from '../../../lang/en/event.json';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
-import { enhancedLogger, guardAdminRateLimit, LANGF, LogCategory, lang, RateLimits } from '../../../utils';
+import { enhancedLogger, formatLang, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const eventConfigRepo = lazyRepo(EventConfig);
@@ -81,7 +81,7 @@ export async function eventSetupHandler(_client: Client, interaction: ChatInputC
         config.reminderChannelId = channel.id;
         await eventConfigRepo.save(config);
         await interaction.reply({
-          content: LANGF(tl.reminderChannelSet, `<#${channel.id}>`),
+          content: formatLang(tl.reminderChannelSet, `<#${channel.id}>`),
           flags: [MessageFlags.Ephemeral],
         });
         enhancedLogger.command('Event reminder channel set', interaction.user.id, guildId);
@@ -101,7 +101,7 @@ export async function eventSetupHandler(_client: Client, interaction: ChatInputC
         config.postEventSummary = true;
         await eventConfigRepo.save(config);
         await interaction.reply({
-          content: LANGF(tl.summaryChannelSet, `<#${channel.id}>`),
+          content: formatLang(tl.summaryChannelSet, `<#${channel.id}>`),
           flags: [MessageFlags.Ephemeral],
         });
         enhancedLogger.command('Event summary channel set', interaction.user.id, guildId);
@@ -120,7 +120,7 @@ export async function eventSetupHandler(_client: Client, interaction: ChatInputC
         config.defaultReminderMinutes = minutes;
         await eventConfigRepo.save(config);
         await interaction.reply({
-          content: LANGF(tl.defaultReminderSet, minutes.toString()),
+          content: formatLang(tl.defaultReminderSet, minutes.toString()),
           flags: [MessageFlags.Ephemeral],
         });
         enhancedLogger.command('Event default reminder set', interaction.user.id, guildId);

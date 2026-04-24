@@ -11,7 +11,7 @@ import { TicketConfig } from '../typeorm/entities/ticket/TicketConfig';
 import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';
 import { invalidateMenuCache } from '../utils/reactionRole/menuCache';
-import { invalidateRulesCache } from './rulesReaction';
+import { invalidateRulesCache } from '../utils/rules/rulesCache';
 
 export default {
   name: 'messageDelete',

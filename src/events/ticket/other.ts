@@ -7,7 +7,7 @@ import {
 } from 'discord.js';
 import { escapeDiscordMarkdown } from '../../utils';
 
-export const otherModal = async (modal: ModalBuilder) => {
+export const otherModal = (modal: ModalBuilder) => {
   const oModals = new ActionRowBuilder<TextInputBuilder>().addComponents(
     new TextInputBuilder()
       .setCustomId('other_subject')
@@ -26,7 +26,7 @@ export const otherModal = async (modal: ModalBuilder) => {
   return modal.addComponents(oModals, oModal);
 };
 
-export const otherMessage = async (fields: ModalSubmitFields) => {
+export const otherMessage = (fields: ModalSubmitFields) => {
   const header = `# ${escapeDiscordMarkdown(fields.getTextInputValue('other_subject'))}\n`;
   const od = `**Description:** ${escapeDiscordMarkdown(fields.getTextInputValue('other_input'))}\n`;
   return header + od;

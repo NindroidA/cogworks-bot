@@ -4,7 +4,7 @@ import {
   createRateLimitKey,
   enhancedLogger,
   escapeDiscordMarkdown,
-  LANGF,
+  formatLang,
   LogCategory,
   lang,
   RateLimits,
@@ -33,7 +33,7 @@ export async function statusSetHandler(
   const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.BOT_SETUP);
   if (!rateCheck.allowed) {
     await interaction.reply({
-      content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
+      content: formatLang(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
       flags: [MessageFlags.Ephemeral],
     });
     return;

@@ -26,6 +26,12 @@ export class ReactionRoleMenu {
   @Column({ type: 'varchar', length: 20, default: 'normal' })
   mode: 'normal' | 'unique' | 'lock';
 
+  // `require()` is intentional — a plain static `import { ReactionRoleOption }`
+  // breaks TypeORM metadata loading because ReactionRoleOption has a
+  // `@ManyToOne(() => ReactionRoleMenu)` back-reference. Attempted a static
+  // import in v3.1.6 and 30 unit tests began failing with "Unable to resolve
+  // target entity" at Entity registration time. The `require()` defers the
+  // lookup to after both entity modules have been loaded.
   @OneToMany(
     () => require('./ReactionRoleOption').ReactionRoleOption,
     (option: ReactionRoleOption) => option.menu,

@@ -20,7 +20,7 @@ import { XPRoleReward } from '../typeorm/entities/xp/XPRoleReward';
 import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';
 import { invalidateGuildMenuCache } from '../utils/reactionRole/menuCache';
-import { invalidateRulesCache } from './rulesReaction';
+import { invalidateRulesCache } from '../utils/rules/rulesCache';
 
 export default {
   name: 'roleDelete',

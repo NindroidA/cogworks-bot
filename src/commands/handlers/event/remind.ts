@@ -8,7 +8,7 @@ import { type CacheType, type ChatInputCommandInteraction, type Client, MessageF
 import eventLang from '../../../lang/en/event.json';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
-import { enhancedLogger, guardAdmin, LANGF, LogCategory } from '../../../utils';
+import { enhancedLogger, formatLang, guardAdmin, LogCategory } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const eventConfigRepo = lazyRepo(EventConfig);
@@ -85,7 +85,7 @@ export async function handleRemind(
     await eventReminderRepo.save(reminder);
 
     await interaction.reply({
-      content: LANGF(tl.success, minutesBefore.toString(), scheduledEvent.name),
+      content: formatLang(tl.success, minutesBefore.toString(), scheduledEvent.name),
       flags: [MessageFlags.Ephemeral],
     });
 

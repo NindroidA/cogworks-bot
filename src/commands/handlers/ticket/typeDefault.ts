@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, guardAdmin, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, formatLang, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeDefault;
 
@@ -70,7 +70,7 @@ export async function typeDefaultHandler(interaction: ChatInputCommandInteractio
     });
 
     await interaction.reply({
-      content: LANGF(tl.success, type.displayName),
+      content: formatLang(tl.success, type.displayName),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {

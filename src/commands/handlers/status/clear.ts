@@ -2,7 +2,7 @@ import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from '
 import {
   createRateLimitKey,
   enhancedLogger,
-  LANGF,
+  formatLang,
   LogCategory,
   lang,
   RateLimits,
@@ -31,7 +31,7 @@ export async function statusClearHandler(
   const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.BOT_SETUP);
   if (!rateCheck.allowed) {
     await interaction.reply({
-      content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
+      content: formatLang(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
       flags: [MessageFlags.Ephemeral],
     });
     return;

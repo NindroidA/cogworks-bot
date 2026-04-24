@@ -54,7 +54,7 @@ import { UserActivity } from '../../typeorm/entities/UserActivity';
 import { XPConfig } from '../../typeorm/entities/xp/XPConfig';
 import { XPRoleReward } from '../../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../../typeorm/entities/xp/XPUser';
-import { enhancedLogger, guardAdminRateLimit, LANGF, LogCategory, lang, RateLimits } from '../../utils';
+import { enhancedLogger, formatLang, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../utils';
 
 /**
  * Handle data export command
@@ -85,7 +85,7 @@ export async function dataExportHandler(
     // Defer reply as export may take time
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-    enhancedLogger.info(LANGF(tl.starting, guildId, interaction.user.tag), LogCategory.COMMAND_EXECUTION);
+    enhancedLogger.info(formatLang(tl.starting, guildId, interaction.user.tag), LogCategory.COMMAND_EXECUTION);
 
     // Collect all data in parallel for performance
     const [
@@ -291,7 +291,7 @@ export async function dataExportHandler(
     await fs.promises.writeFile(filepath, JSON.stringify(fullExport, null, 2));
 
     enhancedLogger.info(
-      LANGF(tl.completed, totalRecords.toString(), Object.keys(exportData).length.toString()),
+      formatLang(tl.completed, totalRecords.toString(), Object.keys(exportData).length.toString()),
       LogCategory.COMMAND_EXECUTION,
     );
 
@@ -301,7 +301,7 @@ export async function dataExportHandler(
 
       const embed = new EmbedBuilder()
         .setTitle(tl.exportTitle)
-        .setDescription(LANGF(tl.exportDescription, interaction.guild?.name || 'Unknown'))
+        .setDescription(formatLang(tl.exportDescription, interaction.guild?.name || 'Unknown'))
         .addFields(
           {
             name: tl.totalRecords,
@@ -338,7 +338,7 @@ export async function dataExportHandler(
       await fs.promises.unlink(filepath).catch(() => null);
 
       enhancedLogger.warn(
-        LANGF(tl.dmFailedLog, interaction.user.tag, (dmError as Error).message),
+        formatLang(tl.dmFailedLog, interaction.user.tag, (dmError as Error).message),
         LogCategory.COMMAND_EXECUTION,
       );
 

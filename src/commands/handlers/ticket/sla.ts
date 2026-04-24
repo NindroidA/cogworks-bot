@@ -7,7 +7,7 @@
 import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { enhancedLogger, guardAdmin, LANGF, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, formatLang, guardAdmin, LogCategory, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { getTicketCreationTime } from '../../../utils/ticket/slaChecker';
 
@@ -61,8 +61,8 @@ export async function slaEnableHandler(interaction: ChatInputCommandInteraction<
   await ticketConfigRepo.save(config);
 
   const reply = breachChannel
-    ? LANGF(tl.enabled, targetMinutes.toString(), `<#${breachChannel.id}>`)
-    : LANGF(tl.enabledNoChannel, targetMinutes.toString());
+    ? formatLang(tl.enabled, targetMinutes.toString(), `<#${breachChannel.id}>`)
+    : formatLang(tl.enabledNoChannel, targetMinutes.toString());
 
   await interaction.reply({
     content: reply,
@@ -153,7 +153,7 @@ export async function slaPerTypeHandler(interaction: ChatInputCommandInteraction
     // Remove override
     if (!(typeId in perType)) {
       await interaction.reply({
-        content: LANGF(tl.perTypeNotFound, typeId),
+        content: formatLang(tl.perTypeNotFound, typeId),
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -164,7 +164,7 @@ export async function slaPerTypeHandler(interaction: ChatInputCommandInteraction
     await ticketConfigRepo.save(config);
 
     await interaction.reply({
-      content: LANGF(tl.perTypeRemoved, typeId, config.slaTargetMinutes.toString()),
+      content: formatLang(tl.perTypeRemoved, typeId, config.slaTargetMinutes.toString()),
       flags: [MessageFlags.Ephemeral],
     });
   } else {
@@ -174,7 +174,7 @@ export async function slaPerTypeHandler(interaction: ChatInputCommandInteraction
     await ticketConfigRepo.save(config);
 
     await interaction.reply({
-      content: LANGF(tl.perTypeSet, typeId, minutes.toString()),
+      content: formatLang(tl.perTypeSet, typeId, minutes.toString()),
       flags: [MessageFlags.Ephemeral],
     });
   }
@@ -233,7 +233,7 @@ export async function slaStatsHandler(interaction: ChatInputCommandInteraction<C
   const complianceRate = totalTickets > 0 ? Math.round(((totalTickets - breachedCount) / totalTickets) * 100) : 100;
 
   const embed = new EmbedBuilder()
-    .setTitle(LANGF(tl.statsTitle, days.toString()))
+    .setTitle(formatLang(tl.statsTitle, days.toString()))
     .addFields(
       {
         name: tl.statsTotalTickets,
@@ -242,12 +242,12 @@ export async function slaStatsHandler(interaction: ChatInputCommandInteraction<C
       },
       {
         name: tl.statsAvgResponse,
-        value: respondedTickets.length > 0 ? LANGF(tl.statsMinutes, avgResponseMinutes.toString()) : 'N/A',
+        value: respondedTickets.length > 0 ? formatLang(tl.statsMinutes, avgResponseMinutes.toString()) : 'N/A',
         inline: true,
       },
       {
         name: tl.statsComplianceRate,
-        value: LANGF(tl.statsPercent, complianceRate.toString()),
+        value: formatLang(tl.statsPercent, complianceRate.toString()),
         inline: true,
       },
       {

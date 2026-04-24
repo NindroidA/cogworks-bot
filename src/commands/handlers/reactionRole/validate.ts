@@ -1,7 +1,7 @@
 import type { CacheType, ChatInputCommandInteraction, TextChannel } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
-import { Colors, enhancedLogger, guardAdminRateLimit, LANGF, LogCategory, lang } from '../../../utils';
+import { Colors, enhancedLogger, formatLang, guardAdminRateLimit, LogCategory, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.reactionRole;
@@ -100,7 +100,7 @@ export async function reactionRoleValidateHandler(interaction: ChatInputCommandI
       embed.setDescription(tl.validate.allValid);
     } else {
       embed.setColor(Colors.status.warning);
-      embed.setDescription(LANGF(tl.validate.issuesFound, issues.length.toString()));
+      embed.setDescription(formatLang(tl.validate.issuesFound, issues.length.toString()));
 
       // Group issues (truncate if too many)
       const issueText = issues

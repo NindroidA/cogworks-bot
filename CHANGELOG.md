@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.6]
+
+### Changed
+- **Cross-module architecture cleanup**
+  - `invalidateRulesCache` is now imported directly from `src/utils/rules/rulesCache` by all 6 call sites. The stale passthrough re-export from `src/events/rulesReaction.ts` has been removed so the utils → events direction violation is gone
+  - `ReactionRoleMenu.options` keeps its `require()` cycle-breaker, but now with an explanatory comment documenting which cycle it breaks and the 30-test failure that results from a naïve static import
+- **Convention cleanup (elegance)**
+  - `BaitChannelManager` collapsed a double-whitelist lookup (`isWhitelisted()` then `getWhitelistReason()`) into a single `checkWhitelist()` call, and deleted the two passthrough wrapper methods that are no longer used
+  - `findStatus` passthroughs in `src/commands/handlers/ticket/workflow.ts` and `src/commands/handlers/application/workflow.ts` were inlined — callers now use `findStatusById` from `utils/workflow/workflowHelpers` directly
+  - `logCommandAudit` in `src/commands/commands.ts` was refactored from an `if (commandName === 'ticket') else if (...) ...` ladder into an `AUDIT_RULES` lookup table keyed by command name, making it harder to forget an audit entry when a new command is added to the dispatcher
+  - `ticketInteraction.ts` replaced a dynamic `await import('../commands/handlers/ticket/typeAdd')` with a static import of `buildTypeConfirmationEmbed` — no cycle risk since the target module has no events-layer imports
+  - 5 legacy-ticket helper files (`ageVerify`, `banAppeal`, `playerReport`, `bugReport`, `other`) and their two wrappers in `ticketInteraction.ts` dropped their `async` keyword — none of them awaited anything, and call sites already used the return value directly
+- **Naming**
+  - `LANGF` → `formatLang` — 173 call sites across 34 files renamed via bulk rewrite. `LANGF` is no longer exported; only `formatLang` is reachable from the barrel at `src/utils/index.ts`
+  - `welc` local in `ticketInteraction.ts` and `applicationInteraction.ts` renamed to `welcome`
+
+### Deferred
+- **Autocomplete / modal handler extract to `utils/`** (A.2, A.3) — the 12 autocomplete handlers and 3 modal handlers depend on domain-specific entity lookups (CustomTicketType, ApplicationConfig, etc.). Moving them to `utils/autocomplete/` wholesale would relocate command-layer coupling rather than remove it; a partial migration would create inconsistency. Tracked for a follow-up that addresses the routing infrastructure holistically
+- **Events-layer export pattern normalization** (B) — the three export styles (object-literal default, named `export const` arrows, default functions) are each wired to different dispatch paths in `src/index.ts` and `src/events/interactionRouter.ts`. Normalizing would require touching the dispatch call sites in lockstep with the handler shapes; the existing mix is consistent within each dispatch path
+- **`routing.ts` duplicated constants** (C.2) — no duplication found: `MAX_ROUTING_RULES` and `VALID_STRATEGIES` are already at module scope
+
 ## [3.1.5]
 
 ### Fixed

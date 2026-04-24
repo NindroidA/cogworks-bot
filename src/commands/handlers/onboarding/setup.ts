@@ -1,7 +1,7 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import onboardingLang from '../../../lang/en/onboarding.json';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
-import { enhancedLogger, LANGF } from '../../../utils';
+import { enhancedLogger, formatLang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const configRepo = lazyRepo(OnboardingConfig);
@@ -114,7 +114,7 @@ export async function completionRoleHandler(_client: Client, interaction: ChatIn
 
   if (role) {
     await interaction.reply({
-      content: LANGF(tl.config.completionRole.success, role.toString()),
+      content: formatLang(tl.config.completionRole.success, role.toString()),
       flags: [MessageFlags.Ephemeral],
     });
   } else {

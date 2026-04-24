@@ -11,7 +11,7 @@ import { BotStatus } from '../typeorm/entities/status';
 import { enhancedLogger, invalidateGuildMenuCache, LogCategory } from '../utils';
 import { notifyGuildLeave } from '../utils/api/guildWebhook';
 import { deleteAllGuildData } from '../utils/database/guildQueries';
-import { invalidateRulesCache } from './rulesReaction';
+import { invalidateRulesCache } from '../utils/rules/rulesCache';
 import { invalidateStarboardCache } from './starboardReaction';
 
 export default {

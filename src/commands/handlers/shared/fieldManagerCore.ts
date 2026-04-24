@@ -18,9 +18,9 @@ import type { CustomInputField } from '../../../typeorm/entities/shared/CustomIn
 import {
   CACHE_TTL,
   enhancedLogger,
+  formatLang,
   handleInteractionError,
   INTERVALS,
-  LANGF,
   LogCategory,
   lang,
   MAX,
@@ -403,7 +403,7 @@ async function showFieldSelectMenu<T extends FieldBearingEntity>(
 
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId(`${prefix}${action}_select_${entityId}`)
-    .setPlaceholder(LANGF(fm.selectFieldPlaceholder, action))
+    .setPlaceholder(formatLang(fm.selectFieldPlaceholder, action))
     .addOptions(
       fields.map((field, index) =>
         new StringSelectMenuOptionBuilder()
@@ -439,7 +439,7 @@ async function showReorderInterface<T extends FieldBearingEntity>(
   const { prefix } = config;
 
   const embed = new EmbedBuilder()
-    .setTitle(`🔀 ${LANGF(fm.reorderTitle, config.getDisplayTitle(entity).replace(/^🔧\s*/, ''))}`)
+    .setTitle(`🔀 ${formatLang(fm.reorderTitle, config.getDisplayTitle(entity).replace(/^🔧\s*/, ''))}`)
     .setColor(config.getEmbedColor(entity))
     .setDescription(
       `**${fm.currentOrder}**\n` +
@@ -605,7 +605,7 @@ async function handleMoveField<T extends FieldBearingEntity>(
 
   if (newIndex < 0 || newIndex >= fields.length) {
     await interaction.followUp({
-      content: `❌ ${LANGF(fm.cannotMoveField, direction)}`,
+      content: `❌ ${formatLang(fm.cannotMoveField, direction)}`,
       flags: [MessageFlags.Ephemeral],
     });
     return;

@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, guardAdmin, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, formatLang, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeList;
 
@@ -43,7 +43,7 @@ export async function typeListHandler(interaction: ChatInputCommandInteraction):
       const colorBox = `\`${type.embedColor}\``;
       const desc = type.description ? `*${type.description}*` : '';
 
-      const fieldValue = LANGF(tl.fieldValue, type.typeId, colorBox, status, defaultTag, desc);
+      const fieldValue = formatLang(tl.fieldValue, type.typeId, colorBox, status, defaultTag, desc);
 
       embed.addFields({
         name: `${type.emoji || '❓'} ${type.displayName}`,

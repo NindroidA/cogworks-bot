@@ -21,8 +21,8 @@ import {
 import {
   awaitConfirmation,
   enhancedLogger,
+  formatLang,
   handleInteractionError,
-  LANGF,
   LogCategory,
   lang,
   showAndAwaitModal,
@@ -124,7 +124,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction): Promise<v
     const embed = new EmbedBuilder()
       .setColor('#00FF00')
       .setTitle(tl.rule.create.title)
-      .setDescription(LANGF(tl.rule.create.success, name))
+      .setDescription(formatLang(tl.rule.create.success, name))
       .addFields(
         { name: 'Type', value: getTriggerTypeLabel(triggerType), inline: true },
         { name: 'Status', value: 'Enabled', inline: true },
@@ -187,7 +187,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
     const embed = new EmbedBuilder()
       .setColor('#00FF00')
       .setTitle(tl.rule.edit.title)
-      .setDescription(LANGF(tl.rule.edit.success, newName));
+      .setDescription(formatLang(tl.rule.edit.success, newName));
 
     await modalSubmit.reply({
       embeds: [embed],
@@ -218,7 +218,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
 
     // Confirmation
     const result = await awaitConfirmation(interaction, {
-      message: LANGF(tl.rule.delete.confirmMessage, rule.name),
+      message: formatLang(tl.rule.delete.confirmMessage, rule.name),
       confirmLabel: 'Confirm Delete',
       confirmStyle: ButtonStyle.Danger,
     });
@@ -235,7 +235,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
     const embed = new EmbedBuilder()
       .setColor('#FF0000')
       .setTitle(tl.rule.delete.title)
-      .setDescription(LANGF(tl.rule.delete.success, rule.name));
+      .setDescription(formatLang(tl.rule.delete.success, rule.name));
 
     await result.interaction.editReply({
       embeds: [embed],
@@ -264,7 +264,7 @@ async function handleList(interaction: ChatInputCommandInteraction): Promise<voi
     const embed = new EmbedBuilder()
       .setColor('#0099FF')
       .setTitle(tl.rule.list.title)
-      .setFooter({ text: LANGF(tl.rule.list.footer, rules.size) });
+      .setFooter({ text: formatLang(tl.rule.list.footer, rules.size) });
 
     for (const rule of rules.values()) {
       const lines: string[] = [];
@@ -272,27 +272,27 @@ async function handleList(interaction: ChatInputCommandInteraction): Promise<voi
       lines.push(`**Status:** ${rule.enabled ? tl.rule.list.enabled : tl.rule.list.disabled}`);
 
       if (rule.triggerType === AutoModerationRuleTriggerType.Keyword && rule.triggerMetadata.keywordFilter) {
-        lines.push(LANGF(tl.rule.list.keywords, rule.triggerMetadata.keywordFilter.length));
+        lines.push(formatLang(tl.rule.list.keywords, rule.triggerMetadata.keywordFilter.length));
       }
 
       if (rule.triggerType === AutoModerationRuleTriggerType.Keyword && rule.triggerMetadata.regexPatterns) {
-        lines.push(LANGF(tl.rule.list.regexPatterns, rule.triggerMetadata.regexPatterns.length));
+        lines.push(formatLang(tl.rule.list.regexPatterns, rule.triggerMetadata.regexPatterns.length));
       }
 
       if (rule.triggerType === AutoModerationRuleTriggerType.MentionSpam && rule.triggerMetadata.mentionTotalLimit) {
-        lines.push(LANGF(tl.rule.list.mentionLimit, rule.triggerMetadata.mentionTotalLimit));
+        lines.push(formatLang(tl.rule.list.mentionLimit, rule.triggerMetadata.mentionTotalLimit));
       }
 
       if (rule.exemptRoles.size > 0) {
-        lines.push(LANGF(tl.rule.list.exemptRoles, rule.exemptRoles.size));
+        lines.push(formatLang(tl.rule.list.exemptRoles, rule.exemptRoles.size));
       }
 
       if (rule.exemptChannels.size > 0) {
-        lines.push(LANGF(tl.rule.list.exemptChannels, rule.exemptChannels.size));
+        lines.push(formatLang(tl.rule.list.exemptChannels, rule.exemptChannels.size));
       }
 
       const actionLabels = rule.actions.map(a => getActionTypeLabel(a.type)).join(', ');
-      lines.push(LANGF(tl.rule.list.actions, actionLabels));
+      lines.push(formatLang(tl.rule.list.actions, actionLabels));
 
       embed.addFields({ name: rule.name, value: lines.join('\n') });
     }

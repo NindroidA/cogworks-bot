@@ -13,7 +13,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { emailImportModalHandler } from '../commands/handlers/ticket/emailImport';
-import { typeAddModalHandler } from '../commands/handlers/ticket/typeAdd';
+import { buildTypeConfirmationEmbed, typeAddModalHandler } from '../commands/handlers/ticket/typeAdd';
 import { typeEditModalHandler } from '../commands/handlers/ticket/typeEdit';
 import { BotConfig } from '../typeorm/entities/BotConfig';
 import { StaffRole } from '../typeorm/entities/StaffRole';
@@ -45,36 +45,36 @@ import { otherMessage, otherModal } from './ticket/other';
 import { playerReportMessage, playerReportModal } from './ticket/playerReport';
 
 /** Build a legacy ticket modal with the correct inputs for the given type. */
-async function buildLegacyTicketModal(typeId: string, modal: ModalBuilder): Promise<ModalBuilder> {
+function buildLegacyTicketModal(typeId: string, modal: ModalBuilder): ModalBuilder {
   switch (typeId) {
     case '18_verify':
-      return await ageVerifyModal(modal);
+      return ageVerifyModal(modal);
     case 'ban_appeal':
-      return await banAppealModal(modal);
+      return banAppealModal(modal);
     case 'player_report':
-      return await playerReportModal(modal);
+      return playerReportModal(modal);
     case 'bug_report':
-      return await bugReportModal(modal);
+      return bugReportModal(modal);
     case 'other':
-      return await otherModal(modal);
+      return otherModal(modal);
     default:
       return modal;
   }
 }
 
 /** Build legacy ticket description from modal submit fields. */
-async function buildLegacyTicketDescription(typeId: string, fields: ModalSubmitFields): Promise<string> {
+function buildLegacyTicketDescription(typeId: string, fields: ModalSubmitFields): string {
   switch (typeId) {
     case '18_verify':
-      return await ageVerifyMessage(fields);
+      return ageVerifyMessage(fields);
     case 'ban_appeal':
-      return await banAppealMessage(fields);
+      return banAppealMessage(fields);
     case 'player_report':
-      return await playerReportMessage(fields);
+      return playerReportMessage(fields);
     case 'bug_report':
-      return await bugReportMessage(fields);
+      return bugReportMessage(fields);
     case 'other':
-      return await otherMessage(fields);
+      return otherMessage(fields);
     default:
       return '';
   }
@@ -170,8 +170,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
       },
     );
 
-    // Import the embed builder and rebuild the embed with updated state
-    const { buildTypeConfirmationEmbed } = await import('../commands/handlers/ticket/typeAdd');
+    // Rebuild the embed with updated state
     const embed = buildTypeConfirmationEmbed(type, false);
 
     // Update the button to reflect the new state
@@ -291,7 +290,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
       });
 
       // Use legacy modal builders for legacy types
-      const modal = await buildLegacyTicketModal(
+      const modal = buildLegacyTicketModal(
         selectedTypeId,
         new ModalBuilder()
           .setCustomId(`ticket_modal_${selectedTypeId}`)
@@ -389,7 +388,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
     });
 
     // build a modal for user input using shared legacy builder
-    const modal = await buildLegacyTicketModal(
+    const modal = buildLegacyTicketModal(
       ticketType,
       new ModalBuilder()
         .setCustomId(`ticket_modal_${ticketType}`)
@@ -465,7 +464,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
       const displayName = resolved.displayName || ticketType;
 
       if (isLegacyType) {
-        description = await buildLegacyTicketDescription(ticketType, fields);
+        description = buildLegacyTicketDescription(ticketType, fields);
       } else {
         // customType is guaranteed non-null when isLegacy is false
         const customTypeConfig = resolved.customType;
@@ -561,7 +560,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
       const descriptionMsg = `${description}`;
       const newChannel = channel as TextChannel;
 
-      const welc = await newChannel.send({
+      const welcome = await newChannel.send({
         content: welcomeMsg,
         components: [buttonOptions],
       });
@@ -593,7 +592,7 @@ export const handleTicketInteraction = async (client: Client, interaction: Inter
       await ticketRepo.update(
         { id: savedTicket.id, guildId },
         {
-          messageId: welc.id,
+          messageId: welcome.id,
           channelId: newChannel.id,
           status: 'opened',
         },

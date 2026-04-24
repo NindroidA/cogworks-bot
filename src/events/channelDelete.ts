@@ -16,7 +16,7 @@ import { XPConfig } from '../typeorm/entities/xp/XPConfig';
 import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';
 import { invalidateGuildMenuCache } from '../utils/reactionRole/menuCache';
-import { invalidateRulesCache } from './rulesReaction';
+import { invalidateRulesCache } from '../utils/rules/rulesCache';
 import { invalidateStarboardCache } from './starboardReaction';
 
 export default {

@@ -307,7 +307,7 @@ export const handleApplicationInteraction = async (client: Client, interaction: 
 
       const newChannel = channel as TextChannel;
 
-      const welc = await newChannel.send({
+      const welcome = await newChannel.send({
         content: welcomeMsg,
         components: [buttonOptions],
       });
@@ -328,7 +328,7 @@ export const handleApplicationInteraction = async (client: Client, interaction: 
       await applicationRepo.update(
         { id: savedApplication.id, guildId },
         {
-          messageId: welc.id,
+          messageId: welcome.id,
           channelId: newChannel.id,
           status: 'opened',
         },

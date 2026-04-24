@@ -1,7 +1,7 @@
 import type { CacheType, ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import { StarboardConfig } from '../../../typeorm/entities/starboard';
-import { guardAdmin, handleInteractionError, LANGF, lang } from '../../../utils';
+import { formatLang, guardAdmin, handleInteractionError, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const configRepo = lazyRepo(StarboardConfig);
@@ -40,7 +40,7 @@ export async function starboardSetupHandler(interaction: ChatInputCommandInterac
     await configRepo.save(config);
 
     await interaction.reply({
-      content: LANGF(tl.setup.success, threshold.toString(), emoji, `<#${channel.id}>`),
+      content: formatLang(tl.setup.success, threshold.toString(), emoji, `<#${channel.id}>`),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {

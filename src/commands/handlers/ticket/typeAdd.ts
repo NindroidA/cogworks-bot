@@ -15,9 +15,9 @@ import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketT
 import {
   E,
   enhancedLogger,
+  formatLang,
   guardAdmin,
   handleInteractionError,
-  LANGF,
   LogCategory,
   lang,
   sanitizeUserInput,
@@ -153,7 +153,7 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
     if (existing) {
       enhancedLogger.warn(`User ${user} type-add failed: duplicate typeId '${typeId}'`, LogCategory.COMMAND_EXECUTION);
       await interaction.reply({
-        content: LANGF(tl.duplicate, typeId),
+        content: formatLang(tl.duplicate, typeId),
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -215,7 +215,7 @@ export function buildTypeConfirmationEmbed(type: CustomTicketType, isNew: boolea
   const title = isNew ? tl.typeAdd.success : tl.typeEdit.success;
 
   const embed = new EmbedBuilder()
-    .setTitle(`${E.ok} ${LANGF(title, type.displayName).replace('!', '')}`)
+    .setTitle(`${E.ok} ${formatLang(title, type.displayName).replace('!', '')}`)
     .setColor(parseInt(type.embedColor.replace('#', ''), 16));
 
   // Type details

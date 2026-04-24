@@ -5,7 +5,7 @@
  */
 
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
-import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, formatLang, handleInteractionError, LogCategory, lang } from '../../../utils';
 import { createAutoModRule, fetchAutoModRules, MAX_AUTOMOD_RULES } from '../../../utils/automod/helpers';
 import { AUTOMOD_TEMPLATES } from '../../../utils/automod/templates';
 
@@ -34,14 +34,14 @@ export async function templateHandler(_client: Client, interaction: ChatInputCom
 
     if (availableSlots <= 0) {
       await interaction.editReply({
-        content: LANGF(tl.template.wouldExceedLimit, template.rules.length, 0),
+        content: formatLang(tl.template.wouldExceedLimit, template.rules.length, 0),
       });
       return;
     }
 
     if (template.rules.length > availableSlots) {
       await interaction.editReply({
-        content: LANGF(tl.template.wouldExceedLimit, template.rules.length, availableSlots),
+        content: formatLang(tl.template.wouldExceedLimit, template.rules.length, availableSlots),
       });
       return;
     }
@@ -75,8 +75,8 @@ export async function templateHandler(_client: Client, interaction: ChatInputCom
       .setTitle(tl.template.title)
       .setDescription(
         created === template.rules.length
-          ? LANGF(tl.template.success, template.name, created)
-          : LANGF(tl.template.partialSuccess, template.name, created, template.rules.length),
+          ? formatLang(tl.template.success, template.name, created)
+          : formatLang(tl.template.partialSuccess, template.name, created, template.rules.length),
       );
 
     await interaction.editReply({ embeds: [embed] });

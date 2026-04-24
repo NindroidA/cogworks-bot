@@ -7,7 +7,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
-import { enhancedLogger, LANGF, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, formatLang, LogCategory, lang } from '../../../utils';
 import type { CsvImporter } from '../../../utils/import/csvImporter';
 import { importManager } from '../../../utils/import/importManager';
 
@@ -42,7 +42,7 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
   if (cooldownUntil) {
     const timestamp = Math.floor(cooldownUntil.getTime() / 1000);
     await interaction.reply({
-      content: LANGF(tl.importCooldown, `<t:${timestamp}:R>`),
+      content: formatLang(tl.importCooldown, `<t:${timestamp}:R>`),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -57,7 +57,7 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
     const response = await fetch(attachment.url);
     if (!response.ok) {
       await interaction.editReply({
-        content: LANGF(tl.importFailed, 'Failed to download CSV file.'),
+        content: formatLang(tl.importFailed, 'Failed to download CSV file.'),
       });
       return;
     }
@@ -70,7 +70,7 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
       { guildId },
     );
     await interaction.editReply({
-      content: LANGF(tl.importFailed, 'Failed to download CSV file.'),
+      content: formatLang(tl.importFailed, 'Failed to download CSV file.'),
     });
     return;
   }
@@ -90,7 +90,7 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
   );
 
   await interaction.editReply({
-    content: LANGF(tl.importStarted, 'CSV'),
+    content: formatLang(tl.importStarted, 'CSV'),
   });
 
   const result = await importManager.startImport(guildId, 'csv', 'xp', interaction.user.id, {
@@ -101,7 +101,7 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
   if (dryRun) {
     const embed = new EmbedBuilder()
       .setTitle('CSV Import — Dry Run')
-      .setDescription(LANGF(tl.dryRunComplete, result.imported, result.skipped, result.failed))
+      .setDescription(formatLang(tl.dryRunComplete, result.imported, result.skipped, result.failed))
       .setColor(0x3498db);
 
     if (result.errors.length > 0) {
@@ -118,7 +118,7 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
   if (result.success) {
     const embed = new EmbedBuilder()
       .setTitle('CSV Import Complete')
-      .setDescription(LANGF(tl.importComplete, result.imported, result.skipped, result.failed))
+      .setDescription(formatLang(tl.importComplete, result.imported, result.skipped, result.failed))
       .setColor(0x2ecc71)
       .addFields({
         name: 'Duration',
@@ -137,7 +137,7 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
   } else {
     const errorMsg = result.errors.length > 0 ? result.errors[0] : 'Unknown error';
     await interaction.editReply({
-      content: LANGF(tl.importFailed, errorMsg),
+      content: formatLang(tl.importFailed, errorMsg),
     });
   }
 }

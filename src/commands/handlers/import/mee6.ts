@@ -7,7 +7,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
-import { enhancedLogger, LANGF, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, formatLang, LogCategory, lang } from '../../../utils';
 import { importManager } from '../../../utils/import/importManager';
 
 const tl = lang.import.commands;
@@ -31,7 +31,7 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
   if (cooldownUntil) {
     const timestamp = Math.floor(cooldownUntil.getTime() / 1000);
     await interaction.reply({
-      content: LANGF(tl.importCooldown, `<t:${timestamp}:R>`),
+      content: formatLang(tl.importCooldown, `<t:${timestamp}:R>`),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -47,7 +47,7 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
   );
 
   await interaction.editReply({
-    content: LANGF(tl.importStarted, 'MEE6'),
+    content: formatLang(tl.importStarted, 'MEE6'),
   });
 
   const result = await importManager.startImport(guildId, 'mee6', 'xp', interaction.user.id, {
@@ -58,7 +58,7 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
   if (dryRun) {
     const embed = new EmbedBuilder()
       .setTitle('MEE6 Import — Dry Run')
-      .setDescription(LANGF(tl.dryRunComplete, result.imported, result.skipped, result.failed))
+      .setDescription(formatLang(tl.dryRunComplete, result.imported, result.skipped, result.failed))
       .setColor(0x3498db);
 
     if (result.errors.length > 0) {
@@ -75,7 +75,7 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
   if (result.success) {
     const embed = new EmbedBuilder()
       .setTitle('MEE6 Import Complete')
-      .setDescription(LANGF(tl.importComplete, result.imported, result.skipped, result.failed))
+      .setDescription(formatLang(tl.importComplete, result.imported, result.skipped, result.failed))
       .setColor(0x2ecc71)
       .addFields({
         name: 'Duration',
@@ -94,7 +94,7 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
   } else {
     const errorMsg = result.errors.length > 0 ? result.errors[0] : 'Unknown error';
     await interaction.editReply({
-      content: LANGF(tl.importFailed, errorMsg),
+      content: formatLang(tl.importFailed, errorMsg),
     });
   }
 }

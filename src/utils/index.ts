@@ -74,10 +74,10 @@ export function formatBytes(bytes: number): string {
  * @param args - Arguments to replace placeholders with
  * @returns Formatted string
  * @example
- * LANGF("Hello {0}, you have {1} messages", "John", 5)
+ * formatLang("Hello {0}, you have {1} messages", "John", 5)
  * // Returns: "Hello John, you have 5 messages"
  */
-export function LANGF(template: string, ...args: (string | number)[]): string {
+export function formatLang(template: string, ...args: (string | number)[]): string {
   return template.replace(/\{(\d+)\}/g, (match, index) => {
     const argIndex = parseInt(index, 10);
     return args[argIndex] !== undefined ? String(args[argIndex]) : match;

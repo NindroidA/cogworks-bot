@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'di
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { Colors, E, enhancedLogger, guardAdmin, LANGF, LogCategory, lang } from '../../../utils';
+import { Colors, E, enhancedLogger, formatLang, guardAdmin, LogCategory, lang } from '../../../utils';
 import { isLegacyTicketType, legacyTypeInfo, resolveLegacyPingColumn } from '../../../utils/ticket/legacyTypes';
 
 const tl = lang.ticket.settings;
@@ -114,7 +114,7 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
           typeId,
         });
         await interaction.reply({
-          content: LANGF(tl.typeNotFound, typeId),
+          content: formatLang(tl.typeNotFound, typeId),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -135,7 +135,7 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
     const embed = new EmbedBuilder()
       .setTitle(`${E.ok} ${tl.updated}`)
       .setDescription(
-        enabled ? LANGF(tl.pingOnCreateEnabled, displayName) : LANGF(tl.pingOnCreateDisabled, displayName),
+        enabled ? formatLang(tl.pingOnCreateEnabled, displayName) : formatLang(tl.pingOnCreateDisabled, displayName),
       )
       .setColor(Colors.status.success);
 

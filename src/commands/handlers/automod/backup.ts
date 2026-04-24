@@ -18,7 +18,7 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
-import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, formatLang, handleInteractionError, LogCategory, lang } from '../../../utils';
 import {
   createAutoModRule,
   deserializeRules,
@@ -125,7 +125,7 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
 
     if (backup.rules.length > availableSlots) {
       await interaction.editReply({
-        content: LANGF(tl.restore.wouldExceedLimit, backup.rules.length, availableSlots),
+        content: formatLang(tl.restore.wouldExceedLimit, backup.rules.length, availableSlots),
       });
       return;
     }
@@ -140,7 +140,7 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
     );
 
     const confirmReply = await interaction.editReply({
-      content: LANGF(tl.restore.confirmMessage, backup.rules.length),
+      content: formatLang(tl.restore.confirmMessage, backup.rules.length),
       components: [row],
     });
 
@@ -204,7 +204,7 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
       const embed = new EmbedBuilder()
         .setColor('#00FF00')
         .setTitle(tl.restore.title)
-        .setDescription(LANGF(tl.restore.success, created));
+        .setDescription(formatLang(tl.restore.success, created));
 
       await interaction.editReply({
         content: '',

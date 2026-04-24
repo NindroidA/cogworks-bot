@@ -1,7 +1,7 @@
 import type { Client } from 'discord.js';
-import { invalidateRulesCache } from '../../../events/rulesReaction';
 import type { BaitChannelManager } from '../../baitChannel/baitChannelManager';
 import { invalidateGuildMenuCache } from '../../reactionRole/menuCache';
+import { invalidateRulesCache } from '../../rules/rulesCache';
 import { requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 

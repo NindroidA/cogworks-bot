@@ -21,8 +21,8 @@ import {
 import {
   DEFAULT_APPLICATION_STATUSES,
   enhancedLogger,
+  formatLang,
   guardAdmin,
-  LANGF,
   LogCategory,
   lang,
   MAX,
@@ -83,14 +83,6 @@ function appendStatusHistory(application: Application, status: string, changedBy
 }
 
 // ============================================================================
-// Helper: Find status definition by ID
-// ============================================================================
-
-function findStatus(statuses: ApplicationWorkflowStatus[], statusId: string): ApplicationWorkflowStatus | undefined {
-  return findStatusById(statuses, statusId);
-}
-
-// ============================================================================
 // /application status <status>
 // ============================================================================
 
@@ -119,11 +111,11 @@ export async function applicationStatusHandler(interaction: ChatInputCommandInte
   const newStatusId = interaction.options.getString('status', true);
   const currentStatus = mapStatus(application.status);
 
-  const statusDef = findStatus(statuses, newStatusId);
+  const statusDef = findStatusById(statuses, newStatusId);
   if (!statusDef) {
     const validIds = statuses.map(s => `\`${s.id}\``).join(', ');
     await interaction.reply({
-      content: LANGF(tl.invalidStatus, newStatusId, validIds),
+      content: formatLang(tl.invalidStatus, newStatusId, validIds),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -131,7 +123,7 @@ export async function applicationStatusHandler(interaction: ChatInputCommandInte
 
   if (currentStatus === newStatusId) {
     await interaction.reply({
-      content: LANGF(tl.sameStatus, statusDef.label),
+      content: formatLang(tl.sameStatus, statusDef.label),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -142,7 +134,7 @@ export async function applicationStatusHandler(interaction: ChatInputCommandInte
   await applicationRepo.save(application);
 
   const embed = new EmbedBuilder()
-    .setDescription(LANGF(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`))
+    .setDescription(formatLang(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`))
     .setColor(parseInt(statusDef.color.replace('#', ''), 16));
 
   await (interaction.channel as GuildTextBasedChannel)?.send({
@@ -150,7 +142,7 @@ export async function applicationStatusHandler(interaction: ChatInputCommandInte
   });
 
   await interaction.reply({
-    content: LANGF(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`),
+    content: formatLang(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -218,7 +210,7 @@ export async function applicationNoteHandler(interaction: ChatInputCommandIntera
   await applicationRepo.save(application);
 
   await interaction.reply({
-    content: LANGF(tl.noteAdded, `<@${interaction.user.id}>`),
+    content: formatLang(tl.noteAdded, `<@${interaction.user.id}>`),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -257,7 +249,7 @@ export async function applicationClaimHandler(interaction: ChatInputCommandInter
 
   if (application.reviewedBy) {
     await interaction.reply({
-      content: LANGF(tl.alreadyClaimed, application.reviewedBy),
+      content: formatLang(tl.alreadyClaimed, application.reviewedBy),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -267,14 +259,16 @@ export async function applicationClaimHandler(interaction: ChatInputCommandInter
   application.reviewedAt = new Date();
   await applicationRepo.save(application);
 
-  const embed = new EmbedBuilder().setDescription(LANGF(tl.claimed, `<@${interaction.user.id}>`)).setColor(0x5865f2);
+  const embed = new EmbedBuilder()
+    .setDescription(formatLang(tl.claimed, `<@${interaction.user.id}>`))
+    .setColor(0x5865f2);
 
   await (interaction.channel as GuildTextBasedChannel)?.send({
     embeds: [embed],
   });
 
   await interaction.reply({
-    content: LANGF(tl.claimed, `<@${interaction.user.id}>`),
+    content: formatLang(tl.claimed, `<@${interaction.user.id}>`),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -310,7 +304,7 @@ export async function applicationInfoHandler(interaction: ChatInputCommandIntera
 
   const { config, statuses } = await getWorkflowConfig(guildId);
   const currentStatus = mapStatus(application.status);
-  const statusDef = findStatus(statuses, currentStatus);
+  const statusDef = findStatusById(statuses, currentStatus);
 
   const embed = new EmbedBuilder()
     .setTitle(tlInfo.title)
@@ -347,12 +341,12 @@ export async function applicationInfoHandler(interaction: ChatInputCommandIntera
     const notesText = recentNotes
       .map(n => {
         const timestamp = Math.floor(new Date(n.addedAt).getTime() / 1000);
-        return LANGF(tlInfo.noteEntry, n.note, n.addedBy, timestamp.toString());
+        return formatLang(tlInfo.noteEntry, n.note, n.addedBy, timestamp.toString());
       })
       .join('\n');
 
     embed.addFields({
-      name: LANGF(tlInfo.notesTitle, application.internalNotes.length.toString()),
+      name: formatLang(tlInfo.notesTitle, application.internalNotes.length.toString()),
       value: notesText,
     });
   }
@@ -362,7 +356,7 @@ export async function applicationInfoHandler(interaction: ChatInputCommandIntera
     const recentHistory = application.statusHistory.slice(-5).reverse();
     const historyText = recentHistory
       .map((entry: ApplicationStatusHistoryEntry) => {
-        const entryStatusDef = findStatus(statuses, entry.status);
+        const entryStatusDef = findStatusById(statuses, entry.status);
         const label = entryStatusDef ? `${entryStatusDef.emoji} ${entryStatusDef.label}` : entry.status;
         const timestamp = Math.floor(new Date(entry.changedAt).getTime() / 1000);
         return `${label} by <@${entry.changedBy}> <t:${timestamp}:R>`;
@@ -403,7 +397,7 @@ export async function applicationCheckHandler(interaction: ChatInputCommandInter
   }
 
   const currentStatus = mapStatus(application.status);
-  const statusDef = findStatus(statuses, currentStatus);
+  const statusDef = findStatusById(statuses, currentStatus);
 
   const embed = new EmbedBuilder()
     .setTitle(tl.checkTitle)
@@ -553,7 +547,7 @@ export async function applicationWorkflowAddStatusHandler(interaction: ChatInput
 
   if (statuses.length >= MAX.APPLICATION_WORKFLOW_STATUSES) {
     await interaction.reply({
-      content: LANGF(tl.maxStatuses, MAX.APPLICATION_WORKFLOW_STATUSES),
+      content: formatLang(tl.maxStatuses, MAX.APPLICATION_WORKFLOW_STATUSES),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -561,7 +555,7 @@ export async function applicationWorkflowAddStatusHandler(interaction: ChatInput
 
   if (statuses.some(s => s.id === statusId)) {
     await interaction.reply({
-      content: LANGF(tl.statusExists, statusId),
+      content: formatLang(tl.statusExists, statusId),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -586,7 +580,7 @@ export async function applicationWorkflowAddStatusHandler(interaction: ChatInput
   await applicationConfigRepo.save(config);
 
   await interaction.reply({
-    content: LANGF(tl.statusAdded, `${emoji} ${label}`),
+    content: formatLang(tl.statusAdded, `${emoji} ${label}`),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -628,7 +622,7 @@ export async function applicationWorkflowRemoveStatusHandler(interaction: ChatIn
 
   if (REQUIRED_APPLICATION_STATUSES.includes(statusId)) {
     await interaction.reply({
-      content: LANGF(tl.cannotRemoveRequired, statusId),
+      content: formatLang(tl.cannotRemoveRequired, statusId),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -639,7 +633,7 @@ export async function applicationWorkflowRemoveStatusHandler(interaction: ChatIn
 
   if (!statusDef) {
     await interaction.reply({
-      content: LANGF(tl.invalidStatus, statusId, statuses.map(s => `\`${s.id}\``).join(', ')),
+      content: formatLang(tl.invalidStatus, statusId, statuses.map(s => `\`${s.id}\``).join(', ')),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -652,9 +646,9 @@ export async function applicationWorkflowRemoveStatusHandler(interaction: ChatIn
   config.workflowStatuses = statuses.filter(s => s.id !== statusId);
   await applicationConfigRepo.save(config);
 
-  let reply = LANGF(tl.statusRemoved, `${statusDef.emoji} ${statusDef.label}`);
+  let reply = formatLang(tl.statusRemoved, `${statusDef.emoji} ${statusDef.label}`);
   if (applicationsWithStatus > 0) {
-    reply += `\n${LANGF(tl.statusInUse, applicationsWithStatus.toString())}`;
+    reply += `\n${formatLang(tl.statusInUse, applicationsWithStatus.toString())}`;
   }
 
   await interaction.reply({ content: reply, flags: [MessageFlags.Ephemeral] });
