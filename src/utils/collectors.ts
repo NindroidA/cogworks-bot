@@ -1,11 +1,3 @@
-/**
- * Collectors Module
- *
- * Provides simplified interaction collector patterns for Discord.js components.
- * Includes utilities for button collectors and role select collectors with
- * proper TypeScript typing and error handling.
- */
-
 import {
   type ButtonInteraction,
   type ChatInputCommandInteraction,
@@ -20,9 +12,6 @@ import {
 import { lang } from '../lang';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
 
-/**
- * Collector configuration options
- */
 export interface CollectorOptions {
   /** Timeout in milliseconds (default: 60000 = 1 minute) */
   timeout?: number;
@@ -30,14 +19,8 @@ export interface CollectorOptions {
   userId: string;
 }
 
-/**
- * Callback for handling button interactions
- */
 export type ButtonCollectorCallback = (interaction: ButtonInteraction) => Promise<void> | void;
 
-/**
- * Callback for handling role select interactions
- */
 export type RoleSelectCollectorCallback = (interaction: RoleSelectMenuInteraction) => Promise<void> | void;
 
 /**

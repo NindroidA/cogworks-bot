@@ -5,7 +5,7 @@
 - **Runtime**: Bun
 - **Deployment**: Docker containers
 - **Branches**: `main` (production)
-- **Version**: 3.1.6
+- **Version**: 3.1.8
 
 ## Critical Rules
 
@@ -139,7 +139,8 @@ import { CACHE_TTL, INTERVALS, RETENTION_DAYS, MAX, TEXT_LIMITS } from '../utils
 
 ### Shared REST Client
 ```typescript
-import { rest, CLIENT_ID } from '../utils/restClient';
+import { CLIENT_ID, getRest } from '../utils/restClient';
+await getRest().put(...); // lazy — constructs the REST client on first call
 ```
 
 ### Lazy Repository Pattern
@@ -343,7 +344,7 @@ src/
 │   ├── offboarding/        # archiveCompiler, messageCleanup (for bot-reset)
 │   ├── setup/              # channelCreator, channelDefaults, channelFormatDetector, configStatusEmbed
 │   ├── security/           # rateLimiter
-│   ├── ticket/             # autoClose, slaChecker, smartRouter, closeWorkflow, legacyTypes
+│   ├── ticket/             # autoClose, slaChecker, smartRouter, closeWorkflow, legacyTypes, transcriptBuilder
 │   ├── validation/         # permissionValidator, inputSanitizer, validators
 │   └── ...
 └── index.ts                # Main entry point
@@ -393,7 +394,7 @@ const triggeredBy = optionalString(body, 'triggeredBy');   // for audit logs
 - Replace forum tags (use tag accumulation pattern)
 - Use deprecated `ephemeral: true` (use `flags: [MessageFlags.Ephemeral]`)
 - Use `requireAdmin()` with truthy check (use `.allowed` property)
-- Create new REST instances (use shared `rest` from `restClient.ts`)
+- Create new REST instances (use shared `getRest()` from `restClient.ts`)
 - Use `as string` casts on API request body fields (use `requireString`/`optionalString` from `api/helpers`)
 - Write manual `requireAdmin` + `rateLimiter.check` boilerplate (use `guardAdminRateLimit` from `utils/interactions`)
 - Swallow errors silently with `catch {}` (at minimum log with `enhancedLogger`)

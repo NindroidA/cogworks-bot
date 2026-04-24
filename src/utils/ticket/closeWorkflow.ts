@@ -4,20 +4,21 @@
  * Extracts the common archive logic used by both the Discord button event
  * (events/ticket/close.ts) and the internal API handler (api/handlers/ticketHandlers.ts).
  *
- * Handles: transcript creation → forum archive → tag management → temp cleanup → channel delete.
- * Callers are responsible for: finding the ticket, marking it closed, and handling errors.
+ * Handles: transcript fetch → forum archive post (markdown-in-thread) →
+ * tag management → channel delete. Callers are responsible for: finding
+ * the ticket, marking it closed, and handling errors.
  */
 
-import fs from 'node:fs';
 import type { Client, ForumChannel, ForumThreadChannel, GuildTextBasedChannel } from 'discord.js';
 import { ArchivedTicket } from '../../typeorm/entities/ticket/ArchivedTicket';
 import type { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { lazyRepo } from '../database/lazyRepo';
 import { verifiedChannelDelete } from '../discord/verifiedDelete';
-import { fetchMessagesAndSaveToFile } from '../fetchAllMessages';
+import { fetchMessagesAsTranscript } from '../fetchAllMessages';
 import { applyForumTags, ensureForumTag } from '../forumTagManager';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { legacyTypeInfo, resolveTicketType } from './legacyTypes';
+import { buildTranscript, type TicketMetadata, type TranscriptMessage } from './transcriptBuilder';
 
 const archivedTicketRepo = lazyRepo(ArchivedTicket);
 
@@ -67,9 +68,6 @@ async function resolveTicketTypeInfo(ticket: Ticket, guildId: string): Promise<T
   return null;
 }
 
-/**
- * Find existing archive thread for this ticket's creator (or email sender).
- */
 async function findExistingArchive(ticket: Ticket, guildId: string): Promise<ArchivedTicket | null> {
   if (ticket.isEmailTicket && ticket.emailSender) {
     return archivedTicketRepo.findOneBy({
@@ -80,9 +78,6 @@ async function findExistingArchive(ticket: Ticket, guildId: string): Promise<Arc
   return archivedTicketRepo.findOneBy({ createdBy: ticket.createdBy, guildId });
 }
 
-/**
- * Resolve the thread name for a new archive post.
- */
 async function resolveArchiveThreadName(client: Client, ticket: Ticket): Promise<string> {
   if (ticket.isEmailTicket && ticket.emailSender) {
     return ticket.emailSenderName || ticket.emailSender.split('@')[0];
@@ -105,16 +100,13 @@ export async function archiveAndCloseTicket(
   archiveForumChannelId: string,
 ): Promise<ArchiveTicketResult> {
   const channelId = ticket.channelId || '';
-  const transcriptPath = process.env.TEMP_STORAGE_PATH || 'temp/';
 
-  // Ensure transcript directory exists
-  await fs.promises.mkdir(transcriptPath, { recursive: true });
-
-  // Create transcript
+  // Fetch the conversation as TranscriptMessage[] for the builder.
+  let transcriptMessages: TranscriptMessage[];
   try {
-    await fetchMessagesAndSaveToFile(channel, transcriptPath);
+    transcriptMessages = await fetchMessagesAsTranscript(channel, client.user?.id ?? '');
   } catch (error) {
-    enhancedLogger.error('Failed to create ticket transcript', error as Error, LogCategory.SYSTEM, {
+    enhancedLogger.error('Failed to fetch ticket messages for transcript', error as Error, LogCategory.SYSTEM, {
       guildId,
       channelId,
     });
@@ -122,42 +114,58 @@ export async function archiveAndCloseTicket(
       success: false,
       archived: false,
       transcriptFailed: true,
-      error: 'Transcript creation failed',
+      error: 'Transcript fetch failed',
     };
   }
 
-  // Archive to forum
+  // Build header + chunks. Ticket metadata is resolved locally — type info
+  // falls back to the ticket's stored type name when the custom row is gone.
+  const typeInfo = await resolveTicketTypeInfo(ticket, guildId);
+  const creatorUser = await client.users.fetch(ticket.createdBy).catch(() => null);
+  const assignedUser = ticket.assignedTo ? await client.users.fetch(ticket.assignedTo).catch(() => null) : null;
+
+  const metadata: TicketMetadata = {
+    title: ticket.isEmailTicket && ticket.emailSubject ? ticket.emailSubject : typeInfo?.displayName || 'Ticket',
+    type: typeInfo?.displayName || ticket.type || 'Unknown',
+    createdByUsername:
+      (ticket.isEmailTicket && ticket.emailSenderName) || creatorUser?.username || ticket.emailSender || 'Unknown',
+    openedAt: ticket.lastActivityAt ? new Date(Math.min(ticket.lastActivityAt.getTime(), Date.now())) : new Date(),
+    closedAt: new Date(),
+    assignedToUsername: assignedUser?.username ?? null,
+  };
+  // Prefer the channel's createdAt as a more accurate open time when available.
+  if ('createdAt' in channel && channel.createdAt instanceof Date) {
+    metadata.openedAt = channel.createdAt;
+  }
+
+  const transcript = buildTranscript(transcriptMessages, metadata);
+
   try {
     const forumChannel = (await client.channels.fetch(archiveForumChannelId)) as ForumChannel;
-    const txtPath = `${transcriptPath}${channelId}.txt`;
-    const zipPath = `${transcriptPath}attachments_${channelId}.zip`;
-    const files = [txtPath];
-    const hasZip = fs.existsSync(zipPath);
-    if (hasZip) files.push(zipPath);
 
-    // Resolve ticket type info (custom or legacy) for forum tags
-    const typeInfo = await resolveTicketTypeInfo(ticket, guildId);
-
-    // Build forum tags
     const forumTagIds: string[] = [];
     if (typeInfo) {
       const tagId = await ensureForumTag(forumChannel, typeInfo.typeId, typeInfo.displayName, typeInfo.emoji);
       if (tagId) forumTagIds.push(tagId);
     }
 
-    // Find or create archive thread
     const existingArchive = await findExistingArchive(ticket, guildId);
 
     if (!existingArchive) {
-      // First-time close: create new archive thread
+      // First-time close: create a new forum thread with the header as
+      // the initial message, then post chunks as follow-ups.
       const threadName = await resolveArchiveThreadName(client, ticket);
       const newPost = await forumChannel.threads.create({
         name: threadName,
-        message: { files },
+        message: { content: transcript.header },
       });
 
       if (forumTagIds.length > 0) {
         await applyForumTags(forumChannel, newPost.id, forumTagIds);
+      }
+
+      for (const chunk of transcript.chunks) {
+        await newPost.send({ content: chunk });
       }
 
       await archivedTicketRepo.save(
@@ -175,11 +183,17 @@ export async function archiveAndCloseTicket(
         }),
       );
     } else if (existingArchive.messageId) {
-      // Existing archive: add transcript and merge tags
+      // Re-close for the same user: append a separator + header + chunks
+      // to the existing thread. Tags still accumulate — "Forum Tag System"
+      // per CLAUDE.md.
       const post = (await forumChannel.threads.fetch(existingArchive.messageId)) as ForumThreadChannel;
-      await post.send({ files });
 
-      // Merge new forum tags with existing (accumulate, don't replace)
+      const separator = '\n━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      await post.send({ content: separator + transcript.header });
+      for (const chunk of transcript.chunks) {
+        await post.send({ content: chunk });
+      }
+
       if (forumTagIds.length > 0) {
         const existingTags = existingArchive.forumTagIds || [];
         const newTagId = forumTagIds[0];
@@ -191,31 +205,20 @@ export async function archiveAndCloseTicket(
         }
       }
     }
-
-    // Cleanup temp files
-    await fs.promises.unlink(txtPath).catch(err => {
-      enhancedLogger.error('Failed to delete ticket transcript file', err as Error, LogCategory.SYSTEM, {
-        guildId,
-        txtPath,
-      });
-    });
-    if (hasZip) {
-      await fs.promises.unlink(zipPath).catch(err => {
-        enhancedLogger.error('Failed to delete ticket attachment zip', err as Error, LogCategory.SYSTEM, {
-          guildId,
-          zipPath,
-        });
-      });
-    }
   } catch (error) {
-    enhancedLogger.error('Failed to send ticket transcript', error as Error, LogCategory.SYSTEM, {
+    enhancedLogger.error('Failed to post ticket transcript to forum', error as Error, LogCategory.SYSTEM, {
       guildId,
       channelId,
     });
-    // Archive failed but ticket is still closed — proceed to channel delete
+    // Archive failed but ticket is still closed — proceed to channel delete.
   }
 
-  enhancedLogger.info('Ticket transcript archived successfully', LogCategory.SYSTEM, { guildId, channelId });
+  enhancedLogger.info('Ticket transcript archived successfully', LogCategory.SYSTEM, {
+    guildId,
+    channelId,
+    messageCount: transcript.messageCount,
+    attachmentCount: transcript.attachmentCount,
+  });
 
   // Delete ticket channel (verified — Discord first, then DB)
   const deleteResult = await verifiedChannelDelete(channel, {

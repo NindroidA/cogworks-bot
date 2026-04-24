@@ -31,7 +31,7 @@ import { Colors } from '../../utils/colors';
 import { deleteAllGuildData } from '../../utils/database/guildQueries';
 import { compileGuildArchive } from '../../utils/offboarding/archiveCompiler';
 import { cleanupGuildMessages } from '../../utils/offboarding/messageCleanup';
-import { CLIENT_ID, rest } from '../../utils/restClient';
+import { CLIENT_ID, getRest } from '../../utils/restClient';
 
 export async function botResetHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   try {
@@ -259,7 +259,7 @@ export async function botResetHandler(client: Client, interaction: ChatInputComm
             // 5. Unregister guild commands
             let commandsRemoved = false;
             try {
-              await rest.put(Routes.applicationGuildCommands(CLIENT_ID, guildId), { body: [] });
+              await getRest().put(Routes.applicationGuildCommands(CLIENT_ID, guildId), { body: [] });
               commandsRemoved = true;
             } catch {
               enhancedLogger.warn('Failed to unregister guild commands during reset', LogCategory.COMMAND_EXECUTION, {

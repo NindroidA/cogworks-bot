@@ -1,12 +1,12 @@
-import fs from 'node:fs';
 import type { Client, ForumChannel, ForumThreadChannel, GuildTextBasedChannel } from 'discord.js';
 import { Application } from '../../../typeorm/entities/application/Application';
 import { ArchivedApplication } from '../../../typeorm/entities/application/ArchivedApplication';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
 import { lazyRepo } from '../../database/lazyRepo';
 import { verifiedChannelDelete } from '../../discord/verifiedDelete';
-import { fetchMessagesAndSaveToFile } from '../../fetchAllMessages';
+import { fetchMessagesAsTranscript } from '../../fetchAllMessages';
 import { enhancedLogger, LogCategory } from '../../monitoring/enhancedLogger';
+import { buildTranscript, type TicketMetadata, type TranscriptMessage } from '../../ticket/transcriptBuilder';
 import { ApiError } from '../apiError';
 import { optionalString, requireId, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
@@ -81,21 +81,27 @@ export function registerApplicationHandlers(client: Client, routes: Map<string, 
       return { success: true, archived: false };
     }
 
-    const transcriptPath = process.env.TEMP_STORAGE_PATH || 'temp/';
-    await fs.promises.mkdir(transcriptPath, { recursive: true });
-
+    // Build the transcript directly as Discord-markdown chunks — no files.
+    let transcriptMessages: TranscriptMessage[];
     try {
-      await fetchMessagesAndSaveToFile(channel as GuildTextBasedChannel, transcriptPath);
+      transcriptMessages = await fetchMessagesAsTranscript(channel as GuildTextBasedChannel, client.user?.id ?? '');
     } catch {
       return { success: true, archived: false };
     }
 
+    const creatorUser = await client.users.fetch(app.createdBy).catch(() => null);
+    const metadata: TicketMetadata = {
+      title: `Application: ${creatorUser?.username || 'Unknown'}`,
+      type: 'Application',
+      createdByUsername: creatorUser?.username || 'Unknown',
+      openedAt: 'createdAt' in channel && channel.createdAt instanceof Date ? channel.createdAt : new Date(),
+      closedAt: new Date(),
+      assignedToUsername: null,
+    };
+    const transcript = buildTranscript(transcriptMessages, metadata);
+
     try {
       const forumChannel = (await client.channels.fetch(archivedConfig.channelId)) as ForumChannel;
-      const txtPath = `${transcriptPath}${app.channelId}.txt`;
-      const zipPath = `${transcriptPath}attachments_${app.channelId}.zip`;
-      const files = [txtPath];
-      if (fs.existsSync(zipPath)) files.push(zipPath);
 
       const existingArchive = await archivedAppRepo.findOneBy({
         createdBy: app.createdBy,
@@ -103,11 +109,13 @@ export function registerApplicationHandlers(client: Client, routes: Map<string, 
       });
 
       if (!existingArchive) {
-        const user = await client.users.fetch(app.createdBy).catch(() => null);
         const newPost = await forumChannel.threads.create({
-          name: user?.username || 'Unknown',
-          message: { files },
+          name: creatorUser?.username || 'Unknown',
+          message: { content: transcript.header },
         });
+        for (const chunk of transcript.chunks) {
+          await newPost.send({ content: chunk });
+        }
         await archivedAppRepo.save(
           archivedAppRepo.create({
             guildId,
@@ -117,12 +125,11 @@ export function registerApplicationHandlers(client: Client, routes: Map<string, 
         );
       } else if (existingArchive.messageId) {
         const post = (await forumChannel.threads.fetch(existingArchive.messageId)) as ForumThreadChannel;
-        await post.send({ files });
-      }
-
-      await fs.promises.unlink(txtPath).catch(() => null);
-      if (files.includes(zipPath)) {
-        await fs.promises.unlink(zipPath).catch(() => null);
+        const separator = '\n━━━━━━━━━━━━━━━━━━━━━━━━\n';
+        await post.send({ content: separator + transcript.header });
+        for (const chunk of transcript.chunks) {
+          await post.send({ content: chunk });
+        }
       }
     } catch {
       // Archive failed

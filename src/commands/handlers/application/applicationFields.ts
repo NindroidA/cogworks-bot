@@ -45,19 +45,30 @@ function completeSession(userId: string, guildId: string, entityId?: string): vo
   fieldSessionMap.set(getSessionKey(userId, guildId, entityId), SESSION_COMPLETED);
 }
 
-// Clean up expired/completed sessions every minute
-const fieldSessionCleanupInterval = setInterval(() => {
-  const now = Date.now();
-  for (const [key, timestamp] of fieldSessionMap.entries()) {
-    if (timestamp === SESSION_COMPLETED || (timestamp > 0 && now - timestamp >= SESSION_TIMEOUT_MS)) {
-      fieldSessionMap.delete(key);
+// Clean up expired/completed sessions every minute. Deferred to an
+// explicit start() call (wired from the bot's clientReady handler) so
+// importing this module does not kick off background timers during tests
+// or tooling runs.
+let fieldSessionCleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+export function startFieldSessionCleanup(): void {
+  if (fieldSessionCleanupInterval) return;
+  fieldSessionCleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, timestamp] of fieldSessionMap.entries()) {
+      if (timestamp === SESSION_COMPLETED || (timestamp > 0 && now - timestamp >= SESSION_TIMEOUT_MS)) {
+        fieldSessionMap.delete(key);
+      }
     }
-  }
-}, 60 * 1000);
+  }, 60 * 1000);
+}
 
 /** Stop the field session cleanup interval (call on shutdown) */
 export function stopFieldSessionCleanup(): void {
-  clearInterval(fieldSessionCleanupInterval);
+  if (fieldSessionCleanupInterval) {
+    clearInterval(fieldSessionCleanupInterval);
+    fieldSessionCleanupInterval = null;
+  }
 }
 
 const positionRepo = lazyRepo(Position);

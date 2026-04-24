@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.8]
+
+### Added
+- **Markdown-in-thread ticket transcripts** — ticket (and application) archives now post their transcript directly into the forum thread as Discord-native markdown, instead of uploading a `.txt` file plus a `.zip` of images. Readable inline, no download, with clickable attachment links and image previews
+  - New pure module `src/utils/ticket/transcriptBuilder.ts` exports `buildTranscript()`, `formatMessage()`, `formatHeader()`, `chunkByMessageBoundary()`, `truncateLongMessage()`, `formatDurationShort()`. No Discord client dependency — driven by a `TranscriptMessage[]` + `TicketMetadata` shape so it is fully testable without the gateway
+  - Header format: `# 🎫 Ticket: <title>` with created-by / opened / closed / duration / type / assigned-to / message-count / attachment-count fields, using `<t:unix:f>` timestamps so each viewer sees their local timezone
+  - Per-message format: bold author + Discord timestamp, body as a `>` blockquote, replies annotated with `↩️ *replying to X*`, attachments as `> 📎 [name](url)`, embeds rendered as a sub-blockquote of title/description/fields
+  - Chunking: never splits mid-message; each follow-up message stays under Discord's 2000-char hard limit (1900 soft limit). A single oversized message is truncated at 500 chars with `… (truncated)`
+  - Filtering: Discord system messages (joins/pins/boosts) and Cogworks' own component-only UI messages (ticket buttons, close dialogs, etc.) are excluded from the archive
+  - Edge cases handled: empty ticket renders `*(No messages)*`, bot-only ticket renders `*(No human messages)*`, unavailable attachment URL renders `📎 ~~name~~ (unavailable)`
+- `src/utils/fetchAllMessages.ts` replaced — new `fetchMessagesAsTranscript(channel, botClientId)` returns a `TranscriptMessage[]`. Takes the bot's client ID so it can flag component-only bot messages for filtering. No file I/O
+- 28 new tests in `tests/unit/utils/ticket/transcriptBuilder.test.ts` covering header / message formatting / reply / attachment / code-block / embed / chunking / filtering / ordering paths. Total: 1052 → 1080
+
+### Changed
+- `src/utils/ticket/closeWorkflow.ts` — `archiveAndCloseTicket()` now posts transcript chunks as follow-up messages in the forum thread instead of uploading files. Forum tag accumulation behavior unchanged. Same `ArchiveTicketResult` shape so callers don't need to change
+- `src/events/application/close.ts` and `src/utils/api/handlers/applicationHandlers.ts` — both application archive paths migrated to the same transcript flow in this patch (not deferred)
+
+### Removed
+- The `.txt` transcript + `.zip` attachment bundle upload flow
+- `fs.promises.mkdir`/`writeFile`/`unlink` calls for transcript temp files (no temp directory needed anymore)
+- `jszip` dependency (dropped from `package.json` — the transcript was its only use)
+- `process.env.TEMP_STORAGE_PATH` — no longer read by any path
+
+## [3.1.7]
+
+### Changed
+- **Init coupling cleanup**
+  - `src/utils/restClient.ts` — the shared Discord REST client is now constructed lazily via `getRest()` instead of eagerly at module scope. Tests and tooling that transitively import this module no longer fail when `BOT_TOKEN` is unset. All three importers (`src/index.ts`, `src/events/guildCreate.ts`, `src/commands/handlers/botReset.ts`) updated to call `getRest()` at use time. The `rest` const export has been removed
+  - `src/commands/handlers/shared/fieldManagerCore.ts` and `src/commands/handlers/application/applicationFields.ts` — module-scope `setInterval(...)` calls for cleanup loops moved behind explicit `startFieldDraftCleanup()` / `startFieldSessionCleanup()` functions, called from `src/index.ts`'s `clientReady` handler next to the other startup wiring. Same cadence and behavior at runtime; importing the modules no longer spawns background timers
+- **JSDoc cleanup** across 4 files — removed module-level header blocks that just restated what exports already communicate, and trivial `/** Initialize X */` single-purpose JSDoc on methods whose names are self-describing. Kept `@example` blocks on public multi-call-site APIs (`createButtonCollector`, `createRoleSelectCollector`) and `why`-carrying comments. Net ~100 lines of descriptive-only JSDoc removed from `src/utils/monitoring/enhancedLogger.ts`, `src/utils/errorHandler.ts`, `src/utils/collectors.ts`, `src/utils/validation/permissionValidator.ts`
+
 ## [3.1.6]
 
 ### Changed

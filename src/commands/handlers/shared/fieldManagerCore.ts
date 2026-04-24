@@ -96,19 +96,29 @@ const fieldDraftCache = new Map<
   }
 >();
 
-// Clean up old drafts every minute
-const fieldDraftCleanupInterval = setInterval(() => {
-  const cutoff = Date.now() - CACHE_TTL.FIELD_DRAFT;
-  for (const [key, value] of fieldDraftCache.entries()) {
-    if (value.timestamp < cutoff) {
-      fieldDraftCache.delete(key);
+// Clean up old drafts every minute. Deferred to an explicit start() call
+// (wired from the bot's clientReady handler) so importing this module
+// does not kick off background timers during tests or tooling runs.
+let fieldDraftCleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+export function startFieldDraftCleanup(): void {
+  if (fieldDraftCleanupInterval) return;
+  fieldDraftCleanupInterval = setInterval(() => {
+    const cutoff = Date.now() - CACHE_TTL.FIELD_DRAFT;
+    for (const [key, value] of fieldDraftCache.entries()) {
+      if (value.timestamp < cutoff) {
+        fieldDraftCache.delete(key);
+      }
     }
-  }
-}, INTERVALS.FIELD_DRAFT_CLEANUP);
+  }, INTERVALS.FIELD_DRAFT_CLEANUP);
+}
 
 /** Stop the field draft cleanup interval (call on shutdown) */
 export function stopFieldDraftCleanup(): void {
-  clearInterval(fieldDraftCleanupInterval);
+  if (fieldDraftCleanupInterval) {
+    clearInterval(fieldDraftCleanupInterval);
+    fieldDraftCleanupInterval = null;
+  }
 }
 
 /**

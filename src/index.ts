@@ -3,9 +3,9 @@ import dotenv from 'dotenv';
 import 'reflect-metadata';
 import { commands } from './commands/commandList';
 import { handleSlashCommand } from './commands/commands';
-import { stopFieldSessionCleanup } from './commands/handlers/application/applicationFields';
+import { startFieldSessionCleanup, stopFieldSessionCleanup } from './commands/handlers/application/applicationFields';
 import { handleContextMenuCommand } from './commands/handlers/contextMenus';
-import { stopFieldDraftCleanup } from './commands/handlers/shared/fieldManagerCore';
+import { startFieldDraftCleanup, stopFieldDraftCleanup } from './commands/handlers/shared/fieldManagerCore';
 import { handleAutocomplete } from './events/autocomplete';
 import channelDeleteEvent from './events/channelDelete';
 import guildCreateEvent from './events/guildCreate';
@@ -164,7 +164,7 @@ const client = new Client({
 });
 
 // Shared REST client (also used by guildCreate event handler)
-import { rest } from './utils/restClient';
+import { getRest } from './utils/restClient';
 
 /* init API connector */
 if (!process.env.API_URL && !IS_DEV) {
@@ -339,6 +339,12 @@ client.once('clientReady', async () => {
   // start daily log cleanup (bait channel logs: 90d, announcement logs: 365d)
   startLogCleanup();
 
+  // start per-minute cleanup loops for interactive field editors. Previously
+  // these ticked at module-import time; now they start here so importing the
+  // modules doesn't kick off timers in tests/tooling.
+  startFieldDraftCleanup();
+  startFieldSessionCleanup();
+
   // Initialize memory watchdog — register tracked maps and start
   memoryWatchdog.setClient(client);
   memoryWatchdog.trackMap('rateLimiter', () => rateLimiter.getSize());
@@ -377,7 +383,7 @@ client.once('clientReady', async () => {
   if (unconfiguredGuilds.size > 0) {
     const results = await Promise.allSettled(
       unconfiguredGuilds.map(guild =>
-        rest.put(Routes.applicationGuildCommands(CLIENT, guild.id), {
+        getRest().put(Routes.applicationGuildCommands(CLIENT, guild.id), {
           body: commands,
         }),
       ),
@@ -460,7 +466,7 @@ async function main() {
 
     // remove any global application commands (skip in dev — saves ~2-5s API call)
     if (!IS_DEV) {
-      await rest.put(Routes.applicationCommands(CLIENT), { body: [] });
+      await getRest().put(Routes.applicationCommands(CLIENT), { body: [] });
       console.log(`${E.ok} Global commands cleared (${Date.now() - startupStart}ms)`);
     }
 
@@ -537,7 +543,7 @@ async function main() {
     // register commands for each guild found in database (in parallel)
     const registrationResults = await Promise.allSettled(
       botConfigs.map(config =>
-        rest
+        getRest()
           .put(Routes.applicationGuildCommands(CLIENT, config.guildId), {
             body: commands,
           })

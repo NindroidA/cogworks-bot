@@ -1,95 +1,79 @@
-/**
- * Message Archiving Module
- *
- * Utilities for fetching and archiving Discord channel messages with attachments.
- * Creates text transcripts and ZIP archives of image attachments.
- */
-
-import fs from 'node:fs';
-import path from 'node:path';
 import type { GuildTextBasedChannel, Message } from 'discord.js';
-import JSZip from 'jszip';
-import { lang } from '../lang';
-import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
+import type { TranscriptMessage } from './ticket/transcriptBuilder';
 
 /**
- * Fetches all messages from a channel and saves them to files
- * Creates a transcript TXT file and optionally a ZIP file of image attachments
+ * Fetch every message in `channel` and map them into the pure
+ * `TranscriptMessage` shape the builder consumes.
  *
- * @param channel - The Discord text channel to archive
- * @param outputPath - Directory path where files will be saved
- * @throws Error if channel is invalid or not a text channel
- * @example
- * await fetchMessagesAndSaveToFile(ticketChannel, './archives/');
- * // Creates: ./archives/1234567890.txt
- * // Creates: ./archives/attachments_1234567890.zip (if images found)
+ * `botClientId` is used to classify the bot's own component-only messages
+ * (ticket buttons, close dialogs) so the builder can filter them out.
+ * Without it, every Cogworks UI message would appear in the archive as
+ * empty-bodied noise.
  */
-export async function fetchMessagesAndSaveToFile(channel: GuildTextBasedChannel, outputPath: string): Promise<void> {
-  // Validate channel
+export async function fetchMessagesAsTranscript(
+  channel: GuildTextBasedChannel,
+  botClientId: string,
+): Promise<TranscriptMessage[]> {
   if (!channel) {
     throw new Error('Invalid channel or channel is not a text channel.');
   }
 
-  let messages: Message[] = [];
+  const raw: Message[] = [];
   let lastId: string | undefined;
 
-  // Fetch messages in batches of 100 (Discord API limit)
+  // Batch of 100 is Discord's max per request.
   while (true) {
-    const fetchedMessages = await channel.messages.fetch({
-      limit: 100,
-      before: lastId,
-    });
-
-    if (fetchedMessages.size === 0) break;
-
-    messages = messages.concat(Array.from(fetchedMessages.values()));
-    lastId = fetchedMessages.last()?.id;
+    const batch = await channel.messages.fetch({ limit: 100, before: lastId });
+    if (batch.size === 0) break;
+    raw.push(...Array.from(batch.values()));
+    lastId = batch.last()?.id;
   }
 
-  // ========================================================================
-  // Save Transcript
-  // ========================================================================
+  // Reverse: channel.messages.fetch returns newest-first; transcript reads oldest-first.
+  raw.reverse();
 
-  // Build file path
-  const transcriptPath = path.resolve(`${outputPath}${channel.id}.txt`);
+  // Cache referenced messages for reply resolution. In most tickets the
+  // reply target is already inside the fetched window, so a lookup map
+  // avoids an extra API call.
+  const byId = new Map<string, Message>(raw.map(m => [m.id, m]));
 
-  // Create header with timestamp
-  const date = new Date();
-  const now: string = date.toLocaleString();
-  const header = `Transcript Created - ${now}\n\n`;
+  return raw.map(m => toTranscriptMessage(m, byId, botClientId));
+}
 
-  // Format messages chronologically
-  const fileContent = messages
-    .reverse() // Reverse to maintain chronological order
-    .map(msg => `[${msg.author.tag}]: ${msg.content}`)
-    .join('\n');
+function toTranscriptMessage(m: Message, byId: Map<string, Message>, botClientId: string): TranscriptMessage {
+  const replyId = m.reference?.messageId;
+  const replyTarget = replyId ? byId.get(replyId) : undefined;
 
-  // Write transcript file
-  const fullFile = header + fileContent;
-  await fs.promises.writeFile(transcriptPath, fullFile);
-  enhancedLogger.info(lang.console.transcriptSaved, LogCategory.SYSTEM);
-
-  const zip = new JSZip();
-  let attachmentCount = 0;
-
-  // Collect all image attachments
-  for (const msg of messages) {
-    for (const attach of msg.attachments.values()) {
-      // Only save images
-      if (attach.contentType?.startsWith('image/')) {
-        const resp = await fetch(attach.url);
-        const buffer = Buffer.from(await resp.arrayBuffer());
-        zip.file(attach.name, buffer);
-        attachmentCount++;
-      }
-    }
-  }
-
-  // Save ZIP if we found any images
-  if (attachmentCount > 0) {
-    const zipPath = path.resolve(`${outputPath}attachments_${channel.id}.zip`);
-    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-    await fs.promises.writeFile(zipPath, zipBuffer);
-    enhancedLogger.info(`${lang.console.attachmentsSaved} (${attachmentCount} images)`, LogCategory.SYSTEM);
-  }
+  return {
+    author: {
+      username: m.author.username,
+      id: m.author.id,
+      bot: m.author.bot,
+    },
+    content: m.content ?? '',
+    timestamp: m.createdAt,
+    attachments: Array.from(m.attachments.values()).map(a => ({
+      name: a.name,
+      url: a.url,
+      contentType: a.contentType ?? undefined,
+    })),
+    embeds: m.embeds.map(e => ({
+      title: e.title ?? undefined,
+      description: e.description ?? undefined,
+      fields: e.fields?.map(f => ({ name: f.name, value: f.value })),
+    })),
+    replyTo: replyTarget
+      ? {
+          author: replyTarget.author.username,
+          content: replyTarget.content ?? '',
+        }
+      : undefined,
+    isSystem: m.system === true,
+    hasOnlyComponents:
+      m.author.id === botClientId &&
+      !m.content &&
+      m.embeds.length === 0 &&
+      m.attachments.size === 0 &&
+      m.components.length > 0,
+  };
 }

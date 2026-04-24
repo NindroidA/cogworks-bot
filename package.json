@@ -1,6 +1,6 @@
 {
   "name": "cogworks-bot",
-  "version": "3.1.6",
+  "version": "3.1.8",
   "description": "A modular Discord server management bot built with TypeScript and Discord.js",
   "main": "index.js",
   "scripts": {
@@ -44,7 +44,6 @@
     "chalk": "^4.1.2",
     "discord.js": "^14.25.1",
     "dotenv": "^16.6.1",
-    "jszip": "^3.10.1",
     "mysql2": "^3.17.2",
     "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.28"

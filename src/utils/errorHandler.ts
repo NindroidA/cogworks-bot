@@ -1,17 +1,3 @@
-/**
- * Error Handler Module
- *
- * Centralized error handling system providing consistent error handling,
- * logging, and user feedback across the bot.
- * Features:
- * - Error classification by category and severity
- * - Structured error logging
- * - User-friendly error messages
- * - Interaction error handling
- * - Global error handlers
- * - Safe database operation wrapper
- */
-
 import {
   type ButtonInteraction,
   type ChatInputCommandInteraction,
@@ -23,9 +9,6 @@ import { E } from './emojis';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
 import { errorReporter } from './monitoring/errorReporter';
 
-/**
- * Error severity levels
- */
 export enum ErrorSeverity {
   /** Low severity - expected errors */
   LOW = 'LOW',
@@ -37,9 +20,6 @@ export enum ErrorSeverity {
   CRITICAL = 'CRITICAL',
 }
 
-/**
- * Error categories for better organization
- */
 export enum ErrorCategory {
   /** Database-related errors */
   DATABASE = 'DATABASE',
@@ -57,9 +37,6 @@ export enum ErrorCategory {
   UNKNOWN = 'UNKNOWN',
 }
 
-/**
- * Structured error information
- */
 export interface ErrorInfo {
   /** Error category */
   category: ErrorCategory;
@@ -79,9 +56,6 @@ export interface ErrorInfo {
   };
 }
 
-/**
- * User-friendly error messages based on category
- */
 const USER_ERROR_MESSAGES: Record<ErrorCategory, string> = {
   [ErrorCategory.DATABASE]: `${E.error} Database error occurred. Please try again in a moment.`,
   [ErrorCategory.DISCORD_API]: `${E.error} Discord API error. The issue might be temporary, please try again.`,
@@ -92,9 +66,6 @@ const USER_ERROR_MESSAGES: Record<ErrorCategory, string> = {
   [ErrorCategory.UNKNOWN]: `${E.error} An unexpected error occurred. Please try again.`,
 };
 
-/**
- * Classify an error based on its type and message
- */
 export function classifyError(error: unknown): {
   category: ErrorCategory;
   severity: ErrorSeverity;
@@ -164,9 +135,6 @@ export function classifyError(error: unknown): {
   return { category: ErrorCategory.UNKNOWN, severity: ErrorSeverity.MEDIUM };
 }
 
-/**
- * Log error with appropriate severity
- */
 export function logError(errorInfo: ErrorInfo): void {
   const { category, severity, message, error, context } = errorInfo;
 
@@ -209,9 +177,6 @@ export function logError(errorInfo: ErrorInfo): void {
   });
 }
 
-/**
- * Create user-friendly error embed with full error details
- */
 export function createDetailedErrorEmbed(errorInfo: ErrorInfo): EmbedBuilder {
   const { category, message } = errorInfo;
   const userMessage = USER_ERROR_MESSAGES[category];
@@ -228,9 +193,6 @@ export function createDetailedErrorEmbed(errorInfo: ErrorInfo): EmbedBuilder {
     .setFooter({ text: 'If this persists, please contact an administrator.' });
 }
 
-/**
- * Handle error in interaction context
- */
 export async function handleInteractionError(
   interaction: ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction,
   error: unknown,
@@ -278,9 +240,6 @@ export async function handleInteractionError(
   }
 }
 
-/**
- * Wrap async handler function with error handling
- */
 export function withErrorHandling<T extends Array<unknown>>(
   handler: (...args: T) => Promise<void>,
   handlerName: string,
@@ -308,9 +267,6 @@ export function withErrorHandling<T extends Array<unknown>>(
   };
 }
 
-/**
- * Handle unhandled rejections
- */
 export function setupGlobalErrorHandlers(onFatalShutdown?: (signal: string) => Promise<void>): void {
   process.on('unhandledRejection', (reason, promise) => {
     enhancedLogger.error(
@@ -352,9 +308,6 @@ export function setupGlobalErrorHandlers(onFatalShutdown?: (signal: string) => P
   });
 }
 
-/**
- * Safe database operation wrapper
- */
 export async function safeDbOperation<T>(operation: () => Promise<T>, errorContext: string): Promise<T | null> {
   try {
     return await operation();
