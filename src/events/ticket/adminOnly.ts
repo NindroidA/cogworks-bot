@@ -102,3 +102,38 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
   // update the ticket status
   await ticketRepo.update({ id: ticket.id, guildId }, { status: 'adminOnly' });
 };
+
+export const adminOnlyButton = async (_client: Client, interaction: ButtonInteraction) => {
+  enhancedLogger.debug(`Button: admin_only_ticket`, LogCategory.COMMAND_EXECUTION, {
+    userId: interaction.user.id,
+    guildId: interaction.guildId,
+  });
+
+  const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('confirm_admin_only_ticket').setLabel('Confirm').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('cancel_admin_only_ticket').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+  );
+
+  await interaction.reply({
+    content: tl.confirm,
+    components: [confirmRow],
+    flags: [MessageFlags.Ephemeral],
+  });
+};
+
+export const confirmAdminOnly = async (client: Client, interaction: ButtonInteraction) => {
+  enhancedLogger.debug(`Button: confirm_admin_only_ticket`, LogCategory.COMMAND_EXECUTION, {
+    userId: interaction.user.id,
+    guildId: interaction.guildId,
+  });
+  await interaction.update({ content: tl.changing, components: [] });
+  await ticketAdminOnlyEvent(client, interaction);
+};
+
+export const cancelAdminOnly = async (_client: Client, interaction: ButtonInteraction) => {
+  enhancedLogger.debug(`Button: cancel_admin_only_ticket`, LogCategory.COMMAND_EXECUTION, {
+    userId: interaction.user.id,
+    guildId: interaction.guildId,
+  });
+  await interaction.update({ content: tl.cancel, components: [] });
+};

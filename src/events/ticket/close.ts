@@ -1,4 +1,12 @@
-import { type ButtonInteraction, type Client, type GuildTextBasedChannel, MessageFlags } from 'discord.js';
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  type ButtonInteraction,
+  ButtonStyle,
+  type Client,
+  type GuildTextBasedChannel,
+  MessageFlags,
+} from 'discord.js';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { enhancedLogger, LogCategory, lang } from '../../utils';
@@ -55,4 +63,39 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
       ticketId: ticket.id,
     });
   }
+};
+
+export const closeButton = async (_client: Client, interaction: ButtonInteraction) => {
+  enhancedLogger.debug(`Button: close_ticket`, LogCategory.COMMAND_EXECUTION, {
+    userId: interaction.user.id,
+    guildId: interaction.guildId,
+  });
+
+  const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('confirm_close_ticket').setLabel('Confirm Close').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('cancel_close_ticket').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+  );
+
+  await interaction.reply({
+    content: tl.confirm,
+    components: [confirmRow],
+    flags: [MessageFlags.Ephemeral],
+  });
+};
+
+export const confirmClose = async (client: Client, interaction: ButtonInteraction) => {
+  enhancedLogger.debug(`Button: confirm_close_ticket`, LogCategory.COMMAND_EXECUTION, {
+    userId: interaction.user.id,
+    guildId: interaction.guildId,
+  });
+  await interaction.update({ content: tl.closing, components: [] });
+  await ticketCloseEvent(client, interaction);
+};
+
+export const cancelClose = async (_client: Client, interaction: ButtonInteraction) => {
+  enhancedLogger.debug(`Button: cancel_close_ticket`, LogCategory.COMMAND_EXECUTION, {
+    userId: interaction.user.id,
+    guildId: interaction.guildId,
+  });
+  await interaction.update({ content: tl.cancel, components: [] });
 };
