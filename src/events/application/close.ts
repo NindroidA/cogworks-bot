@@ -4,22 +4,17 @@ import {
   type ButtonInteraction,
   ButtonStyle,
   type Client,
-  type ForumChannel,
-  type ForumThreadChannel,
   type GuildTextBasedChannel,
   MessageFlags,
 } from 'discord.js';
 import { Application } from '../../typeorm/entities/application/Application';
-import { ArchivedApplication } from '../../typeorm/entities/application/ArchivedApplication';
 import { ArchivedApplicationConfig } from '../../typeorm/entities/application/ArchivedApplicationConfig';
-import { enhancedLogger, LogCategory, lang, verifiedChannelDelete } from '../../utils';
+import { enhancedLogger, LogCategory, lang } from '../../utils';
+import { archiveAndCloseApplication } from '../../utils/application/closeWorkflow';
 import { lazyRepo } from '../../utils/database/lazyRepo';
-import { fetchMessagesAsTranscript } from '../../utils/fetchAllMessages';
-import { buildTranscript, type TicketMetadata, type TranscriptMessage } from '../../utils/ticket/transcriptBuilder';
 
 const tl = lang.application.close;
 const applicationRepo = lazyRepo(Application);
-const archivedApplicationRepo = lazyRepo(ArchivedApplication);
 const archivedApplicationConfigRepo = lazyRepo(ArchivedApplicationConfig);
 
 export const applicationCloseEvent = async (client: Client, interaction: ButtonInteraction) => {
@@ -27,9 +22,7 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
   const guildId = interaction.guildId;
   const channel = interaction.channel as GuildTextBasedChannel;
   const channelId = interaction.channelId || '';
-  const archivedConfig = await archivedApplicationConfigRepo.findOneBy({
-    guildId,
-  });
+  const archivedConfig = await archivedApplicationConfigRepo.findOneBy({ guildId });
   const application = await applicationRepo.findOneBy({ guildId, channelId });
 
   if (!archivedConfig) {
@@ -53,101 +46,19 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
 
   await applicationRepo.update({ id: application.id, guildId }, { status: 'closed' });
 
-  const createdBy = application.createdBy;
-  const existingArchive = await archivedApplicationRepo.findOneBy({
-    createdBy,
-    guildId,
-  });
+  const result = await archiveAndCloseApplication(client, application, guildId, channel, archivedConfig.channelId);
 
-  // Fetch messages into the pure transcript shape.
-  let transcriptMessages: TranscriptMessage[];
-  try {
-    transcriptMessages = await fetchMessagesAsTranscript(channel, client.user?.id ?? '');
-  } catch (error) {
-    enhancedLogger.error('Failed to fetch application messages for transcript', error as Error, LogCategory.SYSTEM, {
+  if (result.transcriptFailed && !interaction.replied && !interaction.deferred) {
+    await interaction.reply({
+      content: tl.transcriptCreate.error,
+      flags: [MessageFlags.Ephemeral],
+    });
+  } else if (result.success && !result.archived) {
+    enhancedLogger.warn('Application closed but archive post failed', LogCategory.SYSTEM, {
       guildId,
       channelId,
+      applicationId: application.id,
     });
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({
-        content: tl.transcriptCreate.error,
-        flags: [MessageFlags.Ephemeral],
-      });
-    }
-    return;
-  }
-
-  const creatorUser = await client.users.fetch(createdBy).catch(() => null);
-  const metadata: TicketMetadata = {
-    title: `Application: ${creatorUser?.username || 'Unknown'}`,
-    type: 'Application',
-    createdByUsername: creatorUser?.username || 'Unknown',
-    openedAt: 'createdAt' in channel && channel.createdAt instanceof Date ? channel.createdAt : new Date(),
-    closedAt: new Date(),
-    assignedToUsername: null,
-  };
-
-  const transcript = buildTranscript(transcriptMessages, metadata);
-
-  try {
-    const forumChannel = (await client.channels.fetch(archivedConfig.channelId)) as ForumChannel;
-
-    if (!existingArchive) {
-      const archiveUser = await client.users.fetch(createdBy).catch(() => null);
-      const newPost = await forumChannel.threads.create({
-        name: archiveUser?.username || 'Unknown',
-        message: { content: transcript.header },
-      });
-
-      for (const chunk of transcript.chunks) {
-        await newPost.send({ content: chunk });
-      }
-
-      await archivedApplicationRepo.save(
-        archivedApplicationRepo.create({
-          guildId,
-          createdBy: application.createdBy,
-          messageId: newPost.id,
-        }),
-      );
-    } else if (existingArchive.messageId) {
-      const post = (await forumChannel.threads.fetch(existingArchive.messageId)) as ForumThreadChannel;
-      const separator = '\n━━━━━━━━━━━━━━━━━━━━━━━━\n';
-      await post.send({ content: separator + transcript.header });
-      for (const chunk of transcript.chunks) {
-        await post.send({ content: chunk });
-      }
-    }
-  } catch (error) {
-    enhancedLogger.error('Failed to post application transcript to forum', error as Error, LogCategory.SYSTEM, {
-      guildId,
-      channelId,
-    });
-    return;
-  }
-
-  enhancedLogger.info('Application transcript archived successfully', LogCategory.SYSTEM, {
-    guildId,
-    channelId,
-    messageCount: transcript.messageCount,
-    attachmentCount: transcript.attachmentCount,
-  });
-
-  const deleteResult = await verifiedChannelDelete(channel, {
-    guildId,
-    label: 'application channel',
-  });
-  if (!deleteResult.success) {
-    enhancedLogger.error(
-      `Application channel persisted after delete attempt — possible bug. Channel: ${channelId}`,
-      undefined,
-      LogCategory.ERROR,
-      {
-        guildId,
-        channelId,
-        error: deleteResult.error,
-      },
-    );
   }
 };
 
