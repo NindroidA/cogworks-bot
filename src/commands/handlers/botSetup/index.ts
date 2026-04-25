@@ -263,17 +263,45 @@ async function collectDashboardInteractions(
 
   let explicitlyClosed = false;
 
-  buttonCollector.on('collect', async (btnInteraction: any) => {
-    if (btnInteraction.customId === 'setup_finish_later') {
-      explicitlyClosed = true;
-      await btnInteraction.update({
+  // Re-detect states from DB and replace the dashboard message with a fresh embed.
+  // Used by the manage-systems, language, and reset-cancel handlers.
+  const refreshDashboard = async (): Promise<void> => {
+    try {
+      const dbStates = await detectSystemStates(guildId);
+      const freshStates = mergeStates(dbStates, setupState);
+      setupState.systemStates = freshStates;
+      const embed = buildDashboardEmbed(freshStates, setupState.selectedSystems);
+      const selector = buildSystemSelector(freshStates, setupState.selectedSystems);
+      const buttons = buildDashboardButtons(freshStates, setupState.selectedSystems);
+      await interaction.editReply({
+        content: '',
+        embeds: [embed],
+        components: [selector, buttons],
+      });
+    } catch {
+      /* interaction may have expired */
+    }
+  };
+
+  const closeDashboard = (): void => {
+    explicitlyClosed = true;
+    selectCollector.stop();
+    buttonCollector.stop();
+  };
+
+  type DashboardHandler = (btn: any) => Promise<void>;
+
+  const DASHBOARD_ROUTES: Record<string, DashboardHandler> = {
+    setup_finish_later: async btn => {
+      await btn.update({
         content: 'Setup progress saved. Run `/bot-setup` anytime to continue.',
         embeds: [],
         components: [],
       });
-      selectCollector.stop();
-      buttonCollector.stop();
-    } else if (btnInteraction.customId === 'setup_manage_systems') {
+      closeDashboard();
+    },
+
+    setup_manage_systems: async btn => {
       const currentEnabled = setupState.selectedSystems;
       const modal = rawModal(`setup_manage_${Date.now()}`, 'Manage Systems', [
         labelWrap(
@@ -292,34 +320,18 @@ async function collectDashboardInteractions(
         ),
       ]);
 
-      const modalSubmit = await showAndAwaitModal(btnInteraction, modal);
+      const modalSubmit = await showAndAwaitModal(btn, modal);
       if (!modalSubmit) return;
 
       const enabledValues: string[] = (modalSubmit.fields as any).getField('setup_enabled_systems')?.values ?? [];
       setupState.selectedSystems = enabledValues.length > 0 ? enabledValues : null;
       await setupStateRepo.save(setupState);
-
-      // Refresh dashboard
-      const dbStates = await detectSystemStates(guildId);
-      const freshStates = mergeStates(dbStates, setupState);
-      setupState.systemStates = freshStates;
-      await setupStateRepo.save(setupState);
-
       await modalSubmit.deferUpdate();
+      await refreshDashboard();
+      await setupStateRepo.save(setupState);
+    },
 
-      try {
-        const embed = buildDashboardEmbed(freshStates, setupState.selectedSystems);
-        const selector = buildSystemSelector(freshStates, setupState.selectedSystems);
-        const buttons = buildDashboardButtons(freshStates, setupState.selectedSystems);
-        await interaction.editReply({
-          content: '',
-          embeds: [embed],
-          components: [selector, buttons],
-        });
-      } catch {
-        /* interaction may have expired */
-      }
-    } else if (btnInteraction.customId === 'setup_language') {
+    setup_language: async btn => {
       // Load the guild's current locale so the radio group reflects it.
       let currentLocale: string = DEFAULT_LOCALE;
       try {
@@ -346,7 +358,7 @@ async function collectDashboardInteractions(
         ),
       ]);
 
-      const modalSubmit = await showAndAwaitModal(btnInteraction, modal);
+      const modalSubmit = await showAndAwaitModal(btn, modal);
       if (!modalSubmit) return;
 
       const chosen: string | undefined = (modalSubmit.fields as any).getField('setup_locale')?.values?.[0];
@@ -373,26 +385,11 @@ async function collectDashboardInteractions(
       }
 
       await modalSubmit.deferUpdate();
+      await refreshDashboard();
+    },
 
-      // Refresh dashboard so the user sees the change take effect immediately.
-      try {
-        const dbStates = await detectSystemStates(guildId);
-        const freshStates = mergeStates(dbStates, setupState);
-        setupState.systemStates = freshStates;
-        const embed = buildDashboardEmbed(freshStates, setupState.selectedSystems);
-        const selector = buildSystemSelector(freshStates, setupState.selectedSystems);
-        const buttons = buildDashboardButtons(freshStates, setupState.selectedSystems);
-        await interaction.editReply({
-          content: '',
-          embeds: [embed],
-          components: [selector, buttons],
-        });
-      } catch {
-        /* interaction may have expired */
-      }
-    } else if (btnInteraction.customId === 'setup_reset') {
-      // Confirmation prompt before resetting
-      await btnInteraction.update({
+    setup_reset: async btn => {
+      await btn.update({
         embeds: [
           new EmbedBuilder()
             .setColor(0xff4444)
@@ -408,28 +405,26 @@ async function collectDashboardInteractions(
           ),
         ],
       });
-    } else if (btnInteraction.customId === 'setup_reset_confirm') {
-      explicitlyClosed = true;
+    },
+
+    setup_reset_confirm: async btn => {
       await setupStateRepo.delete({ guildId });
-      await btnInteraction.update({
+      await btn.update({
         content: 'Setup state reset. Run `/bot-setup` to start fresh.',
         embeds: [],
         components: [],
       });
-      selectCollector.stop();
-      buttonCollector.stop();
-    } else if (btnInteraction.customId === 'setup_reset_cancel') {
-      // Restore the dashboard
-      const dbStates = await detectSystemStates(guildId);
-      const freshStates = mergeStates(dbStates, setupState);
-      const embed = buildDashboardEmbed(freshStates, setupState.selectedSystems);
-      const selector = buildSystemSelector(freshStates, setupState.selectedSystems);
-      const buttons = buildDashboardButtons(freshStates, setupState.selectedSystems);
-      await btnInteraction.update({
-        embeds: [embed],
-        components: [selector, buttons],
-      });
-    }
+      closeDashboard();
+    },
+
+    setup_reset_cancel: async () => {
+      await refreshDashboard();
+    },
+  };
+
+  buttonCollector.on('collect', async (btnInteraction: any) => {
+    const handler = DASHBOARD_ROUTES[btnInteraction.customId];
+    if (handler) await handler(btnInteraction);
   });
 
   selectCollector.on('end', async () => {
