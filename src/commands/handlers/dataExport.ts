@@ -9,7 +9,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
-import { MoreThanOrEqual } from 'typeorm';
+import { type EntityTarget, type FindManyOptions, MoreThanOrEqual, type ObjectLiteral } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
 // Import all entities
 import { AuditLog } from '../../typeorm/entities/AuditLog';
@@ -56,6 +56,97 @@ import { XPRoleReward } from '../../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../../typeorm/entities/xp/XPUser';
 import { enhancedLogger, formatLang, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../utils';
 
+interface ExportEntity {
+  /** Output key in the exported JSON's `data` object. */
+  name: string;
+  entity: EntityTarget<ObjectLiteral>;
+  /**
+   * Builds the TypeORM FindManyOptions for this entity.
+   * Returning `undefined` means "find all" (used by BotStatus, the only
+   * non-guild-scoped entity in the export).
+   */
+  buildFindOptions: (guildId: string) => FindManyOptions<ObjectLiteral> | undefined;
+}
+
+const guildScoped = (guildId: string): FindManyOptions<ObjectLiteral> => ({ where: { guildId } });
+
+const EXPORT_ENTITIES: ExportEntity[] = [
+  { name: 'botConfig', entity: BotConfig, buildFindOptions: guildScoped },
+  { name: 'baitChannelConfig', entity: BaitChannelConfig, buildFindOptions: guildScoped },
+  { name: 'baitChannelLogs', entity: BaitChannelLog, buildFindOptions: guildScoped },
+  { name: 'savedRoles', entity: StaffRole, buildFindOptions: guildScoped },
+  { name: 'announcementConfig', entity: AnnouncementConfig, buildFindOptions: guildScoped },
+  { name: 'applications', entity: Application, buildFindOptions: guildScoped },
+  { name: 'applicationConfig', entity: ApplicationConfig, buildFindOptions: guildScoped },
+  { name: 'positions', entity: Position, buildFindOptions: guildScoped },
+  { name: 'archivedApplications', entity: ArchivedApplication, buildFindOptions: guildScoped },
+  { name: 'archivedApplicationConfig', entity: ArchivedApplicationConfig, buildFindOptions: guildScoped },
+  { name: 'tickets', entity: Ticket, buildFindOptions: guildScoped },
+  { name: 'ticketConfig', entity: TicketConfig, buildFindOptions: guildScoped },
+  { name: 'archivedTickets', entity: ArchivedTicket, buildFindOptions: guildScoped },
+  { name: 'archivedTicketConfig', entity: ArchivedTicketConfig, buildFindOptions: guildScoped },
+  { name: 'customTicketTypes', entity: CustomTicketType, buildFindOptions: guildScoped },
+  { name: 'userTicketRestrictions', entity: UserTicketRestriction, buildFindOptions: guildScoped },
+  { name: 'rulesConfig', entity: RulesConfig, buildFindOptions: guildScoped },
+  {
+    name: 'reactionRoleMenus',
+    entity: ReactionRoleMenu,
+    buildFindOptions: guildId => ({ where: { guildId }, relations: ['options'] }),
+  },
+  { name: 'pendingBans', entity: PendingBan, buildFindOptions: guildScoped },
+  { name: 'announcementLogs', entity: AnnouncementLog, buildFindOptions: guildScoped },
+  { name: 'announcementTemplates', entity: AnnouncementTemplate, buildFindOptions: guildScoped },
+  { name: 'memoryConfig', entity: MemoryConfig, buildFindOptions: guildScoped },
+  { name: 'memoryItems', entity: MemoryItem, buildFindOptions: guildScoped },
+  { name: 'memoryTags', entity: MemoryTag, buildFindOptions: guildScoped },
+  // BotStatus is a singleton, not guild-scoped — undefined means "find all"
+  { name: 'botStatus', entity: BotStatus, buildFindOptions: () => undefined },
+  { name: 'userActivity', entity: UserActivity, buildFindOptions: guildScoped },
+  { name: 'auditLogs', entity: AuditLog, buildFindOptions: guildScoped },
+  { name: 'baitKeywords', entity: BaitKeyword, buildFindOptions: guildScoped },
+  { name: 'importLogs', entity: ImportLog, buildFindOptions: guildScoped },
+  {
+    // 90-day retention applies to JoinEvent rows
+    name: 'joinEvents',
+    entity: JoinEvent,
+    buildFindOptions: guildId => ({
+      where: {
+        guildId,
+        joinedAt: MoreThanOrEqual(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)),
+      },
+    }),
+  },
+  { name: 'starboardConfig', entity: StarboardConfig, buildFindOptions: guildScoped },
+  { name: 'starboardEntries', entity: StarboardEntry, buildFindOptions: guildScoped },
+  { name: 'xpConfig', entity: XPConfig, buildFindOptions: guildScoped },
+  { name: 'xpUsers', entity: XPUser, buildFindOptions: guildScoped },
+  { name: 'xpRoleRewards', entity: XPRoleReward, buildFindOptions: guildScoped },
+  { name: 'eventConfig', entity: EventConfig, buildFindOptions: guildScoped },
+  { name: 'eventTemplates', entity: EventTemplate, buildFindOptions: guildScoped },
+  { name: 'eventReminders', entity: EventReminder, buildFindOptions: guildScoped },
+  { name: 'analyticsConfig', entity: AnalyticsConfig, buildFindOptions: guildScoped },
+  { name: 'analyticsSnapshots', entity: AnalyticsSnapshot, buildFindOptions: guildScoped },
+  { name: 'onboardingConfig', entity: OnboardingConfig, buildFindOptions: guildScoped },
+  { name: 'onboardingCompletions', entity: OnboardingCompletion, buildFindOptions: guildScoped },
+];
+
+async function fetchAllExportData(guildId: string): Promise<Record<string, unknown[]>> {
+  const results = await Promise.all(
+    EXPORT_ENTITIES.map(async ({ name, entity, buildFindOptions }) => {
+      const repo = AppDataSource.getRepository(entity);
+      const options = buildFindOptions(guildId);
+      const rows = options ? await repo.find(options) : await repo.find();
+      return [name, rows] as const;
+    }),
+  );
+  const exportData: Record<string, unknown[]> = Object.fromEntries(results);
+  // Derived field: flatten ReactionRoleMenu.options into a top-level list
+  // so dashboards/exports can browse them without joining client-side.
+  const menus = (exportData.reactionRoleMenus as Array<{ options?: unknown[] }>) ?? [];
+  exportData.reactionRoleOptions = menus.flatMap(m => m.options ?? []);
+  return exportData;
+}
+
 /**
  * Handle data export command
  * Exports all guild data to JSON and sends via DM
@@ -87,177 +178,7 @@ export async function dataExportHandler(
 
     enhancedLogger.info(formatLang(tl.starting, guildId, interaction.user.tag), LogCategory.COMMAND_EXECUTION);
 
-    // Collect all data in parallel for performance
-    const [
-      botConfig,
-      baitChannelConfig,
-      baitChannelLogs,
-      savedRoles,
-      announcementConfig,
-      applications,
-      applicationConfig,
-      positions,
-      archivedApplications,
-      archivedApplicationConfig,
-      tickets,
-      ticketConfig,
-      archivedTickets,
-      archivedTicketConfig,
-      customTicketTypes,
-      userTicketRestrictions,
-      rulesConfig,
-      reactionRoleMenus,
-      pendingBans,
-      announcementLogs,
-      memoryConfig,
-      memoryItems,
-      memoryTags,
-      botStatus,
-      userActivity,
-      auditLogs,
-      announcementTemplates,
-      baitKeywords,
-      importLogs,
-      joinEvents,
-      starboardConfig,
-      starboardEntries,
-      xpConfig,
-      xpUsers,
-      xpRoleRewards,
-      eventConfig,
-      eventTemplates,
-      eventReminders,
-      analyticsConfig,
-      analyticsSnapshots,
-      onboardingConfig,
-      onboardingCompletions,
-    ] = await Promise.all([
-      AppDataSource.getRepository(BotConfig).find({ where: { guildId } }),
-      AppDataSource.getRepository(BaitChannelConfig).find({
-        where: { guildId },
-      }),
-      AppDataSource.getRepository(BaitChannelLog).find({ where: { guildId } }),
-      AppDataSource.getRepository(StaffRole).find({ where: { guildId } }),
-      AppDataSource.getRepository(AnnouncementConfig).find({
-        where: { guildId },
-      }),
-      AppDataSource.getRepository(Application).find({ where: { guildId } }),
-      AppDataSource.getRepository(ApplicationConfig).find({
-        where: { guildId },
-      }),
-      AppDataSource.getRepository(Position).find({ where: { guildId } }),
-      AppDataSource.getRepository(ArchivedApplication).find({
-        where: { guildId },
-      }),
-      AppDataSource.getRepository(ArchivedApplicationConfig).find({
-        where: { guildId },
-      }),
-      AppDataSource.getRepository(Ticket).find({ where: { guildId } }),
-      AppDataSource.getRepository(TicketConfig).find({ where: { guildId } }),
-      AppDataSource.getRepository(ArchivedTicket).find({ where: { guildId } }),
-      AppDataSource.getRepository(ArchivedTicketConfig).find({
-        where: { guildId },
-      }),
-      AppDataSource.getRepository(CustomTicketType).find({
-        where: { guildId },
-      }),
-      AppDataSource.getRepository(UserTicketRestriction).find({
-        where: { guildId },
-      }),
-      AppDataSource.getRepository(RulesConfig).find({ where: { guildId } }),
-      AppDataSource.getRepository(ReactionRoleMenu).find({
-        where: { guildId },
-        relations: ['options'],
-      }),
-      AppDataSource.getRepository(PendingBan).find({ where: { guildId } }),
-      AppDataSource.getRepository(AnnouncementLog).find({ where: { guildId } }),
-      AppDataSource.getRepository(AnnouncementTemplate).find({
-        where: { guildId },
-      }),
-      AppDataSource.getRepository(MemoryConfig).find({ where: { guildId } }),
-      AppDataSource.getRepository(MemoryItem).find({ where: { guildId } }),
-      AppDataSource.getRepository(MemoryTag).find({ where: { guildId } }),
-      AppDataSource.getRepository(BotStatus).find(),
-      AppDataSource.getRepository(UserActivity).find({ where: { guildId } }),
-      AppDataSource.getRepository(AuditLog).find({ where: { guildId } }),
-      AppDataSource.getRepository(BaitKeyword).find({ where: { guildId } }),
-      AppDataSource.getRepository(ImportLog).find({ where: { guildId } }),
-      AppDataSource.getRepository(JoinEvent).find({
-        where: {
-          guildId,
-          joinedAt: MoreThanOrEqual(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)),
-        },
-      }),
-      AppDataSource.getRepository(StarboardConfig).find({
-        where: { guildId },
-      }),
-      AppDataSource.getRepository(StarboardEntry).find({
-        where: { guildId },
-      }),
-      // New v3 features
-      AppDataSource.getRepository(XPConfig).find({ where: { guildId } }),
-      AppDataSource.getRepository(XPUser).find({ where: { guildId } }),
-      AppDataSource.getRepository(XPRoleReward).find({ where: { guildId } }),
-      AppDataSource.getRepository(EventConfig).find({ where: { guildId } }),
-      AppDataSource.getRepository(EventTemplate).find({ where: { guildId } }),
-      AppDataSource.getRepository(EventReminder).find({ where: { guildId } }),
-      AppDataSource.getRepository(AnalyticsConfig).find({ where: { guildId } }),
-      AppDataSource.getRepository(AnalyticsSnapshot).find({
-        where: { guildId },
-      }),
-      AppDataSource.getRepository(OnboardingConfig).find({
-        where: { guildId },
-      }),
-      AppDataSource.getRepository(OnboardingCompletion).find({
-        where: { guildId },
-      }),
-    ]);
-
-    const exportData: Record<string, unknown[]> = {
-      botConfig,
-      baitChannelConfig,
-      baitChannelLogs,
-      savedRoles,
-      announcementConfig,
-      applications,
-      applicationConfig,
-      positions,
-      archivedApplications,
-      archivedApplicationConfig,
-      tickets,
-      ticketConfig,
-      archivedTickets,
-      archivedTicketConfig,
-      customTicketTypes,
-      userTicketRestrictions,
-      rulesConfig,
-      reactionRoleMenus,
-      reactionRoleOptions: reactionRoleMenus.flatMap(m => m.options || []),
-      pendingBans,
-      announcementLogs,
-      announcementTemplates,
-      memoryConfig,
-      memoryItems,
-      memoryTags,
-      botStatus,
-      userActivity,
-      auditLogs,
-      baitKeywords,
-      importLogs,
-      joinEvents,
-      starboardConfig,
-      starboardEntries,
-      xpConfig,
-      xpUsers,
-      xpRoleRewards,
-      eventConfig,
-      eventTemplates,
-      eventReminders,
-      analyticsConfig,
-      analyticsSnapshots,
-      onboardingConfig,
-      onboardingCompletions,
-    };
+    const exportData = await fetchAllExportData(guildId);
 
     // Calculate total records
     const totalRecords = Object.values(exportData).reduce((sum, arr) => sum + arr.length, 0);
@@ -265,13 +186,13 @@ export async function dataExportHandler(
     // Create export metadata
     const exportMetadata = {
       exportedAt: new Date().toISOString(),
-      guildId: guildId,
+      guildId,
       guildName: interaction.guild?.name || 'Unknown',
       requestedBy: {
         id: interaction.user.id,
         tag: interaction.user.tag,
       },
-      totalRecords: totalRecords,
+      totalRecords,
       tables: Object.keys(exportData).length,
       recordCounts: Object.fromEntries(Object.entries(exportData).map(([key, arr]) => [key, arr.length])),
     };
