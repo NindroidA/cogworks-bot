@@ -33,8 +33,6 @@ export * from './errorHandler';
 export * from './forumTagManager';
 // Interaction helpers (guard, confirm, modal)
 export * from './interactions';
-// Logging utilities (extracted to break import cycles)
-export * from './logger';
 // Modal component helpers (raw API objects for new Discord components)
 export * from './modalComponents';
 // Monitoring utilities

@@ -589,7 +589,8 @@ async function handleCleanupTestData(interaction: ChatInputCommandInteraction, g
 
   // Clean test incidents
   const incidentResult = await statusIncidentRepo.delete({
-    affectedSystems: ['test'] as any,
+    // affectedSystems is stored as JSON array; TypeORM types it as string
+    affectedSystems: ['test'] as unknown as string,
   });
   results.push(`Test incidents: ${incidentResult.affected || 0} deleted`);
 

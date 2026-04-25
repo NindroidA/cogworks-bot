@@ -80,9 +80,6 @@ export async function xpSetupHandler(_client: Client, interaction: ChatInputComm
       case 'multiplier-remove':
         await handleMultiplierRemove(interaction, guildId);
         break;
-      case 'import-mee6':
-        await handleImportMee6(interaction, guildId);
-        break;
       default:
         await interaction.reply({
           content: 'Unknown subcommand.',
@@ -455,15 +452,6 @@ async function handleMultiplierRemove(interaction: ChatInputCommandInteraction, 
 
   await interaction.reply({
     content: xpLang.setup.multiplierRemoved.replace('{0}', `<#${channel.id}>`),
-    flags: [MessageFlags.Ephemeral],
-  });
-}
-
-async function handleImportMee6(interaction: ChatInputCommandInteraction, _guildId: string) {
-  // TODO: Bot Data Migration System (Plan 14) — call import manager when available
-  // The import-mee6 subcommand should delegate to the import manager from src/utils/import/
-  await interaction.reply({
-    content: xpLang.setup.importPlaceholder,
     flags: [MessageFlags.Ephemeral],
   });
 }

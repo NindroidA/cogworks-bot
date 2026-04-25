@@ -52,7 +52,7 @@ export async function workflowSettingsHandler(interaction: ChatInputCommandInter
       ),
     ]);
 
-    const modalSubmit = await showAndAwaitModal(interaction, modal as any);
+    const modalSubmit = await showAndAwaitModal(interaction, modal);
     if (!modalSubmit) return;
 
     const enableWorkflow = (modalSubmit.fields as any).getField('wf_enable')?.value as boolean;

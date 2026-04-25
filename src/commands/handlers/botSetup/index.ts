@@ -123,7 +123,7 @@ async function showSystemSelection(
     ),
   ]);
 
-  const submit = await showAndAwaitModal(interaction, modal as any);
+  const submit = await showAndAwaitModal(interaction, modal);
   if (!submit) return;
 
   const selectedSystems: string[] = (submit.fields as any).getField('setup_systems')?.values ?? [];
@@ -292,7 +292,7 @@ async function collectDashboardInteractions(
         ),
       ]);
 
-      const modalSubmit = await showAndAwaitModal(btnInteraction, modal as any);
+      const modalSubmit = await showAndAwaitModal(btnInteraction, modal);
       if (!modalSubmit) return;
 
       const enabledValues: string[] = (modalSubmit.fields as any).getField('setup_enabled_systems')?.values ?? [];
@@ -346,7 +346,7 @@ async function collectDashboardInteractions(
         ),
       ]);
 
-      const modalSubmit = await showAndAwaitModal(btnInteraction, modal as any);
+      const modalSubmit = await showAndAwaitModal(btnInteraction, modal);
       if (!modalSubmit) return;
 
       const chosen: string | undefined = (modalSubmit.fields as any).getField('setup_locale')?.values?.[0];

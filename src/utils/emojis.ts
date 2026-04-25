@@ -268,24 +268,6 @@ export const em = {
   with: (emoji: string, text: string) => `${emoji} ${text}`,
 };
 
-/**
- * Creates an emoji-prefixed formatted string
- * Use when you need both emoji prefix AND template formatting
- *
- * @example
- * ```typescript
- * const formatted = emLANGF(E.error, lang.errors.rateLimit, "5");
- * // "❌ You're using this command too quickly. Please try again in 5 minutes."
- * ```
- */
-export function emLANGF(emoji: string, template: string, ...args: (string | number)[]): string {
-  const formatted = template.replace(/\{(\d+)\}/g, (match, index) => {
-    const argIndex = parseInt(index, 10);
-    return args[argIndex] !== undefined ? String(args[argIndex]) : match;
-  });
-  return `${emoji} ${formatted}`;
-}
-
 export type EmojiCategory = keyof typeof Emoji;
 export type StatusEmoji = keyof typeof Emoji.status;
 export type ActionEmoji = keyof typeof Emoji.action;

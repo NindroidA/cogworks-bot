@@ -30,7 +30,7 @@ export interface RateLimitConfig {
  */
 class RateLimiter {
   private limits: Map<string, RateLimitEntry> = new Map();
-  private cleanupInterval: NodeJS.Timeout;
+  private cleanupInterval: NodeJS.Timeout | null = null;
   private devModeLogged: boolean = false; // Only log dev mode bypass once
   private _isDevMode: boolean | null = null;
 
@@ -42,11 +42,25 @@ class RateLimiter {
     return this._isDevMode;
   }
 
-  constructor() {
-    // Clean up expired entries every 5 minutes
+  /**
+   * Start the periodic cleanup timer. Deferred from the constructor so that
+   * importing the singleton at module-load time doesn't spawn a background
+   * task before `clientReady`. Call from `src/index.ts` alongside the other
+   * `start*()` wirings. Idempotent.
+   */
+  public startCleanup(): void {
+    if (this.cleanupInterval) return;
     this.cleanupInterval = setInterval(() => {
       this.cleanup();
     }, INTERVALS.RATE_LIMIT_CLEANUP);
+  }
+
+  /** Stop the periodic cleanup timer. Idempotent. */
+  public stopCleanup(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
   }
 
   /**
@@ -163,7 +177,7 @@ class RateLimiter {
   }
 
   public destroy(): void {
-    clearInterval(this.cleanupInterval);
+    this.stopCleanup();
     this._isDevMode = null; // Reset cached dev mode for next check cycle
   }
 

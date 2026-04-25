@@ -257,7 +257,7 @@ async function showRestrictionsModal(
     ),
   ]);
 
-  const modalSubmit = await showAndAwaitModal(interaction, modal as any);
+  const modalSubmit = await showAndAwaitModal(interaction, modal);
   if (!modalSubmit) return;
 
   // Get selected (restricted) type IDs from checkbox group

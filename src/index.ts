@@ -63,7 +63,6 @@ import { BaitChannelManager } from './utils/baitChannel/baitChannelManager';
 import { JoinVelocityTracker } from './utils/baitChannel/joinVelocityTracker';
 import { checkAndSendWeeklySummaries } from './utils/baitChannel/weeklySummary';
 import { startLogCleanup, stopLogCleanup } from './utils/database/logCleanup';
-import { announcementRoleRename } from './utils/database/migrations/announcementRoleRename';
 import { baitChannelIdsBackfill } from './utils/database/migrations/baitChannelIdsBackfill';
 import { ErrorSeverity, setupGlobalErrorHandlers } from './utils/errorHandler';
 import { errorReporter } from './utils/monitoring/errorReporter';
@@ -345,6 +344,10 @@ client.once('clientReady', async () => {
   startFieldDraftCleanup();
   startFieldSessionCleanup();
 
+  // rateLimiter's internal cleanup timer is deferred here too — v3.1.x
+  // init-coupling cleanup.
+  rateLimiter.startCleanup();
+
   // Initialize memory watchdog — register tracked maps and start
   memoryWatchdog.setClient(client);
   memoryWatchdog.trackMap('rateLimiter', () => rateLimiter.getSize());
@@ -503,7 +506,6 @@ async function main() {
           concurrency: 5,
           dryRun: false,
         });
-        migrationRunner.register(announcementRoleRename);
         migrationRunner.register(baitChannelIdsBackfill);
 
         const report = await migrationRunner.runAll(guildIds);

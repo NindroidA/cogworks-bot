@@ -46,5 +46,13 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
       content: tl.transcriptCreate.error,
       flags: [MessageFlags.Ephemeral],
     });
+  } else if (result.success && !result.archived) {
+    // Ticket closed cleanly but forum archive post failed — ticket is gone,
+    // channel is deleted. Log for operators; the user-facing close already happened.
+    enhancedLogger.warn('Ticket closed but archive post failed', LogCategory.SYSTEM, {
+      guildId,
+      channelId,
+      ticketId: ticket.id,
+    });
   }
 };

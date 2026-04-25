@@ -2,19 +2,22 @@ import type { ForumChannel, GuildForumTag } from 'discord.js';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
 
 /**
- * Creates or finds a forum tag based on custom ticket type properties
+ * Creates or finds a forum tag based on custom ticket type properties.
+ * Returns null when the forum is at Discord's 20-tag limit, when the tag can't
+ * be located after creation, or on API error — callers should skip the tag
+ * rather than pass `null`/`''` downstream.
  * @param forumChannel - The forum channel to manage tags in
  * @param typeId - The custom ticket type ID (e.g., "ban_appeal", "bug_report")
  * @param displayName - The display name for the tag
  * @param emoji - Optional emoji for the tag
- * @returns The tag ID (snowflake string)
+ * @returns The tag ID (snowflake string) or null on failure
  */
 export async function ensureForumTag(
   forumChannel: ForumChannel,
   typeId: string,
   displayName: string,
   emoji: string | null,
-): Promise<string> {
+): Promise<string | null> {
   try {
     // Check if tag already exists (by name)
     const existingTag = forumChannel.availableTags.find(tag => tag.name.toLowerCase() === displayName.toLowerCase());
@@ -36,8 +39,7 @@ export async function ensureForumTag(
           forumId: forumChannel.id,
         },
       );
-      // Return empty string to indicate no tag could be created
-      return '';
+      return null;
     }
 
     // Create new tag data (Discord.js will assign ID)
@@ -83,7 +85,7 @@ export async function ensureForumTag(
         LogCategory.ERROR,
         { forumId: forumChannel.id, displayName },
       );
-      return '';
+      return null;
     }
 
     enhancedLogger.info(`Created forum tag "${displayName}"`, LogCategory.SYSTEM, {
@@ -98,7 +100,7 @@ export async function ensureForumTag(
       forumId: forumChannel.id,
       typeId,
     });
-    return '';
+    return null;
   }
 }
 

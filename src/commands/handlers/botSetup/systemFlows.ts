@@ -118,7 +118,7 @@ async function configureStaffRole(
     labelWrap('Enable Staff Role', checkbox('setup_staff_enable', true), 'Use a global staff role across systems'),
   ]);
 
-  const submit = await showAndAwaitModal(interaction, modal as any);
+  const submit = await showAndAwaitModal(interaction, modal);
   if (!submit) return { updated: false, states: setupState.systemStates };
 
   const roleId = getModalFieldValue(submit.fields, 'setup_staff_role');
@@ -232,7 +232,11 @@ async function configureForumSystem(
   setupState: SetupState,
   cfg: ForumSystemConfig,
 ) {
-  const partial = (setupState.partialData as Record<string, any>)?.[cfg.systemKey];
+  // Dynamic keyed lookup — each subtree has a different shape so we read the
+  // optional string fields generically rather than narrowing per system.
+  const partial = setupState.partialData?.[cfg.systemKey as keyof typeof setupState.partialData] as
+    | Record<string, string | undefined>
+    | undefined;
 
   const choice = await askChannelChoice(interaction, cfg.systemLabel, cfg.systemKey);
   if (!choice) return { updated: false, states: setupState.systemStates };
@@ -305,7 +309,7 @@ async function configureForumSystem(
     ),
   ]);
 
-  const submit = await showAndAwaitModal(choice.btnInteraction, modal as any);
+  const submit = await showAndAwaitModal(choice.btnInteraction, modal);
   if (!submit) return { updated: false, states: setupState.systemStates };
 
   const channelId = getModalFieldValue(submit.fields, cfg.channelFieldId) || partial?.channelId;
@@ -545,7 +549,7 @@ async function configureAnnouncement(
     ),
   ]);
 
-  const submit = await showAndAwaitModal(choice.btnInteraction, modal as any);
+  const submit = await showAndAwaitModal(choice.btnInteraction, modal);
   if (!submit) return { updated: false, states: setupState.systemStates };
 
   const roleId = getModalFieldValue(submit.fields, 'setup_ann_role');
@@ -694,7 +698,7 @@ async function configureBaitChannel(
     ),
   ]);
 
-  const submit = await showAndAwaitModal(choice.btnInteraction, modal as any);
+  const submit = await showAndAwaitModal(choice.btnInteraction, modal);
   if (!submit) return { updated: false, states: setupState.systemStates };
 
   const channelId = getModalFieldValue(submit.fields, 'setup_bait_ch');
@@ -830,7 +834,7 @@ async function configureMemory(
     ),
   ]);
 
-  const submit = await showAndAwaitModal(choice.btnInteraction, modal as any);
+  const submit = await showAndAwaitModal(choice.btnInteraction, modal);
   if (!submit) return { updated: false, states: setupState.systemStates };
 
   const forumChannelId = getModalFieldValue(submit.fields, 'setup_memory_forum');
@@ -964,7 +968,7 @@ async function configureRules(
     labelWrap('Verified Role', roleSelect('setup_rules_role'), 'Role to give when user accepts rules'),
   ]);
 
-  const submit = await showAndAwaitModal(choice.btnInteraction, modal as any);
+  const submit = await showAndAwaitModal(choice.btnInteraction, modal);
   if (!submit) return { updated: false, states: setupState.systemStates };
 
   const channelId = getModalFieldValue(submit.fields, 'setup_rules_ch');

@@ -85,7 +85,11 @@ export function registerApplicationHandlers(client: Client, routes: Map<string, 
     let transcriptMessages: TranscriptMessage[];
     try {
       transcriptMessages = await fetchMessagesAsTranscript(channel as GuildTextBasedChannel, client.user?.id ?? '');
-    } catch {
+    } catch (error) {
+      enhancedLogger.error('Failed to fetch application messages for transcript', error as Error, LogCategory.SYSTEM, {
+        guildId,
+        channelId: app.channelId,
+      });
       return { success: true, archived: false };
     }
 
@@ -131,8 +135,11 @@ export function registerApplicationHandlers(client: Client, routes: Map<string, 
           await post.send({ content: chunk });
         }
       }
-    } catch {
-      // Archive failed
+    } catch (error) {
+      enhancedLogger.error('Failed to post application transcript to forum', error as Error, LogCategory.SYSTEM, {
+        guildId,
+        channelId: app.channelId,
+      });
     }
 
     // Delete application channel (verified)

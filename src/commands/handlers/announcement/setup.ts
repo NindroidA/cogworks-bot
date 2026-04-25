@@ -54,7 +54,7 @@ export async function announcementSetupHandler(_client: Client, interaction: Cha
       ),
     ]);
 
-    const modalSubmit = await showAndAwaitModal(interaction, modal as any);
+    const modalSubmit = await showAndAwaitModal(interaction, modal);
     if (!modalSubmit) return;
 
     const roleId = (modalSubmit.fields as any).getField('ann_role')?.value;

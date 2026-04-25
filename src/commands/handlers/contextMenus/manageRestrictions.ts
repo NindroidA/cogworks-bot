@@ -66,7 +66,7 @@ export async function manageRestrictionsHandler(interaction: UserContextMenuComm
       ),
     ]);
 
-    const modalSubmit = await showAndAwaitModal(interaction, modal as any);
+    const modalSubmit = await showAndAwaitModal(interaction, modal);
     if (!modalSubmit) return;
 
     // Get selected restricted types — validate against guild-owned types

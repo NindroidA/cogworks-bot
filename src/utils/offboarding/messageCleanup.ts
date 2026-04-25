@@ -311,7 +311,7 @@ export async function cleanupGuildMessages(client: Client, guildId: string): Pro
             for (const [, forum] of forumChannels) {
               try {
                 // Fetch active threads in the forum
-                const threads = await (forum as any).threads.fetchActive();
+                const threads = await (forum as ForumChannel).threads.fetchActive();
                 for (const [, thread] of threads.threads) {
                   try {
                     const messages = await thread.messages.fetch({ limit: 50 });
@@ -329,7 +329,7 @@ export async function cleanupGuildMessages(client: Client, guildId: string): Pro
                   }
                 }
                 // Also fetch archived threads
-                const archived = await (forum as any).threads.fetchArchived();
+                const archived = await (forum as ForumChannel).threads.fetchArchived();
                 for (const [, thread] of archived.threads) {
                   try {
                     const messages = await thread.messages.fetch({ limit: 50 });
@@ -354,8 +354,13 @@ export async function cleanupGuildMessages(client: Client, guildId: string): Pro
         }
       }
     }
-  } catch {
-    // Phase 2 is best-effort — don't fail the reset if search fails
+  } catch (error) {
+    // Phase 2 is best-effort — don't fail the reset if search fails, but log
+    // so operators can tell the difference between "nothing to find" and "search broke".
+    enhancedLogger.warn('Phase 2 message-search cleanup failed', LogCategory.COMMAND_EXECUTION, {
+      guildId,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 
   enhancedLogger.info('Guild message cleanup complete', LogCategory.COMMAND_EXECUTION, {

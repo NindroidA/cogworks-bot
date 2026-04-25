@@ -5,7 +5,7 @@
 - **Runtime**: Bun
 - **Deployment**: Docker containers
 - **Branches**: `main` (production)
-- **Version**: 3.1.8
+- **Version**: 3.1.9
 
 ## Critical Rules
 
@@ -209,25 +209,26 @@ const repo = AppDataSource.getRepository(Ticket);
 ```
 src/typeorm/entities/
 ├── AuditLog.ts           # Dashboard action audit log (90-day TTL)
-├── bait/                 # BaitChannelConfig, BaitChannelLog, BaitKeyword, JoinEvent, PendingBan
 ├── BotConfig.ts          # Per-guild bot configuration
-├── StaffRole.ts          # Staff/saved roles (table: staff_roles)
+├── GuildPermission.ts    # Feature-based permission overrides (v3.1.3)
 ├── SetupState.ts         # Persistent setup dashboard state (v3)
+├── StaffRole.ts          # Staff/saved roles (table: staff_roles)
 ├── UserActivity.ts       # User activity tracking
 ├── analytics/            # AnalyticsConfig, AnalyticsSnapshot
 ├── announcement/         # AnnouncementConfig, AnnouncementLog, AnnouncementTemplate
 ├── application/          # ApplicationConfig, ArchivedApplicationConfig, Position, Application, ArchivedApplication
+├── bait/                 # BaitChannelConfig, BaitChannelLog, BaitKeyword, JoinEvent, PendingBan
 ├── event/                # EventConfig, EventTemplate, EventReminder
 ├── import/               # ImportLog
 ├── memory/               # MemoryConfig, MemoryItem, MemoryTag
 ├── onboarding/           # OnboardingConfig, OnboardingCompletion
 ├── reactionRole/         # ReactionRoleMenu, ReactionRoleOption (CASCADE)
 ├── rules/                # RulesConfig
-├── shared/               # CustomInputField (interface)
+├── shared/               # CustomInputField (interface, not an entity)
 ├── starboard/            # StarboardConfig, StarboardEntry
 ├── status/               # BotStatus (singleton, PrimaryColumn id=1), StatusIncident
 ├── ticket/               # TicketConfig, ArchivedTicketConfig, Ticket, ArchivedTicket,
-│                         #   CustomTicketType, CustomTicketField, UserTicketRestriction
+│                         #   CustomTicketType, UserTicketRestriction
 └── xp/                   # XPConfig, XPUser, XPRoleReward
 ```
 
@@ -335,18 +336,45 @@ src/
 │   ├── migrations/         # TypeORM migrations
 │   └── index.ts            # DataSource configuration
 ├── utils/
-│   ├── api/                # Internal API server, router, handlers, guildWebhook
+│   ├── analytics/          # activityTracker, snapshot query helpers
+│   ├── announcement/       # preview builders, send orchestration
+│   ├── api/                # Internal API server, router, handlers, guildWebhook, helpers
 │   ├── archive/            # archiveExporter (export + delete archived data)
-│   ├── database/           # guildQueries, logCleanup, legacyMigration, lazyRepo
+│   ├── automod/            # automod rules + feature setup
+│   ├── baitChannel/        # BaitChannelManager + whitelist + keyword helpers
+│   ├── database/           # guildQueries, logCleanup, legacyMigration, lazyRepo, safeDbOperation
 │   ├── discord/            # verifiedDelete (deletion with verification + bug report)
+│   ├── event/              # event template + reminder helpers
+│   ├── import/             # mee6 / bot-import helpers (some deferred)
 │   ├── interactions/       # guardHelper, confirmHelper, modalHelper (standardized patterns)
-│   ├── monitoring/         # enhancedLogger, healthMonitor, healthServer, memoryWatchdog
+│   ├── monitoring/         # enhancedLogger, healthMonitor, healthServer, memoryWatchdog, errorReporter
 │   ├── offboarding/        # archiveCompiler, messageCleanup (for bot-reset)
+│   ├── onboarding/         # onboarding flow helpers
+│   ├── reactionRole/       # menu + option persistence helpers
+│   ├── rules/              # rulesCache (invalidateRulesCache lives here — v3.1.6)
+│   ├── security/           # rateLimiter, featurePermission (v3.1.3)
 │   ├── setup/              # channelCreator, channelDefaults, channelFormatDetector, configStatusEmbed
-│   ├── security/           # rateLimiter
+│   ├── status/             # statusManager (client-attached)
 │   ├── ticket/             # autoClose, slaChecker, smartRouter, closeWorkflow, legacyTypes, transcriptBuilder
 │   ├── validation/         # permissionValidator, inputSanitizer, validators
-│   └── ...
+│   ├── workflow/           # cross-feature workflow helpers
+│   ├── xp/                 # xp calc + role reward helpers
+│   ├── apiConnector.ts     # External API client (dashboard sync)
+│   ├── collectors.ts       # createButtonCollector, createSelectMenuCollector
+│   ├── colors.ts           # Brand color constants
+│   ├── constants.ts        # CACHE_TTL, INTERVALS, RETENTION_DAYS, MAX, TEXT_LIMITS
+│   ├── embedBuilders.ts    # Shared embed templates
+│   ├── emojis.ts           # Emoji constants
+│   ├── errorHandler.ts     # classifyError, handleInteractionError
+│   ├── fetchAllMessages.ts # fetchMessagesAsTranscript (v3.1.8)
+│   ├── forumTagManager.ts  # ensureForumTag helpers
+│   ├── logger.ts           # Direct logger (breaks utils/index.ts cycle)
+│   ├── modalComponents.ts  # Shared modal field helpers
+│   ├── profileFunctions.ts # Per-request performance profiling
+│   ├── reactionCooldown.ts # Reaction add throttling
+│   ├── restClient.ts       # Shared REST client (lazy getRest)
+│   ├── types.ts            # Shared TS interfaces
+│   └── index.ts            # Barrel (keep imports direct inside utils/ to avoid cycles)
 └── index.ts                # Main entry point
 ```
 

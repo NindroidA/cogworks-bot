@@ -19,8 +19,9 @@ import { DEFAULT_SYSTEM_STATES, SetupState, type SystemStates } from '../../../t
 import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import { lazyRepo } from '../../database/lazyRepo';
-import { optionalStringArray, requireBoolean, requireString } from '../helpers';
+import { optionalString, optionalStringArray, requireBoolean, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
+import { writeAuditLog } from './auditHelper';
 
 const setupStateRepo = lazyRepo(SetupState);
 
@@ -115,6 +116,11 @@ export function registerSetupHandlers(_client: Client, routes: Map<string, Route
 
     await setupStateRepo.save(state);
 
+    const triggeredBy = optionalString(body, 'triggeredBy');
+    await writeAuditLog(guildId, 'setup.systems', triggeredBy, {
+      enabledSystems,
+    });
+
     return {
       success: true,
       guildId,
@@ -165,6 +171,12 @@ export function registerSetupHandlers(_client: Client, routes: Map<string, Route
 
     state.selectedSystems = currentEnabled.size === allSystemIds.length ? null : [...currentEnabled];
     await setupStateRepo.save(state);
+
+    const triggeredBy = optionalString(body, 'triggeredBy');
+    await writeAuditLog(guildId, 'setup.toggle', triggeredBy, {
+      systemId,
+      enabled,
+    });
 
     return {
       success: true,

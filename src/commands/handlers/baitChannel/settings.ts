@@ -97,7 +97,7 @@ export async function settingsHandler(client: Client, interaction: ChatInputComm
       ),
     ]);
 
-    const modalSubmit = await showAndAwaitModal(interaction, modal as any);
+    const modalSubmit = await showAndAwaitModal(interaction, modal);
     if (!modalSubmit) return;
 
     // Extract and validate values

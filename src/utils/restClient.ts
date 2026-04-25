@@ -1,10 +1,20 @@
 import { REST } from 'discord.js';
 
-// CLIENT_ID is read eagerly because it's plain config; the REST client is
-// the eager piece worth deferring (it pulls in the bot token and fails
-// hard if unset, which breaks tests/tools that transitively import this
-// module without needing Discord at all).
-export const CLIENT_ID = process.env.RELEASE === 'dev' ? process.env.DEV_CLIENT_ID! : process.env.CLIENT_ID!;
+/**
+ * Resolve the Discord application client ID from environment. Deferred so
+ * importing this module does not require the env to be set — matching the
+ * `getRest()` lazy pattern. Throws if both CLIENT_ID and DEV_CLIENT_ID are
+ * unset in the respective mode.
+ */
+export function getClientId(): string {
+  const id = process.env.RELEASE === 'dev' ? process.env.DEV_CLIENT_ID : process.env.CLIENT_ID;
+  if (!id) {
+    throw new Error(
+      'Discord client ID not configured — set CLIENT_ID (or DEV_CLIENT_ID when RELEASE=dev) before calling getClientId()',
+    );
+  }
+  return id;
+}
 
 let _rest: REST | null = null;
 

@@ -140,6 +140,7 @@ export async function archiveAndCloseTicket(
 
   const transcript = buildTranscript(transcriptMessages, metadata);
 
+  let archived = true;
   try {
     const forumChannel = (await client.channels.fetch(archiveForumChannelId)) as ForumChannel;
 
@@ -211,14 +212,22 @@ export async function archiveAndCloseTicket(
       channelId,
     });
     // Archive failed but ticket is still closed — proceed to channel delete.
+    archived = false;
   }
 
-  enhancedLogger.info('Ticket transcript archived successfully', LogCategory.SYSTEM, {
-    guildId,
-    channelId,
-    messageCount: transcript.messageCount,
-    attachmentCount: transcript.attachmentCount,
-  });
+  if (archived) {
+    enhancedLogger.info('Ticket transcript archived successfully', LogCategory.SYSTEM, {
+      guildId,
+      channelId,
+      messageCount: transcript.messageCount,
+      attachmentCount: transcript.attachmentCount,
+    });
+  } else {
+    enhancedLogger.warn('Ticket closing despite archive failure', LogCategory.SYSTEM, {
+      guildId,
+      channelId,
+    });
+  }
 
   // Delete ticket channel (verified — Discord first, then DB)
   const deleteResult = await verifiedChannelDelete(channel, {
@@ -238,5 +247,5 @@ export async function archiveAndCloseTicket(
     );
   }
 
-  return { success: true, archived: true };
+  return { success: true, archived };
 }

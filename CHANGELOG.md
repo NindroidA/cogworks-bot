@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.9]
+
+Bundled cleanup patch addressing six of the eight findings from the post-v3.1.8 desloppify blind rescore (strict 82.5 → 80.7). Two large patches (`design-coherence-dispatcher-split`, `test-orchestration-layer`) and the full feature-permission migration (12 features × multiple handlers) are handed off as dedicated sessions under `.plans/2026-04-24/handoffs/`.
+
+### Changed
+- **Docs sync** — `ARCHITECTURE.md` ticket close-workflow Mermaid diagram rewritten to match the v3.1.8 markdown-in-thread transcript flow: no more `.txt`/`.zip`, steps now reflect `fetchMessagesAsTranscript` → `resolveTicketType` (unified legacy + custom) → `buildTranscript` → post header + chunks → `verifiedChannelDelete`. `CLAUDE.md` entity list added `GuildPermission.ts` (shipped in v3.1.3, was missing) and removed the phantom `CustomTicketField` (the entity is `CustomTicketType`; `CustomInputField` is an interface under `shared/`). `CLAUDE.md` `utils/` tree expanded from the 11 documented subdirs to the actual 23 plus 15 top-level utility files
+- **`ensureForumTag` truthful return type** — `Promise<string>` → `Promise<string | null>`. Three internal `return ''` failure-sentinel sites now return `null`. Both call sites (`migrate.ts` line 98, `closeWorkflow.ts` line 148) already used falsy checks so no behavior change, but the TS signature now matches the runtime
+- **`archiveAndCloseTicket` truthful archived flag** — was returning `{ success: true, archived: true }` even when the inner forum-post `try/catch` swallowed a failure and logged a misleading "archived successfully". Now tracks failure in a local `archived` variable, logs a clear "Ticket closing despite archive failure" warning when the catch fires, and returns the real flag. Callers (`events/ticket/close.ts`, `api/handlers/ticketHandlers.ts`) updated to log the failure case — ticket still closes; only the archive post is missing
+- **`writeAuditLog` honesty** — was silently no-op when `triggeredBy` was undefined; now emits a loud warning so operators can tell the difference between "audit row written" and "audit row silently skipped". DB write failures (previously fully swallowed) now log via `enhancedLogger.error`
+- **3 mutating internal-API endpoints now write audit logs** — `setup/systems`, `setup/toggle`, `config/refresh`. Sibling mutating endpoints already audited; these were the inconsistent ones flagged by the rescore
+- **Modal helper accepts both shapes** — `showAndAwaitModal` widened from `ModalBuilder` to `ModalBuilder | RawModalObject`, removing the `modal as any` cast at all 14 call sites (botSetup, baitChannel, ticket, application, announcement, contextMenus). The internal cast is documented as a discord.js v14.25.1 modal-v2 typing gap
+- **Lazy initialization for 3 module-scope timers/env reads** — (1) `rateLimiter` cleanup `setInterval` deferred behind new `startCleanup()`/`stopCleanup()`, wired from `src/index.ts` `clientReady` next to the v3.1.7 `start*()` calls. (2) `ReactionCooldown` cleanup interval moved from constructor to first `isOnCooldown()` call. Constructing the class no longer spawns a background timer. (3) `restClient.ts` `CLIENT_ID` const replaced with `getClientId()` lazy getter mirroring `getRest()`. Two import sites migrated (`commands/handlers/botReset.ts`, `events/guildCreate.ts`)
+- **Smaller silent-catch fixes** — `messageCleanup.ts` Phase-2 outer catch now logs the error instead of dropping it. `applicationHandlers.ts` archive try/catch now logs both the transcript-fetch failure path and the forum-post failure path (was zero log paths)
+
+### Removed
+- **`announcementRoleRename` legacy migration shim** — file deleted along with its registration in `src/index.ts`. The shim targeted the `minecraftRoleId` column dropped by TypeORM migration `1774000007000` in v3.0.17; every run since was a no-op
+- **`emLANGF` SCREAMING_CASE emoji-prefixed formatter** — dropped from `src/utils/emojis.ts`. Zero call sites outside its own docstring; sibling `LANGF` was renamed to `formatLang` in v3.1.6
+- **`/xp-setup import-mee6` subcommand stub** — carried a Plan 14 TODO and always replied with a placeholder. The real MEE6 import already ships as `/import mee6 xp` (via `commands/handlers/import/mee6.ts` + `utils/import/importManager.ts`). Removed the subcommand from `xpSetup` builder, the case branch and `handleImportMee6` function from `xp/setup.ts`, and the `importPlaceholder` string from all 5 locale files (en, es, fr, de, pt-BR)
+- **`src/utils/logger.ts` + `tests/unit/utils/logger.test.ts`** — the `logger()` and `getTimestamp()` exports had zero production consumers (everything routes through `enhancedLogger`). Removed from the `utils/index.ts` barrel too. The 9 tests in `logger.test.ts` were exercising dead code
+
+### Notes
+- Test count: 1080 → 1071 (dropped 9 tests that covered the deleted `logger.ts`). Build clean. Biome clean except for the pre-existing `Function` type warning in `lazyRepo.ts:29`. Public/scorecard.png regenerated at strict 80.7 to honestly reflect the post-blind-review state
+- Patches deferred to dedicated sessions: `design-coherence-dispatcher-split` (620 LOC `handleTicketInteraction` split + 460 LOC `handleApplicationInteraction` split + 4 other coherence findings), `test-orchestration-layer` (BaitChannelManager 1652 LOC has zero tests, 166 untested handlers, empty `tests/integration/`), full feature-permission migration (12 features × multiple handlers from `guardAdmin` → `guardFeatureAccess`). Handoff docs at `.plans/2026-04-24/handoffs/`
+- Full rescore plan + per-dimension comparison: `.plans/2026-04-24/01-desloppify-rescore-post-v3.1.8.md`
+
 ## [3.1.8]
 
 ### Added

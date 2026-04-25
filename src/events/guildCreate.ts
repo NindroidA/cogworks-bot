@@ -9,7 +9,7 @@ import { type Client, EmbedBuilder, type Guild, Routes, type TextChannel } from 
 import { commands } from '../commands/commandList';
 import { Colors, enhancedLogger, LogCategory, lang } from '../utils';
 import { notifyGuildJoin } from '../utils/api/guildWebhook';
-import { CLIENT_ID, getRest } from '../utils/restClient';
+import { getClientId, getRest } from '../utils/restClient';
 
 const tl = lang.general.welcome;
 
@@ -24,7 +24,7 @@ export default {
 
       // Register commands for this guild immediately
       try {
-        await getRest().put(Routes.applicationGuildCommands(CLIENT_ID, guild.id), {
+        await getRest().put(Routes.applicationGuildCommands(getClientId(), guild.id), {
           body: commands,
         });
         enhancedLogger.info(`Registered commands for new guild: ${guild.id}`, LogCategory.SYSTEM);

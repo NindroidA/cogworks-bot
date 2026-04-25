@@ -19,8 +19,7 @@
     "channelNotIgnored": "Channel {0} is not currently ignored.",
     "multiplierSet": "XP multiplier for {0} set to **{1}x**.",
     "multiplierRemoved": "XP multiplier removed from {0}.",
-    "multiplierNotFound": "No multiplier set for {0}.",
-    "importPlaceholder": "MEE6 import will be available via the Bot Data Migration System."
+    "multiplierNotFound": "No multiplier set for {0}."
   },
   "builder": {
     "cmdDescrp": "XP system management commands",
