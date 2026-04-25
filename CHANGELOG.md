@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.10] - 2026-04-24
+
+Design-coherence dispatcher split — landed Commits 1–6 of the eight planned in `.plans/2026-04-24/handoffs/v3.1.9-design-coherence-dispatcher-split.md`. The interaction-dispatch layer that had been ranked 78.5 in the post-v3.1.8 blind review now mirrors the route-table pattern that the command-dispatch layer (`TICKET_GROUP_ROUTES`, `COMMAND_ROUTES`) uses cleanly. Commits 7 (SimpleSystemConfig descriptor) and 8 (botReset collector collapse) deferred — see `.plans/2026-04-24/handoffs/v3.1.10-deferred-simple-system-and-botreset.md`.
+
+### Changed
+
+- **Ticket interaction route table** — `src/events/ticketInteraction.ts` shrinks from 708 → 7 LOC. Branch bodies extracted into dedicated handlers across `src/events/ticket/{create,typeAdmin,adminOnly,close}.ts`; dispatcher at `src/events/ticket/interactionRoutes.ts` keys on `customId` (exact and prefix) per interaction type. Drops the dead `if (!guildId)` re-check at the old ticket_type_ping_toggle site. Three already-extracted modal handlers (typeAdd, typeEdit, emailImport) routed via tiny adapters so all route values share `(client, interaction)` signature.
+- **Application interaction route table** — same pattern for `src/events/applicationInteraction.ts` (467 → 7 LOC). Branches extracted into `src/events/application/apply.ts` + extensions to `src/events/application/close.ts`; dispatcher at `src/events/application/interactionRoutes.ts`.
+- **Dashboard button table** — `collectDashboardInteractions` if-ladder collapsed to a `DASHBOARD_ROUTES` table with two extracted closures: `refreshDashboard()` (used by manage-systems, language, and reset-cancel) and `closeDashboard()` (used by finish-later and reset-confirm).
+- **Shared `archiveAndCloseApplication()` helper** — extracted from the duplicated archive flow in `events/application/close.ts` and `api/handlers/applicationHandlers.ts` into `src/utils/application/closeWorkflow.ts`. Models on the existing `archiveAndCloseTicket()`. Both call sites collapse to a single helper call. The API handler now returns `{success, archived}` instead of bare `{success: true}` — strictly more informative without breaking the dashboard contract.
+- **Data export entity descriptor** — replace 42 hand-coded Promise.all entries (entity declared three times — destructure, output map, key list) with one `EXPORT_ENTITIES` descriptor + `fetchAllExportData()` loop. BotStatus singleton, JoinEvent retention window, and ReactionRoleMenu relations all handled by inline `buildFindOptions` overrides. `archiveCompiler.ts` gets the same treatment for its 6-entity offboarding archive. `archiveExporter.ts` left as-is — its `system: 'tickets'|'applications'|'all'` switch reads better as conditionals than a descriptor + filter.
+- **Bait whitelist mirrored branches** — collapsed parallel role/user add/remove blocks into one loop driven by a small `WhitelistTarget` list keyed on `field: 'whitelistedRoles' | 'whitelistedUsers'`. The "specify both role and user in one call" semantic is preserved (both targets pushed and processed).
+
+### Deferred
+
+- **SimpleSystemConfig descriptor (planned Commit 7)** — the four bespoke configure flows (`configureAnnouncement`, `configureBaitChannel`, `configureMemory`, `configureRules`) share a clean outer shell but each has meaningfully different inner side effects (warning send + keyword seed; tag seed + welcome thread; template seed; partial-only state). Forcing them into one descriptor would either need lots of optional callbacks or hide real per-system logic. Handed off in `.plans/2026-04-24/handoffs/v3.1.10-deferred-simple-system-and-botreset.md` with a concrete descriptor design.
+- **botReset collector collapse (planned Commit 8)** — was always optional in the parent handoff and contingent on Commit 7 landing cleanly. Handed off in the same file.
+
 ## [3.1.9]
 
 Bundled cleanup patch addressing six of the eight findings from the post-v3.1.8 desloppify blind rescore (strict 82.5 → 80.7). Two large patches (`design-coherence-dispatcher-split`, `test-orchestration-layer`) and the full feature-permission migration (12 features × multiple handlers) are handed off as dedicated sessions under `.plans/2026-04-24/handoffs/`.
