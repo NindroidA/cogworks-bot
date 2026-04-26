@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.13] - 2026-04-26
+
+Behavioral closeWorkflow tests — Commit 1 of the v3.1.9 test-orchestration-layer handoff. Replaces the 62-line existence-only `closeWorkflow.test.ts` (which only verified that `archiveAndCloseTicket` was a function and that the `ArchiveTicketResult` interface had the right shape) with 11 behavioral tests that actually exercise the function end-to-end against faked Discord client + channel + forum + repo. Targets the four failure modes the handoff called out plus the happy paths and re-close branches.
+
+### Added
+
+- **`tests/unit/utils/ticket/closeWorkflow.test.ts`** — 11 behavioral tests on `archiveAndCloseTicket`:
+  - Happy paths: custom ticket type (calls `resolveTicketType` + ensures forum tag + saves new archive), legacy type (uses `legacyTypeInfo` + skips `resolveTicketType`), email ticket (uses `emailSender` + `emailSenderName` + `emailSubject` and looks up existing archive by `emailSender` not `createdBy`).
+  - Re-close into existing archive thread: appends separator + new chunks instead of creating a new thread; new tag accumulates and saves the existing archive row; duplicate tag does not trigger a save.
+  - Failure modes: transcript fetch failure short-circuits before any forum write or channel delete (returns `{success: false, archived: false, transcriptFailed: true}`); forum post failure still closes the ticket (`{success: true, archived: false}` — exercises the v3.1.9 contract-fidelity fix); channel-already-gone (Discord 10003) counts as success; channel delete hard failure logs but workflow still returns `success: true` (documents current behavior — escalating to `success: false` would be a separate behavior-change patch).
+  - Edge case: orphaned `customTypeId` (resolveTicketType returns null) falls back to default title with no tag ensured; `customTypeId` resolved as legacy returns null and skips both `ensureForumTag` and `legacyTypeInfo`.
+
+### Changed
+
+- **Mocking strategy documented** — runtime patch of `AppDataSource.getRepository` in `beforeAll` (after dynamic import of `src/typeorm`) instead of `mock.module('lazyRepo', ...)`. The latter races against suite-wide module loading: when the test file is run alone the mock works, but the full `bun test` suite has other files that transitively load `lazyRepo` first, and Bun's per-file `mock.module()` cannot retroactively replace the captured proxy. Patching `getRepository` works because the `lazyRepo` Proxy delegates to it on first property access — the patch is in place by the time the SUT touches `archivedTicketRepo`. Other dependencies (`verifiedDelete`, `fetchAllMessages`, `forumTagManager`, `legacyTypes`) still use `mock.module()` because they don't capture state at module-load time.
+
+### Notes
+
+- Test count: 1071 → 1077 (replaced 5 fake-coverage tests with 11 behavioral; net +6).
+- Build clean. Biome clean except for the pre-existing `Function` type warning in `lazyRepo.ts:29`.
+- This is the first of an estimated six commits planned in the test-orchestration-layer handoff. Remaining: replace over-mocked `ticketInteraction.test.ts` and `applicationInteraction.test.ts`, populate `tests/integration/` with three cross-module flow tests, BaitChannelManager behavioral coverage (1652 LOC currently zero tests), four high-value API handler tests, fake-timer migration for rate-limiter / velocity / health tests. The desloppify rerun lands after the permission migration and these remaining test commits.
+
 ## [3.1.12] - 2026-04-26
 
 botReset collector collapse — landed the second of two commits deferred from v3.1.10. The 3-deep nested collector state machine in `src/commands/handlers/botReset.ts` (stage 1 collector spawning stage 2 collector spawning stage 3 collector spawning the actual reset work) now reads as a flat sequential script: stage 1 → stage 2 → stage 3 → execute. All three deferred commits originally planned out of v3.1.10 (Commits 1–6 shipped in v3.1.10, Commit 7 in v3.1.11, Commit 8 in this patch) are now complete.
