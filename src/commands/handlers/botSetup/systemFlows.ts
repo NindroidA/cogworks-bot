@@ -11,6 +11,11 @@
  * uses update() to morph the dashboard in-place, auto-create shows a loading state,
  * and modals use deferUpdate(). The collector in index.ts always refreshes the
  * dashboard after a flow returns, restoring it from any intermediate state.
+ *
+ * Forum-based systems (ticket, application) use `configureForumSystem` + a
+ * `ForumSystemConfig`. Single-channel systems (announcement, baitchannel,
+ * memory, rules) use `runSimpleSystemFlow` + a `SimpleSystemConfig` descriptor
+ * picked from `SIMPLE_SYSTEM_CONFIGS`.
  */
 
 import {
@@ -26,6 +31,7 @@ import {
   type Guild,
   type GuildForumTagData,
   MessageFlags,
+  type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
   type TextChannel,
 } from 'discord.js';
@@ -50,7 +56,7 @@ import type { ExtendedClient } from '../../../types/ExtendedClient';
 import { enhancedLogger, LogCategory, lang, showAndAwaitModal } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { channelSelect, checkbox, labelWrap, radioGroup, rawModal, roleSelect } from '../../../utils/modalComponents';
-import { createSystemChannels, type SystemType } from '../../../utils/setup/channelCreator';
+import { type CreatedChannels, createSystemChannels, type SystemType } from '../../../utils/setup/channelCreator';
 import { BAIT_CHANNEL_WARNING, DEFAULT_MEMORY_TAGS } from '../../../utils/setup/channelDefaults';
 import { detectGuildChannelFormat } from '../../../utils/setup/channelFormatDetector';
 import { seedDefaultTemplates } from '../announcement/templates';
@@ -72,6 +78,13 @@ export async function runSystemFlow(
   const states = { ...(setupState.systemStates || DEFAULT_SYSTEM_STATES) };
 
   try {
+    // Simple systems (announcement, baitchannel, memory, rules) share a common
+    // flow shape — descriptor table dispatch.
+    const simpleConfig = SIMPLE_SYSTEM_CONFIGS[systemId as SimpleSystemKey];
+    if (simpleConfig) {
+      return await runSimpleSystemFlow(simpleConfig, interaction, client, guildId, setupState);
+    }
+
     switch (systemId) {
       case 'staffRole':
         return await configureStaffRole(interaction, guildId, setupState);
@@ -79,14 +92,6 @@ export async function runSystemFlow(
         return await configureTicket(interaction, client, guildId, setupState);
       case 'application':
         return await configureApplication(interaction, client, guildId, setupState);
-      case 'announcement':
-        return await configureAnnouncement(interaction, guildId, setupState);
-      case 'baitchannel':
-        return await configureBaitChannel(interaction, client, guildId, setupState);
-      case 'memory':
-        return await configureMemory(interaction, client, guildId, setupState);
-      case 'rules':
-        return await configureRules(interaction, guildId, setupState);
       case 'reactionRole':
         // Reaction roles are configured via /reactionrole create — show info inline
         await interaction.deferUpdate();
@@ -492,238 +497,237 @@ async function configureApplication(
   });
 }
 
-// --- Announcements ---
+// ---------------------------------------------------------------------------
+// Simple single-channel systems (announcement, baitchannel, memory, rules)
+// ---------------------------------------------------------------------------
 
-async function configureAnnouncement(
-  interaction: StringSelectMenuInteraction | ButtonInteraction,
-  guildId: string,
-  setupState: SetupState,
-) {
-  // Step 1: Ask create or select existing
-  const choice = await askChannelChoice(interaction, 'Announcement System', 'announcement');
-  if (!choice) return { updated: false, states: setupState.systemStates };
+type SimpleSystemKey = 'announcement' | 'baitchannel' | 'memory' | 'rules';
 
-  if (choice.autoCreate) {
-    // Auto-create announcement channel, use @everyone as default role
-    await choice.btnInteraction.update({
-      content: '⏳ Creating announcement channel...',
-      embeds: [],
-      components: [],
-    });
-    const guild = interaction.guild!;
-    const format = detectGuildChannelFormat(guild);
-    const created = await createSystemChannels(guild, 'announcement', format);
+type SimplePartialData<K extends SimpleSystemKey> = NonNullable<PartialSystemData[K]>;
 
-    const channelId = created.channel;
-    if (channelId) {
-      const roleId = guild.id; // @everyone role ID === guild ID
-      const repo = AppDataSource.getRepository(AnnouncementConfig);
-      let config = await repo.findOneBy({ guildId });
-      if (!config) config = repo.create({ guildId });
-      config.defaultRoleId = roleId;
-      config.defaultChannelId = channelId;
-      await repo.save(config);
+type ModalParseResult<TData, K extends SimpleSystemKey> =
+  | { kind: 'complete'; data: TData }
+  | { kind: 'partial'; data: SimplePartialData<K> }
+  | { kind: 'insufficient' };
 
-      await seedDefaultTemplates(guildId);
-
-      const states = {
-        ...setupState.systemStates,
-        announcement: 'complete' as const,
-      };
-      await saveSetupState(setupState, states, {
-        announcement: { roleId, channelId },
-      });
-      return { updated: true, states };
-    }
-
-    return { updated: false, states: setupState.systemStates };
-  }
-
-  // Step 2: Show modal for channel + role selection
-  const modal = rawModal(`setup_ann_${Date.now()}`, 'Announcement Setup', [
-    labelWrap('Announcement Role', roleSelect('setup_ann_role'), 'Role to ping for announcements'),
-    labelWrap(
-      'Default Channel',
-      channelSelect('setup_ann_ch', [ChannelType.GuildText, ChannelType.GuildAnnouncement]),
-      'Default channel for announcements',
-    ),
-  ]);
-
-  const submit = await showAndAwaitModal(choice.btnInteraction, modal);
-  if (!submit) return { updated: false, states: setupState.systemStates };
-
-  const roleId = getModalFieldValue(submit.fields, 'setup_ann_role');
-  const channelId = getModalFieldValue(submit.fields, 'setup_ann_ch');
-
-  if (roleId && channelId) {
-    const repo = AppDataSource.getRepository(AnnouncementConfig);
-    let config = await repo.findOneBy({ guildId });
-    if (!config) config = repo.create({ guildId });
-    config.defaultRoleId = roleId;
-    config.defaultChannelId = channelId;
-    await repo.save(config);
-
-    await seedDefaultTemplates(guildId);
-
-    const states = {
-      ...setupState.systemStates,
-      announcement: 'complete' as const,
-    };
-    await saveSetupState(setupState, states, {
-      announcement: { roleId, channelId },
-    });
-    await submit.deferUpdate();
-    return { updated: true, states };
-  }
-
-  const states = {
-    ...setupState.systemStates,
-    announcement: 'partial' as const,
-  };
-  await saveSetupState(setupState, states, {
-    announcement: { roleId, channelId },
-  });
-  await submit.deferUpdate();
-  return { updated: true, states };
+interface SimpleSystemConfig<TData, K extends SimpleSystemKey = SimpleSystemKey> {
+  /** SetupState key — also keys `partialData` and `systemStates`. */
+  systemKey: K;
+  /** `channelDefaults` key for `createSystemChannels` (e.g. `'bait'` for `baitchannel`). */
+  channelType: SystemType;
+  /** Display label for `askChannelChoice` (e.g. "Announcement System"). */
+  systemLabel: string;
+  /** Loading text shown after the auto-create button is clicked. */
+  loadingMessage: string;
+  /** Build TData from `createSystemChannels` result, or null if creation failed. */
+  fromAutoCreate: (created: CreatedChannels, guild: Guild) => TData | null;
+  /** Build the manual-path modal. */
+  buildModal: () => ReturnType<typeof rawModal>;
+  /**
+   * Parse modal submit into a complete/partial/insufficient outcome.
+   * - `complete`: full config — `apply()` runs, state set to `finalState`
+   * - `partial`: incomplete or two-stage — partial data saved, state set to 'partial' (apply skipped)
+   * - `insufficient`: not enough to even partially save — just `deferUpdate()`
+   */
+  fromModal: (submit: ModalSubmitInteraction) => ModalParseResult<TData, K>;
+  /** Save config + run side effects (sends, seeds, cache invalidations). */
+  apply: (guildId: string, data: TData, ctx: { guild: Guild; client: Client }) => Promise<void>;
+  /** Convert TData to the `partialData` persistence shape for SetupState. */
+  toPartialData: (data: TData) => SimplePartialData<K>;
+  /** State to set after a successful apply. Defaults to 'complete'. Rules uses 'partial' (two-stage). */
+  finalState?: 'complete' | 'partial';
 }
 
-// --- Bait Channel ---
-
-async function configureBaitChannel(
+async function runSimpleSystemFlow<TData, K extends SimpleSystemKey>(
+  cfg: SimpleSystemConfig<TData, K>,
   interaction: StringSelectMenuInteraction | ButtonInteraction,
   client: Client,
   guildId: string,
   setupState: SetupState,
-) {
-  // Step 1: Ask create or select existing
-  const choice = await askChannelChoice(interaction, 'Bait Channel System', 'bait');
+): Promise<{ updated: boolean; states: SystemStates }> {
+  const choice = await askChannelChoice(interaction, cfg.systemLabel, cfg.channelType);
   if (!choice) return { updated: false, states: setupState.systemStates };
 
+  const completeState = cfg.finalState ?? 'complete';
+
   if (choice.autoCreate) {
-    // Auto-create bait + log channels with safe defaults (log-only + test mode)
     await choice.btnInteraction.update({
-      content: '⏳ Creating bait channels...',
+      content: `⏳ ${cfg.loadingMessage}`,
       embeds: [],
       components: [],
     });
     const guild = interaction.guild!;
     const format = detectGuildChannelFormat(guild);
-    const created = await createSystemChannels(guild, 'bait', format);
+    const created = await createSystemChannels(guild, cfg.channelType, format);
 
-    const channelId = created.channel;
-    const logChannelId = created.log;
+    const data = cfg.fromAutoCreate(created, guild);
+    if (!data) return { updated: false, states: setupState.systemStates };
 
-    if (channelId) {
-      const actionType: BaitActionType = 'log-only';
-      const repo = AppDataSource.getRepository(BaitChannelConfig);
-      let config = await repo.findOneBy({ guildId });
-      if (!config) config = repo.create({ guildId, channelId });
-      config.channelId = channelId;
-      config.channelIds = [channelId];
-      config.actionType = actionType;
-      config.testMode = true;
-      if (logChannelId) config.logChannelId = logChannelId;
+    await cfg.apply(guildId, data, { guild, client });
 
-      // Send warning message in the bait channel
-      try {
-        const baitChannel = (await guild.channels.fetch(channelId)) as TextChannel;
-        const msg = await baitChannel.send({ content: BAIT_CHANNEL_WARNING });
-        config.channelMessageId = msg.id;
-      } catch {
-        enhancedLogger.warn(
-          'Failed to send warning message to bait channel during auto-setup',
-          LogCategory.COMMAND_EXECUTION,
-          { guildId },
-        );
-      }
+    const states = {
+      ...setupState.systemStates,
+      [cfg.systemKey]: completeState,
+    };
+    await saveSetupState(setupState, states, { [cfg.systemKey]: cfg.toPartialData(data) });
+    return { updated: true, states };
+  }
 
-      await repo.save(config);
+  // Manual path
+  const submit = await showAndAwaitModal(choice.btnInteraction, cfg.buildModal());
+  if (!submit) return { updated: false, states: setupState.systemStates };
 
-      // Seed default keywords
-      try {
-        const { seedDefaultKeywords } = await import('../baitChannel/keywords');
-        await seedDefaultKeywords(guildId);
-      } catch {
-        enhancedLogger.warn(
-          'Failed to seed default keywords during bait channel auto-setup',
-          LogCategory.COMMAND_EXECUTION,
-        );
-      }
+  const guild = submit.guild!;
+  const result = cfg.fromModal(submit);
 
-      (client as ExtendedClient).baitChannelManager?.clearConfigCache(guildId);
-
-      const states = {
-        ...setupState.systemStates,
-        baitchannel: 'complete' as const,
-      };
-      await saveSetupState(setupState, states, {
-        baitchannel: { channelId, actionType, logChannelId },
-      });
-      return { updated: true, states };
-    }
-
+  if (result.kind === 'insufficient') {
+    await submit.deferUpdate();
     return { updated: false, states: setupState.systemStates };
   }
 
-  // Step 2: Show modal with full config (channels + action type)
-  const modal = rawModal(`setup_bait_${Date.now()}`, 'Bait Channel Setup', [
-    labelWrap('Bait Channel', channelSelect('setup_bait_ch', [ChannelType.GuildText]), 'Channel for bot detection'),
-    labelWrap(
-      'Action Type',
-      radioGroup('setup_bait_action', [
-        {
-          label: 'Ban',
-          value: 'ban',
-          description: 'Permanently ban the user',
-          default: true,
-        },
-        { label: 'Kick', value: 'kick', description: 'Kick the user' },
-        {
-          label: 'Timeout',
-          value: 'timeout',
-          description: 'Timeout the user',
-        },
-        {
-          label: 'Log Only',
-          value: 'log-only',
-          description: 'Just log, no action',
-        },
-      ]),
-      'What happens when someone posts',
-    ),
-    labelWrap(
-      'Log Channel',
-      channelSelect('setup_bait_log', [ChannelType.GuildText], false),
-      'Optional channel for detection logs',
-    ),
-  ]);
+  if (result.kind === 'complete') {
+    await cfg.apply(guildId, result.data, { guild, client });
+    const states = {
+      ...setupState.systemStates,
+      [cfg.systemKey]: completeState,
+    };
+    await saveSetupState(setupState, states, { [cfg.systemKey]: cfg.toPartialData(result.data) });
+    await submit.deferUpdate();
+    return { updated: true, states };
+  }
 
-  const submit = await showAndAwaitModal(choice.btnInteraction, modal);
-  if (!submit) return { updated: false, states: setupState.systemStates };
+  // kind === 'partial'
+  const states = {
+    ...setupState.systemStates,
+    [cfg.systemKey]: 'partial' as const,
+  };
+  await saveSetupState(setupState, states, { [cfg.systemKey]: result.data });
+  await submit.deferUpdate();
+  return { updated: true, states };
+}
 
-  const channelId = getModalFieldValue(submit.fields, 'setup_bait_ch');
-  const rawAction = getModalFieldValue(submit.fields, 'setup_bait_action') || 'ban';
-  const actionType = VALID_BAIT_ACTIONS.includes(rawAction as BaitActionType) ? (rawAction as BaitActionType) : 'ban';
-  const logChannelId = getModalFieldValue(submit.fields, 'setup_bait_log') || undefined;
+// --- Announcement ---
 
-  if (channelId) {
+interface AnnouncementData {
+  roleId: string;
+  channelId: string;
+}
+
+const announcementConfig: SimpleSystemConfig<AnnouncementData, 'announcement'> = {
+  systemKey: 'announcement',
+  channelType: 'announcement',
+  systemLabel: 'Announcement System',
+  loadingMessage: 'Creating announcement channel...',
+  fromAutoCreate: (created, guild) => {
+    if (!created.channel) return null;
+    // @everyone role ID === guild ID
+    return { roleId: guild.id, channelId: created.channel };
+  },
+  buildModal: () =>
+    rawModal(`setup_ann_${Date.now()}`, 'Announcement Setup', [
+      labelWrap('Announcement Role', roleSelect('setup_ann_role'), 'Role to ping for announcements'),
+      labelWrap(
+        'Default Channel',
+        channelSelect('setup_ann_ch', [ChannelType.GuildText, ChannelType.GuildAnnouncement]),
+        'Default channel for announcements',
+      ),
+    ]),
+  fromModal: submit => {
+    const roleId = getModalFieldValue(submit.fields, 'setup_ann_role');
+    const channelId = getModalFieldValue(submit.fields, 'setup_ann_ch');
+    if (roleId && channelId) return { kind: 'complete', data: { roleId, channelId } };
+    // Preserves prior behavior: always saves a partial entry on the manual path,
+    // even if both fields are absent (resume-later state remains visible).
+    return { kind: 'partial', data: { roleId, channelId } };
+  },
+  apply: async (guildId, data) => {
+    const repo = AppDataSource.getRepository(AnnouncementConfig);
+    let config = await repo.findOneBy({ guildId });
+    if (!config) config = repo.create({ guildId });
+    config.defaultRoleId = data.roleId;
+    config.defaultChannelId = data.channelId;
+    await repo.save(config);
+
+    await seedDefaultTemplates(guildId);
+  },
+  toPartialData: data => ({ roleId: data.roleId, channelId: data.channelId }),
+};
+
+// --- Bait Channel ---
+
+interface BaitData {
+  channelId: string;
+  actionType: BaitActionType;
+  logChannelId?: string;
+  /** Auto-create defaults to `true` (safe-by-default); manual path leaves the column untouched. */
+  testMode: boolean;
+}
+
+const baitConfig: SimpleSystemConfig<BaitData, 'baitchannel'> = {
+  systemKey: 'baitchannel',
+  channelType: 'bait',
+  systemLabel: 'Bait Channel System',
+  loadingMessage: 'Creating bait channels...',
+  fromAutoCreate: created => {
+    if (!created.channel) return null;
+    return {
+      channelId: created.channel,
+      actionType: 'log-only',
+      logChannelId: created.log,
+      testMode: true,
+    };
+  },
+  buildModal: () =>
+    rawModal(`setup_bait_${Date.now()}`, 'Bait Channel Setup', [
+      labelWrap('Bait Channel', channelSelect('setup_bait_ch', [ChannelType.GuildText]), 'Channel for bot detection'),
+      labelWrap(
+        'Action Type',
+        radioGroup('setup_bait_action', [
+          { label: 'Ban', value: 'ban', description: 'Permanently ban the user', default: true },
+          { label: 'Kick', value: 'kick', description: 'Kick the user' },
+          { label: 'Timeout', value: 'timeout', description: 'Timeout the user' },
+          { label: 'Log Only', value: 'log-only', description: 'Just log, no action' },
+        ]),
+        'What happens when someone posts',
+      ),
+      labelWrap(
+        'Log Channel',
+        channelSelect('setup_bait_log', [ChannelType.GuildText], false),
+        'Optional channel for detection logs',
+      ),
+    ]),
+  fromModal: submit => {
+    const channelId = getModalFieldValue(submit.fields, 'setup_bait_ch');
+    if (!channelId) return { kind: 'insufficient' };
+    const rawAction = getModalFieldValue(submit.fields, 'setup_bait_action') || 'ban';
+    const actionType = VALID_BAIT_ACTIONS.includes(rawAction as BaitActionType) ? (rawAction as BaitActionType) : 'ban';
+    const logChannelId = getModalFieldValue(submit.fields, 'setup_bait_log') || undefined;
+    return {
+      kind: 'complete',
+      data: { channelId, actionType, logChannelId, testMode: false },
+    };
+  },
+  apply: async (guildId, data, { guild, client }) => {
     const repo = AppDataSource.getRepository(BaitChannelConfig);
     let config = await repo.findOneBy({ guildId });
-    if (!config) config = repo.create({ guildId, channelId });
-    config.channelId = channelId;
-    config.channelIds = [channelId];
-    config.actionType = actionType;
-    if (logChannelId) config.logChannelId = logChannelId;
+    if (!config) config = repo.create({ guildId, channelId: data.channelId });
+    config.channelId = data.channelId;
+    config.channelIds = [data.channelId];
+    config.actionType = data.actionType;
+    // Only set testMode when the auto-create path explicitly opts in. Manual
+    // path leaves the column at whatever it was (default false on create).
+    if (data.testMode) config.testMode = true;
+    if (data.logChannelId) config.logChannelId = data.logChannelId;
 
-    // Send warning message in the bait channel (matches auto-create path)
+    // Send warning message in the bait channel — must happen for both paths
+    // (silently skipping it on the manual path was the v3.0.5-fixed bug).
     try {
-      const guild = submit.guild!;
-      const baitChannel = (await guild.channels.fetch(channelId)) as TextChannel;
+      const baitChannel = (await guild.channels.fetch(data.channelId)) as TextChannel;
       const msg = await baitChannel.send({ content: BAIT_CHANNEL_WARNING });
       config.channelMessageId = msg.id;
     } catch {
       enhancedLogger.warn(
-        'Failed to send warning message to bait channel during existing-channel setup',
+        'Failed to send warning message to bait channel during setup',
         LogCategory.COMMAND_EXECUTION,
         { guildId },
       );
@@ -731,150 +735,76 @@ async function configureBaitChannel(
 
     await repo.save(config);
 
-    // Seed default keywords (matches auto-create path)
+    // Seed default keywords (also a v3.0.5 fix for both paths)
     try {
       const { seedDefaultKeywords } = await import('../baitChannel/keywords');
       await seedDefaultKeywords(guildId);
     } catch {
-      enhancedLogger.warn(
-        'Failed to seed default keywords during bait channel existing-channel setup',
-        LogCategory.COMMAND_EXECUTION,
-      );
+      enhancedLogger.warn('Failed to seed default keywords during bait channel setup', LogCategory.COMMAND_EXECUTION);
     }
 
     (client as ExtendedClient).baitChannelManager?.clearConfigCache(guildId);
+  },
+  toPartialData: data => ({
+    channelId: data.channelId,
+    actionType: data.actionType,
+    logChannelId: data.logChannelId,
+  }),
+};
 
-    const states = {
-      ...setupState.systemStates,
-      baitchannel: 'complete' as const,
-    };
-    await saveSetupState(setupState, states, {
-      baitchannel: { channelId, actionType, logChannelId },
-    });
-    await submit.deferUpdate();
-    return { updated: true, states };
-  }
+// --- Memory ---
 
-  await submit.deferUpdate();
-  return { updated: false, states: setupState.systemStates };
+interface MemoryData {
+  forumChannelId: string;
 }
 
-// --- Memory System ---
-
-async function configureMemory(
-  interaction: StringSelectMenuInteraction | ButtonInteraction,
-  _client: Client,
-  guildId: string,
-  setupState: SetupState,
-) {
-  // Step 1: Ask create or select existing
-  const choice = await askChannelChoice(interaction, 'Memory System', 'memory');
-  if (!choice) return { updated: false, states: setupState.systemStates };
-
-  if (choice.autoCreate) {
-    // Auto-create forum channel
-    await choice.btnInteraction.update({
-      content: '⏳ Creating memory forum channel...',
-      embeds: [],
-      components: [],
-    });
-    const guild = interaction.guild!;
-    const format = detectGuildChannelFormat(guild);
-    const created = await createSystemChannels(guild, 'memory', format);
-
-    const forumChannelId = created.forum;
-    if (forumChannelId) {
-      const repo = AppDataSource.getRepository(MemoryConfig);
-      let config = await repo.findOneBy({ guildId });
-      if (!config)
-        config = repo.create({
-          guildId,
-          forumChannelId,
-          channelName: 'memory',
-        });
-      else config.forumChannelId = forumChannelId;
-      await repo.save(config);
-
-      // Seed default forum tags + create welcome thread
-      try {
-        const forum = (await guild.channels.fetch(forumChannelId)) as ForumChannel;
-        await createDefaultMemoryTags(guildId, config.id, forum);
-
-        // Post welcome thread (matches memorySetup.ts postWelcomeThread)
-        const welcomeThread = await createMemoryWelcomeThread(forum);
-        if (welcomeThread) {
-          config.messageId = welcomeThread;
-          await repo.save(config);
-        }
-      } catch (_error) {
-        enhancedLogger.warn('Failed to seed default memory tags during auto-setup', LogCategory.COMMAND_EXECUTION, {
-          guildId,
-        });
-      }
-
-      const states = {
-        ...setupState.systemStates,
-        memory: 'complete' as const,
-      };
-      await saveSetupState(setupState, states, {
-        memory: { forumChannelId },
-      });
-      return { updated: true, states };
-    }
-
-    return { updated: false, states: setupState.systemStates };
-  }
-
-  // Step 2: Show modal for existing channel selection
-  const modal = rawModal(`setup_memory_${Date.now()}`, 'Memory System Setup', [
-    labelWrap(
-      'Memory Forum Channel',
-      channelSelect('setup_memory_forum', [ChannelType.GuildForum]),
-      'Forum channel for memory items',
-    ),
-  ]);
-
-  const submit = await showAndAwaitModal(choice.btnInteraction, modal);
-  if (!submit) return { updated: false, states: setupState.systemStates };
-
-  const forumChannelId = getModalFieldValue(submit.fields, 'setup_memory_forum');
-
-  if (forumChannelId) {
+const memoryConfig: SimpleSystemConfig<MemoryData, 'memory'> = {
+  systemKey: 'memory',
+  channelType: 'memory',
+  systemLabel: 'Memory System',
+  loadingMessage: 'Creating memory forum channel...',
+  fromAutoCreate: created => {
+    if (!created.forum) return null;
+    return { forumChannelId: created.forum };
+  },
+  buildModal: () =>
+    rawModal(`setup_memory_${Date.now()}`, 'Memory System Setup', [
+      labelWrap(
+        'Memory Forum Channel',
+        channelSelect('setup_memory_forum', [ChannelType.GuildForum]),
+        'Forum channel for memory items',
+      ),
+    ]),
+  fromModal: submit => {
+    const forumChannelId = getModalFieldValue(submit.fields, 'setup_memory_forum');
+    if (!forumChannelId) return { kind: 'insufficient' };
+    return { kind: 'complete', data: { forumChannelId } };
+  },
+  apply: async (guildId, data, { guild }) => {
     const repo = AppDataSource.getRepository(MemoryConfig);
     let config = await repo.findOneBy({ guildId });
-    if (!config) config = repo.create({ guildId, forumChannelId, channelName: 'memory' });
-    else config.forumChannelId = forumChannelId;
+    if (!config) config = repo.create({ guildId, forumChannelId: data.forumChannelId, channelName: 'memory' });
+    else config.forumChannelId = data.forumChannelId;
     await repo.save(config);
 
-    // Seed default forum tags + create welcome thread (matches auto-create path)
+    // Seed default forum tags + create welcome thread (matches both auto & manual paths).
     try {
-      const guild = submit.guild!;
-      const forum = (await guild.channels.fetch(forumChannelId)) as ForumChannel;
+      const forum = (await guild.channels.fetch(data.forumChannelId)) as ForumChannel;
       await createDefaultMemoryTags(guildId, config.id, forum);
 
-      // Post welcome thread (matches memorySetup.ts postWelcomeThread)
       const welcomeThread = await createMemoryWelcomeThread(forum);
       if (welcomeThread) {
         config.messageId = welcomeThread;
         await repo.save(config);
       }
     } catch (_error) {
-      enhancedLogger.warn(
-        'Failed to seed default memory tags during existing-channel setup',
-        LogCategory.COMMAND_EXECUTION,
-        { guildId },
-      );
+      enhancedLogger.warn('Failed to seed default memory tags during setup', LogCategory.COMMAND_EXECUTION, {
+        guildId,
+      });
     }
-
-    const states = { ...setupState.systemStates, memory: 'complete' as const };
-    await saveSetupState(setupState, states, { memory: { forumChannelId } });
-    await submit.deferUpdate();
-    return { updated: true, states };
-  }
-
-  await submit.deferUpdate();
-  return { updated: false, states: setupState.systemStates };
-}
+  },
+  toPartialData: data => ({ forumChannelId: data.forumChannelId }),
+};
 
 /**
  * Create default forum tags for a memory channel.
@@ -921,74 +851,6 @@ async function createDefaultMemoryTags(guildId: string, configId: number, forum:
   await memoryTagRepo.save(dbTags as MemoryTag[]);
 }
 
-// --- Rules Acknowledgment ---
-
-async function configureRules(
-  interaction: StringSelectMenuInteraction | ButtonInteraction,
-  _guildId: string,
-  setupState: SetupState,
-) {
-  // Step 1: Ask create or select existing
-  const choice = await askChannelChoice(interaction, 'Rules System', 'rules');
-  if (!choice) return { updated: false, states: setupState.systemStates };
-
-  if (choice.autoCreate) {
-    // Auto-create rules channel, default to ✅ emoji — user still needs /rules-setup for message + role
-    await choice.btnInteraction.update({
-      content: '⏳ Creating rules channel...',
-      embeds: [],
-      components: [],
-    });
-    const guild = interaction.guild!;
-    const format = detectGuildChannelFormat(guild);
-    const created = await createSystemChannels(guild, 'rules', format);
-
-    const channelId = created.channel;
-    if (channelId) {
-      const states = {
-        ...setupState.systemStates,
-        rules: 'partial' as const,
-      };
-      await saveSetupState(setupState, states, {
-        rules: { channelId, emoji: '✅' },
-      });
-      return { updated: true, states };
-    }
-
-    return { updated: false, states: setupState.systemStates };
-  }
-
-  // Step 2: Show modal for existing channel + role selection
-  const modal = rawModal(`setup_rules_${Date.now()}`, 'Rules Setup', [
-    labelWrap(
-      'Rules Channel',
-      channelSelect('setup_rules_ch', [ChannelType.GuildText]),
-      'Channel for the rules message',
-    ),
-    labelWrap('Verified Role', roleSelect('setup_rules_role'), 'Role to give when user accepts rules'),
-  ]);
-
-  const submit = await showAndAwaitModal(choice.btnInteraction, modal);
-  if (!submit) return { updated: false, states: setupState.systemStates };
-
-  const channelId = getModalFieldValue(submit.fields, 'setup_rules_ch');
-  const roleId = getModalFieldValue(submit.fields, 'setup_rules_role');
-
-  if (channelId && roleId) {
-    const states = { ...setupState.systemStates, rules: 'partial' as const };
-    await saveSetupState(setupState, states, {
-      rules: { channelId, roleId, emoji: '✅' },
-    });
-    await submit.deferUpdate();
-    return { updated: true, states };
-  }
-
-  await submit.deferUpdate();
-  return { updated: false, states: setupState.systemStates };
-}
-
-// --- Memory Welcome Thread ---
-
 /**
  * Create a pinned welcome thread in a memory forum channel.
  * Matches the logic in memorySetup.ts postWelcomeThread().
@@ -1015,6 +877,62 @@ async function createMemoryWelcomeThread(forum: ForumChannel): Promise<string | 
     return null;
   }
 }
+
+// --- Rules Acknowledgment ---
+
+interface RulesData {
+  channelId: string;
+  emoji: string;
+  roleId?: string;
+}
+
+// Rules is intentionally two-stage: /bot-setup captures channel + role, then
+// /rules-setup wires the message + role binding. Always saved as 'partial'.
+const rulesConfig: SimpleSystemConfig<RulesData, 'rules'> = {
+  systemKey: 'rules',
+  channelType: 'rules',
+  systemLabel: 'Rules System',
+  loadingMessage: 'Creating rules channel...',
+  fromAutoCreate: created => {
+    if (!created.channel) return null;
+    return { channelId: created.channel, emoji: '✅' };
+  },
+  buildModal: () =>
+    rawModal(`setup_rules_${Date.now()}`, 'Rules Setup', [
+      labelWrap(
+        'Rules Channel',
+        channelSelect('setup_rules_ch', [ChannelType.GuildText]),
+        'Channel for the rules message',
+      ),
+      labelWrap('Verified Role', roleSelect('setup_rules_role'), 'Role to give when user accepts rules'),
+    ]),
+  fromModal: submit => {
+    const channelId = getModalFieldValue(submit.fields, 'setup_rules_ch');
+    const roleId = getModalFieldValue(submit.fields, 'setup_rules_role');
+    if (!channelId || !roleId) return { kind: 'insufficient' };
+    // Both fields present, but rules still needs /rules-setup — save as partial.
+    return { kind: 'partial', data: { channelId, roleId, emoji: '✅' } };
+  },
+  apply: async () => {
+    // No-op: rules has no DB save during /bot-setup. /rules-setup handles
+    // the message + role wiring. Auto-create reaches here with finalState='partial'.
+  },
+  toPartialData: data => ({
+    channelId: data.channelId,
+    emoji: data.emoji,
+    ...(data.roleId ? { roleId: data.roleId } : {}),
+  }),
+  finalState: 'partial',
+};
+
+// --- Simple system descriptor table ---
+
+const SIMPLE_SYSTEM_CONFIGS: { [K in SimpleSystemKey]: SimpleSystemConfig<any, K> } = {
+  announcement: announcementConfig,
+  baitchannel: baitConfig,
+  memory: memoryConfig,
+  rules: rulesConfig,
+};
 
 // --- Field Value Extraction ---
 

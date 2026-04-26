@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.11] - 2026-04-26
+
+Simple-system descriptor — landed the first of two commits deferred from v3.1.10. The four bespoke configure flows in `src/commands/handlers/botSetup/systemFlows.ts` (`configureAnnouncement`, `configureBaitChannel`, `configureMemory`, `configureRules`) now route through one shared `runSimpleSystemFlow` driver + per-system `SimpleSystemConfig` descriptors, mirroring the `ForumSystemConfig` / `configureForumSystem` pattern that ticket and application have used since v3.0.0. The remaining deferred commit (botReset collector collapse) is unaffected by this change and stays handed off.
+
+### Changed
+
+- **`SimpleSystemConfig<TData, K>` descriptor + `runSimpleSystemFlow` driver** — new shared shape under `botSetup/systemFlows.ts`. Each descriptor carries `systemKey` (SetupState key), `channelType` (channelDefaults key — note `'bait'` vs `'baitchannel'`), `systemLabel`, `loadingMessage`, `fromAutoCreate(created, guild) -> TData | null`, `buildModal()`, `fromModal(submit) -> {kind: 'complete' | 'partial' | 'insufficient', data?}`, `apply(guildId, data, ctx)`, `toPartialData(data)`, and optional `finalState` (defaults to `'complete'`; rules uses `'partial'`). The driver folds the auto-create vs manual branches, calls `apply` only on the complete path, and skips state writes on the insufficient path.
+- **Four simple-system descriptors** — `announcementConfig`, `baitConfig`, `memoryConfig`, `rulesConfig`. `runSystemFlow` now does a `SIMPLE_SYSTEM_CONFIGS[systemId]` lookup before falling through to the existing `staffRole` / `ticket` / `application` / `reactionRole` switch.
+- **Behavior preserved across the refactor** — bait-channel warning send and default-keyword seed run on both auto-create and manual paths (the v3.0.5 fix); memory default forum tags and welcome thread also run on both paths; `baitChannelManager.clearConfigCache(guildId)` still invalidates after bait save; rules is still a two-stage system (`finalState: 'partial'`, `apply` is a deliberate no-op so the channel is recorded but the message + role wiring is left for `/rules-setup`); the announcement manual path still saves an empty partial when both fields are absent so resume-later state stays visible. Auto-create defaults for bait stay at `actionType: 'log-only'` + `testMode: true`; manual leaves `testMode` at the column default. `getModalFieldValue` and `saveSetupState` helpers unchanged.
+
+### Deferred
+
+- **botReset collector collapse (planned Commit 8 of v3.1.10)** — was always optional in the v3.1.10 parent handoff and contingent on this commit landing cleanly. Stays handed off in the same v3.1.10 deferred-handoff file. Verification plan in that file is still good as written.
+
+### Notes
+
+- File LOC: `systemFlows.ts` 1051 → 968 (net 83 removed; +299 / -381 churn). The handoff predicted 150 to 200 net removal but kept all helpers and added `SimpleSystemConfig` plus `runSimpleSystemFlow` plus four typed descriptor objects, which puts the net closer to 80.
+- Test count: 1071 → 1071. Build clean. Biome clean except for the pre-existing `Function` type warning in `lazyRepo.ts:29`.
+- No new dependencies, no migrations, no changes to external API surface, no changes to user-facing dashboard copy or modal field IDs.
+
 ## [3.1.10] - 2026-04-24
 
 Design-coherence dispatcher split — landed Commits 1–6 of the eight planned in `.plans/2026-04-24/handoffs/v3.1.9-design-coherence-dispatcher-split.md`. The interaction-dispatch layer that had been ranked 78.5 in the post-v3.1.8 blind review now mirrors the route-table pattern that the command-dispatch layer (`TICKET_GROUP_ROUTES`, `COMMAND_ROUTES`) uses cleanly. Commits 7 (SimpleSystemConfig descriptor) and 8 (botReset collector collapse) deferred — see `.plans/2026-04-24/handoffs/v3.1.10-deferred-simple-system-and-botreset.md`.
