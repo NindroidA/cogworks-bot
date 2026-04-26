@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.12] - 2026-04-26
+
+botReset collector collapse — landed the second of two commits deferred from v3.1.10. The 3-deep nested collector state machine in `src/commands/handlers/botReset.ts` (stage 1 collector spawning stage 2 collector spawning stage 3 collector spawning the actual reset work) now reads as a flat sequential script: stage 1 → stage 2 → stage 3 → execute. All three deferred commits originally planned out of v3.1.10 (Commits 1–6 shipped in v3.1.10, Commit 7 in v3.1.11, Commit 8 in this patch) are now complete.
+
+### Changed
+
+- **Flat sequential `botResetHandler`** — replaces the nested `collector.on('collect', ...)` callback pyramid with three sequential `await awaitButtonChoice(...)` calls. Each stage builds its own embed + button row inline, awaits the user's click, and either branches (cancel / timeout) or falls through to the next stage. After the third confirmation the handler calls `executeReset(...)` and the function ends.
+- **New tiny inline helpers in botReset.ts** — `awaitButtonChoice(reply, userId, timeout)` is a one-liner around `Message.awaitMessageComponent({ filter, componentType: ComponentType.Button, time })` that returns the `ButtonInteraction` (un-acknowledged so the caller can `update()` it) or `null` on timeout. `notifyTimedOut(interaction)` does the editReply with the "Reset timed out." copy in a try/catch. Both are file-private — no new exports, no new files under `utils/`.
+- **`executeReset(client, interaction, guildId, saveData)` extracted** — the ~130-line body that was previously buried 3 levels deep inside the third collector now lives as its own helper at the bottom of the file. Same six steps (compile + DM archive if `saveData`, cleanup messages, clear caches, purge DB, unregister guild commands, post summary embed). All side-effect ordering is preserved: archive DM lands before purge, command unregistration runs after final confirmation, the `globalCommandsCleaned` audit signal is unchanged.
+
+### Notes
+
+- The original handoff suggested chaining `awaitConfirmation()` calls from `src/utils/interactions/confirmHelper.ts`. That helper does not fit here for two reasons: it calls `interaction.reply(...)` internally (so chaining would throw on the second call against an already-replied interaction), and it only supports a binary confirm / cancel pair (Stage 2 of `/bot-reset` is a 3-way prompt: Save Data First / No, Delete Everything / Cancel). The inline `awaitButtonChoice` helper achieves the same flatness without changing the public `confirmHelper` API or forcing Stage 2 into a binary shape.
+- File LOC: `botReset.ts` 370 → 349 (net 21 removed). The handoff predicted "~150 LOC reorganization" rather than removal — most of the savings came from collapsing the nested `collector.on('end', ...)` timeout handlers (one per stage) into a single `notifyTimedOut` and a uniform null-return contract on `awaitButtonChoice`.
+- All confirmation copy, button labels, button styles (Danger / Primary / Secondary), button order, and stage-3 timeout (30s vs 60s for stages 1 and 2) preserved exactly. The DM-failure path still shows the "DM Failed" embed and proceeds with the reset, and the archive-too-large path still aborts with the existing copy pointing the operator at `/data-export`.
+- Tests 1071 → 1071. Build clean. Biome clean except for the pre-existing `Function` type warning in `lazyRepo.ts:29`.
+- End-to-end dev-bot verification (3 confirmations through to a real guild reset, plus the cancel-at-each-stage and timeout-at-each-stage and DMs-blocked paths) is still the recommended pre-ship check per the original handoff, since unit tests cannot exercise interactive Discord flows.
+
 ## [3.1.11] - 2026-04-26
 
 Simple-system descriptor — landed the first of two commits deferred from v3.1.10. The four bespoke configure flows in `src/commands/handlers/botSetup/systemFlows.ts` (`configureAnnouncement`, `configureBaitChannel`, `configureMemory`, `configureRules`) now route through one shared `runSimpleSystemFlow` driver + per-system `SimpleSystemConfig` descriptors, mirroring the `ForumSystemConfig` / `configureForumSystem` pattern that ticket and application have used since v3.0.0. The remaining deferred commit (botReset collector collapse) is unaffected by this change and stays handed off.
