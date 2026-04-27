@@ -12,7 +12,7 @@ import {
   buildErrorMessage,
   E,
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   LogCategory,
   lang,
   RateLimits,
@@ -101,7 +101,7 @@ async function executeMemoryDeletion(
 }
 
 export async function memoryDeleteHandler(interaction: ChatInputCommandInteraction) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'memory', 'manage', {
     action: 'memory-delete',
     limit: RateLimits.MEMORY_OPERATION,
     scope: 'userGuild',

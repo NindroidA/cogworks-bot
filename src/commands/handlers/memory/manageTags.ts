@@ -13,7 +13,7 @@ import {
   Colors,
   E,
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   healthMonitor,
   LogCategory,
   lang,
@@ -603,7 +603,7 @@ export async function memoryTagAutocomplete(interaction: AutocompleteInteraction
 
 export async function manageTagsHandler(interaction: ChatInputCommandInteraction, subcommand: string) {
   const startTime = Date.now();
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'memory', 'manage', {
     action: 'memory-setup',
     limit: RateLimits.BOT_SETUP,
     scope: 'guild',

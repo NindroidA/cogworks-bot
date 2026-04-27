@@ -19,7 +19,7 @@ import {
   Colors,
   E,
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   LogCategory,
   lang,
   RateLimits,
@@ -32,7 +32,7 @@ const tl = lang.memory;
 const memoryTagRepo = lazyRepo(MemoryTag);
 
 export async function memoryTagsHandler(interaction: ChatInputCommandInteraction) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'memory', 'manage', {
     action: 'memory-tags',
     limit: RateLimits.MEMORY_OPERATION,
     scope: 'userGuild',

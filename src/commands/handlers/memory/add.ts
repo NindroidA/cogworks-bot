@@ -13,7 +13,7 @@ import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
   E,
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   LogCategory,
   lang,
   RateLimits,
@@ -29,7 +29,7 @@ const memoryTagRepo = lazyRepo(MemoryTag);
 const memoryItemRepo = lazyRepo(MemoryItem);
 
 export async function memoryAddHandler(interaction: ChatInputCommandInteraction) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'memory', 'manage', {
     action: 'memory-add',
     limit: RateLimits.MEMORY_OPERATION,
     scope: 'userGuild',

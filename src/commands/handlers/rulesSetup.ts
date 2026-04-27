@@ -11,8 +11,8 @@ import {
   Colors,
   cleanupOldMessage,
   enhancedLogger,
-  guardAdmin,
-  guardAdminRateLimit,
+  guardFeatureAccess,
+  guardFeatureRateLimit,
   LogCategory,
   lang,
   RateLimits,
@@ -42,7 +42,7 @@ export async function rulesSetupHandler(client: Client, interaction: ChatInputCo
 }
 
 async function handleSetup(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'rules', 'manage', {
     action: 'rules-setup',
     limit: RateLimits.ANNOUNCEMENT_SETUP,
     scope: 'guild',
@@ -160,8 +160,7 @@ async function handleSetup(_client: Client, interaction: ChatInputCommandInterac
 }
 
 async function handleView(interaction: ChatInputCommandInteraction<CacheType>) {
-  // Require admin permissions
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'rules', 'use');
   if (!guard.allowed) return;
 
   if (!interaction.guildId) return;
@@ -194,8 +193,7 @@ async function handleView(interaction: ChatInputCommandInteraction<CacheType>) {
 }
 
 async function handleRemove(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
-  // Require admin permissions
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'rules', 'manage');
   if (!guard.allowed) return;
 
   if (!interaction.guildId) return;

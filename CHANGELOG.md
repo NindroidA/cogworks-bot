@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.20] - 2026-04-27
+
+Feature-permission migration: rules — fourth feature commit. All 3 guard call sites in `src/commands/handlers/rulesSetup.ts` migrated.
+
+### Changed
+
+- **`handleSetup`** (`/rules-setup setup`) → `guardFeatureRateLimit(interaction, 'rules', 'manage', ...)` (preserves the existing rate-limit on rules config setup).
+- **`handleView`** (`/rules-setup view`) → `guardFeatureAccess(interaction, 'rules', 'use')` — read-only.
+- **`handleRemove`** (`/rules-setup remove`) → `guardFeatureAccess(interaction, 'rules', 'manage')` — config delete is normal CRUD (re-creatable), not GDPR-scoped.
+
+### Notes
+
+- Tests 1133 → 1133. Build + biome clean (only pre-existing `Function` warning in `lazyRepo.ts:29`).
+- 8 features remain in the migration queue: onboarding, automod, events, reactionroles, announcements, analytics, baitchannel, tickets.
+
+## [3.1.19] - 2026-04-27
+
+Feature-permission migration: xp — third feature commit. Both guard call sites in `src/commands/handlers/xp/index.ts` migrated from `guardAdmin` to `guardFeatureAccess`.
+
+### Changed
+
+- **`xpSetupCommandHandler`** (`/xp-setup` → setup subcommands) → `guardFeatureAccess(interaction, 'xp', 'manage')`.
+- **`xpAdminCommandHandler`** (`/xp` → set / reset / reset-all subcommands) → `guardFeatureAccess(interaction, 'xp', 'admin')`. Picked `'admin'` because the `reset-all` subcommand is GDPR-scoped (wipes all guild XP). Per-subcommand granularity (e.g. `set` at manage, `reset-all` at admin) would require moving the guard into each subcommand handler — explicitly noted in the JSDoc as out of scope for this migration commit.
+
+### Notes
+
+- `rankCommandHandler` and `leaderboardCommandHandler` had no guard (any user can run); left as-is.
+- Tests 1133 → 1133. Build + biome clean (only pre-existing `Function` warning in `lazyRepo.ts:29`).
+- 9 features remain in the migration queue: rules, onboarding, automod, events, reactionroles, announcements, analytics, baitchannel, tickets.
+
+## [3.1.18] - 2026-04-27
+
+Feature-permission migration: starboard — second feature commit of the v3.1.x feature-permission-migration handoff. All 5 starboard guard call sites now use `guardFeatureAccess(interaction, 'starboard', 'manage')`.
+
+### Changed
+
+- **`src/commands/handlers/starboard/ignore.ts`** — `starboardIgnoreHandler` and `starboardUnignoreHandler` swap `guardAdmin` for `guardFeatureAccess`.
+- **`src/commands/handlers/starboard/setup.ts`** — `starboardSetupHandler`, `starboardConfigHandler`, and `starboardToggleHandler` swap `guardAdmin` for `guardFeatureAccess`.
+
+### Notes
+
+- All 5 sites use `'manage'` level — channel ignore-list mutations + per-guild config mutations are normal CRUD.
+- `random.ts` and `stats.ts` (read-only commands) had no guard; left as-is.
+- Tests 1133 → 1133. Build + biome clean (only pre-existing `Function` warning in `lazyRepo.ts:29`).
+- 10 features remain in the migration queue: xp, rules, onboarding, automod, events, reactionroles, announcements, analytics, baitchannel, tickets.
+
+## [3.1.17] - 2026-04-27
+
+Feature-permission migration begins — first commit of the v3.1.x feature-permission-migration handoff. Adds the `guardFeatureRateLimit` helper (Option B from the handoff — combined feature-permission + rate limit guard) and migrates all 9 `/memory` handlers to use it. Webapp permission UI for the `memory` feature is now load-bearing instead of ignored at runtime.
+
+### Added
+
+- **`guardFeatureRateLimit(interaction, feature, level, options)`** in `src/utils/interactions/guardHelper.ts` — drop-in replacement for `guardAdminRateLimit` once a handler has been migrated. Same return shape, same `GuardOptions` (action, limit, scope, skipAdmin). Uses `hasFeatureAccess` internally so unconfigured guilds still fall back to admin-only (preserves legacy behavior).
+- Barrel export added to `src/utils/interactions/index.ts` for `guardFeatureAccess` (was missing) and the new `guardFeatureRateLimit`.
+
+### Changed
+
+- **9 memory handlers** migrated from `guardAdminRateLimit` to `guardFeatureRateLimit(interaction, 'memory', 'manage', ...)`: `add.ts`, `capture.ts`, `delete.ts`, `update.ts`, `updateTags.ts`, `updateStatus.ts`, `manageTags.ts`, `tags.ts`. Rate-limit configuration (action key, RateLimits constant, scope) preserved per handler. Level chosen as `'manage'` for all memory operations — they're per-item mutations and the handoff reserves `'admin'` for genuinely destructive or GDPR-scoped operations like `/bot-reset` (single-item delete is normal CRUD).
+
+### Notes
+
+- Tests 1133 → 1133 (no test changes; existing `featurePermission.test.ts` covers the unconfigured-guild fallback).
+- Build clean. Biome clean except for the pre-existing `Function` type warning in `lazyRepo.ts:29`.
+- 11 features remain in the migration queue: starboard, xp, rules, onboarding, automod, events, reactionroles, announcements, analytics, baitchannel, tickets. Each gets its own commit per the handoff.
+
 ## [3.1.16] - 2026-04-26
 
 Fake-timer migration — Commit 6 of the v3.1.9 test-orchestration handoff. Replaces 6 real wall-clock `setTimeout(60)` waits in window-expiry tests with Bun's `setSystemTime()` time-jumps. Suite runtime drops ~50% (1467ms → 745ms on the developer machine) and eliminates the flake risk from real-timer races on slow CI.

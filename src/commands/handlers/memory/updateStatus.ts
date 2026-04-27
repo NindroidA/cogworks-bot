@@ -5,7 +5,7 @@ import {
   Colors,
   E,
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   healthMonitor,
   LogCategory,
   lang,
@@ -20,7 +20,7 @@ const memoryItemRepo = lazyRepo(MemoryItem);
 
 export async function memoryUpdateStatusHandler(interaction: ChatInputCommandInteraction) {
   const startTime = Date.now();
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'memory', 'manage', {
     action: 'memory-update-status',
     limit: RateLimits.MEMORY_OPERATION,
     scope: 'userGuild',

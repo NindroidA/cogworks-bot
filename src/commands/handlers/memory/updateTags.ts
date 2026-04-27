@@ -1,7 +1,7 @@
 import type { ChatInputCommandInteraction, ForumChannel, MessageComponentInteraction, ThreadChannel } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import { MemoryConfig, MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
-import { E, enhancedLogger, guardAdminRateLimit, healthMonitor, LogCategory, lang, RateLimits } from '../../../utils';
+import { E, enhancedLogger, guardFeatureRateLimit, healthMonitor, LogCategory, lang, RateLimits } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { createDefaultSelectionState, runTagSelectionCollector, type TagSelectionState } from './tagSelection';
 
@@ -12,7 +12,7 @@ const memoryItemRepo = lazyRepo(MemoryItem);
 
 export async function memoryUpdateTagsHandler(interaction: ChatInputCommandInteraction) {
   const startTime = Date.now();
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'memory', 'manage', {
     action: 'memory-update-tags',
     limit: RateLimits.MEMORY_OPERATION,
     scope: 'userGuild',

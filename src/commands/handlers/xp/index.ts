@@ -1,16 +1,16 @@
 import type { ChatInputCommandInteraction, Client } from 'discord.js';
-import { guardAdmin, handleInteractionError } from '../../../utils';
+import { guardFeatureAccess, handleInteractionError } from '../../../utils';
 import { xpAdminHandler } from './admin';
 import { leaderboardHandler } from './leaderboard';
 import { rankHandler } from './rank';
 import { xpSetupHandler } from './setup';
 
 /**
- * /xp-setup handler — admin only, routes to setup subcommands
+ * /xp-setup handler — feature-gated (manage), routes to setup subcommands
  */
 export async function xpSetupCommandHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'xp', 'manage');
     if (!guard.allowed) return;
 
     if (!interaction.guildId) return;
@@ -22,11 +22,14 @@ export async function xpSetupCommandHandler(client: Client, interaction: ChatInp
 }
 
 /**
- * /xp handler — admin only, routes to admin subcommands (set/reset/reset-all)
+ * /xp handler — feature-gated (admin) because the `reset-all` subcommand is
+ * GDPR-scoped (wipes all guild XP). Per-subcommand granularity (e.g. `set`
+ * at manage, `reset-all` at admin) would require moving the guard into
+ * each handler — out of scope for this migration commit.
  */
 export async function xpAdminCommandHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'xp', 'admin');
     if (!guard.allowed) return;
 
     if (!interaction.guildId) return;

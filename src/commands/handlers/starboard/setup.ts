@@ -1,7 +1,7 @@
 import type { CacheType, ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import { StarboardConfig } from '../../../typeorm/entities/starboard';
-import { formatLang, guardAdmin, handleInteractionError, lang } from '../../../utils';
+import { formatLang, guardFeatureAccess, handleInteractionError, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const configRepo = lazyRepo(StarboardConfig);
@@ -12,7 +12,7 @@ const tl = lang.starboard;
  */
 export async function starboardSetupHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'starboard', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
@@ -53,7 +53,7 @@ export async function starboardSetupHandler(interaction: ChatInputCommandInterac
  */
 export async function starboardConfigHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'starboard', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
@@ -113,7 +113,7 @@ export async function starboardConfigHandler(interaction: ChatInputCommandIntera
  */
 export async function starboardToggleHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'starboard', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;

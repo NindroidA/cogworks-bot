@@ -7,5 +7,7 @@ export {
   type GuardResult,
   guardAdmin,
   guardAdminRateLimit,
+  guardFeatureAccess,
+  guardFeatureRateLimit,
 } from './guardHelper';
 export { showAndAwaitModal } from './modalHelper';

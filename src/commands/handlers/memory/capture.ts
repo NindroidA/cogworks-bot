@@ -16,7 +16,7 @@ import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
   E,
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   LogCategory,
   lang,
   RateLimits,
@@ -118,7 +118,7 @@ async function resolveTargetMessage(
 }
 
 export async function memoryCaptureHandler(interaction: ChatInputCommandInteraction) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'memory', 'manage', {
     action: 'memory-capture',
     limit: RateLimits.MEMORY_OPERATION,
     scope: 'userGuild',

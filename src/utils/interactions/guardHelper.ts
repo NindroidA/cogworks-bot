@@ -143,3 +143,72 @@ export async function guardFeatureAccess(
 
   return { allowed: true };
 }
+
+/**
+ * Combined feature-permission + rate limit guard.
+ * Drop-in replacement for `guardAdminRateLimit` once a handler has been
+ * migrated to the v3.1.3 feature permission system. Same return shape and
+ * options. Unconfigured guilds still fall back to admin-only via
+ * `hasFeatureAccess`.
+ *
+ * @example
+ * const guard = await guardFeatureRateLimit(interaction, 'memory', 'manage', {
+ *   action: 'memory-add',
+ *   limit: RateLimits.MEMORY_ADD,
+ * });
+ * if (!guard.allowed) return;
+ */
+export async function guardFeatureRateLimit(
+  interaction: Interaction,
+  feature: Feature,
+  requiredLevel: Level,
+  options: GuardOptions,
+): Promise<GuardResult> {
+  if (!interaction.isRepliable()) {
+    enhancedLogger.warn('guardFeatureRateLimit called with non-repliable interaction', LogCategory.COMMAND_EXECUTION);
+    return { allowed: false };
+  }
+
+  // Feature permission check (replaces the admin check in guardAdminRateLimit)
+  if (!options.skipAdmin) {
+    const featureCheck = await hasFeatureAccess(interaction, feature, requiredLevel);
+    if (!featureCheck.allowed) {
+      await interaction.reply({
+        content: featureCheck.message ?? "❌ You don't have permission to use this command.",
+        flags: [MessageFlags.Ephemeral],
+      });
+      return { allowed: false };
+    }
+  }
+
+  // Rate limit check — identical shape to guardAdminRateLimit
+  const guildId = interaction.guildId;
+  const userId = interaction.user.id;
+  const scope = options.scope ?? 'user';
+
+  let key: string;
+  switch (scope) {
+    case 'guild':
+      if (!guildId) return { allowed: false };
+      key = createRateLimitKey.guild(guildId, options.action);
+      break;
+    case 'userGuild':
+      if (!guildId) return { allowed: false };
+      key = createRateLimitKey.userGuild(userId, guildId, options.action);
+      break;
+    default:
+      key = createRateLimitKey.user(userId, options.action);
+  }
+
+  const rateCheck = rateLimiter.check(key, options.limit);
+  if (!rateCheck.allowed) {
+    await interaction.reply({
+      content: rateCheck.message || 'Rate limit exceeded. Please try again later.',
+      flags: [MessageFlags.Ephemeral],
+    });
+    enhancedLogger.rateLimit(`Rate limit hit: ${options.action}`, userId, guildId ?? 'unknown');
+    return { allowed: false };
+  }
+
+  return { allowed: true };
+}
