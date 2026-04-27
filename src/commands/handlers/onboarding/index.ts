@@ -10,7 +10,7 @@ import { OnboardingConfig } from '../../../typeorm/entities/onboarding/Onboardin
 import {
   enhancedLogger,
   formatLang,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   handleInteractionError,
   lang,
   RateLimits,
@@ -24,7 +24,11 @@ const tl = onboardingLang;
 
 export async function onboardingHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   try {
-    const guard = await guardAdminRateLimit(interaction, {
+    // Dispatcher-level guard: 'manage' covers the mutating subcommands
+    // (enable/disable/welcome-message/completion-role/step-add/step-remove/
+    // resend). Read-only subcommands (step-list/stats/preview) inherit the
+    // same level — per-subcommand granularity is out of scope here.
+    const guard = await guardFeatureRateLimit(interaction, 'onboarding', 'manage', {
       action: 'onboarding',
       limit: RateLimits.ANNOUNCEMENT_SETUP,
       scope: 'guild',

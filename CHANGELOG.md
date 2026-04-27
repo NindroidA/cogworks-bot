@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.21] - 2026-04-27
+
+Feature-permission migration: onboarding — fifth feature commit. Single dispatcher-level guard in `src/commands/handlers/onboarding/index.ts` migrated.
+
+### Changed
+
+- **`onboardingHandler`** (10 subcommands: enable/disable/welcome-message/completion-role/step-add/step-remove/step-list/stats/preview/resend) → `guardFeatureRateLimit(interaction, 'onboarding', 'manage', ...)`. Picked `'manage'` because most subcommands mutate config; the read-only ones (step-list/stats/preview) inherit the same level. Per-subcommand granularity (use vs manage) explicitly noted in a comment as out of scope for this migration commit.
+
+### Notes
+
+- Tests 1133 → 1133. Build + biome clean (only pre-existing `Function` warning in `lazyRepo.ts:29`).
+- 7 features remain: automod, events, reactionroles, announcements, analytics, baitchannel, tickets.
+
 ## [3.1.20] - 2026-04-27
 
 Feature-permission migration: rules — fourth feature commit. All 3 guard call sites in `src/commands/handlers/rulesSetup.ts` migrated.
