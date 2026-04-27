@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.15] - 2026-04-26
+
+BaitChannelManager behavioral coverage — Commit 4 of the v3.1.9 test-orchestration handoff. Adds 23 tests against the previously-zero-coverage 1652-LOC monster. Targets the pure logic and caching paths the handoff prioritized; the heavier message-pipeline methods (`analyzeSuspicion`, `executeAction`, `initiateGracePeriod`) stay deferred since they touch Discord APIs + cross-module state in ways that need integration-test infrastructure.
+
+### Added
+
+- **`tests/unit/utils/baitChannel/baitChannelManager.test.ts`** (23 tests, no source changes):
+  - **`determineAction`** (6 tests) — `enableEscalation: false` always returns `config.actionType`; `enableEscalation: true` walks the timeout (50) / kick (75) / ban (90) thresholds with default and custom values, including boundary checks at each threshold.
+  - **`checkWhitelist`** (6 tests) — server owner (highest precedence), `whitelistedUsers` list, `whitelistedRoles` match (with role name in the reason string), administrator default-whitelist, `disableAdminWhitelist` test-mode override, and the "none of the above" fall-through.
+  - **`getConfig` caching** (5 tests) — cache miss → fetch + cache, cache hit → skips DB, null DB result is intentionally NOT cached (so subsequent calls re-query), DB error returns null without throwing, `clearConfigCache(guildId)` invalidates only the named guild.
+  - **`getKeywords` caching** (5 tests) — same shape as getConfig, plus the no-`keywordRepo` path returns `[]` without throwing.
+  - **`setJoinVelocityTracker`** (1 test) — assignment behavior.
+
+### Notes
+
+- BaitChannelManager's constructor is fully DI'd (`client + 5 repos`), so tests instantiate the class directly with fake repos. No `AppDataSource.getRepository` patch needed (unlike the API-handler and closeWorkflow test files).
+- Private methods accessed via `(manager as any).method(...)` cast — the alternative would be exposing a `__testing` object on the SUT, which is scope creep this commit avoids.
+- Test count: 1110 → 1133 (+23).
+- Build clean. Biome clean except for the pre-existing `Function` type warning in `lazyRepo.ts:29`.
+- v3.1.9 test-orchestration handoff status: Commits 1, 4, 5 done. Remaining: integration tests (3), fake-timer migration (6), and the deferred dispatcher rewrite (2).
+
 ## [3.1.14] - 2026-04-26
 
 API handler behavioral coverage — Commit 5 of the v3.1.9 test-orchestration-layer handoff (Commit 2 deferred — see notes). Adds 33 behavioral tests across the four high-value API handlers the handoff named: ticketHandlers, applicationHandlers, setupHandlers, analyticsHandlers. Reuses the AppDataSource.getRepository runtime patch pattern that v3.1.13 established for closeWorkflow.
