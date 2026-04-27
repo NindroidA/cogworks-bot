@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.14] - 2026-04-26
+
+API handler behavioral coverage — Commit 5 of the v3.1.9 test-orchestration-layer handoff (Commit 2 deferred — see notes). Adds 33 behavioral tests across the four high-value API handlers the handoff named: ticketHandlers, applicationHandlers, setupHandlers, analyticsHandlers. Reuses the AppDataSource.getRepository runtime patch pattern that v3.1.13 established for closeWorkflow.
+
+### Added
+
+- **`tests/unit/utils/api/ticketHandlers.test.ts`** (6 tests) — POST /tickets/:id/close: happy path with audit log, 404 not-found, 409 already-closed, 404 missing archive config, channel-not-text-based path returns archived: false without calling archiveAndCloseTicket, propagation of archived: false from the workflow.
+- **`tests/unit/utils/api/applicationHandlers.test.ts`** (11 tests) — POST /applications/:id/{approve,deny,archive}: happy paths, triggeredBy → approvedBy/deniedBy fallback, 404/409 error paths, channel-not-text-based skips message send but still flips status + writes audit, archive propagates the honest archived flag.
+- **`tests/unit/utils/api/setupHandlers.test.ts`** (8 tests) — POST /setup/toggle: disable/enable on existing state, the all-systems-enabled → null collapse, no-op when toggling something not in the set, auto-creates SetupState with detected DB defaults when none exists, body-validation rejection. POST /setup/systems: replaces selectedSystems on existing state, creates state when none exists, omitted enabledSystems → null.
+- **`tests/unit/utils/api/analyticsHandlersOverview.test.ts`** (8 tests) — GET /analytics/overview: aggregates current window + computes pctChange vs previous window, aggregates topChannels across days and caps at 5, empty current window returns zeroes (no 404), zero-previous + non-zero-current returns the em-dash sentinel, ?days= override + clamp at MAX_RANGE_DAYS, 400 on bad ?days values. Companion to the existing analyticsHandlers.test.ts which covers the pure helpers.
+
+### Changed
+
+- **Test-only mocking pattern repeated from v3.1.13** — every API handler test patches `AppDataSource.getRepository` in `beforeAll` to return a per-entity fake repo, then dynamically imports the SUT. Bun's per-file `mock.module` is reserved for non-repo deps (closeWorkflow helpers, auditHelper). One new wrinkle in setupHandlers: the fake `create`/`save` methods clone their inputs because the SUT mutates `state.selectedSystems` after the initial create+save and saves again (sharing the same object reference). Without cloning, captured snapshots would bleed the final value into earlier ones.
+
+### Notes
+
+- Test count: 1077 → 1110 (+33).
+- Build clean. Biome clean except for the pre-existing `Function` type warning in `lazyRepo.ts:29`.
+- **Commit 2 of the test-orchestration handoff is deferred** — replacing the over-mocked `ticketInteraction.test.ts` and `applicationInteraction.test.ts` requires either SUT changes (the dispatcher's `BUTTON_ROUTES` table captures handler function references at module-load, which Bun's per-file `mock.module` can't retroactively replace in the multi-file suite) or per-handler test files for each extracted module. Both are larger scopes than fit one session and don't have the closeWorkflow workaround equivalent (no Proxy/runtime indirection layer for the dispatcher).
+- Remaining v3.1.9 test-orchestration commits: integration tests in `tests/integration/` (Commit 3), BaitChannelManager behavioral coverage (Commit 4), rate-limiter/velocity/health fake-timer migration (Commit 6), and the deferred Commit 2.
+
 ## [3.1.13] - 2026-04-26
 
 Behavioral closeWorkflow tests — Commit 1 of the v3.1.9 test-orchestration-layer handoff. Replaces the 62-line existence-only `closeWorkflow.test.ts` (which only verified that `archiveAndCloseTicket` was a function and that the `ArchiveTicketResult` interface had the right shape) with 11 behavioral tests that actually exercise the function end-to-end against faked Discord client + channel + forum + repo. Targets the four failure modes the handoff called out plus the happy paths and re-close branches.
