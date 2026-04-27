@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.16] - 2026-04-26
+
+Fake-timer migration — Commit 6 of the v3.1.9 test-orchestration handoff. Replaces 6 real wall-clock `setTimeout(60)` waits in window-expiry tests with Bun's `setSystemTime()` time-jumps. Suite runtime drops ~50% (1467ms → 745ms on the developer machine) and eliminates the flake risk from real-timer races on slow CI.
+
+### Changed
+
+- **`tests/unit/utils/rateLimiter.test.ts`** — 4 sites migrated. Each `await new Promise(r => setTimeout(r, 60))` becomes `setSystemTime(new Date(Date.now() + 60))`. Each describe block's `afterEach` now (a) calls `setSystemTime()` to reset the fake clock and (b) clears the `rateLimiter.limits` Map directly. The clear is necessary because entries created while time was advanced have `resetTime` values that become "in the future" once the system time is reset, leaking active state into the next test's baseline. Without the clear the previously-flaky-but-passing `expired entries not counted as active` test reproducibly fails (saw `expected 18, received 16` — 2 leftover entries from prior tests).
+- **`tests/unit/utils/baitChannel/joinVelocityTracker.test.ts`** — 1 site migrated (`window expiry` test). Test no longer needs to be `async`.
+- **`tests/unit/utils/healthMonitor.test.ts`** — 1 site migrated (`should increase uptime over time`). Imports `setSystemTime` from `bun:test` directly (the rest of the file uses `@jest/globals` for compat — both can coexist).
+
+### Notes
+
+- Test count unchanged: 1133. Build clean. Biome clean except for the pre-existing `Function` type warning in `lazyRepo.ts:29`.
+- `setSystemTime()` reset semantics in Bun: passing no argument resets to the original system time. Tests that advance time MUST reset in `afterEach` or fakery bleeds across tests.
+- v3.1.9 test-orchestration handoff status: Commits 1, 4, 5, 6 done. Remaining: integration tests (3) and the deferred dispatcher rewrite (2).
+
 ## [3.1.15] - 2026-04-26
 
 BaitChannelManager behavioral coverage — Commit 4 of the v3.1.9 test-orchestration handoff. Adds 23 tests against the previously-zero-coverage 1652-LOC monster. Targets the pure logic and caching paths the handoff prioritized; the heavier message-pipeline methods (`analyzeSuspicion`, `executeAction`, `initiateGracePeriod`) stay deferred since they touch Discord APIs + cross-module state in ways that need integration-test infrastructure.

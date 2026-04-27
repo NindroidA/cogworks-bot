@@ -1,4 +1,11 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import {
+  describe,
+  test,
+  expect,
+  beforeEach,
+  afterEach,
+  setSystemTime,
+} from "bun:test";
 import {
   RateLimits,
   createRateLimitKey,
@@ -11,6 +18,12 @@ describe("RateLimiter", () => {
     process.env.RELEASE = "prod";
   });
   afterEach(() => {
+    // Reset fake clock FIRST, then clear singleton state. Order matters:
+    // entries created while time was advanced have resetTime values that
+    // become "in the future" once time is reset, leaking into the next
+    // test's baseline.
+    setSystemTime();
+    (rateLimiter as unknown as { limits: Map<string, unknown> }).limits.clear();
     rateLimiter.destroy();
     process.env.RELEASE = orig;
   });
@@ -43,7 +56,7 @@ describe("RateLimiter", () => {
     const c = { maxAttempts: 1, windowMs: 50 };
     rateLimiter.check("t4", c);
     expect(rateLimiter.check("t4", c).allowed).toBe(false);
-    await new Promise((r) => setTimeout(r, 60));
+    setSystemTime(new Date(Date.now() + 60));
     expect(rateLimiter.check("t4", c).allowed).toBe(true);
   });
   test("getSize increases", () => {
@@ -103,6 +116,12 @@ describe("RateLimiter - getRemaining", () => {
     process.env.RELEASE = "prod";
   });
   afterEach(() => {
+    // Reset fake clock FIRST, then clear singleton state. Order matters:
+    // entries created while time was advanced have resetTime values that
+    // become "in the future" once time is reset, leaking into the next
+    // test's baseline.
+    setSystemTime();
+    (rateLimiter as unknown as { limits: Map<string, unknown> }).limits.clear();
     rateLimiter.destroy();
     process.env.RELEASE = orig;
   });
@@ -114,7 +133,7 @@ describe("RateLimiter - getRemaining", () => {
   test("returns maxAttempts when entry expired", async () => {
     const c = { maxAttempts: 3, windowMs: 50 };
     rateLimiter.check("expire-rem", c);
-    await new Promise((r) => setTimeout(r, 60));
+    setSystemTime(new Date(Date.now() + 60));
     expect(rateLimiter.getRemaining("expire-rem", 3)).toBe(3);
   });
 
@@ -142,6 +161,12 @@ describe("RateLimiter - getResetTime", () => {
     process.env.RELEASE = "prod";
   });
   afterEach(() => {
+    // Reset fake clock FIRST, then clear singleton state. Order matters:
+    // entries created while time was advanced have resetTime values that
+    // become "in the future" once time is reset, leaking into the next
+    // test's baseline.
+    setSystemTime();
+    (rateLimiter as unknown as { limits: Map<string, unknown> }).limits.clear();
     rateLimiter.destroy();
     process.env.RELEASE = orig;
   });
@@ -153,7 +178,7 @@ describe("RateLimiter - getResetTime", () => {
   test("returns 0 when entry expired", async () => {
     const c = { maxAttempts: 3, windowMs: 50 };
     rateLimiter.check("expire-reset", c);
-    await new Promise((r) => setTimeout(r, 60));
+    setSystemTime(new Date(Date.now() + 60));
     expect(rateLimiter.getResetTime("expire-reset")).toBe(0);
   });
 
@@ -172,6 +197,12 @@ describe("RateLimiter - getStats", () => {
     process.env.RELEASE = "prod";
   });
   afterEach(() => {
+    // Reset fake clock FIRST, then clear singleton state. Order matters:
+    // entries created while time was advanced have resetTime values that
+    // become "in the future" once time is reset, leaking into the next
+    // test's baseline.
+    setSystemTime();
+    (rateLimiter as unknown as { limits: Map<string, unknown> }).limits.clear();
     rateLimiter.destroy();
     process.env.RELEASE = orig;
   });
@@ -200,7 +231,7 @@ describe("RateLimiter - getStats", () => {
     const longWindow = { maxAttempts: 5, windowMs: 60000 };
     rateLimiter.check("short-lived", shortWindow);
     rateLimiter.check("long-lived", longWindow);
-    await new Promise((r) => setTimeout(r, 60));
+    setSystemTime(new Date(Date.now() + 60));
     const stats = rateLimiter.getStats();
     // Only the long-lived entry should be active relative to baseline
     expect(stats.activeEntries).toBe(baseline.activeEntries + 1);
@@ -223,6 +254,12 @@ describe("RateLimiter - custom message in config", () => {
     process.env.RELEASE = "prod";
   });
   afterEach(() => {
+    // Reset fake clock FIRST, then clear singleton state. Order matters:
+    // entries created while time was advanced have resetTime values that
+    // become "in the future" once time is reset, leaking into the next
+    // test's baseline.
+    setSystemTime();
+    (rateLimiter as unknown as { limits: Map<string, unknown> }).limits.clear();
     rateLimiter.destroy();
     process.env.RELEASE = orig;
   });
@@ -254,6 +291,12 @@ describe("RateLimiter - formatTime edge cases (via denied messages)", () => {
     process.env.RELEASE = "prod";
   });
   afterEach(() => {
+    // Reset fake clock FIRST, then clear singleton state. Order matters:
+    // entries created while time was advanced have resetTime values that
+    // become "in the future" once time is reset, leaking into the next
+    // test's baseline.
+    setSystemTime();
+    (rateLimiter as unknown as { limits: Map<string, unknown> }).limits.clear();
     rateLimiter.destroy();
     process.env.RELEASE = orig;
   });
