@@ -13,7 +13,7 @@ import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import {
   enhancedLogger,
-  guardAdmin,
+  guardFeatureAccess,
   handleInteractionError,
   LogCategory,
   lang,
@@ -29,7 +29,7 @@ const tl = lang.ticket.customTypes.typeEdit;
  */
 export async function typeEditHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
     if (!guard.allowed) return;
 
     const user = interaction.user.username;

@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'di
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { Colors, E, enhancedLogger, formatLang, guardAdmin, LogCategory, lang } from '../../../utils';
+import { Colors, E, enhancedLogger, formatLang, guardFeatureAccess, LogCategory, lang } from '../../../utils';
 import { isLegacyTicketType, legacyTypeInfo, resolveLegacyPingColumn } from '../../../utils/ticket/legacyTypes';
 
 const tl = lang.ticket.settings;
@@ -26,7 +26,7 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
   }
 
   // Permission check: only admins can modify ticket settings
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const setting = interaction.options.getString('setting', true);

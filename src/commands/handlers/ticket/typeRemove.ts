@@ -8,7 +8,14 @@ import {
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, formatLang, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  guardFeatureAccess,
+  handleInteractionError,
+  LogCategory,
+  lang,
+} from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeRemove;
 
@@ -18,7 +25,7 @@ const tl = lang.ticket.customTypes.typeRemove;
  */
 export async function typeRemoveHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;

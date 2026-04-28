@@ -20,7 +20,7 @@ import {
   DEFAULT_TICKET_STATUSES,
   enhancedLogger,
   formatLang,
-  guardAdmin,
+  guardFeatureAccess,
   LogCategory,
   lang,
   MAX,
@@ -358,7 +358,7 @@ export async function ticketInfoHandler(interaction: ChatInputCommandInteraction
 // ============================================================================
 
 export async function workflowEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -399,7 +399,7 @@ export async function workflowEnableHandler(interaction: ChatInputCommandInterac
 // ============================================================================
 
 export async function workflowDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -440,7 +440,7 @@ export async function workflowDisableHandler(interaction: ChatInputCommandIntera
 const STATUS_ID_REGEX = /^[a-z0-9-]{1,20}$/;
 
 export async function workflowAddStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -530,7 +530,7 @@ export async function workflowAddStatusHandler(interaction: ChatInputCommandInte
 // ============================================================================
 
 export async function workflowRemoveStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -602,7 +602,7 @@ export async function workflowRemoveStatusHandler(interaction: ChatInputCommandI
 // ============================================================================
 
 export async function autoCloseEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -652,7 +652,7 @@ export async function autoCloseEnableHandler(interaction: ChatInputCommandIntera
 // ============================================================================
 
 export async function autoCloseDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;

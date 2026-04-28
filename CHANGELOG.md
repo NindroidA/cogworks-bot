@@ -5,6 +5,126 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.28] - 2026-04-27
+
+Feature-permission migration: tickets — twelfth (final) feature commit. **Migration complete.** All 28 guard call sites across 13 ticket handler files migrated.
+
+### Changed
+
+- **`ticket/settings.ts`** (1 site) → `guardFeatureAccess('tickets', 'manage')`.
+- **`ticket/emailImport.ts`** (2 sites — `emailImportHandler`, `emailImportModalHandler`) → `guardFeatureRateLimit('tickets', 'manage', ...)`. Rate-limit preserved.
+- **`ticket/routing.ts`** (6 sites — `routingEnableHandler`, `routingDisableHandler`, `routingRuleAddHandler`, `routingRuleRemoveHandler`, `routingStrategyHandler`, `routingStatsHandler`) → `guardFeatureAccess('tickets', 'manage')`.
+- **`ticket/typeAdd.ts`** (1 site) → `guardFeatureAccess('tickets', 'manage')`.
+- **`ticket/sla.ts`** (4 sites — `slaEnableHandler`, `slaDisableHandler`, `slaPerTypeHandler`, `slaStatsHandler`) → `guardFeatureAccess('tickets', 'manage')`.
+- **`ticket/typeEdit.ts`** (1 site) → `guardFeatureAccess('tickets', 'manage')`.
+- **`ticket/typeDefault.ts`** (1 site) → `guardFeatureAccess('tickets', 'manage')`.
+- **`ticket/typeList.ts`** (1 site) → `guardFeatureAccess('tickets', 'use')` — read-only.
+- **`ticket/typeToggle.ts`** (1 site) → `guardFeatureAccess('tickets', 'manage')`.
+- **`ticket/typeFields.ts`** (1 site) → `guardFeatureAccess('tickets', 'manage')`.
+- **`ticket/typeRemove.ts`** (1 site) → `guardFeatureAccess('tickets', 'manage')`.
+- **`ticket/userRestrict.ts`** (1 site) → `guardFeatureAccess('tickets', 'manage')`.
+- **`ticket/workflowSettings.ts`** (1 site) → `guardFeatureAccess('tickets', 'manage')`.
+- **`ticket/workflow.ts`** (6 sites — status/assign/unassign/info/workflow-add-status/workflow-remove-status handlers) → `guardFeatureAccess('tickets', 'manage')`.
+
+### Notes
+
+- 27 of 28 sites use `'manage'`; only `typeList` (read-only) uses `'use'`.
+- Per-ticket close is mutating but per-item — `'manage'` fits. Bulk operations like `/bot-reset` stay on `guardAdmin` (meta-feature, not in the catalog per the handoff).
+- Tests 1133 → 1133. Build + biome clean.
+- **Migration complete** — 12 of 12 features done, 80+ guard call sites total. Webapp permission UI is now load-bearing across the entire feature surface. Desloppify rerun is the natural next step to confirm `authorization_consistency` recovers from the 77.5 baseline.
+
+## [3.1.27] - 2026-04-27
+
+Feature-permission migration: baitchannel — eleventh feature commit. Both guard call sites in `src/commands/handlers/baitChannel/` migrated.
+
+### Changed
+
+- **`baitChannel/index.ts`** — `baitChannelHandler` (5 subcommand groups: setup, detection, escalation, dm, stats) → `guardFeatureRateLimit(interaction, 'baitchannel', 'manage', ...)`. Picked `'manage'` because the dispatcher routes to mostly-mutating subcommands (setup/detection config/escalation/dm). The stats group is technically read-only but bait stats reveal moderation activity that admins should triage.
+- **`baitChannel/settings.ts`** — `settingsHandler` → `guardFeatureRateLimit(interaction, 'baitchannel', 'manage', ...)`. Has its own stricter rate limit (BOT_SETUP) on top of the dispatcher.
+
+### Notes
+
+- All other baitChannel handler files (detection/dmNotify/escalation/keywords/override/setup/stats/status/summary/testMode/toggle/whitelist) don't have direct guards — they're reached via the index.ts dispatcher and inherit its check.
+- Tests 1133 → 1133. Build + biome clean.
+- 1 feature remains: tickets (largest — 5 subcommand groups + interaction handlers).
+
+## [3.1.26] - 2026-04-27
+
+Feature-permission migration: analytics — tenth feature commit. Both guard call sites in `src/commands/handlers/insights/` migrated. Two-tier check: dispatcher at `'use'`, setup leaf at `'manage'`.
+
+### Changed
+
+- **`insights/index.ts`** — `insightsHandler` (dispatcher routing to overview/growth/channels/hours/setup) → `guardFeatureAccess(interaction, 'analytics', 'use')`. Read-only subcommands pass through; the setup subcommand has its own stricter guard. Comment added explaining the design.
+- **`insights/setup.ts`** — `insightsSetupHandler` → `guardFeatureAccess(interaction, 'analytics', 'manage')`. Mutating config (enable/disable/channel/frequency/status).
+
+### Notes
+
+- This is the first feature in the migration to use a two-tier check (dispatcher use, leaf manage). Hierarchical levels mean `'manage'` users automatically pass the `'use'` dispatcher check, then the leaf check escalates correctly.
+- Tests 1133 → 1133. Build + biome clean.
+- 2 features remain: baitchannel, tickets.
+
+## [3.1.25] - 2026-04-27
+
+Feature-permission migration: announcements — ninth feature commit. All 3 guard call sites across `templates.ts`, `handler.ts`, and `setup.ts` migrated.
+
+### Changed
+
+- **`announcement/templates.ts`** — `templateHandler` (template CRUD dispatcher: create/edit/delete/list/preview/reset) → `guardFeatureAccess(interaction, 'announcements', 'manage')`.
+- **`announcement/handler.ts`** — `announcementHandler` (`/announcement send` + legacy maintenance/back-online subcommands) → `guardFeatureRateLimit(interaction, 'announcements', 'manage', ...)`.
+- **`announcement/setup.ts`** — `announcementSetupHandler` → `guardFeatureRateLimit(interaction, 'announcements', 'manage', ...)`.
+
+### Notes
+
+- All `'manage'` — announcements are mutation-heavy and don't have a meaningful read-only surface (the dispatcher routes to send/setup/template CRUD).
+- Tests 1133 → 1133. Build + biome clean.
+- 3 features remain: analytics, baitchannel, tickets.
+
+## [3.1.24] - 2026-04-27
+
+Feature-permission migration: reactionroles — eighth feature commit. All 7 guard call sites across 7 reaction-role handler files migrated.
+
+### Changed
+
+- **`src/commands/handlers/reactionRole/{add,create,edit,remove,validate}.ts`** — 5 handlers swap `guardAdminRateLimit` for `guardFeatureRateLimit(interaction, 'reactionroles', 'manage', ...)`. Rate-limit configurations preserved per handler.
+- **`src/commands/handlers/reactionRole/delete.ts`** — `reactionRoleDeleteHandler` swaps `guardAdmin` for `guardFeatureAccess(interaction, 'reactionroles', 'manage')`. Per-menu delete is normal CRUD, not GDPR-scoped.
+- **`src/commands/handlers/reactionRole/list.ts`** — `reactionRoleListHandler` swaps `guardAdmin` for `guardFeatureAccess(interaction, 'reactionroles', 'use')` — read-only.
+
+### Notes
+
+- 6 handlers use `'manage'`, 1 (`list`) uses `'use'`. `validate` is technically read-only but kept at `'manage'` because it surfaces config issues admins should triage.
+- Tests 1133 → 1133. Build + biome clean.
+- 4 features remain: announcements, analytics, baitchannel, tickets.
+
+## [3.1.23] - 2026-04-27
+
+Feature-permission migration: events — seventh feature commit. All 7 guard call sites across 4 event handler files migrated.
+
+### Changed
+
+- **`src/commands/handlers/event/template.ts`** — `eventTemplateHandler` (template create/edit/delete/list dispatcher) → `guardFeatureAccess(interaction, 'events', 'manage')`.
+- **`src/commands/handlers/event/remind.ts`** — `handleRemind` → `guardFeatureAccess(interaction, 'events', 'manage')`.
+- **`src/commands/handlers/event/setup.ts`** — `eventSetupHandler` (enable/disable/reminder-channel/summary-channel/default-reminder) → `guardFeatureRateLimit(interaction, 'events', 'manage', ...)`. Preserves existing rate-limit.
+- **`src/commands/handlers/event/create.ts`** — 4 sites (`handleEventCreate`, `handleFromTemplate`, `handleEventCancel`, `handleRecurring`) → `guardFeatureAccess(interaction, 'events', 'manage')`.
+
+### Notes
+
+- All 7 sites use `'manage'` — events are mutation-heavy (create/cancel/template-CRUD/setup/remind), and per-event cancel is per-item (not GDPR-scoped) so `'manage'` fits.
+- Tests 1133 → 1133. Build + biome clean.
+- 5 features remain: reactionroles, announcements, analytics, baitchannel, tickets.
+
+## [3.1.22] - 2026-04-27
+
+Feature-permission migration: automod — sixth feature commit. Single dispatcher-level guard in `src/commands/handlers/automod/index.ts` migrated.
+
+### Changed
+
+- **`automodHandler`** (subcommand groups: rule, template, backup, keyword, regex, exempt) → `guardFeatureRateLimit(interaction, 'automod', 'manage', ...)`. All groups are mutating operations on automod config; `'manage'` is the right level.
+
+### Notes
+
+- Tests 1133 → 1133. Build + biome clean.
+- 6 features remain: events, reactionroles, announcements, analytics, baitchannel, tickets.
+
 ## [3.1.21] - 2026-04-27
 
 Feature-permission migration: onboarding — fifth feature commit. Single dispatcher-level guard in `src/commands/handlers/onboarding/index.ts` migrated.

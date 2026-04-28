@@ -1,7 +1,7 @@
 import type { CacheType, ChatInputCommandInteraction, TextChannel } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
-import { Colors, enhancedLogger, formatLang, guardAdminRateLimit, LogCategory, lang } from '../../../utils';
+import { Colors, enhancedLogger, formatLang, guardFeatureRateLimit, LogCategory, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.reactionRole;
@@ -17,7 +17,7 @@ interface ValidationIssue {
  * Checks for missing channels, deleted messages, and removed roles.
  */
 export async function reactionRoleValidateHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'reactionroles', 'manage', {
     action: 'reactionrole-validate',
     limit: { maxAttempts: 1, windowMs: 300_000 },
     scope: 'guild',

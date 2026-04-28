@@ -6,7 +6,7 @@
  */
 
 import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import { guardAdminRateLimit, handleInteractionError, lang, RateLimits } from '../../../utils';
+import { guardFeatureRateLimit, handleInteractionError, lang, RateLimits } from '../../../utils';
 import { backupHandler } from './backup';
 import { keywordHandler } from './keyword';
 import { ruleHandler } from './rule';
@@ -14,7 +14,7 @@ import { templateHandler } from './template';
 
 export async function automodHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
-    const guard = await guardAdminRateLimit(interaction, {
+    const guard = await guardFeatureRateLimit(interaction, 'automod', 'manage', {
       action: 'automod',
       limit: RateLimits.BAIT_CHANNEL,
       scope: 'guild',

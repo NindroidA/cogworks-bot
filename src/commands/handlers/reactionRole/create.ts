@@ -3,7 +3,7 @@ import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import {
   buildMenuEmbed,
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   LogCategory,
   lang,
   MAX,
@@ -16,7 +16,7 @@ const tl = lang.reactionRole;
 const menuRepo = lazyRepo(ReactionRoleMenu);
 
 export async function reactionRoleCreateHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'reactionroles', 'manage', {
     action: 'reactionrole-create',
     limit: RateLimits.ANNOUNCEMENT_SETUP,
     scope: 'guild',

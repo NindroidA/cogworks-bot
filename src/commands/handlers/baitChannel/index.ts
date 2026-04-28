@@ -1,5 +1,5 @@
 import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import { guardAdminRateLimit, handleInteractionError, lang, RateLimits } from '../../../utils';
+import { guardFeatureRateLimit, handleInteractionError, lang, RateLimits } from '../../../utils';
 import { detectionHandler } from './detection';
 import { dmNotifyHandler } from './dmNotify';
 import { escalationHandler } from './escalation';
@@ -16,7 +16,7 @@ import { whitelistHandler } from './whitelist';
 
 export async function baitChannelHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
-    const guard = await guardAdminRateLimit(interaction, {
+    const guard = await guardFeatureRateLimit(interaction, 'baitchannel', 'manage', {
       action: 'baitchannel',
       limit: RateLimits.BAIT_CHANNEL,
       scope: 'guild',
@@ -46,7 +46,10 @@ export async function baitChannelHandler(client: Client, interaction: ChatInputC
             await statusHandler(client, interaction);
             break;
           default:
-            await interaction.reply({ content: lang.errors.unknownSubcommand, flags: [MessageFlags.Ephemeral] });
+            await interaction.reply({
+              content: lang.errors.unknownSubcommand,
+              flags: [MessageFlags.Ephemeral],
+            });
         }
         break;
 
@@ -68,7 +71,10 @@ export async function baitChannelHandler(client: Client, interaction: ChatInputC
             await testModeHandler(client, interaction);
             break;
           default:
-            await interaction.reply({ content: lang.errors.unknownSubcommand, flags: [MessageFlags.Ephemeral] });
+            await interaction.reply({
+              content: lang.errors.unknownSubcommand,
+              flags: [MessageFlags.Ephemeral],
+            });
         }
         break;
 
@@ -92,7 +98,10 @@ export async function baitChannelHandler(client: Client, interaction: ChatInputC
             await overrideHandler(client, interaction);
             break;
           default:
-            await interaction.reply({ content: lang.errors.unknownSubcommand, flags: [MessageFlags.Ephemeral] });
+            await interaction.reply({
+              content: lang.errors.unknownSubcommand,
+              flags: [MessageFlags.Ephemeral],
+            });
         }
         break;
 

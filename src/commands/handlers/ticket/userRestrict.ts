@@ -14,7 +14,7 @@ import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketT
 import { UserTicketRestriction } from '../../../typeorm/entities/ticket/UserTicketRestriction';
 import {
   enhancedLogger,
-  guardAdmin,
+  guardFeatureAccess,
   handleInteractionError,
   LogCategory,
   lang,
@@ -31,7 +31,7 @@ const tl = lang.ticket.customTypes.userRestrict;
 export async function userRestrictHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     // Permission check: only admins can restrict users
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;

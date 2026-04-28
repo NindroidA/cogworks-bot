@@ -10,7 +10,7 @@ import {
   awaitConfirmation,
   buildErrorMessage,
   enhancedLogger,
-  guardAdmin,
+  guardFeatureAccess,
   handleInteractionError,
   invalidateMenuCache,
   LogCategory,
@@ -23,7 +23,7 @@ const tl = lang.reactionRole;
 const menuRepo = lazyRepo(ReactionRoleMenu);
 
 export async function reactionRoleDeleteHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'reactionroles', 'manage');
   if (!guard.allowed) return;
 
   if (!interaction.guildId) return;

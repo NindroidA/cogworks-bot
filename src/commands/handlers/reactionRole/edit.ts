@@ -2,7 +2,7 @@ import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from '
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import {
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   invalidateMenuCache,
   LogCategory,
   lang,
@@ -16,7 +16,7 @@ const tl = lang.reactionRole;
 const menuRepo = lazyRepo(ReactionRoleMenu);
 
 export async function reactionRoleEditHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'reactionroles', 'manage', {
     action: 'reactionrole-edit',
     limit: RateLimits.ANNOUNCEMENT_SETUP,
     scope: 'guild',

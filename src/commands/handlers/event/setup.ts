@@ -7,14 +7,14 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import eventLang from '../../../lang/en/event.json';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
-import { enhancedLogger, formatLang, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
+import { enhancedLogger, formatLang, guardFeatureRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const eventConfigRepo = lazyRepo(EventConfig);
 const tl = eventLang.setup;
 
 export async function eventSetupHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'events', 'manage', {
     action: 'event-setup',
     limit: RateLimits.ANNOUNCEMENT_SETUP,
     scope: 'guild',

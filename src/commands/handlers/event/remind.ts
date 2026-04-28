@@ -8,7 +8,7 @@ import { type CacheType, type ChatInputCommandInteraction, type Client, MessageF
 import eventLang from '../../../lang/en/event.json';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
-import { enhancedLogger, formatLang, guardAdmin, LogCategory } from '../../../utils';
+import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const eventConfigRepo = lazyRepo(EventConfig);
@@ -20,7 +20,7 @@ export async function handleRemind(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'events', 'manage');
   if (!guard.allowed) return;
 
   if (!interaction.guildId || !interaction.guild) return;

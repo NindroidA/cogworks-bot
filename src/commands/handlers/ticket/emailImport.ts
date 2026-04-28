@@ -22,7 +22,7 @@ import {
   enhancedLogger,
   extractIdFromMention,
   formatLang,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   handleInteractionError,
   LogCategory,
   lang,
@@ -40,7 +40,7 @@ const tl = lang.ticket.customTypes.emailImport;
 export async function emailImportHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     // Permission check — email import is an admin-level operation
-    const guard = await guardAdminRateLimit(interaction, {
+    const guard = await guardFeatureRateLimit(interaction, 'tickets', 'manage', {
       action: 'email-import',
       limit: RateLimits.TICKET_CREATE,
       scope: 'user',
@@ -268,7 +268,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
     const userId = interaction.user.id;
 
     // Rate limit: shares TICKET_CREATE budget with manual ticket creation
-    const guard = await guardAdminRateLimit(interaction, {
+    const guard = await guardFeatureRateLimit(interaction, 'tickets', 'manage', {
       action: 'ticket-create',
       limit: RateLimits.TICKET_CREATE,
       scope: 'user',

@@ -16,7 +16,7 @@ import {
   E,
   enhancedLogger,
   formatLang,
-  guardAdmin,
+  guardFeatureAccess,
   handleInteractionError,
   LogCategory,
   lang,
@@ -31,7 +31,7 @@ const tl = lang.ticket.customTypes.typeAdd;
  */
 export async function typeAddHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
     if (!guard.allowed) return;
 
     const user = interaction.user.username;

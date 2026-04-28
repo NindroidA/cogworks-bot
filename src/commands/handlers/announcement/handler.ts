@@ -27,7 +27,7 @@ import { AnnouncementLog } from '../../../typeorm/entities/announcement/Announce
 import { AnnouncementTemplate } from '../../../typeorm/entities/announcement/AnnouncementTemplate';
 import {
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   LogCategory,
   lang,
   parseTimeInput,
@@ -67,8 +67,7 @@ export async function announcementHandler(client: Client, interaction: ChatInput
   const guildId = interaction.guildId;
 
   try {
-    // Permission + rate limit check
-    const guard = await guardAdminRateLimit(interaction, {
+    const guard = await guardFeatureRateLimit(interaction, 'announcements', 'manage', {
       action: 'announcement-create',
       limit: RateLimits.ANNOUNCEMENT_CREATE,
       scope: 'user',

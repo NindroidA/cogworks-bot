@@ -6,7 +6,7 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, guardAdmin, handleInteractionError, LogCategory } from '../../../utils';
+import { enhancedLogger, guardFeatureAccess, handleInteractionError, LogCategory } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import {
   handleAddFieldModal as coreHandleAddFieldModal,
@@ -53,7 +53,7 @@ const ticketFieldConfig: FieldManagerConfig<CustomTicketType> = {
  */
 export async function typeFieldsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;

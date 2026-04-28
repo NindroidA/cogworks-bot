@@ -17,7 +17,14 @@ import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
 import type { RecurringPattern } from '../../../typeorm/entities/event/EventTemplate';
 import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
-import { enhancedLogger, formatLang, guardAdmin, LogCategory, parseTimeInput, sanitizeUserInput } from '../../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  guardFeatureAccess,
+  LogCategory,
+  parseTimeInput,
+  sanitizeUserInput,
+} from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const eventConfigRepo = lazyRepo(EventConfig);
@@ -66,7 +73,7 @@ export async function handleEventCreate(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'events', 'manage');
   if (!guard.allowed) return;
 
   if (!interaction.guildId || !interaction.guild) return;
@@ -178,7 +185,7 @@ export async function handleFromTemplate(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'events', 'manage');
   if (!guard.allowed) return;
 
   if (!interaction.guildId || !interaction.guild) return;
@@ -276,7 +283,7 @@ export async function handleEventCancel(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'events', 'manage');
   if (!guard.allowed) return;
 
   if (!interaction.guildId || !interaction.guild) return;
@@ -325,7 +332,7 @@ export async function handleRecurring(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'events', 'manage');
   if (!guard.allowed) return;
 
   if (!interaction.guildId || !interaction.guild) return;

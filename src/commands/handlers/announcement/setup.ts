@@ -9,7 +9,7 @@ import {
 import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
 import {
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   handleInteractionError,
   LogCategory,
   lang,
@@ -23,7 +23,7 @@ import { seedDefaultTemplates } from './templates';
 const announcementConfigRepo = lazyRepo(AnnouncementConfig);
 
 export async function announcementSetupHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'announcements', 'manage', {
     action: 'announcement-setup',
     limit: RateLimits.ANNOUNCEMENT_SETUP,
     scope: 'guild',

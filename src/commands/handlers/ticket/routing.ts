@@ -10,7 +10,7 @@
 import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { enhancedLogger, formatLang, guardAdmin, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import {
   getStaffWorkload,
@@ -31,7 +31,7 @@ const VALID_STRATEGIES: RoutingStrategy[] = ['round-robin', 'least-load', 'rando
 // ============================================================================
 
 export async function routingEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -79,7 +79,7 @@ export async function routingEnableHandler(interaction: ChatInputCommandInteract
 // ============================================================================
 
 export async function routingDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -122,7 +122,7 @@ export async function routingDisableHandler(interaction: ChatInputCommandInterac
 // ============================================================================
 
 export async function routingRuleAddHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -197,7 +197,7 @@ export async function routingRuleAddHandler(interaction: ChatInputCommandInterac
 // ============================================================================
 
 export async function routingRuleRemoveHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -251,7 +251,7 @@ export async function routingRuleRemoveHandler(interaction: ChatInputCommandInte
 // ============================================================================
 
 export async function routingStrategyHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -307,7 +307,7 @@ export async function routingStrategyHandler(interaction: ChatInputCommandIntera
 // ============================================================================
 
 export async function routingStatsHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;

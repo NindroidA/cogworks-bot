@@ -1,7 +1,14 @@
 import { type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, formatLang, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  guardFeatureAccess,
+  handleInteractionError,
+  LogCategory,
+  lang,
+} from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeList;
 
@@ -11,7 +18,7 @@ const tl = lang.ticket.customTypes.typeList;
  */
 export async function typeListHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'use');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;

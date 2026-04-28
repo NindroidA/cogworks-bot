@@ -1,7 +1,14 @@
 import { type AutocompleteInteraction, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, formatLang, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  guardFeatureAccess,
+  handleInteractionError,
+  LogCategory,
+  lang,
+} from '../../../utils';
 import { LEGACY_TICKET_TYPE_IDS, LEGACY_TYPES } from '../../../utils/ticket/legacyTypes';
 
 const tl = lang.ticket.customTypes.typeToggle;
@@ -12,7 +19,7 @@ const tl = lang.ticket.customTypes.typeToggle;
  */
 export async function typeToggleHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;

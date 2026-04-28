@@ -7,7 +7,7 @@
 import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { enhancedLogger, formatLang, guardAdmin, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { getTicketCreationTime } from '../../../utils/ticket/slaChecker';
 
@@ -20,7 +20,7 @@ const ticketRepo = lazyRepo(Ticket);
 // ============================================================================
 
 export async function slaEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -81,7 +81,7 @@ export async function slaEnableHandler(interaction: ChatInputCommandInteraction<
 // ============================================================================
 
 export async function slaDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -122,7 +122,7 @@ export async function slaDisableHandler(interaction: ChatInputCommandInteraction
 // ============================================================================
 
 export async function slaPerTypeHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -191,7 +191,7 @@ export async function slaPerTypeHandler(interaction: ChatInputCommandInteraction
 // ============================================================================
 
 export async function slaStatsHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
