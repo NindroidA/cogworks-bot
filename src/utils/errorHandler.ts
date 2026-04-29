@@ -2,8 +2,11 @@ import {
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   EmbedBuilder,
+  type MessageContextMenuCommandInteraction,
   MessageFlags,
   type ModalSubmitInteraction,
+  type StringSelectMenuInteraction,
+  type UserContextMenuCommandInteraction,
 } from 'discord.js';
 import { E } from './emojis';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
@@ -194,7 +197,13 @@ export function createDetailedErrorEmbed(errorInfo: ErrorInfo): EmbedBuilder {
 }
 
 export async function handleInteractionError(
-  interaction: ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction,
+  interaction:
+    | ChatInputCommandInteraction
+    | ButtonInteraction
+    | ModalSubmitInteraction
+    | StringSelectMenuInteraction
+    | MessageContextMenuCommandInteraction
+    | UserContextMenuCommandInteraction,
   error: unknown,
   customMessage?: string,
 ): Promise<void> {

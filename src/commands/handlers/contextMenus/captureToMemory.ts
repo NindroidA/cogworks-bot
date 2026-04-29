@@ -45,6 +45,6 @@ export async function captureToMemoryHandler(interaction: MessageContextMenuComm
       targetMessageId: targetMessage.id,
     });
   } catch (error) {
-    await handleInteractionError(interaction as any, error, 'Capture to Memory context menu');
+    await handleInteractionError(interaction, error, 'Capture to Memory context menu');
   }
 }

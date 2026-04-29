@@ -77,6 +77,10 @@ const baseCommands = [
   archive, // archive cleanup and export
 ];
 
+// Module-load env snapshot is intentional here. Commands are registered
+// once at startup via REST.put and never re-read; runtime mutation of
+// RELEASE is not supported. Deferring to a getter would just shift the
+// snapshot point without changing the behaviour.
 const IS_DEV = (process.env.RELEASE || 'prod').toLowerCase().trim() === 'dev';
 
 // Dev-only commands (only registered when running the dev bot)

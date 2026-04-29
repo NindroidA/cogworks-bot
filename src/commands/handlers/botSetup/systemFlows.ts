@@ -124,7 +124,11 @@ async function configureStaffRole(
   ]);
 
   const submit = await showAndAwaitModal(interaction, modal);
-  if (!submit) return { updated: false, states: setupState.systemStates };
+  if (!submit)
+    return {
+      updated: false,
+      states: setupState.systemStates ?? DEFAULT_SYSTEM_STATES,
+    };
 
   const roleId = getModalFieldValue(submit.fields, 'setup_staff_role');
   const enabled = getModalFieldValue(submit.fields, 'setup_staff_enable') ?? true;
@@ -138,7 +142,7 @@ async function configureStaffRole(
     await repo.save(config);
 
     const states = {
-      ...setupState.systemStates,
+      ...(setupState.systemStates ?? DEFAULT_SYSTEM_STATES),
       staffRole: 'complete' as const,
     };
     await saveSetupState(setupState, states, { staffRole: { roleId } });
@@ -285,7 +289,7 @@ async function configureForumSystem(
 
       await cfg.saveConfig(guildId, data);
       const states = {
-        ...setupState.systemStates,
+        ...(setupState.systemStates ?? DEFAULT_SYSTEM_STATES),
         [cfg.systemKey]: 'complete' as const,
       };
       await saveSetupState(setupState, states, { [cfg.systemKey]: data });
@@ -315,7 +319,11 @@ async function configureForumSystem(
   ]);
 
   const submit = await showAndAwaitModal(choice.btnInteraction, modal);
-  if (!submit) return { updated: false, states: setupState.systemStates };
+  if (!submit)
+    return {
+      updated: false,
+      states: setupState.systemStates ?? DEFAULT_SYSTEM_STATES,
+    };
 
   const channelId = getModalFieldValue(submit.fields, cfg.channelFieldId) || partial?.channelId;
   const archiveId = getModalFieldValue(submit.fields, cfg.archiveFieldId) || partial?.archiveId;
@@ -348,7 +356,7 @@ async function configureForumSystem(
 
     await cfg.saveConfig(guildId, data as ForumSystemData);
     const states = {
-      ...setupState.systemStates,
+      ...(setupState.systemStates ?? DEFAULT_SYSTEM_STATES),
       [cfg.systemKey]: 'complete' as const,
     };
     await saveSetupState(setupState, states, { [cfg.systemKey]: data });
@@ -566,39 +574,50 @@ async function runSimpleSystemFlow<TData, K extends SimpleSystemKey>(
     await cfg.apply(guildId, data, { guild, client });
 
     const states = {
-      ...setupState.systemStates,
+      ...(setupState.systemStates ?? DEFAULT_SYSTEM_STATES),
       [cfg.systemKey]: completeState,
     };
-    await saveSetupState(setupState, states, { [cfg.systemKey]: cfg.toPartialData(data) });
+    await saveSetupState(setupState, states, {
+      [cfg.systemKey]: cfg.toPartialData(data),
+    });
     return { updated: true, states };
   }
 
   // Manual path
   const submit = await showAndAwaitModal(choice.btnInteraction, cfg.buildModal());
-  if (!submit) return { updated: false, states: setupState.systemStates };
+  if (!submit)
+    return {
+      updated: false,
+      states: setupState.systemStates ?? DEFAULT_SYSTEM_STATES,
+    };
 
   const guild = submit.guild!;
   const result = cfg.fromModal(submit);
 
   if (result.kind === 'insufficient') {
     await submit.deferUpdate();
-    return { updated: false, states: setupState.systemStates };
+    return {
+      updated: false,
+      states: setupState.systemStates ?? DEFAULT_SYSTEM_STATES,
+    };
   }
 
   if (result.kind === 'complete') {
     await cfg.apply(guildId, result.data, { guild, client });
     const states = {
-      ...setupState.systemStates,
+      ...(setupState.systemStates ?? DEFAULT_SYSTEM_STATES),
       [cfg.systemKey]: completeState,
     };
-    await saveSetupState(setupState, states, { [cfg.systemKey]: cfg.toPartialData(result.data) });
+    await saveSetupState(setupState, states, {
+      [cfg.systemKey]: cfg.toPartialData(result.data),
+    });
     await submit.deferUpdate();
     return { updated: true, states };
   }
 
   // kind === 'partial'
   const states = {
-    ...setupState.systemStates,
+    ...(setupState.systemStates ?? DEFAULT_SYSTEM_STATES),
     [cfg.systemKey]: 'partial' as const,
   };
   await saveSetupState(setupState, states, { [cfg.systemKey]: result.data });
@@ -650,7 +669,10 @@ const announcementConfig: SimpleSystemConfig<AnnouncementData, 'announcement'> =
 
     await seedDefaultTemplates(guildId);
   },
-  toPartialData: data => ({ roleId: data.roleId, channelId: data.channelId }),
+  toPartialData: data => ({
+    roleId: data.roleId,
+    channelId: data.channelId,
+  }),
 };
 
 // --- Bait Channel ---
@@ -683,10 +705,23 @@ const baitConfig: SimpleSystemConfig<BaitData, 'baitchannel'> = {
       labelWrap(
         'Action Type',
         radioGroup('setup_bait_action', [
-          { label: 'Ban', value: 'ban', description: 'Permanently ban the user', default: true },
+          {
+            label: 'Ban',
+            value: 'ban',
+            description: 'Permanently ban the user',
+            default: true,
+          },
           { label: 'Kick', value: 'kick', description: 'Kick the user' },
-          { label: 'Timeout', value: 'timeout', description: 'Timeout the user' },
-          { label: 'Log Only', value: 'log-only', description: 'Just log, no action' },
+          {
+            label: 'Timeout',
+            value: 'timeout',
+            description: 'Timeout the user',
+          },
+          {
+            label: 'Log Only',
+            value: 'log-only',
+            description: 'Just log, no action',
+          },
         ]),
         'What happens when someone posts',
       ),
@@ -783,7 +818,12 @@ const memoryConfig: SimpleSystemConfig<MemoryData, 'memory'> = {
   apply: async (guildId, data, { guild }) => {
     const repo = AppDataSource.getRepository(MemoryConfig);
     let config = await repo.findOneBy({ guildId });
-    if (!config) config = repo.create({ guildId, forumChannelId: data.forumChannelId, channelName: 'memory' });
+    if (!config)
+      config = repo.create({
+        guildId,
+        forumChannelId: data.forumChannelId,
+        channelName: 'memory',
+      });
     else config.forumChannelId = data.forumChannelId;
     await repo.save(config);
 
@@ -927,7 +967,9 @@ const rulesConfig: SimpleSystemConfig<RulesData, 'rules'> = {
 
 // --- Simple system descriptor table ---
 
-const SIMPLE_SYSTEM_CONFIGS: { [K in SimpleSystemKey]: SimpleSystemConfig<any, K> } = {
+const SIMPLE_SYSTEM_CONFIGS: {
+  [K in SimpleSystemKey]: SimpleSystemConfig<any, K>;
+} = {
   announcement: announcementConfig,
   baitchannel: baitConfig,
   memory: memoryConfig,

@@ -1,5 +1,5 @@
 import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
-import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
+import { ReactionRoleMenu, type ReactionRoleMode } from '../../../typeorm/entities/reactionRole';
 import {
   enhancedLogger,
   guardFeatureRateLimit,
@@ -31,7 +31,7 @@ export async function reactionRoleEditHandler(interaction: ChatInputCommandInter
   const menuId = parseInt(interaction.options.getString('menu', true), 10);
   const newName = sanitizeUserInput(interaction.options.getString('name')) || null;
   const newDescription = interaction.options.getString('description');
-  const newMode = interaction.options.getString('mode') as 'normal' | 'unique' | 'lock' | null;
+  const newMode = interaction.options.getString('mode') as ReactionRoleMode | null;
 
   // Check at least one change provided
   if (!newName && newDescription === null && !newMode) {

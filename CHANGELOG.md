@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.30] - 2026-04-29
+
+Init-coupling pass 2 + cosmetic cleanup bundle — second patch of the post-v3.1.28 desloppify rescore series. Closes 11 small findings across `initialization_coupling`, `abstraction_fitness`, `type_safety`, `naming_quality`, `logic_clarity`. Drops the persistent `lazyRepo` biome warning that survived v3.1.10 → v3.1.29. No behavior change.
+
+### Added
+
+- **`ReactionRoleMode` type alias** in `src/typeorm/entities/reactionRole/ReactionRoleMenu.ts` and re-exported from `entities/reactionRole/index.ts`. Replaces the inline `'normal' | 'unique' | 'lock'` literal at 4 sites (entity column type, `reactionRoleHandlers.ts`, `reactionRole/edit.ts`, `reactionRole/create.ts`).
+- **`RawModal` interface** in `src/utils/modalComponents.ts` — explicit return type for `rawModal()`. Previously `rawModal` returned an inferred shape; new callers can now `import { type RawModal }` if they need to type a variable.
+
+### Changed
+
+- **`guildWebhook.ts`** — replaced module-scope `const API_URL = process.env.API_URL` with private `getApiUrl()` / `isDev()` getters. Mirrors the v3.1.7 `getRest()` deferral pattern. Importing the module no longer snapshots env at load time.
+- **`commandList.ts`** — `IS_DEV` env snapshot kept as-is with a justification comment. Commands are registered once at startup; runtime `RELEASE` mutation is not supported, so deferring would just shift the snapshot point.
+- **`lazyRepo.ts:29`** — `(value as Function).bind(cached)` → `(value as (...args: unknown[]) => unknown).bind(cached)`. **Drops the persistent biome `Function` type warning** noted across v3.1.10 → v3.1.29 memory entries. `bun run check` now reports zero warnings.
+- **`devTest.ts:466-489`** (`handleRoutingSimulate`) — removed the `routingConfig = config as typeof config & { smartRoutingEnabled?, routingRules?, routingStrategy? }` intersection cast and the cascading `as 'least-load' | 'round-robin' | 'random'` literal cast. `TicketConfig` already declares all three columns (with `routingStrategy: RoutingStrategy`), so direct property access is type-safe.
+- **`errorHandler.ts`** — `handleInteractionError`'s `Interaction` union widened to include `MessageContextMenuCommandInteraction`, `UserContextMenuCommandInteraction`, and `StringSelectMenuInteraction`. The 4 context-menu handlers (captureToMemory, manageRestrictions, openTicketForUser, viewBaitScore) dropped their `interaction as any` casts.
+- **`SetupState.systemStates`** — kept non-nullable but added a contract comment documenting that the DB column is nullable while every read path normalizes via `... || DEFAULT_SYSTEM_STATES`. Originally tried `SystemStates | null` but the spread inference cascade would have touched 18+ sites for ~2pt of type safety.
+- **`emojis.ts`** — removed the `em` namespace (28 lines, zero importers) and 11 dead emoji type aliases (`EmojiCategory`, `StatusEmoji`, `ActionEmoji`, `TimeEmoji`, `ModerationEmoji`, `FeatureEmoji`, `ContentEmoji`, `StatsEmoji`, `SystemEmoji`, `DecorativeEmoji`, `TicketTypeEmoji`). Module JSDoc updated to drop the `em.success(...)` example.
+- **Async without `await` sweep** — dropped `async` from three pure-sync functions: `buildApplicationMessage` (in `applicationPosition.ts`), `awaitButtonChoice` (in `botReset.ts`), `fetchTextChannelIds` (in `dev/devSuiteWorkflows.ts`). Call sites still use `await x` which is a no-op on non-Promises; left unchanged to minimize churn.
+
+### Removed
+
+- **`src/typeorm/entities/bait/index.ts`** — orphan re-export barrel with zero importers (verified — every `bait/*` consumer imports from the entity file directly). Also closed the `convention_outlier::entity_barrel_split` finding.
+
+### Skipped
+
+- **A.3 `enhancedLogger` sync FS** — finding stale, no `writeFileSync`/`readFileSync` calls in the file.
+- **A.4 `ReactionRoleMenu` `require()` comment** — comment was already present from v3.1.6.
+- **C.3 `messageGuard.ts` rename** — file has 4 peer exports (`safeChannelFetch`, `safeMessageFetch`, etc.) with no clear primary export. Renaming has higher cost than the linter signal warrants.
+- **C.4 `skipAdmin` → `skipPermissionCheck` rename** — already landed in v3.1.29 Part 6.
+
+### Notes
+
+- 1134 tests passing; build clean; `bun run check` now reports **zero warnings** (the persistent `Function` warning is gone).
+- Targets `initialization_coupling` 87.5 → 90+, `abstraction_fitness` 89 → 92+, `type_safety` 86 → 90+, `naming_quality` 89 → 92+, `logic_clarity` 87.5 → 90+ on next desloppify rescore.
+
 ## [3.1.29] - 2026-04-29
 
 Authorization consistency pass 2 — closes the seven high-confidence auth gaps surfaced by the post-v3.1.28 desloppify rescore. Largest single regression in the rescore (`authorization_consistency` 88.0 → 78.5); this patch lands all eight scoped parts.

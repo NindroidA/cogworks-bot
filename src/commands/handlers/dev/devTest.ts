@@ -463,17 +463,7 @@ async function handleRoutingSimulate(interaction: ChatInputCommandInteraction, g
     return;
   }
 
-  const routingConfig = config as typeof config & {
-    smartRoutingEnabled?: boolean;
-    routingRules?: Array<{
-      ticketTypeId: string;
-      staffRoleId: string;
-      maxOpen?: number;
-    }>;
-    routingStrategy?: string;
-  };
-
-  if (!routingConfig.smartRoutingEnabled || !routingConfig.routingRules) {
+  if (!config.smartRoutingEnabled || !config.routingRules) {
     await interaction.reply({
       content: '❌ Smart routing not enabled or no rules configured.',
       flags: [MessageFlags.Ephemeral],
@@ -481,12 +471,7 @@ async function handleRoutingSimulate(interaction: ChatInputCommandInteraction, g
     return;
   }
 
-  const result = await routeTicket(
-    guild,
-    ticketType,
-    routingConfig.routingRules,
-    (routingConfig.routingStrategy as 'least-load' | 'round-robin' | 'random') || 'least-load',
-  );
+  const result = await routeTicket(guild, ticketType, config.routingRules, config.routingStrategy || 'least-load');
 
   const embed = new EmbedBuilder()
     .setTitle('Routing Simulation')
@@ -495,7 +480,7 @@ async function handleRoutingSimulate(interaction: ChatInputCommandInteraction, g
       { name: 'Ticket Type', value: ticketType, inline: true },
       {
         name: 'Strategy',
-        value: routingConfig.routingStrategy || 'least-load',
+        value: config.routingStrategy || 'least-load',
         inline: true,
       },
       {

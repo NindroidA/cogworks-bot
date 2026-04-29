@@ -122,6 +122,6 @@ export async function manageRestrictionsHandler(interaction: UserContextMenuComm
       updatedBy: interaction.user.id,
     });
   } catch (error) {
-    await handleInteractionError(interaction as any, error, 'Manage restrictions context menu');
+    await handleInteractionError(interaction, error, 'Manage restrictions context menu');
   }
 }

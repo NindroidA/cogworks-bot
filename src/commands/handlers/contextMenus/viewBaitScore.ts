@@ -109,6 +109,6 @@ export async function viewBaitScoreHandler(
       targetUserId: targetUser.id,
     });
   } catch (error) {
-    await handleInteractionError(interaction as any, error, 'View bait score context menu');
+    await handleInteractionError(interaction, error, 'View bait score context menu');
   }
 }

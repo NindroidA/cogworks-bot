@@ -78,6 +78,6 @@ export async function openTicketForUserHandler(interaction: UserContextMenuComma
       targetUserId: targetUser.id,
     });
   } catch (error) {
-    await handleInteractionError(interaction as any, error, 'Open ticket for user context menu');
+    await handleInteractionError(interaction, error, 'Open ticket for user context menu');
   }
 }

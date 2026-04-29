@@ -1,7 +1,16 @@
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { validateSafeUrl } from '../validation/inputSanitizer';
 
-const API_URL = process.env.API_URL;
+// Read env at first call rather than module-load time. Mirrors the v3.1.7
+// `getRest()` deferral so importing this file does not snapshot env vars
+// before tests / tooling have a chance to set them.
+function getApiUrl(): string | undefined {
+  return process.env.API_URL;
+}
+
+function isDev(): boolean {
+  return (process.env.RELEASE || 'prod').toLowerCase().trim() === 'dev';
+}
 
 export async function notifyGuildJoin(guildId: string, guildName: string, memberCount: number): Promise<void> {
   await sendWebhook('guild-join', {
@@ -17,11 +26,11 @@ export async function notifyGuildLeave(guildId: string): Promise<void> {
 }
 
 async function sendWebhook(event: string, body: Record<string, unknown>): Promise<void> {
-  if (!API_URL) return;
+  const apiUrl = getApiUrl();
+  if (!apiUrl) return;
 
-  const IS_DEV = (process.env.RELEASE || 'prod').toLowerCase().trim() === 'dev';
-  if (!IS_DEV && !validateSafeUrl(API_URL).valid) {
-    enhancedLogger.warn('API_URL blocked by URL safety check', LogCategory.API, { url: API_URL });
+  if (!isDev() && !validateSafeUrl(apiUrl).valid) {
+    enhancedLogger.warn('API_URL blocked by URL safety check', LogCategory.API, { url: apiUrl });
     return;
   }
 
@@ -29,7 +38,7 @@ async function sendWebhook(event: string, body: Record<string, unknown>): Promis
   if (!token) return;
 
   try {
-    const response = await fetch(`${API_URL}/v2/cogworks/webhooks/${event}`, {
+    const response = await fetch(`${apiUrl}/v2/cogworks/webhooks/${event}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

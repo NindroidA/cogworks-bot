@@ -385,7 +385,7 @@ export async function updateApplicationMessage(client: Client, guildId: string) 
 }
 
 // helper function to build the application message
-export async function buildApplicationMessage(positions: Position[]) {
+export function buildApplicationMessage(positions: Position[]) {
   let content = '# __Welcome to Job Applications__\n\n';
 
   if (positions.length === 0) {

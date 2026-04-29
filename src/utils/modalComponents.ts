@@ -130,12 +130,19 @@ export function roleSelect(customId: string, required = true): APILabelComponent
   return component;
 }
 
+/** Shape returned by `rawModal()` — the raw API object showModal() accepts. */
+export interface RawModal {
+  custom_id: string;
+  title: string;
+  components: APILabelComponent[];
+}
+
 /**
  * Build a raw modal object for use with interaction.showModal().
  * Use this instead of ModalBuilder when using new component types.
  * Max 5 top-level components per modal.
  */
-export function rawModal(customId: string, title: string, components: APILabelComponent[]) {
+export function rawModal(customId: string, title: string, components: APILabelComponent[]): RawModal {
   return {
     custom_id: customId,
     title,

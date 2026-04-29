@@ -1,5 +1,5 @@
 import { type CacheType, type ChatInputCommandInteraction, MessageFlags, type TextChannel } from 'discord.js';
-import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
+import { ReactionRoleMenu, type ReactionRoleMode } from '../../../typeorm/entities/reactionRole';
 import {
   buildMenuEmbed,
   enhancedLogger,
@@ -39,7 +39,7 @@ export async function reactionRoleCreateHandler(interaction: ChatInputCommandInt
   const channel = interaction.options.getChannel('channel', true) as TextChannel;
   const name = sanitizeUserInput(interaction.options.getString('name', true));
   const description = sanitizeUserInput(interaction.options.getString('description')) || null;
-  const mode = (interaction.options.getString('mode') || 'normal') as 'normal' | 'unique' | 'lock';
+  const mode = (interaction.options.getString('mode') || 'normal') as ReactionRoleMode;
 
   try {
     // Create the menu entity (no options yet)

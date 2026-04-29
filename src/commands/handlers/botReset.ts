@@ -185,7 +185,7 @@ export async function botResetHandler(client: Client, interaction: ChatInputComm
  * Returns the button interaction (already in pre-acknowledge state — caller
  * is responsible for calling `.update()` on it) or null on timeout.
  */
-async function awaitButtonChoice(reply: Message, userId: string, timeout: number): Promise<ButtonInteraction | null> {
+function awaitButtonChoice(reply: Message, userId: string, timeout: number): Promise<ButtonInteraction | null> {
   return reply
     .awaitMessageComponent({
       filter: i => i.user.id === userId,
