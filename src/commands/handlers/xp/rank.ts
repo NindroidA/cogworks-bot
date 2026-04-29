@@ -5,8 +5,8 @@ import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
 import { handleInteractionError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { getXPConfig } from '../../../utils/xp/configCache';
 import { buildRankEmbed } from '../../../utils/xp/rankCard';
-import { getXPConfig } from './setup';
 
 const userRepo = lazyRepo(XPUser);
 const rewardRepo = lazyRepo(XPRoleReward);

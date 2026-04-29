@@ -6,12 +6,12 @@
  */
 
 import type { GuildMember, Message, TextChannel } from 'discord.js';
-import { getXPConfig } from '../commands/handlers/xp/setup';
 import { XPRoleReward } from '../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../typeorm/entities/xp/XPUser';
 import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';
 import { lazyRepo } from '../utils/database/lazyRepo';
+import { getXPConfig } from '../utils/xp/configCache';
 import { calculateLevel, randomXp } from '../utils/xp/xpCalculator';
 
 const userRepo = lazyRepo(XPUser);

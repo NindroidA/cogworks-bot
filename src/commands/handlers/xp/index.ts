@@ -64,9 +64,5 @@ export async function leaderboardCommandHandler(client: Client, interaction: Cha
   }
 }
 
-// Re-export config cache utilities for event handlers
-export {
-  clearXPConfigCache,
-  getXPConfig,
-  invalidateXPConfigCache,
-} from './setup';
+// Config cache utilities now live in utils/xp/configCache; import directly
+// from there. Re-exports kept temporarily would just be indirection.

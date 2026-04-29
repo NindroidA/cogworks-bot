@@ -45,6 +45,20 @@ await repo.remove(entity);
 
 ## Architecture
 
+### Layering rule
+
+```
+events ─┬─► utils ◄─┬─ commands/handlers
+        │           │
+        └─► entities (typeorm/) ◄────────┘
+```
+
+`events/*` and `commands/handlers/*` both depend on `utils/*` and `typeorm/entities/*`. Cross-cutting workflows (close ticket, archive application, XP config caching, etc.) belong in `utils`, not in a slash-command handler — both events and slash commands then call into the same util.
+
+**Documented exception — dispatch:** the autocomplete + interaction-route dispatchers (`src/events/autocomplete.ts`, `src/events/ticket/interactionRoutes.ts`, `src/events/application/interactionRoutes.ts`, `src/events/typeFieldsInteraction.ts`, `src/events/applicationFieldsInteraction.ts`) DO import handler functions from `commands/handlers`. That's intentional — they exist precisely to route Discord interactions to the right per-command handler. Don't try to "fix" the dependency direction by moving handlers to utils; the per-command logic lives with its slash command builder, and the dispatcher is the bridge.
+
+Entities never import from utils (the entity is the data shape; the runtime helper consumes the shape). If you find an entity importing a util-side type, the type belongs with the entity — see `typeorm/entities/ticket/routingTypes.ts` for the pattern.
+
 ### Command Handler Pattern
 All commands follow this structure (see `src/commands/commands.ts`):
 ```typescript

@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.31] - 2026-04-29
+
+Cross-module architecture pass — third patch of the post-v3.1.28 desloppify rescore series. Closes both `cross_module_architecture` findings: (1) events depending on commands/handlers for non-dispatch reasons, and (2) the `TicketConfig` entity importing a column type from a runtime utility. No behavior change.
+
+### Added
+
+- **`src/utils/xp/configCache.ts`** — new module owning `getXPConfig`, `invalidateXPConfigCache`, `clearXPConfigCache`, plus the cache map and 5-minute TTL constant. The slash-command setup handler and the message/voice event handlers all read through this single util.
+- **`src/typeorm/entities/ticket/routingTypes.ts`** — new entity-side types module owning `RoutingRule` and `RoutingStrategy`. The entity (data shape) no longer depends on the runtime helper; the helper imports these types from the entity side.
+
+### Changed
+
+- **`xpMessageHandler.ts` + `xpVoiceHandler.ts`** — `getXPConfig` import path flipped from `../commands/handlers/xp/setup` → `../utils/xp/configCache`. Closes the genuine cross-module smell (events shouldn't depend on slash-command code for shared workflow utilities).
+- **`commands/handlers/xp/setup.ts`** — dropped the local cache map + getter/invalidator pair; now imports `invalidateXPConfigCache` from the new util. **Net -28 lines** in setup.ts.
+- **`commands/handlers/xp/index.ts`** — dropped the `clearXPConfigCache` / `getXPConfig` / `invalidateXPConfigCache` re-export block (those were existence proofs of the cross-module smell). Replaced with a one-line comment pointing readers to `utils/xp/configCache`.
+- **`commands/handlers/xp/leaderboard.ts` + `rank.ts`** — `getXPConfig` import path flipped to the new util.
+- **`utils/ticket/smartRouter.ts`** — `RoutingRule` and `RoutingStrategy` no longer defined here; imported from `entities/ticket/routingTypes` and re-exported for back-compat with existing util-side importers (so consumers don't need a churn pass). Stale "requires the following columns on TicketConfig" docblock note replaced with a pointer to the new types module.
+- **`typeorm/entities/ticket/TicketConfig.ts`** — `RoutingStrategy` import flipped from `../../../utils/ticket/smartRouter` → `./routingTypes`. The inline `routingRules: Array<{ ... }>` shape that duplicated `RoutingRule` is now `RoutingRule[]`.
+
+### Docs
+
+- **CLAUDE.md** — new **Layering rule** section under Architecture. ASCII diagram of the dependency arrows, explicit description of the dispatch exception (autocomplete + interaction-route dispatchers genuinely DO import handler functions from `commands/handlers/*` — that's the whole point of those files), and a note on the entity ← utility direction with `routingTypes.ts` as the canonical example.
+
+### Notes
+
+- After this patch, `grep "from '../commands/handlers" src/events/` still returns 13 hits — all in dispatcher files. That's intentional; the layering rule documents the exception. The genuinely-fixable smells (xp config cache + TicketConfig type import) are closed.
+- 1134 tests passing; build + biome clean.
+- Targets `cross_module_architecture` 76 → 88+ on next desloppify rescore.
+
 ## [3.1.30] - 2026-04-29
 
 Init-coupling pass 2 + cosmetic cleanup bundle — second patch of the post-v3.1.28 desloppify rescore series. Closes 11 small findings across `initialization_coupling`, `abstraction_fitness`, `type_safety`, `naming_quality`, `logic_clarity`. Drops the persistent `lazyRepo` biome warning that survived v3.1.10 → v3.1.29. No behavior change.

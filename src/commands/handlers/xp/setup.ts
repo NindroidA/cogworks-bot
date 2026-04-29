@@ -5,42 +5,10 @@ import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
 import { enhancedLogger, handleInteractionError, LogCategory } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { invalidateXPConfigCache } from '../../../utils/xp/configCache';
 
 const configRepo = lazyRepo(XPConfig);
 const rewardRepo = lazyRepo(XPRoleReward);
-
-/** 5-minute TTL cache for XP config (like bait channel config) */
-const configCache = new Map<string, { config: XPConfig; cachedAt: number }>();
-const CONFIG_CACHE_TTL = 5 * 60 * 1000;
-
-/**
- * Get XP config for a guild with caching.
- * Exported so event handlers and other modules can use it.
- */
-export async function getXPConfig(guildId: string): Promise<XPConfig | null> {
-  const cached = configCache.get(guildId);
-  if (cached && Date.now() - cached.cachedAt < CONFIG_CACHE_TTL) {
-    return cached.config;
-  }
-
-  const config = await configRepo.findOne({ where: { guildId } });
-  if (config) {
-    configCache.set(guildId, { config, cachedAt: Date.now() });
-  } else {
-    configCache.delete(guildId);
-  }
-  return config;
-}
-
-/** Invalidate the config cache for a guild (call after updates). */
-export function invalidateXPConfigCache(guildId: string): void {
-  configCache.delete(guildId);
-}
-
-/** Clear the entire XP config cache. */
-export function clearXPConfigCache(): void {
-  configCache.clear();
-}
 
 export async function xpSetupHandler(_client: Client, interaction: ChatInputCommandInteraction) {
   try {
