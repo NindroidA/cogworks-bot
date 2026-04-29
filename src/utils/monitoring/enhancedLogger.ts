@@ -476,4 +476,31 @@ export const enhancedLogger = new EnhancedLogger({
   colorize: process.env.NODE_ENV !== 'production',
 });
 
+/**
+ * One-line wrapper around `enhancedLogger.error` for the common shape:
+ *
+ *     enhancedLogger.error(`${scope} error: ${error}`,
+ *       error instanceof Error ? error : undefined,
+ *       LogCategory.COMMAND_EXECUTION,
+ *       ctx);
+ *
+ * Use in `} catch (error) { ... }` blocks AFTER `deferReply` (post-defer
+ * cleanup paths). For pre-reply errors, prefer `handleInteractionError` from
+ * `utils/errorHandler.ts` — it logs AND replies with a user-facing embed.
+ *
+ * @example
+ * } catch (error) {
+ *   logHandlerError('Memory tag-add', error, { guildId });
+ *   await interaction.editReply({ content: tl.tags.add.error });
+ * }
+ */
+export function logHandlerError(scope: string, error: unknown, ctx: Record<string, unknown> = {}): void {
+  enhancedLogger.error(
+    `${scope} error: ${error}`,
+    error instanceof Error ? error : undefined,
+    LogCategory.COMMAND_EXECUTION,
+    ctx,
+  );
+}
+
 export default enhancedLogger;

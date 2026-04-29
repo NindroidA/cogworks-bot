@@ -1,7 +1,7 @@
 import type { ChatInputCommandInteraction, ForumChannel, MessageComponentInteraction, ThreadChannel } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import { MemoryConfig, MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
-import { E, enhancedLogger, guardFeatureRateLimit, healthMonitor, LogCategory, lang, RateLimits } from '../../../utils';
+import { E, guardFeatureRateLimit, healthMonitor, lang, logHandlerError, RateLimits } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { createDefaultSelectionState, runTagSelectionCollector, type TagSelectionState } from './tagSelection';
 
@@ -162,14 +162,7 @@ async function applyTagUpdate(
 
     healthMonitor.recordCommand('memory update-tags', Date.now() - startTime, false);
   } catch (error) {
-    enhancedLogger.error(
-      `Memory update-tags error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        guildId,
-      },
-    );
+    logHandlerError('Memory update-tags', error, { guildId });
     await interaction.editReply({
       content: `${E.error} ${tl.quickUpdate.tagsError}`,
     });

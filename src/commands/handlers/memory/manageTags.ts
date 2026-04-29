@@ -12,11 +12,10 @@ import {
   awaitConfirmation,
   Colors,
   E,
-  enhancedLogger,
   guardFeatureRateLimit,
   healthMonitor,
-  LogCategory,
   lang,
+  logHandlerError,
   RateLimits,
 } from '../../../utils';
 import { MAX } from '../../../utils/constants';
@@ -178,12 +177,7 @@ async function handleTagAdd(interaction: ChatInputCommandInteraction, guildId: s
       content: `${E.success} ${tl.manageTags.add.success.replace('{0}', emoji ? `${emoji} ${name}` : name).replace('{1}', `<#${config.forumChannelId}>`)}`,
     });
   } catch (error) {
-    enhancedLogger.error(
-      `Memory tag-add error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    logHandlerError('Memory tag-add', error, { guildId });
     await interaction.editReply({ content: `${E.error} ${tl.tags.add.error}` });
   }
 }
@@ -237,12 +231,7 @@ async function handleTagRemove(interaction: ChatInputCommandInteraction, guildId
       content: `${E.success} ${tl.manageTags.remove.success.replace('{0}', tag.emoji ? `${tag.emoji} ${tag.name}` : tag.name)}`,
     });
   } catch (error) {
-    enhancedLogger.error(
-      `Memory tag-remove error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    logHandlerError('Memory tag-remove', error, { guildId });
     await interaction.editReply({
       content: `${E.error} ${tl.tags.remove.error}`,
     });
@@ -329,12 +318,7 @@ async function handleTagEdit(interaction: ChatInputCommandInteraction, guildId: 
       content: `${E.success} ${tl.manageTags.edit.success.replace('{0}', displayName)}`,
     });
   } catch (error) {
-    enhancedLogger.error(
-      `Memory tag-edit error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    logHandlerError('Memory tag-edit', error, { guildId });
     await interaction.editReply({
       content: `${E.error} ${tl.tags.edit.error}`,
     });
@@ -503,14 +487,7 @@ async function handleTagReset(interaction: ChatInputCommandInteraction, guildId:
       content: `${E.success} ${tl.manageTags.reset.success}`,
     });
   } catch (error) {
-    enhancedLogger.error(
-      `Memory tag-reset error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        guildId,
-      },
-    );
+    logHandlerError('Memory tag-reset', error, { guildId });
     await result.interaction.editReply({
       content: `${E.error} ${tl.setup.error}`,
     });

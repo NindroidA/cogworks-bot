@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.32] - 2026-04-29
+
+AI debt cleanup pass 3 — fourth patch of the post-v3.1.28 desloppify rescore series. Closes 3 of 4 `ai_generated_debt` findings (the 4th — `guard_helpers_duplicated_rate_limit_tail` — was already done in v3.1.29). Plus absorbs the deferred `entityNames descriptor` finding from v3.1.31's cross-module-arch coordination notes. No behavior change.
+
+### Added
+
+- **`logHandlerError(scope, error, ctx)`** at `src/utils/monitoring/enhancedLogger.ts` — one-line wrapper around `enhancedLogger.error` for the post-`deferReply` cleanup pattern. Replaces the 4-line `enhancedLogger.error(...) + error instanceof Error ? error : undefined + LogCategory.COMMAND_EXECUTION + { guildId }` shape that was repeated identically across 13 memory handler catch blocks.
+
+### Changed
+
+- **`channelDelete.ts`** — 13 inline IIFE blocks collapsed into a `CHANNEL_REF_CLEANERS` descriptor array. The parallel `entityNames` array (used for failure attribution by index) is gone — the descriptor's `name` field IS the attribution. Same `Promise.allSettled` semantics; one cleaner failing still doesn't abort siblings. **Net -25 lines** plus the load-bearing index coupling is gone.
+- **`messageDelete.ts`** — 8 IIFE blocks collapsed into `MESSAGE_REF_CLEANERS` descriptor. The 10-second `withTimeout` wrapper is preserved as a tiny module-level helper that the dispatcher applies to each cleaner.
+- **`roleDelete.ts`** — 9 IIFE blocks collapsed into `ROLE_REF_CLEANERS` descriptor.
+- **All 13 memory handler catch blocks** swept onto `logHandlerError`. Files touched: `add.ts`, `capture.ts`, `delete.ts`, `manageTags.ts` (4 sites), `tags.ts` (3 sites), `update.ts`, `updateStatus.ts`, `updateTags.ts`. `enhancedLogger` + `LogCategory` imports dropped from files that no longer use them directly. **Net ~50 lines deleted.**
+
+### Docs
+
+- **CLAUDE.md** — Error Handling section now distinguishes `handleInteractionError` (pre-reply: log + reply with error embed) from `logHandlerError` (post-`deferReply`: log only, caller controls `editReply` body). Both helpers shown side-by-side.
+
+### Notes
+
+- 1134 tests passing; build + biome clean.
+- Audit other features for the same chorus — application/ticket/baitchannel/announcement handlers may have similar shape. Out of scope for this commit; can land in a follow-up sweep.
+- Restating-comment sweep (Part 3 of the patch) deferred — explicit "don't bundle with other parts" instruction in the patch and the diff would be all noise-level.
+- Targets `ai_generated_debt` 80.5 → 88+ on next desloppify rescore. Also closes the `cross_module_architecture::delete_event_handlers_iife_boilerplate` finding deferred from v3.1.31.
+
 ## [3.1.31] - 2026-04-29
 
 Cross-module architecture pass — third patch of the post-v3.1.28 desloppify rescore series. Closes both `cross_module_architecture` findings: (1) events depending on commands/handlers for non-dispatch reasons, and (2) the `TicketConfig` entity importing a column type from a runtime utility. No behavior change.

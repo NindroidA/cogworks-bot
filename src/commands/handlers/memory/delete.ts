@@ -11,10 +11,9 @@ import { MemoryItem } from '../../../typeorm/entities/memory';
 import {
   buildErrorMessage,
   E,
-  enhancedLogger,
   guardFeatureRateLimit,
-  LogCategory,
   lang,
+  logHandlerError,
   RateLimits,
   verifiedThreadDelete,
 } from '../../../utils';
@@ -164,12 +163,7 @@ export async function memoryDeleteHandler(interaction: ChatInputCommandInteracti
           components: [],
         });
       } catch (error) {
-        enhancedLogger.error(
-          `Memory delete error: ${error}`,
-          error instanceof Error ? error : undefined,
-          LogCategory.COMMAND_EXECUTION,
-          { guildId },
-        );
+        logHandlerError('Memory delete', error, { guildId });
         await i
           .update({
             content: buildErrorMessage(`${E.error} ${tl.delete.error}`),

@@ -12,10 +12,9 @@ import {
 import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
   E,
-  enhancedLogger,
   guardFeatureRateLimit,
-  LogCategory,
   lang,
+  logHandlerError,
   RateLimits,
   sanitizeUserInput,
   showAndAwaitModal,
@@ -175,12 +174,7 @@ async function handleModalSubmit(
       content: `${E.success} ${tl.add.success}\n${tl.add.viewThread}: <#${thread.id}>`,
     });
   } catch (error) {
-    enhancedLogger.error(
-      `Memory add error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    logHandlerError('Memory add', error, { guildId });
     await interaction.editReply({ content: `${E.error} ${tl.add.error}` });
   }
 }

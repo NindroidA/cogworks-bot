@@ -93,8 +93,15 @@ Translation files: `src/lang/*.json` with types in `src/lang/types.ts`.
 
 ### Error Handling
 ```typescript
-// For command handlers
+// Pre-reply: log + send a user-facing error embed
 await handleInteractionError(interaction, error, 'Custom context message');
+
+// Post-deferReply cleanup: log only (caller follows up with editReply)
+import { logHandlerError } from '../utils';
+} catch (error) {
+  logHandlerError('Memory tag-add', error, { guildId });
+  await interaction.editReply({ content: tl.tags.add.error });
+}
 
 // For non-interaction code
 const { category, severity } = classifyError(error);
@@ -106,6 +113,7 @@ await interaction.reply({ content: buildErrorMessage('Something went wrong.') })
 ```
 - ErrorCategory: `DATABASE`, `PERMISSIONS`, `VALIDATION`, `CONFIGURATION`, `EXTERNAL_API`, `UNKNOWN`
 - ErrorSeverity: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`
+- `handleInteractionError` vs `logHandlerError`: the former logs AND replies with an error embed (use pre-reply); the latter logs only (use post-`deferReply` when the handler still wants to control its own `editReply` body).
 
 **Modal Timeout Feedback** — Use `notifyModalTimeout(interaction)` in `awaitModalSubmit` catch blocks:
 ```typescript

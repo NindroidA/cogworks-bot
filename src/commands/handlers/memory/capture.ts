@@ -15,10 +15,9 @@ import {
 import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
   E,
-  enhancedLogger,
   guardFeatureRateLimit,
-  LogCategory,
   lang,
+  logHandlerError,
   RateLimits,
   sanitizeUserInput,
   showAndAwaitModal,
@@ -311,12 +310,7 @@ async function handleCaptureModalSubmit(
       content: `${E.success} ${tl.capture.success}\n${tl.add.viewThread}: <#${thread.id}>`,
     });
   } catch (error) {
-    enhancedLogger.error(
-      `Memory capture error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    logHandlerError('Memory capture', error, { guildId });
     await interaction.editReply({ content: `${E.error} ${tl.capture.error}` });
   }
 }
