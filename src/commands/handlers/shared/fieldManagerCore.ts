@@ -790,3 +790,27 @@ export async function handlePreviewModal<T extends FieldBearingEntity>(
     flags: [MessageFlags.Ephemeral],
   });
 }
+
+/**
+ * Bind a `FieldManagerConfig` to its core helpers and return a per-feature
+ * handler bundle. Replaces the 5-line wrapper-function chorus that
+ * `applicationFields.ts` and `typeFields.ts` both repeat — the per-feature
+ * file declares its config and gets ready-to-export handlers.
+ *
+ * @example
+ * const fields = createFieldHandlers(ticketFieldConfig);
+ * export const { handleAddFieldModal, handleFieldButton, handleFieldSelectMenu, handlePreviewModal } = fields;
+ */
+export function createFieldHandlers<T extends FieldBearingEntity>(config: FieldManagerConfig<T>) {
+  return {
+    showFieldManager: (interaction: ChatInputCommandInteraction, entity: T) =>
+      showFieldManager(interaction, entity, config),
+    handleAddFieldModal: (interaction: ModalSubmitInteraction, entityId: string) =>
+      handleAddFieldModal(interaction, entityId, config),
+    handleFieldButton: (interaction: ButtonInteraction, action: string, entityId: string) =>
+      handleFieldButton(interaction, action, entityId, config),
+    handleFieldSelectMenu: (interaction: StringSelectMenuInteraction, action: string, entityId: string) =>
+      handleFieldSelectMenu(interaction, action, entityId, config),
+    handlePreviewModal: (interaction: ModalSubmitInteraction) => handlePreviewModal(interaction, config),
+  };
+}

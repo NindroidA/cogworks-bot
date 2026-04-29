@@ -14,107 +14,90 @@ import { ticketTypeAutocomplete, ticketTypeAutocompleteWithLegacy } from '../com
 import { removableStatusAutocomplete, workflowStatusAutocomplete } from '../commands/handlers/ticket/workflow';
 import { enhancedLogger, LogCategory } from '../utils';
 
+type AutocompleteHandler = (interaction: AutocompleteInteraction) => Promise<void>;
+
 /**
- * Handles autocomplete interactions for all commands
+ * Per-(command, group, subcommand) autocomplete dispatch table.
+ *
+ * Key shape: `command/group/subcommand` — empty `group` becomes `command//subcommand`.
+ * Adding a new autocomplete-using subcommand means adding one row here, not
+ * patching a switch. For commands that handle every subcommand the same way
+ * (e.g. `reactionrole`, `announcement`), see `COMMAND_AUTOCOMPLETE_ROUTES`.
  */
+const AUTOCOMPLETE_ROUTES: Record<string, AutocompleteHandler> = {
+  // /ticket type * — every subcommand except add/list takes a ticket type
+  'ticket/type/edit': ticketTypeAutocomplete,
+  'ticket/type/toggle': ticketTypeAutocomplete,
+  'ticket/type/default': ticketTypeAutocomplete,
+  'ticket/type/remove': ticketTypeAutocomplete,
+  'ticket/type/fields': ticketTypeAutocomplete,
+  // /ticket manage *
+  'ticket/manage/status': workflowStatusAutocomplete,
+  'ticket/manage/user-restrict': ticketTypeAutocomplete,
+  'ticket/manage/settings': ticketTypeAutocompleteWithLegacy,
+  // /ticket workflow *
+  'ticket/workflow/remove-status': removableStatusAutocomplete,
+  'ticket/workflow/autoclose-enable': workflowStatusAutocomplete,
+  // /ticket sla *
+  'ticket/sla/per-type': ticketTypeAutocomplete,
+  // /ticket routing *
+  'ticket/routing/rule-add': ticketTypeAutocomplete,
+  'ticket/routing/rule-remove': routingRuleAutocomplete,
+  // /application * (no subcommand group)
+  'application//remove': applicationPositionAutocomplete,
+  'application//toggle': applicationPositionAutocomplete,
+  'application//edit': applicationPositionAutocomplete,
+  'application//fields': applicationPositionAutocomplete,
+  'application//status': applicationWorkflowStatusAutocomplete,
+  'application//workflow-remove-status': applicationRemovableStatusAutocomplete,
+  // /memory *
+  'memory//update-status': memoryAutocomplete,
+  'memory//update-tags': memoryAutocomplete,
+  // /memory-setup *
+  'memory-setup//tag-remove': memoryTagAutocomplete,
+  'memory-setup//tag-edit': memoryTagAutocomplete,
+  // /baitchannel detection *
+  'baitchannel/detection/keywords': handleKeywordAutocomplete,
+};
+
+/**
+ * Commands whose entire subcommand surface uses one autocomplete handler.
+ * Falls back here when no exact `AUTOCOMPLETE_ROUTES` match is found.
+ */
+const COMMAND_AUTOCOMPLETE_ROUTES: Record<string, AutocompleteHandler> = {
+  reactionrole: reactionRoleMenuAutocomplete,
+  announcement: interaction => templateAutocomplete(interaction, choices => interaction.respond(choices)),
+};
+
+/** Handles autocomplete interactions for all commands. */
 export const handleAutocomplete = async (_client: Client, interaction: AutocompleteInteraction) => {
   const commandName = interaction.commandName;
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
 
   try {
-    // Route to appropriate autocomplete handler
-    switch (commandName) {
-      case 'ticket': {
-        const group = interaction.options.getSubcommandGroup(false);
-        const subcommand = interaction.options.getSubcommand();
-        enhancedLogger.debug(`Autocomplete: /${commandName} ${group} ${subcommand}`, LogCategory.COMMAND_EXECUTION, {
-          userId: interaction.user.id,
-          guildId,
-          subcommandGroup: group,
-          subcommand,
-        });
+    const group = interaction.options.getSubcommandGroup(false) ?? '';
+    const subcommand = interaction.options.getSubcommand(false) ?? '';
 
-        if (group === 'type') {
-          // Type group: edit, toggle, default, remove, fields all use type autocomplete
-          if (subcommand !== 'add' && subcommand !== 'list') {
-            await ticketTypeAutocomplete(interaction);
-          }
-        } else if (group === 'manage') {
-          if (subcommand === 'status') {
-            await workflowStatusAutocomplete(interaction);
-          } else if (subcommand === 'user-restrict') {
-            await ticketTypeAutocomplete(interaction);
-          } else if (subcommand === 'settings') {
-            await ticketTypeAutocompleteWithLegacy(interaction);
-          }
-        } else if (group === 'workflow') {
-          if (subcommand === 'remove-status') {
-            await removableStatusAutocomplete(interaction);
-          } else if (subcommand === 'autoclose-enable') {
-            await workflowStatusAutocomplete(interaction);
-          }
-        } else if (group === 'sla') {
-          if (subcommand === 'per-type') {
-            await ticketTypeAutocomplete(interaction);
-          }
-        } else if (group === 'routing') {
-          if (subcommand === 'rule-add') {
-            await ticketTypeAutocomplete(interaction);
-          } else if (subcommand === 'rule-remove') {
-            await routingRuleAutocomplete(interaction);
-          }
-        }
-        break;
-      }
-      case 'application': {
-        const subcommand = interaction.options.getSubcommand();
-        enhancedLogger.debug(`Autocomplete: /${commandName} ${subcommand}`, LogCategory.COMMAND_EXECUTION, {
-          userId: interaction.user.id,
-          guildId,
-          subcommand,
-        });
+    enhancedLogger.debug(`Autocomplete: /${commandName} ${group} ${subcommand}`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      subcommandGroup: group || undefined,
+      subcommand: subcommand || undefined,
+    });
 
-        if (subcommand === 'remove' || subcommand === 'toggle' || subcommand === 'edit' || subcommand === 'fields') {
-          await applicationPositionAutocomplete(interaction);
-        } else if (subcommand === 'status') {
-          await applicationWorkflowStatusAutocomplete(interaction);
-        } else if (subcommand === 'workflow-remove-status') {
-          await applicationRemovableStatusAutocomplete(interaction);
-        }
-        break;
-      }
-      case 'memory': {
-        const subcommand = interaction.options.getSubcommand();
-        if (subcommand === 'update-status' || subcommand === 'update-tags') {
-          await memoryAutocomplete(interaction);
-        }
-        break;
-      }
-      case 'memory-setup': {
-        const subcommand = interaction.options.getSubcommand();
-        if (subcommand === 'tag-remove' || subcommand === 'tag-edit') {
-          await memoryTagAutocomplete(interaction);
-        }
-        break;
-      }
-      case 'reactionrole': {
-        await reactionRoleMenuAutocomplete(interaction);
-        break;
-      }
-      case 'baitchannel': {
-        const subcommand = interaction.options.getSubcommand();
-        const group = interaction.options.getSubcommandGroup();
-        if (group === 'detection' && subcommand === 'keywords') {
-          await handleKeywordAutocomplete(interaction);
-        }
-        break;
-      }
-      case 'announcement': {
-        await templateAutocomplete(interaction, choices => interaction.respond(choices));
-        break;
-      }
+    const exact = AUTOCOMPLETE_ROUTES[`${commandName}/${group}/${subcommand}`];
+    if (exact) {
+      await exact(interaction);
+      return;
     }
+
+    const fallback = COMMAND_AUTOCOMPLETE_ROUTES[commandName];
+    if (fallback) {
+      await fallback(interaction);
+      return;
+    }
+    // No matching route — silently noop (autocomplete is best-effort)
   } catch (error) {
     enhancedLogger.error(
       'Autocomplete error',
@@ -126,7 +109,6 @@ export const handleAutocomplete = async (_client: Client, interaction: Autocompl
         commandName,
       },
     );
-    // Fail silently for autocomplete
     try {
       await interaction.respond([]);
     } catch {

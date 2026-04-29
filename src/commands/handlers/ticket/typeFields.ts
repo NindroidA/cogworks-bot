@@ -1,21 +1,8 @@
-import {
-  type ButtonInteraction,
-  type ChatInputCommandInteraction,
-  MessageFlags,
-  type ModalSubmitInteraction,
-  type StringSelectMenuInteraction,
-} from 'discord.js';
+import { type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { enhancedLogger, guardFeatureAccess, handleInteractionError, LogCategory } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
-import {
-  handleAddFieldModal as coreHandleAddFieldModal,
-  handleFieldButton as coreHandleFieldButton,
-  handleFieldSelectMenu as coreHandleFieldSelectMenu,
-  handlePreviewModal as coreHandlePreviewModal,
-  type FieldManagerConfig,
-  showFieldManager,
-} from '../shared/fieldManagerCore';
+import { createFieldHandlers, type FieldManagerConfig } from '../shared/fieldManagerCore';
 
 const typeRepo = lazyRepo(CustomTicketType);
 
@@ -46,6 +33,9 @@ const ticketFieldConfig: FieldManagerConfig<CustomTicketType> = {
   },
   showEdit: true,
 };
+
+const fields = createFieldHandlers(ticketFieldConfig);
+export const { handleAddFieldModal, handleFieldButton, handleFieldSelectMenu, handlePreviewModal } = fields;
 
 /**
  * Handler for /ticket type-fields command
@@ -82,40 +72,8 @@ export async function typeFieldsHandler(interaction: ChatInputCommandInteraction
       return;
     }
 
-    await showFieldManager(interaction, ticketType, ticketFieldConfig);
+    await fields.showFieldManager(interaction, ticketType);
   } catch (error) {
     await handleInteractionError(interaction, error, 'typeFieldsHandler');
   }
-}
-
-/**
- * Handle add field modal submission
- */
-export async function handleAddFieldModal(interaction: ModalSubmitInteraction, typeId: string): Promise<void> {
-  await coreHandleAddFieldModal(interaction, typeId, ticketFieldConfig);
-}
-
-/**
- * Handle preview modal submission (just dismiss it)
- */
-export async function handlePreviewModal(interaction: ModalSubmitInteraction, _typeId: string): Promise<void> {
-  await coreHandlePreviewModal(interaction, ticketFieldConfig);
-}
-
-/**
- * Main button interaction handler
- */
-export async function handleFieldButton(interaction: ButtonInteraction, action: string, typeId: string): Promise<void> {
-  await coreHandleFieldButton(interaction, action, typeId, ticketFieldConfig);
-}
-
-/**
- * Handle field selection for delete
- */
-export async function handleFieldSelectMenu(
-  interaction: StringSelectMenuInteraction,
-  action: string,
-  typeId: string,
-): Promise<void> {
-  await coreHandleFieldSelectMenu(interaction, action, typeId, ticketFieldConfig);
 }

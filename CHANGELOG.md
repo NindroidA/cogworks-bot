@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.33] - 2026-04-29
+
+Mid-level elegance pass — fifth patch of the post-v3.1.28 desloppify rescore series. 4 of 5 `mid_level_elegance` findings closed; the fifth (AUDIT_RULES vs BUTTON_ROUTES "duplication") is a fresh-eyes false positive — the two tables operate on different key spaces (slash-command names vs customIds). No behavior change.
+
+### Added
+
+- **`src/utils/setup/systemStates.ts`** — single source of truth for the per-system DB-state inspection. The slash-command setup dashboard and the webapp setup API now both call into it. Adding a new system requires updating one function plus the `SystemStates` interface.
+- **`createFieldHandlers<T>(config)`** factory in `src/commands/handlers/shared/fieldManagerCore.ts` — binds a `FieldManagerConfig` to its core helpers and returns a 5-method handler bundle (`showFieldManager`, `handleAddFieldModal`, `handleFieldButton`, `handleFieldSelectMenu`, `handlePreviewModal`). Replaces the wrapper-function chorus that `applicationFields.ts` and `typeFields.ts` both repeat.
+
+### Changed
+
+- **`commands/handlers/botSetup/setupDashboard.ts` + `utils/api/handlers/setupHandlers.ts`** — both `detectSystemStates` implementations replaced with import from the new util. `setupDashboard` re-exports for back-compat (so `botSetup/index.ts` and other callers don't need a churn pass). Net **-65 lines**.
+- **`events/autocomplete.ts`** — switch-statement dispatch (~115 LOC) replaced with `AUTOCOMPLETE_ROUTES` lookup table keyed by `command/group/subcommand` plus a `COMMAND_AUTOCOMPLETE_ROUTES` fallback for commands whose entire surface uses one autocomplete handler (`reactionrole`, `announcement`). Same shape as v3.1.10's button-route tables. Net ~-40 lines and adding a new autocomplete-using subcommand is now one row instead of a switch case.
+- **`commands/handlers/ticket/typeFields.ts`** — 4 wrapper functions (`handleAddFieldModal` / `handleFieldButton` / `handleFieldSelectMenu` / `handlePreviewModal`) collapsed into a `createFieldHandlers(config)` call + destructure-and-export. Net **-30 lines**.
+- **`commands/handlers/application/applicationFields.ts`** — same pattern. The wrapper chorus was thicker here because each function also did `String(positionId)` conversion — now the dispatcher passes strings directly.
+- **`events/applicationFieldsInteraction.ts`** — drops `parseInt` calls that were paired with the wrapper-side `String(...)` re-conversion. Match groups (already strings) are passed straight through.
+- **`events/typeFieldsInteraction.ts` + `events/applicationFieldsInteraction.ts`** — both now return `Promise<boolean>` (true when matched + handled, false otherwise) so the top-level router can iterate without duplicating prefix knowledge. Each dispatcher early-outs on prefix mismatch.
+- **`events/applicationInteraction.ts` + `events/ticketInteraction.ts`** — propagate the boolean return from their underlying `dispatchXxxInteraction` (which already returned `Promise<boolean>` from v3.1.10).
+- **`events/interactionRouter.ts`** — collapsed from 85 lines of inline prefix-matching to a 25-line dispatch loop. The top-level no longer encodes per-feature prefix knowledge — each feature dispatcher decides for itself whether to claim the interaction. Adding a new feature dispatcher is a one-line addition to `FEATURE_DISPATCHERS`.
+
+### Skipped
+
+- **AUDIT_RULES vs BUTTON_ROUTES "duplication"** — patch's premise was wrong. `AUDIT_RULES` keys are slash-command names (`ticket`, `memory`, `role`, `application`); `BUTTON_ROUTES` keys are interaction customIds (`close_ticket`, `confirm_close_ticket`...). Different key spaces; not parallel.
+
+### Notes
+
+- 1134 tests passing; build + biome clean.
+- `createFieldHandlers` is the kind of mechanical factory that pays for itself the second time it's used. Future field-bearing entities (e.g. announcement templates with custom fields) get the wrapper-free experience for free.
+- Targets `mid_level_elegance` 78.5 → 86+ on next desloppify rescore.
+
 ## [3.1.32] - 2026-04-29
 
 AI debt cleanup pass 3 — fourth patch of the post-v3.1.28 desloppify rescore series. Closes 3 of 4 `ai_generated_debt` findings (the 4th — `guard_helpers_duplicated_rate_limit_tail` — was already done in v3.1.29). Plus absorbs the deferred `entityNames descriptor` finding from v3.1.31's cross-module-arch coordination notes. No behavior change.
