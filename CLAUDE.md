@@ -109,15 +109,32 @@ if (!check.allowed) { /* deny */ }
 ```
 
 ### Permission Validation
-`requireAdmin()` and `requireOwner()` accept any Discord `Interaction` (commands, buttons, modals):
+Prefer the `guard*` wrappers from `utils/interactions` over the raw `require*` validators — they reply ephemerally and return `{ allowed }` in one line. Use feature-scoped guards when the action is in the `FEATURES` catalog (see `src/utils/validation/featurePermission.ts`); reserve `guardAdmin` / `guardOwner` for meta-features (`/bot-setup`, `/bot-reset`, `/data-export`, `/status`).
+
 ```typescript
-const adminCheck = requireAdmin(interaction);
-if (!adminCheck.allowed) {
-    await interaction.reply({ content: adminCheck.message, flags: [MessageFlags.Ephemeral] });
-    return;
-}
-// Other validators: requireOwner(), hasRole(), hasPermission(), hasAnyPermission()
+import { guardAdmin, guardOwner, guardFeatureAccess, guardFeatureRateLimit } from '../utils';
+
+// Admin (legacy / meta-features)
+const guard = await guardAdmin(interaction);
+if (!guard.allowed) return;
+
+// Bot owner only (status commands, dev tools)
+const guard = await guardOwner(interaction);
+if (!guard.allowed) return;
+
+// Feature-scoped — preferred for anything in FEATURES
+const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
+if (!guard.allowed) return;
+
+// Feature + rate limit (drop-in for guardAdminRateLimit)
+const guard = await guardFeatureRateLimit(interaction, 'tickets', 'manage', {
+  action: 'ticket-create',
+  limit: RateLimits.TICKET_CREATE,
+});
+if (!guard.allowed) return;
 ```
+
+Levels: `'use'` (read-only / view), `'manage'` (mutate config / per-item CRUD), `'admin'` (GDPR-scoped or destructive). Higher levels satisfy lower ones. Unconfigured guilds fall back to admin-only via `hasFeatureAccess`. Raw validators (`requireAdmin`, `hasRole`, `hasPermission`, `hasAnyPermission`, `requireBotOwner`) are still exported but should be reserved for cases the wrappers don't cover (e.g. permission overwrite assembly, non-interaction code paths).
 
 ### Input Sanitization
 Use helpers from `src/utils/validation/inputSanitizer.ts`:
@@ -422,6 +439,8 @@ const triggeredBy = optionalString(body, 'triggeredBy');   // for audit logs
 - Replace forum tags (use tag accumulation pattern)
 - Use deprecated `ephemeral: true` (use `flags: [MessageFlags.Ephemeral]`)
 - Use `requireAdmin()` with truthy check (use `.allowed` property)
+- Use raw `requireAdmin`/`requireBotOwner` and format your own reply (use `guardAdmin`/`guardOwner` wrappers — same shape, one line)
+- Use `guardAdmin` when the action is in the `FEATURES` catalog (use `guardFeatureAccess`/`guardFeatureRateLimit` so the webapp permission UI is load-bearing)
 - Create new REST instances (use shared `getRest()` from `restClient.ts`)
 - Use `as string` casts on API request body fields (use `requireString`/`optionalString` from `api/helpers`)
 - Write manual `requireAdmin` + `rateLimiter.check` boilerplate (use `guardAdminRateLimit` from `utils/interactions`)

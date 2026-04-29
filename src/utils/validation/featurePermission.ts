@@ -39,6 +39,7 @@ import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
  */
 export const FEATURES = [
   'tickets',
+  'applications',
   'announcements',
   'baitchannel',
   'memory',

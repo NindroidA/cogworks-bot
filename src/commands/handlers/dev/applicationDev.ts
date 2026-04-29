@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { ArchivedApplication } from '../../../typeorm/entities/application/ArchivedApplication';
-import { enhancedLogger, handleInteractionError, LogCategory, lang, requireAdmin } from '../../../utils';
+import { enhancedLogger, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
 
 /**
  * Delete a specific archived application by user
@@ -9,15 +9,8 @@ import { enhancedLogger, handleInteractionError, LogCategory, lang, requireAdmin
  */
 export async function deleteArchivedApplicationHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    // Admin-only command
-    const ownerCheck = requireAdmin(interaction);
-    if (!ownerCheck.allowed) {
-      await interaction.reply({
-        content: ownerCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     const user = interaction.options.getUser('user', true);
     const guildId = interaction.guildId!;
@@ -69,15 +62,8 @@ export async function deleteArchivedApplicationHandler(interaction: ChatInputCom
  */
 export async function deleteAllArchivedApplicationsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    // Admin-only command
-    const ownerCheck = requireAdmin(interaction);
-    if (!ownerCheck.allowed) {
-      await interaction.reply({
-        content: ownerCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 

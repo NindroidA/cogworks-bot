@@ -6,12 +6,18 @@
  */
 
 import { EmbedBuilder, type MessageContextMenuCommandInteraction, MessageFlags } from 'discord.js';
-import { enhancedLogger, escapeDiscordMarkdown, guardAdmin, handleInteractionError, LogCategory } from '../../../utils';
+import {
+  enhancedLogger,
+  escapeDiscordMarkdown,
+  guardFeatureAccess,
+  handleInteractionError,
+  LogCategory,
+} from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
 export async function captureToMemoryHandler(interaction: MessageContextMenuCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'memory', 'use');
     if (!guard.allowed) return;
 
     const targetMessage = interaction.targetMessage;

@@ -65,6 +65,13 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
   }
 };
 
+// Auth model for the in-channel close/confirm/cancel buttons:
+// these live inside the ticket channel, whose member list is set at creation
+// (applicant + staff role + Discord admins). Anyone without channel-view
+// cannot click them. Closing one's own ticket is intentional UX, so we
+// deliberately do NOT layer guardFeatureAccess on top — the channel ACL is
+// the gate. If a future change exposes these buttons outside their ticket
+// channel (e.g. via a dashboard or DM), add an explicit guard here.
 export const closeButton = async (_client: Client, interaction: ButtonInteraction) => {
   enhancedLogger.debug(`Button: close_ticket`, LogCategory.COMMAND_EXECUTION, {
     userId: interaction.user.id,

@@ -22,7 +22,7 @@ import {
   DEFAULT_APPLICATION_STATUSES,
   enhancedLogger,
   formatLang,
-  guardAdmin,
+  guardFeatureAccess,
   LogCategory,
   lang,
   MAX,
@@ -87,6 +87,9 @@ function appendStatusHistory(application: Application, status: string, changedBy
 // ============================================================================
 
 export async function applicationStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
+  const guard = await guardFeatureAccess(interaction, 'applications', 'manage');
+  if (!guard.allowed) return;
+
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -160,6 +163,9 @@ export async function applicationStatusHandler(interaction: ChatInputCommandInte
 // ============================================================================
 
 export async function applicationNoteHandler(interaction: ChatInputCommandInteraction<CacheType>) {
+  const guard = await guardFeatureAccess(interaction, 'applications', 'manage');
+  if (!guard.allowed) return;
+
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -226,6 +232,9 @@ export async function applicationNoteHandler(interaction: ChatInputCommandIntera
 // ============================================================================
 
 export async function applicationClaimHandler(interaction: ChatInputCommandInteraction<CacheType>) {
+  const guard = await guardFeatureAccess(interaction, 'applications', 'manage');
+  if (!guard.allowed) return;
+
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -284,6 +293,9 @@ export async function applicationClaimHandler(interaction: ChatInputCommandInter
 // ============================================================================
 
 export async function applicationInfoHandler(interaction: ChatInputCommandInteraction<CacheType>) {
+  const guard = await guardFeatureAccess(interaction, 'applications', 'use');
+  if (!guard.allowed) return;
+
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -428,7 +440,7 @@ export async function applicationCheckHandler(interaction: ChatInputCommandInter
 // ============================================================================
 
 export async function applicationWorkflowEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'applications', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -469,7 +481,7 @@ export async function applicationWorkflowEnableHandler(interaction: ChatInputCom
 // ============================================================================
 
 export async function applicationWorkflowDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'applications', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -509,7 +521,7 @@ export async function applicationWorkflowDisableHandler(interaction: ChatInputCo
 const STATUS_ID_REGEX = /^[a-z0-9-]{1,20}$/;
 
 export async function applicationWorkflowAddStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'applications', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -596,7 +608,7 @@ export async function applicationWorkflowAddStatusHandler(interaction: ChatInput
 // ============================================================================
 
 export async function applicationWorkflowRemoveStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'applications', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;

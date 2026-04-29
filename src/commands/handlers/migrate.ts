@@ -7,9 +7,9 @@ import {
   applyForumTags,
   enhancedLogger,
   ensureForumTag,
+  guardAdmin,
   handleInteractionError,
   LogCategory,
-  requireAdmin,
 } from '../../utils';
 import { legacyTypeInfo } from '../../utils/ticket/legacyTypes';
 
@@ -19,15 +19,8 @@ import { legacyTypeInfo } from '../../utils/ticket/legacyTypes';
  */
 export async function migrateTicketTagsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    // Admin-only command
-    const ownerCheck = requireAdmin(interaction);
-    if (!ownerCheck.allowed) {
-      await interaction.reply({
-        content: ownerCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
@@ -143,15 +136,8 @@ export async function migrateTicketTagsHandler(interaction: ChatInputCommandInte
  */
 export async function migrateApplicationTagsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    // Admin-only command
-    const ownerCheck = requireAdmin(interaction);
-    if (!ownerCheck.allowed) {
-      await interaction.reply({
-        content: ownerCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     await interaction.reply({
       content:

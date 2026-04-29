@@ -11,7 +11,7 @@ import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import {
   enhancedLogger,
   escapeDiscordMarkdown,
-  guardAdmin,
+  guardFeatureAccess,
   handleInteractionError,
   LogCategory,
   lang,
@@ -20,7 +20,7 @@ import { Colors } from '../../../utils/colors';
 
 export async function openTicketForUserHandler(interaction: UserContextMenuCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'use');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;

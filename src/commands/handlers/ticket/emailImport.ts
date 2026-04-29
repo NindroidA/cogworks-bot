@@ -272,7 +272,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
       action: 'ticket-create',
       limit: RateLimits.TICKET_CREATE,
       scope: 'user',
-      skipAdmin: true,
+      skipPermissionCheck: true,
     });
     if (!guard.allowed) return;
 

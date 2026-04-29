@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.29] - 2026-04-29
+
+Authorization consistency pass 2 — closes the seven high-confidence auth gaps surfaced by the post-v3.1.28 desloppify rescore. Largest single regression in the rescore (`authorization_consistency` 88.0 → 78.5); this patch lands all eight scoped parts.
+
+### Added
+
+- **`'applications'` feature key** added to `FEATURES` catalog in `src/utils/validation/featurePermission.ts`. Flows through `permissionHandlers` automatically — webapp permissions UI now offers `applications` as a first-class scope. Test count for FEATURES catalog expectation updated to match.
+- **`guardOwner()`** wrapper at `src/utils/interactions/guardHelper.ts`. Mirrors `guardAdmin`'s shape: replies ephemerally on failure, returns `{ allowed }`. Replaces the 6-line `requireBotOwner + reply + return` boilerplate at all 13 call sites (status/dev). Exported from the `interactions` barrel.
+- **Regression test** for `pingToggleButton` denial when the user is not a Discord admin and no permission rows exist (1133 → 1134 tests).
+
+### Changed
+
+- **`application` command tree** migrated to feature-scoped guards. 13 sites across 5 files: `applicationEdit`, `applicationFields`, `applicationPosition`, `applicationSetup` (rate-limit preserved via `guardFeatureRateLimit`), `workflow.ts` (4 `workflow-*` admin commands + 3 previously-unguarded mutating handlers `applicationStatusHandler`/`applicationNoteHandler`/`applicationClaimHandler` now require `'applications', 'manage'`; read-only `applicationInfoHandler` requires `'use'`; applicant self-check `applicationCheckHandler` remains unguarded).
+- **`pingToggleButton`** at `src/events/ticket/typeAdmin.ts` now gates with `guardFeatureAccess('tickets', 'manage')`. The button mutates `TicketConfig.pingStaff*` columns — same write surface as the slash command form. Without this check a non-admin who could see the message could re-click the button at any time.
+- **Context menus** (`src/commands/handlers/contextMenus/`): `captureToMemory` → `'memory', 'use'`; `manageRestrictions` → `'tickets', 'manage'` (mutates `UserTicketRestriction`); `openTicketForUser` → `'tickets', 'use'` (read-only display); `viewBaitScore` → `'baitchannel', 'use'`.
+- **`guardHelper.ts`** internal cleanup — extracted private `applyRateLimit()` shared by `guardAdminRateLimit` and `guardFeatureRateLimit` (both now ~5 lines: do the auth check, delegate to `applyRateLimit`). Renamed `GuardOptions.skipAdmin` → `GuardOptions.skipPermissionCheck` (the old name was a misnomer for the feature-rate-limit variant). Updated single caller in `ticket/emailImport.ts`.
+- **Owner sweep** — replaced the `requireBotOwner(interaction.user.id) + reply + return` ladder with `guardOwner(interaction)` at all 13 sites: `status/{view,set,clear,history,subscribe (3)}`, `dev/{devSuite,devTest,devSuiteScaffold (4)}`. Net ~85 lines deleted.
+- **Raw `requireAdmin` sweep** — 8 call sites in `migrate.ts` (2), `dev/applicationDev.ts` (2), `dev/ticketDev.ts` (3), `import/index.ts` (1) collapsed onto `guardAdmin(interaction)`.
+- **`devSuiteTests.ts` static-analysis** — the `permissions-audit` heuristic that scans handler source for permission-check strings now recognises both legacy `require*` validators and the modern `guard*` wrappers (`guardAdmin`, `guardOwner`, `guardFeatureAccess`, `guardFeatureRateLimit`). Without this update the audit would have flagged every newly-migrated handler as "no permission check".
+- **Per-ticket close buttons** at `src/events/ticket/close.ts` left intentionally unguarded with an explanatory in-code comment — Discord channel ACLs (applicant + staff role + Discord admins) are the gate, and applicant-self-close is intentional UX.
+- **Test mock** for `ticketInteraction.test.ts` extended: `baseInteractionProps` now includes `isRepliable: true`, a truthy `guild`, and a `member.permissions.has` stub returning true (Discord-admin path). Tests exercising the non-admin path override `member` explicitly.
+
+### Docs
+
+- **`CLAUDE.md`** Permission Validation section rewritten to lead with the `guard*` wrappers, document the four levels (`use`/`manage`/`admin`/owner), and call out the meta-feature exceptions (`/bot-setup`, `/bot-reset`, `/data-export`, `/status`).
+- **`CLAUDE.md`** Common Pitfalls — added "use feature-scoped guards when the action is in the FEATURES catalog" and "use `guardAdmin`/`guardOwner` wrappers, not raw `require*` + hand-rolled reply".
+
+### Notes
+
+- All migrations preserve admin-only fallback for unconfigured guilds via `hasFeatureAccess`. No behavior change for guilds that have not visited the webapp permissions UI.
+- `pingToggleButton` (Part 3) is the one user-visible behaviour change: a non-admin who could previously click the button can no longer mutate the staff-ping config. This was always the intended behaviour — the button was an end-run that the dispatcher split (v3.1.10) didn't re-cover.
+- 1133 → 1134 tests passing; build + biome clean.
+- Targets `authorization_consistency` 78.5 → 88+ on the next desloppify rescore.
+
 ## [3.1.28] - 2026-04-27
 
 Feature-permission migration: tickets — twelfth (final) feature commit. **Migration complete.** All 28 guard call sites across 13 ticket handler files migrated.

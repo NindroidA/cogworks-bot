@@ -17,7 +17,7 @@ import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import { XPConfig } from '../../../typeorm/entities/xp/XPConfig';
 import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
-import { enhancedLogger, LogCategory, requireBotOwner } from '../../../utils';
+import { enhancedLogger, guardOwner, LogCategory } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { checkAndSendReminders } from '../../../utils/event/reminderChecker';
 import { sendOnboardingFlow } from '../../../utils/onboarding/onboardingEngine';
@@ -35,15 +35,8 @@ const analyticsSnapshotRepo = lazyRepo(AnalyticsSnapshot);
 const statusIncidentRepo = lazyRepo(StatusIncident);
 
 export async function devTestHandler(client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
-  // Bot owner only
-  const ownerCheck = requireBotOwner(interaction.user.id);
-  if (!ownerCheck.allowed) {
-    await interaction.reply({
-      content: ownerCheck.message || '❌ Bot owner only.',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardOwner(interaction);
+  if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
   const subcommand = interaction.options.getSubcommand();

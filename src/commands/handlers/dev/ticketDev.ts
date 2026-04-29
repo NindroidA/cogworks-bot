@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { ArchivedTicket } from '../../../typeorm/entities/ticket/ArchivedTicket';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
-import { enhancedLogger, handleInteractionError, LogCategory, lang, requireAdmin } from '../../../utils';
+import { enhancedLogger, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
 import { findManyByGuild } from '../../../utils/database/guildQueries';
 
 /**
@@ -11,15 +11,8 @@ import { findManyByGuild } from '../../../utils/database/guildQueries';
  */
 export async function bulkCloseTicketsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    // Admin-only command
-    const ownerCheck = requireAdmin(interaction);
-    if (!ownerCheck.allowed) {
-      await interaction.reply({
-        content: ownerCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
@@ -79,15 +72,8 @@ export async function bulkCloseTicketsHandler(interaction: ChatInputCommandInter
  */
 export async function deleteArchivedTicketHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    // Admin-only command
-    const ownerCheck = requireAdmin(interaction);
-    if (!ownerCheck.allowed) {
-      await interaction.reply({
-        content: ownerCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     const user = interaction.options.getUser('user', true);
     const guildId = interaction.guildId!;
@@ -139,15 +125,8 @@ export async function deleteArchivedTicketHandler(interaction: ChatInputCommandI
  */
 export async function deleteAllArchivedTicketsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    // Admin-only command
-    const ownerCheck = requireAdmin(interaction);
-    if (!ownerCheck.allowed) {
-      await interaction.reply({
-        content: ownerCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 

@@ -14,7 +14,7 @@ import {
   buildConfigStatusEmbed,
   cleanupOldMessage,
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   LogCategory,
   lang,
   RateLimits,
@@ -166,7 +166,7 @@ function buildApplicationStatusEmbed(
 }
 
 export async function applicationSetupHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'applications', 'manage', {
     action: 'application-setup',
     limit: RateLimits.APPLICATION_SETUP,
     scope: 'guild',

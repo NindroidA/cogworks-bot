@@ -150,13 +150,22 @@ function baseInteractionProps(overrides: Record<string, unknown> = {}) {
   return {
     guildId: "guild123",
     user: { id: "user123" },
-    guild: null as unknown,
-    member: { id: "user123", user: { id: "user123", username: "testuser" } },
+    guild: { id: "guild123" } as unknown,
+    member: {
+      id: "user123",
+      user: { id: "user123", username: "testuser" },
+      // Default mock member is a Discord admin so feature-permission guards
+      // short-circuit on the discord-admin path. Tests that exercise the
+      // non-admin path can override `member` explicitly.
+      permissions: { has: jest.fn().mockReturnValue(true) },
+      roles: { cache: new Map() },
+    },
     channelId: "channel123",
     channel: null as unknown,
     message: { id: "msg123", delete: jest.fn() },
     replied: false,
     deferred: false,
+    isRepliable: jest.fn().mockReturnValue(true),
     isButton: jest.fn().mockReturnValue(false),
     isModalSubmit: jest.fn().mockReturnValue(false),
     isStringSelectMenu: jest.fn().mockReturnValue(false),
@@ -872,6 +881,33 @@ describe("handleTicketInteraction", () => {
 
       // With empty guildId, handler returns early (no reply sent)
       expect(interaction.reply).not.toHaveBeenCalled();
+    });
+
+    test("should deny when the user is not a Discord admin and no permission rows exist", async () => {
+      // No permission rows in DB → fallback to admin-only. With a non-admin
+      // member, the guard must reply ephemerally and skip the toggle.
+      const nonAdminMember = {
+        id: "user123",
+        user: { id: "user123", username: "testuser" },
+        permissions: { has: jest.fn().mockReturnValue(false) },
+        roles: { cache: new Map() },
+      };
+      const interaction = makeButtonInteraction(
+        "ticket_type_ping_toggle:support",
+        { member: nonAdminMember },
+      );
+
+      await handleTicketInteraction(mockClient, interaction as never);
+
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flags: expect.arrayContaining([MessageFlags.Ephemeral]),
+        }),
+      );
+      // Must NOT have hit the type lookup or the save path.
+      expect(findOneSpy).not.toHaveBeenCalled();
+      expect(saveSpy).not.toHaveBeenCalled();
+      expect(interaction.update).not.toHaveBeenCalled();
     });
 
     test("should reply ephemerally when the ticket type is not found", async () => {
