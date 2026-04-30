@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.36] - 2026-04-30
+
+Test coverage — eighth patch of the post-v3.1.28 desloppify rescore series. Closes the largest remaining gap in `test_strategy`: the three delete event handlers (channelDelete, messageDelete, roleDelete) had zero direct coverage despite being load-bearing for v3.1.32's descriptor refactor. New tests verify the failure-attribution model (descriptor `name` field), Promise.allSettled isolation property, and per-entity mutation logic. Suite: 1134 → 1167 (+33 tests, no regressions).
+
+### Added
+
+- **`tests/unit/events/channelDelete.test.ts`** — 10 tests for the 13-entity descriptor sweep. Covers DM-channel early-return, full descriptor sweep regression list (every entity must be queried — removing a descriptor would fail the test), TicketConfig per-column nullification (3 variants: channelId/messageId, categoryId, no-match), Promise.allSettled sibling isolation, RulesConfig delete + cache invalidation, ReactionRoleMenu delete + cache invalidation, BaitChannelConfig manager cache flush, XPConfig array filtering.
+
+- **`tests/unit/events/messageDelete.test.ts`** — 9 tests for the 8-entity descriptor sweep. Covers DM early-return, perf-guard for non-bot author (descriptor sweep skipped entirely), partial-message handling (null author still triggers full sweep), full descriptor sweep regression list, TicketConfig messageId clear, RulesConfig delete + cache invalidation, ReactionRoleMenu delete + invalidateMenuCache, Promise.allSettled isolation, baitChannelManager.handleMessageDelete invocation.
+
+- **`tests/unit/events/roleDelete.test.ts`** — 14 tests for the 9-entity descriptor sweep. Covers full descriptor sweep regression list, BotConfig globalStaffRole nullification + flag disable, RulesConfig delete + cache, ReactionRoleOption (which uses `createQueryBuilder` join — fake repo extended with chainable QB stub keyed on params), AnnouncementConfig defaultRoleId nullification, StaffRole bulk remove, XPConfig ignoredRoles filter, XPRoleReward bulk remove, OnboardingConfig completionRoleId nullification, BaitChannelConfig whitelistedRoles filter + manager cache flush, Promise.allSettled isolation.
+
+### Test pattern
+
+All three suites share the same shape:
+1. Per-entity fake-repo registry keyed on TypeORM entity class name.
+2. `AppDataSource.getRepository` patched at runtime via `(AppDataSource as any).getRepository = (entity) => fakeRepos[entity?.name]`. Works because lazyRepo's Proxy resolves on first property access — no production-code changes needed.
+3. `mock.module()` for cache helpers (`rulesCache`, `menuCache`, `starboardReaction`) — note Bun's `mock.module` is process-shared, so factories must include ALL real exports (not just the one being faked) to avoid undefined-export leaks across test files.
+4. Fake repo supports `findOneBy` / `find` / `save` / `remove` / `count`, with a `shouldThrowOn` toggle to verify Promise.allSettled isolation. roleDelete additionally adds a chainable `createQueryBuilder` stub for the ReactionRoleOption join path.
+
+These tests would fail if any descriptor is removed from CHANNEL_REF_CLEANERS / MESSAGE_REF_CLEANERS / ROLE_REF_CLEANERS — which is the regression they exist to catch. Deferred from this patch: integration tests, application handler tests, prototype-spy cleanup (handed off to follow-up versions).
+
 ## [3.1.35] - 2026-04-30
 
 Incomplete migrations finalize — seventh patch of the post-v3.1.28 desloppify rescore series. 3 of 5 `incomplete_migration` findings closed (Part 4 was already done in v3.1.29); Parts 1 + 3 deliberately deferred pre-push because they're the highest-risk changes in this series (schema migration + user-visible command-shape change). No behavior change for landed parts.
