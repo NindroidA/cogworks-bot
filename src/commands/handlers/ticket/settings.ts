@@ -3,7 +3,7 @@ import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import { Colors, E, enhancedLogger, formatLang, guardFeatureAccess, LogCategory, lang } from '../../../utils';
-import { isLegacyTicketType, legacyTypeInfo, resolveLegacyPingColumn } from '../../../utils/ticket/legacyTypes';
+import { builtinTypeInfo, isBuiltinTicketType, resolveBuiltinPingColumn } from '../../../utils/ticket/builtinTypes';
 
 const tl = lang.ticket.settings;
 
@@ -93,13 +93,13 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
 
     let displayName: string;
 
-    // Check if it's a legacy type
-    if (isLegacyTicketType(typeId)) {
-      const columnName = resolveLegacyPingColumn(typeId);
-      displayName = legacyTypeInfo(typeId)?.displayName ?? typeId;
+    // Check if it's a builtin type
+    if (isBuiltinTicketType(typeId)) {
+      const columnName = resolveBuiltinPingColumn(typeId);
+      displayName = builtinTypeInfo(typeId)?.displayName ?? typeId;
 
       if (columnName) {
-        // Update the legacy type's ping setting
+        // Update the builtin type's ping setting
         await ticketConfigRepo.update({ guildId }, { [columnName]: enabled });
       }
     } else {

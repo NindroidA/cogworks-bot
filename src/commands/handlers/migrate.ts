@@ -11,7 +11,7 @@ import {
   handleInteractionError,
   LogCategory,
 } from '../../utils';
-import { legacyTypeInfo } from '../../utils/ticket/legacyTypes';
+import { builtinTypeInfo } from '../../utils/ticket/builtinTypes';
 
 /**
  * Migrate existing archived tickets to use forum tags
@@ -74,11 +74,11 @@ export async function migrateTicketTagsHandler(interaction: ChatInputCommandInte
             emoji = customType.emoji;
           }
         } else if (archived.ticketType) {
-          const legacyInfo = legacyTypeInfo(archived.ticketType);
-          if (legacyInfo) {
-            typeId = legacyInfo.typeId;
-            displayName = legacyInfo.displayName;
-            emoji = legacyInfo.emoji;
+          const builtinInfo = builtinTypeInfo(archived.ticketType);
+          if (builtinInfo) {
+            typeId = builtinInfo.typeId;
+            displayName = builtinInfo.displayName;
+            emoji = builtinInfo.emoji;
           }
         }
 

@@ -6,7 +6,7 @@
  * markdown output.
  */
 
-import { describe, expect, test } from '@jest/globals';
+import { describe, expect, test } from 'bun:test';
 import {
   buildTranscript,
   chunkByMessageBoundary,

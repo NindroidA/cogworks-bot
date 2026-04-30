@@ -10,7 +10,7 @@ import { memoryAutocomplete } from '../commands/handlers/memory';
 import { memoryTagAutocomplete } from '../commands/handlers/memory/manageTags';
 import { reactionRoleMenuAutocomplete } from '../commands/handlers/reactionRole';
 import { routingRuleAutocomplete } from '../commands/handlers/ticket/routing';
-import { ticketTypeAutocomplete, ticketTypeAutocompleteWithLegacy } from '../commands/handlers/ticket/typeToggle';
+import { ticketTypeAutocomplete, ticketTypeAutocompleteWithBuiltin } from '../commands/handlers/ticket/typeToggle';
 import { removableStatusAutocomplete, workflowStatusAutocomplete } from '../commands/handlers/ticket/workflow';
 import { enhancedLogger, LogCategory } from '../utils';
 
@@ -34,7 +34,7 @@ const AUTOCOMPLETE_ROUTES: Record<string, AutocompleteHandler> = {
   // /ticket manage *
   'ticket/manage/status': workflowStatusAutocomplete,
   'ticket/manage/user-restrict': ticketTypeAutocomplete,
-  'ticket/manage/settings': ticketTypeAutocompleteWithLegacy,
+  'ticket/manage/settings': ticketTypeAutocompleteWithBuiltin,
   // /ticket workflow *
   'ticket/workflow/remove-status': removableStatusAutocomplete,
   'ticket/workflow/autoclose-enable': workflowStatusAutocomplete,

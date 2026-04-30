@@ -394,7 +394,7 @@ src/
 │   ├── security/           # rateLimiter, featurePermission (v3.1.3)
 │   ├── setup/              # channelCreator, channelDefaults, channelFormatDetector, configStatusEmbed
 │   ├── status/             # statusManager (client-attached)
-│   ├── ticket/             # autoClose, slaChecker, smartRouter, closeWorkflow, legacyTypes, transcriptBuilder
+│   ├── ticket/             # autoClose, slaChecker, smartRouter, closeWorkflow, builtinTypes, routingTypes, transcriptBuilder
 │   ├── validation/         # permissionValidator, inputSanitizer, validators
 │   ├── workflow/           # cross-feature workflow helpers
 │   ├── xp/                 # xp calc + role reward helpers
@@ -483,9 +483,11 @@ const triggeredBy = optionalString(body, 'triggeredBy');   // for audit logs
 
 ## Testing
 
-- Config: `jest.config.js` (ts-jest), Setup: `tests/setup.ts`
+- Runner: `bun test` (no separate config). Setup: `tests/setup.ts` (`import 'reflect-metadata'`).
 - Run: `bun test` or `bun run test:watch`
 - Tests: `tests/unit/` — events, utils, handlers
+- Imports: use `from 'bun:test'` (NOT `from '@jest/globals'` — Jest was removed in v3.1.35).
+- Mocking: prefer hand-rolled fakes / `mock.module(...)` from `bun:test`. `jest.fn()` / `jest.spyOn()` work via Bun's compatibility shim. `jest.mock()` is NOT supported — use `mock.module()` instead.
 
 ## Security
 

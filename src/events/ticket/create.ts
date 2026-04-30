@@ -33,7 +33,7 @@ import {
   rateLimiter,
 } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
-import { isLegacyTicketType, resolveLegacyPingColumn, resolveTicketType } from '../../utils/ticket/legacyTypes';
+import { isBuiltinTicketType, resolveBuiltinPingColumn, resolveTicketType } from '../../utils/ticket/builtinTypes';
 import { ageVerifyMessage, ageVerifyModal } from './ageVerify';
 import { banAppealMessage, banAppealModal } from './banAppeal';
 import { bugReportMessage, bugReportModal } from './bugReport';
@@ -48,8 +48,8 @@ const botConfigRepo = lazyRepo(BotConfig);
 const customTypeRepo = lazyRepo(CustomTicketType);
 const restrictionRepo = lazyRepo(UserTicketRestriction);
 
-/** Build a legacy ticket modal with the correct inputs for the given type. */
-function buildLegacyTicketModal(typeId: string, modal: ModalBuilder): ModalBuilder {
+/** Build a builtin ticket modal with the correct inputs for the given type. */
+function buildBuiltinTicketModal(typeId: string, modal: ModalBuilder): ModalBuilder {
   switch (typeId) {
     case '18_verify':
       return ageVerifyModal(modal);
@@ -66,8 +66,8 @@ function buildLegacyTicketModal(typeId: string, modal: ModalBuilder): ModalBuild
   }
 }
 
-/** Build legacy ticket description from modal submit fields. */
-function buildLegacyTicketDescription(typeId: string, fields: ModalSubmitFields): string {
+/** Build builtin ticket description from modal submit fields. */
+function buildBuiltinTicketDescription(typeId: string, fields: ModalSubmitFields): string {
   switch (typeId) {
     case '18_verify':
       return ageVerifyMessage(fields);
@@ -112,7 +112,7 @@ export const createTicketButton = async (_client: Client, interaction: ButtonInt
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
-    enhancedLogger.warn('Failed to load custom ticket types, using legacy options', LogCategory.COMMAND_EXECUTION, {
+    enhancedLogger.warn('Failed to load custom ticket types, using builtin options', LogCategory.COMMAND_EXECUTION, {
       guildId,
       error: error instanceof Error ? error.message : String(error),
     });
@@ -164,14 +164,14 @@ export const selectTicketType = async (_client: Client, interaction: StringSelec
     return;
   }
 
-  if (isLegacyTicketType(selectedTypeId)) {
-    enhancedLogger.debug(`Opening legacy modal for type: ${selectedTypeId}`, LogCategory.COMMAND_EXECUTION, {
+  if (isBuiltinTicketType(selectedTypeId)) {
+    enhancedLogger.debug(`Opening builtin modal for type: ${selectedTypeId}`, LogCategory.COMMAND_EXECUTION, {
       userId: interaction.user.id,
       guildId,
       ticketType: selectedTypeId,
     });
 
-    const modal = buildLegacyTicketModal(
+    const modal = buildBuiltinTicketModal(
       selectedTypeId,
       new ModalBuilder()
         .setCustomId(`ticket_modal_${selectedTypeId}`)
@@ -182,7 +182,9 @@ export const selectTicketType = async (_client: Client, interaction: StringSelec
     return;
   }
 
-  const ticketType = await customTypeRepo.findOne({ where: { guildId, typeId: selectedTypeId } });
+  const ticketType = await customTypeRepo.findOne({
+    where: { guildId, typeId: selectedTypeId },
+  });
 
   if (!ticketType) {
     await interaction.reply({
@@ -237,11 +239,11 @@ export const selectTicketType = async (_client: Client, interaction: StringSelec
   }, 500);
 };
 
-export const legacyTicketTypeButton = async (_client: Client, interaction: ButtonInteraction) => {
+export const builtinTicketTypeButton = async (_client: Client, interaction: ButtonInteraction) => {
   const ticketType = interaction.customId.replace('ticket_', '');
 
-  // Filter — `ticket_*` matches non-legacy buttons too (e.g. `ticket_skip`)
-  if (!isLegacyTicketType(ticketType)) return;
+  // Filter — `ticket_*` matches non-builtin buttons too (e.g. `ticket_skip`)
+  if (!isBuiltinTicketType(ticketType)) return;
 
   enhancedLogger.debug(`Button: ticket_${ticketType}`, LogCategory.COMMAND_EXECUTION, {
     userId: interaction.user.id,
@@ -249,7 +251,7 @@ export const legacyTicketTypeButton = async (_client: Client, interaction: Butto
     ticketType,
   });
 
-  const modal = buildLegacyTicketModal(
+  const modal = buildBuiltinTicketModal(
     ticketType,
     new ModalBuilder()
       .setCustomId(`ticket_modal_${ticketType}`)
@@ -321,11 +323,11 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
       return;
     }
 
-    const isLegacyType = resolved.isLegacy;
+    const isBuiltinType = resolved.isBuiltin;
     const displayName = resolved.displayName || ticketType;
 
-    if (isLegacyType) {
-      description = buildLegacyTicketDescription(ticketType, fields);
+    if (isBuiltinType) {
+      description = buildBuiltinTicketDescription(ticketType, fields);
     } else {
       const customTypeConfig = resolved.customType;
       const header = `# ${displayName}\n`;
@@ -355,7 +357,7 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
       type: ticketType,
     };
 
-    if (!isLegacyType) {
+    if (!isBuiltinType) {
       ticketData.customTypeId = ticketType;
     }
 
@@ -418,8 +420,8 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
     if (botConfig?.enableGlobalStaffRole && botConfig?.globalStaffRole) {
       let shouldPingStaff = false;
 
-      if (isLegacyType) {
-        const pingColumn = resolveLegacyPingColumn(ticketType);
+      if (isBuiltinType) {
+        const pingColumn = resolveBuiltinPingColumn(ticketType);
         if (pingColumn && modalTicketConfig) {
           shouldPingStaff = modalTicketConfig[pingColumn] as boolean;
         }

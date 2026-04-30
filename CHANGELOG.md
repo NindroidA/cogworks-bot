@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.35] - 2026-04-30
+
+Incomplete migrations finalize — seventh patch of the post-v3.1.28 desloppify rescore series. 3 of 5 `incomplete_migration` findings closed (Part 4 was already done in v3.1.29); Parts 1 + 3 deliberately deferred pre-push because they're the highest-risk changes in this series (schema migration + user-visible command-shape change). No behavior change for landed parts.
+
+### Changed
+
+- **Renamed `legacy*` ticket type identifiers to `builtin*` across the codebase** (Part 2 / Option B).
+  - `src/utils/ticket/legacyTypes.ts` → `src/utils/ticket/builtinTypes.ts`
+  - `LEGACY_TICKET_TYPE_IDS` → `BUILTIN_TICKET_TYPE_IDS`, `LEGACY_TYPES` → `BUILTIN_TYPES`, `LegacyTicketTypeId` → `BuiltinTicketTypeId`, `LegacyTypeDescriptor` → `BuiltinTypeDescriptor`
+  - `legacyTypeInfo()` → `builtinTypeInfo()`, `isLegacyTicketType()` → `isBuiltinTicketType()`, `resolveLegacyPingColumn()` → `resolveBuiltinPingColumn()`
+  - `ResolvedTicketType.isLegacy` → `isBuiltin`
+  - `ticketTypeAutocompleteWithLegacy` → `ticketTypeAutocompleteWithBuiltin` (autocomplete dispatcher updated)
+  - `legacyTicketTypeButton` (event handler) → `builtinTicketTypeButton`; private helpers `buildLegacyTicketModal` / `buildLegacyTicketDescription` similarly renamed
+  - User-visible "(Legacy)" suffix in admin autocomplete → "(Builtin)"
+  - Test file renamed: `tests/unit/utils/ticket/legacyTypes.test.ts` → `builtinTypes.test.ts`. The "legacy" concept is closed — these types are part of the supported product surface, not a leftover.
+
+- **Test infra: Jest dropped, Bun is the runner** (Part 5).
+  - 4 devDependencies removed from `package.json`: `jest`, `ts-jest`, `@jest/globals`, `@types/jest`. `bun install` regenerated the lockfile.
+  - Deleted `jest.config.js`. `tests/setup.ts` left untouched (just `import 'reflect-metadata'`).
+  - All 10 test files migrated from `import { ... } from '@jest/globals'` → `from 'bun:test'`. `jest.fn()` / `jest.spyOn()` continue to work via Bun's compatibility shim.
+
+- **`tests/unit/utils/ticket/closeWorkflow.test.ts`** — the `mock.module()` factory for `builtinTypes` now ALSO exposes the real `BUILTIN_TICKET_TYPE_IDS` / `BUILTIN_TYPES` / `isBuiltinTicketType` / `resolveBuiltinPingColumn` exports + sets a real-impl default for `fakeBuiltinTypeInfo`. Reason: Bun's `mock.module()` is process-shared once installed, so a partial mock factory causes `builtinTypes.test.ts` to read `undefined` for the unmocked exports when both suites run in the same process. The `beforeEach` block restores the real-impl default after each `mockReset` so per-test `mockReturnValue` overrides keep working.
+
+### Docs
+
+- **CLAUDE.md** — Testing section rewritten: "Runner: bun test (no separate config)", noted the `from 'bun:test'` import requirement, documented that `jest.mock()` is not supported (use `mock.module()`).
+- **CLAUDE.md** — directory map line updated: `legacyTypes, transcriptBuilder` → `builtinTypes, routingTypes, transcriptBuilder` (also captures the v3.1.31 routingTypes addition).
+
+### Skipped (deferred pre-push)
+
+- **Part 1 — Bait dual-column collapse.** Dropping `BaitChannelConfig.channelId` requires a real DB migration with back-fill. Schema-altering migrations are the highest-risk class of change to push without isolated dev-test validation, and the v3.1.x series is entering its push gate. Defer to its own version.
+- **Part 3 — Announcement legacy subcommands.** Removing `/announcement maintenance`, `/announcement back-online`, etc. is a user-visible command-shape change AND the patch's own constraint warns "the webapp may have hard-coded subcommand paths". Defer to its own version after a webapp audit.
+- **Part 4 — `applications` in FEATURES catalog.** Already added in v3.1.29 Part 1; nothing to do here.
+
+### Notes
+
+- 1134 tests passing; build + biome clean.
+- The `legacyTypes` finding closing is symbolic but real — the *concept* of "legacy" in the ticket-type subsystem is gone. Future contributors won't need to learn what makes a type "legacy"; they're builtin types now.
+- Targets `incomplete_migration` 78.0 → 84+ on next desloppify rescore (3 of 5 closed; Parts 1 + 3 deferred).
+
 ## [3.1.34] - 2026-04-30
 
 Design coherence pass 2 — sixth patch of the post-v3.1.28 desloppify rescore series. 4 of 5 `design_coherence` findings closed; the 5th (memory tags collector pattern) is deferred per coordination notes — same code shape as the memory CRUD chorus that v3.1.32 partially addressed; left as a follow-up sweep. No behavior change.

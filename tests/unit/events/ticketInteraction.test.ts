@@ -4,7 +4,7 @@
  * Covers the branching logic in src/events/ticketInteraction.ts:
  *   - close_ticket / confirm_close_ticket / cancel_close_ticket buttons
  *   - ticket_modal_<type> modal submission (guild-check, category-check, rate-limit, creation)
- *   - ticket_type_select string-select menu (none, restricted, legacy, custom)
+ *   - ticket_type_select string-select menu (none, restricted, builtin, custom)
  *   - Custom field modal construction (with fields vs. default field, field cap at 5)
  *   - create_ticket button (config check, message ID match, fallback on error)
  *   - cancel_ticket button
@@ -68,7 +68,7 @@ mock.module("../../../src/commands/handlers/ticket/emailImport", () => ({
     mockEmailImportModalHandler(...args),
 }));
 
-// Legacy ticket modal builders — pass-through so the modal object is returned
+// Builtin ticket modal builders — pass-through so the modal object is returned
 mock.module("../../../src/events/ticket/ageVerify", () => ({
   ageVerifyModal: jest
     .fn()
@@ -102,7 +102,7 @@ mock.module("../../../src/events/ticket/other", () => ({
 const mockCustomTicketOptions = jest
   .fn()
   .mockResolvedValue({ type: "selectMenu" });
-const mockTicketOptions = jest.fn().mockReturnValue({ type: "legacyButtons" });
+const mockTicketOptions = jest.fn().mockReturnValue({ type: "builtinButtons" });
 mock.module("../../../src/events/ticket", () => ({
   customTicketOptions: (...args: unknown[]) => mockCustomTicketOptions(...args),
   ticketOptions: (...args: unknown[]) => mockTicketOptions(...args),
@@ -455,7 +455,7 @@ describe("handleTicketInteraction", () => {
       expect(interaction.reply).not.toHaveBeenCalled();
     });
 
-    test("should fall back to legacy ticketOptions when customTicketOptions throws", async () => {
+    test("should fall back to builtin ticketOptions when customTicketOptions throws", async () => {
       findOneBySpy.mockResolvedValue(makeTicketConfig() as never);
       mockCustomTicketOptions.mockRejectedValueOnce(
         new Error("DB unavailable"),
@@ -548,7 +548,7 @@ describe("handleTicketInteraction", () => {
       ).toBe("guild123");
     });
 
-    test("should show a legacy modal for a legacy type without an extra custom-type DB lookup", async () => {
+    test("should show a builtin modal for a builtin type without an extra custom-type DB lookup", async () => {
       findOneSpy.mockResolvedValue(null as never); // no restriction
       const interaction = makeSelectMenuInteraction("ticket_type_select", [
         "ban_appeal",
@@ -748,7 +748,7 @@ describe("handleTicketInteraction", () => {
       expect(rateLimiterCheckSpy).toHaveBeenCalled();
     });
 
-    test("should create a ticket with the correct guildId for a legacy ticket type", async () => {
+    test("should create a ticket with the correct guildId for a builtin ticket type", async () => {
       findOneBySpy.mockResolvedValue(makeTicketConfig() as never);
       createSpy.mockReturnValue({ id: 1 } as never);
       saveSpy.mockResolvedValue({ id: 1 } as never);
@@ -761,7 +761,7 @@ describe("handleTicketInteraction", () => {
       );
     });
 
-    test("should not set customTypeId on legacy ticket types", async () => {
+    test("should not set customTypeId on builtin ticket types", async () => {
       findOneBySpy.mockResolvedValue(makeTicketConfig() as never);
       createSpy.mockReturnValue({ id: 5 } as never);
       saveSpy.mockResolvedValue({ id: 5 } as never);
@@ -821,7 +821,7 @@ describe("handleTicketInteraction", () => {
       );
     });
 
-    test("should reply confirming channel creation after a successful legacy ticket creation", async () => {
+    test("should reply confirming channel creation after a successful builtin ticket creation", async () => {
       findOneBySpy.mockResolvedValue(makeTicketConfig() as never);
       createSpy.mockReturnValue({ id: 7 } as never);
       saveSpy.mockResolvedValue({ id: 7 } as never);
@@ -1040,10 +1040,10 @@ describe("handleTicketInteraction", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Legacy ticket_ option buttons
+  // Builtin ticket_ option buttons
   // -------------------------------------------------------------------------
-  describe("legacy ticket_ option buttons", () => {
-    const legacyTypes = [
+  describe("builtin ticket_ option buttons", () => {
+    const builtinTypes = [
       "18_verify",
       "ban_appeal",
       "player_report",
@@ -1051,7 +1051,7 @@ describe("handleTicketInteraction", () => {
       "other",
     ];
 
-    for (const ticketType of legacyTypes) {
+    for (const ticketType of builtinTypes) {
       test(`should show a modal for ticket_${ticketType} button`, async () => {
         const interaction = makeButtonInteraction(`ticket_${ticketType}`);
 

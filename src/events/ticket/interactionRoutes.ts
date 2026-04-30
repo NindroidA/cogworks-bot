@@ -11,9 +11,9 @@ import { typeEditModalHandler } from '../../commands/handlers/ticket/typeEdit';
 import { adminOnlyButton, cancelAdminOnly, confirmAdminOnly } from './adminOnly';
 import { cancelClose, closeButton, confirmClose } from './close';
 import {
+  builtinTicketTypeButton,
   cancelTicketButton,
   createTicketButton,
-  legacyTicketTypeButton,
   selectTicketType,
   submitTicketModal,
 } from './create';
@@ -50,12 +50,12 @@ interface PrefixRoute<H> {
 
 /**
  * Order matters — `ticket_modal_` and `ticket_type_ping_toggle:` must match
- * before the catch-all `ticket_` legacy-type prefix would have a chance.
- * The catch-all is button-only and validates with `isLegacyTicketType`.
+ * before the catch-all `ticket_` builtin-type prefix would have a chance.
+ * The catch-all is button-only and validates with `isBuiltinTicketType`.
  */
 const BUTTON_PREFIX_ROUTES: PrefixRoute<ButtonHandler>[] = [
   { prefix: 'ticket_type_ping_toggle:', handler: pingToggleButton },
-  { prefix: 'ticket_', handler: legacyTicketTypeButton },
+  { prefix: 'ticket_', handler: builtinTicketTypeButton },
 ];
 
 const MODAL_PREFIX_ROUTES: PrefixRoute<ModalHandler>[] = [

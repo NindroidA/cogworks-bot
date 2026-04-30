@@ -17,7 +17,7 @@ import { verifiedChannelDelete } from '../discord/verifiedDelete';
 import { fetchMessagesAsTranscript } from '../fetchAllMessages';
 import { applyForumTags, ensureForumTag } from '../forumTagManager';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
-import { legacyTypeInfo, resolveTicketType } from './legacyTypes';
+import { builtinTypeInfo, resolveTicketType } from './builtinTypes';
 import { buildTranscript, type TicketMetadata, type TranscriptMessage } from './transcriptBuilder';
 
 const archivedTicketRepo = lazyRepo(ArchivedTicket);
@@ -37,16 +37,16 @@ interface TicketTypeInfo {
 }
 
 /**
- * Resolve display info for a ticket's type (custom or legacy).
+ * Resolve display info for a ticket's type (custom or builtin).
  *
  * Prefers `customTypeId` when present — an orphaned customTypeId (row deleted)
- * returns null rather than falling back to the legacy `type` column, matching
- * the original branching behavior.
+ * returns null rather than falling back to the `type` column, matching the
+ * original branching behavior.
  */
 async function resolveTicketTypeInfo(ticket: Ticket, guildId: string): Promise<TicketTypeInfo | null> {
   if (ticket.customTypeId) {
     const resolved = await resolveTicketType(guildId, ticket.customTypeId);
-    if (resolved && !resolved.isLegacy) {
+    if (resolved && !resolved.isBuiltin) {
       return {
         typeId: resolved.typeId,
         displayName: resolved.displayName,
@@ -56,12 +56,12 @@ async function resolveTicketTypeInfo(ticket: Ticket, guildId: string): Promise<T
     return null;
   }
   if (ticket.type) {
-    const legacy = legacyTypeInfo(ticket.type);
-    if (legacy) {
+    const builtin = builtinTypeInfo(ticket.type);
+    if (builtin) {
       return {
-        typeId: legacy.typeId,
-        displayName: legacy.displayName,
-        emoji: legacy.emoji,
+        typeId: builtin.typeId,
+        displayName: builtin.displayName,
+        emoji: builtin.emoji,
       };
     }
   }

@@ -4,7 +4,7 @@
  * Tests logging system with multiple levels, categories, and outputs
  */
 
-import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, jest, test } from 'bun:test';
 import { LogCategory, LogLevel, enhancedLogger } from '../../../src/utils/monitoring/enhancedLogger';
 
 // Spy on console methods

@@ -9,7 +9,7 @@ import {
   LogCategory,
   lang,
 } from '../../../utils';
-import { LEGACY_TICKET_TYPE_IDS, LEGACY_TYPES } from '../../../utils/ticket/legacyTypes';
+import { BUILTIN_TICKET_TYPE_IDS, BUILTIN_TYPES } from '../../../utils/ticket/builtinTypes';
 
 const tl = lang.ticket.customTypes.typeToggle;
 
@@ -122,10 +122,10 @@ export async function ticketTypeAutocomplete(interaction: AutocompleteInteractio
 }
 
 /**
- * Autocomplete handler that includes both legacy and custom ticket types
- * Used by settings command for ping-on-create setting
+ * Autocomplete handler that includes both builtin and custom ticket types.
+ * Used by settings command for ping-on-create setting.
  */
-export async function ticketTypeAutocompleteWithLegacy(interaction: AutocompleteInteraction): Promise<void> {
+export async function ticketTypeAutocompleteWithBuiltin(interaction: AutocompleteInteraction): Promise<void> {
   try {
     const guildId = interaction.guildId!;
     const focusedValue = interaction.options.getFocused().toLowerCase();
@@ -137,24 +137,24 @@ export async function ticketTypeAutocompleteWithLegacy(interaction: Autocomplete
       order: { sortOrder: 'ASC' },
     });
 
-    // Filter out custom types that have the same typeId as legacy types to avoid duplicates
+    // Filter out custom types that have the same typeId as builtin types to avoid duplicates
     const filteredCustomTypes = customTypes.filter(
-      t => !(LEGACY_TICKET_TYPE_IDS as readonly string[]).includes(t.typeId),
+      t => !(BUILTIN_TICKET_TYPE_IDS as readonly string[]).includes(t.typeId),
     );
 
-    // Combine legacy and custom types (legacy first, then custom)
+    // Combine builtin and custom types (builtin first, then custom)
     const allTypes = [
-      ...LEGACY_TYPES.map(t => ({
+      ...BUILTIN_TYPES.map(t => ({
         typeId: t.typeId,
         displayName: t.displayName,
         emoji: t.emoji,
-        isLegacy: true,
+        isBuiltin: true,
       })),
       ...filteredCustomTypes.map(t => ({
         typeId: t.typeId,
         displayName: t.displayName,
         emoji: t.emoji || '📝',
-        isLegacy: false,
+        isBuiltin: false,
       })),
     ];
 
@@ -167,13 +167,13 @@ export async function ticketTypeAutocompleteWithLegacy(interaction: Autocomplete
 
     await interaction.respond(
       filtered.map(type => ({
-        name: `${type.emoji} ${type.displayName}${type.isLegacy ? ' (Legacy)' : ''}`,
+        name: `${type.emoji} ${type.displayName}${type.isBuiltin ? ' (Builtin)' : ''}`,
         value: type.typeId,
       })),
     );
   } catch (error) {
     enhancedLogger.error(
-      'Autocomplete error in ticketTypeAutocompleteWithLegacy',
+      'Autocomplete error in ticketTypeAutocompleteWithBuiltin',
       error instanceof Error ? error : new Error(String(error)),
       LogCategory.COMMAND_EXECUTION,
       { userId: interaction.user.id, guildId: interaction.guildId },

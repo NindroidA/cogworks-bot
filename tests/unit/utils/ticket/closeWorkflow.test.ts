@@ -4,12 +4,12 @@
  * Exercises archiveAndCloseTicket end-to-end with faked Discord client,
  * channel, and TypeORM repo. Mocks the seam dependencies (lazyRepo,
  * verifiedChannelDelete, fetchMessagesAsTranscript, forumTagManager,
- * legacyTypes) at module-resolution time via Bun's mock.module() so the
+ * builtinTypes) at module-resolution time via Bun's mock.module() so the
  * real transcriptBuilder still runs.
  *
  * Coverage targets the four failure modes the handoff called out plus
  * the happy path variants and re-close behavior:
- *   - First-close happy paths (custom type, legacy type, email ticket)
+ *   - First-close happy paths (custom type, builtin type, email ticket)
  *   - Re-close into existing archive thread (with + without new tag)
  *   - Transcript fetch failure (short-circuits before forum write)
  *   - Forum post failure (ticket still closes; archived flag honest)
@@ -83,10 +83,53 @@ mock.module("../../../../src/utils/forumTagManager", () => ({
 }));
 
 const fakeResolveTicketType = jest.fn();
-const fakeLegacyTypeInfo = jest.fn();
-mock.module("../../../../src/utils/ticket/legacyTypes", () => ({
+// Default implementation = real `builtinTypeInfo` shape so other test files
+// that import this mocked module (e.g. builtinTypes.test.ts via Bun's
+// process-shared module mock cache) still get correct lookups. Per-test
+// overrides via `mockReturnValue` work as before; the `beforeEach` below
+// restores the default after each test's reset.
+const fakeBuiltinTypeInfo = jest
+  .fn()
+  .mockImplementation((id: string) =>
+    (BUILTIN_TICKET_TYPE_IDS as readonly string[]).includes(id)
+      ? BUILTIN_TYPE_BY_ID[id]
+      : null,
+  );
+// Re-export the real BUILTIN_* tables alongside the fakes so other test
+// files (e.g. builtinTypes.test.ts) that import this module still see the
+// real data. mock.module() is process-global once installed, so leaving
+// out exports here makes them `undefined` everywhere.
+const BUILTIN_TICKET_TYPE_IDS = [
+  "18_verify",
+  "ban_appeal",
+  "player_report",
+  "bug_report",
+  "other",
+] as const;
+const BUILTIN_TYPES = [
+  { typeId: "18_verify", displayName: "18+ Verification", emoji: "🔞" },
+  { typeId: "ban_appeal", displayName: "Ban Appeal", emoji: "⚖️" },
+  { typeId: "player_report", displayName: "Player Report", emoji: "📢" },
+  { typeId: "bug_report", displayName: "Bug Report", emoji: "🐛" },
+  { typeId: "other", displayName: "Other", emoji: "❓" },
+];
+const BUILTIN_TYPE_BY_ID = Object.fromEntries(
+  BUILTIN_TYPES.map((t) => [t.typeId, t]),
+);
+const realIsBuiltinTicketType = (id: string) =>
+  (BUILTIN_TICKET_TYPE_IDS as readonly string[]).includes(id);
+mock.module("../../../../src/utils/ticket/builtinTypes", () => ({
+  // Faked — overridden per-test via .mockReturnValue:
   resolveTicketType: fakeResolveTicketType,
-  legacyTypeInfo: fakeLegacyTypeInfo,
+  builtinTypeInfo: fakeBuiltinTypeInfo,
+  // Real-data passthroughs so cross-suite imports still get correct values:
+  BUILTIN_TICKET_TYPE_IDS,
+  BUILTIN_TYPES,
+  isBuiltinTicketType: realIsBuiltinTicketType,
+  resolveBuiltinPingColumn: (id: string) =>
+    realIsBuiltinTicketType(id)
+      ? `pingStaffOn${id === "18_verify" ? "18Verify" : id.replace(/(?:^|_)(.)/g, (_, c) => c.toUpperCase())}`
+      : null,
 }));
 
 // ---------------------------------------------------------------------------
@@ -223,7 +266,13 @@ describe("archiveAndCloseTicket", () => {
     fakeApplyForumTags.mockClear();
     fakeApplyForumTags.mockImplementation(async () => undefined);
     fakeResolveTicketType.mockReset();
-    fakeLegacyTypeInfo.mockReset();
+    fakeBuiltinTypeInfo.mockReset();
+    // Restore the real-impl default so cross-suite imports get correct
+    // lookups when no per-test override is in play. Per-test overrides
+    // via `.mockReturnValue(...)` still take precedence.
+    fakeBuiltinTypeInfo.mockImplementation((id: string) =>
+      realIsBuiltinTicketType(id) ? BUILTIN_TYPE_BY_ID[id] : null,
+    );
 
     forumState = { threadsCreated: [], threadsFetched: new Map() };
     forumChannel = makeFakeForumChannel(forumState);
@@ -238,7 +287,7 @@ describe("archiveAndCloseTicket", () => {
       typeId: "support",
       displayName: "Support",
       emoji: "🛠️",
-      isLegacy: false,
+      isBuiltin: false,
     });
     const client = makeFakeClient(forumChannel, (id) => ({
       username: `user-${id}`,
@@ -284,8 +333,8 @@ describe("archiveAndCloseTicket", () => {
     expect(fakeVerifiedChannelDelete).toHaveBeenCalledTimes(1);
   });
 
-  test("happy path — legacy type, first close: uses legacyTypeInfo for display", async () => {
-    fakeLegacyTypeInfo.mockReturnValue({
+  test("happy path — builtin type, first close: uses builtinTypeInfo for display", async () => {
+    fakeBuiltinTypeInfo.mockReturnValue({
       typeId: "general",
       displayName: "General Inquiry",
       emoji: "💬",
@@ -306,7 +355,7 @@ describe("archiveAndCloseTicket", () => {
 
     expect(result).toEqual({ success: true, archived: true });
     expect(fakeResolveTicketType).not.toHaveBeenCalled();
-    expect(fakeLegacyTypeInfo).toHaveBeenCalledWith("general");
+    expect(fakeBuiltinTypeInfo).toHaveBeenCalledWith("general");
     expect(fakeEnsureForumTag).toHaveBeenCalledWith(
       forumChannel,
       "general",
@@ -319,7 +368,7 @@ describe("archiveAndCloseTicket", () => {
   });
 
   test("happy path — email ticket, first close: uses emailSender + emailSenderName + emailSubject", async () => {
-    fakeLegacyTypeInfo.mockReturnValue(null);
+    fakeBuiltinTypeInfo.mockReturnValue(null);
     const client = makeFakeClient(forumChannel, () => null);
     const channel = makeFakeChannel();
     const ticket = makeTicket({
@@ -352,7 +401,7 @@ describe("archiveAndCloseTicket", () => {
   });
 
   test("re-close into existing archive: appends separator + posts to existing thread", async () => {
-    fakeLegacyTypeInfo.mockReturnValue({
+    fakeBuiltinTypeInfo.mockReturnValue({
       typeId: "general",
       displayName: "General",
       emoji: null,
@@ -391,7 +440,7 @@ describe("archiveAndCloseTicket", () => {
   });
 
   test("re-close: new tag accumulates and saves the existing archive row", async () => {
-    fakeLegacyTypeInfo.mockReturnValue({
+    fakeBuiltinTypeInfo.mockReturnValue({
       typeId: "bug",
       displayName: "Bug Report",
       emoji: "🐛",
@@ -458,7 +507,7 @@ describe("archiveAndCloseTicket", () => {
   });
 
   test("forum post failure: ticket still closes (archived: false but success: true)", async () => {
-    fakeLegacyTypeInfo.mockReturnValue({
+    fakeBuiltinTypeInfo.mockReturnValue({
       typeId: "general",
       displayName: "General",
       emoji: null,
@@ -489,7 +538,7 @@ describe("archiveAndCloseTicket", () => {
   });
 
   test("channel delete: already-gone counts as success (Discord 10003)", async () => {
-    fakeLegacyTypeInfo.mockReturnValue({
+    fakeBuiltinTypeInfo.mockReturnValue({
       typeId: "general",
       displayName: "General",
       emoji: null,
@@ -517,7 +566,7 @@ describe("archiveAndCloseTicket", () => {
   });
 
   test("channel delete: hard failure logged but workflow still returns success: true", async () => {
-    fakeLegacyTypeInfo.mockReturnValue({
+    fakeBuiltinTypeInfo.mockReturnValue({
       typeId: "general",
       displayName: "General",
       emoji: null,
@@ -581,12 +630,12 @@ describe("archiveAndCloseTicket", () => {
     });
   });
 
-  test("customTypeId resolved as legacy: returns null (matches isLegacy guard) so no tag ensured", async () => {
+  test("customTypeId resolved as builtin: returns null (matches isBuiltin guard) so no tag ensured", async () => {
     fakeResolveTicketType.mockResolvedValue({
       typeId: "general",
       displayName: "General",
       emoji: null,
-      isLegacy: true,
+      isBuiltin: true,
     });
     const client = makeFakeClient(forumChannel, () => ({
       username: "creator",
@@ -603,9 +652,9 @@ describe("archiveAndCloseTicket", () => {
     );
 
     expect(result).toEqual({ success: true, archived: true });
-    // Legacy fallback intentionally returns null — no tag ensured
+    // Builtin fallback intentionally returns null — no tag ensured
     expect(fakeEnsureForumTag).not.toHaveBeenCalled();
-    // legacyTypeInfo NOT consulted because customTypeId branch already returned null
-    expect(fakeLegacyTypeInfo).not.toHaveBeenCalled();
+    // builtinTypeInfo NOT consulted because customTypeId branch already returned null
+    expect(fakeBuiltinTypeInfo).not.toHaveBeenCalled();
   });
 });

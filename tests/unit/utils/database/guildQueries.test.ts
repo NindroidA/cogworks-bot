@@ -7,7 +7,7 @@
  * jest.mock (Bun test runner does not support jest.mock).
  */
 
-import { describe, expect, test } from '@jest/globals';
+import { describe, expect, test } from 'bun:test';
 import type { Repository } from 'typeorm';
 import {
   countByGuild,

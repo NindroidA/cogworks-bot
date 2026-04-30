@@ -4,7 +4,7 @@
  * Tests health monitoring system for tracking bot metrics
  */
 
-import { beforeEach, describe, expect, test } from "@jest/globals";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { setSystemTime } from "bun:test";
 import type { Client } from "discord.js";
 import { healthMonitor } from "../../../src/utils/monitoring/healthMonitor";
