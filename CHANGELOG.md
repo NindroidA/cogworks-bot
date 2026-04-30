@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.34] - 2026-04-30
+
+Design coherence pass 2 — sixth patch of the post-v3.1.28 desloppify rescore series. 4 of 5 `design_coherence` findings closed; the 5th (memory tags collector pattern) is deferred per coordination notes — same code shape as the memory CRUD chorus that v3.1.32 partially addressed; left as a follow-up sweep. No behavior change.
+
+### Changed
+
+- **`src/utils/offboarding/messageCleanup.ts`** — split the 350-line monolith into a 5-helper composition. `cleanupGuildMessages` is now a 6-line orchestrator chaining `collectTrackedMessages` (DB-only fetch), `deleteTrackedMessages`, `deleteForumThreads` (with `deleteForumEntries` helper), and `searchAndDeleteUntrackedMessages` (with `deleteViaSearchApi` + `deleteViaChannelScan` fallbacks). Each phase has a single concern and is independently testable.
+- **`src/utils/database/ensureDefaultTicketTypes.ts`** — hoisted the 200-line `defaultTypes` literal out of the function body to a module-top `DEFAULT_TICKET_TYPE_SEEDS` constant typed as `DefaultTicketTypeSeed[]`. Function body shrinks from ~230 lines to a 6-line loop. Adding a new default type is now a clearly-scoped diff at the top of the file.
+- **`src/commands/handlers/announcement/handler.ts`** — `previewAndSend` no longer hand-rolls its own button collector. Routes through `awaitConfirmation` from `utils/interactions/confirmHelper`. Function shrinks from ~100 lines to ~50; cancel/timeout handling now lives in the helper. `idPrefix: 'announcement'` keeps the customId namespace stable.
+- **`src/utils/interactions/confirmHelper.ts`** — `awaitConfirmation`'s `interaction` parameter widened to also accept `ModalSubmitInteraction` (the announcement `previewAndSend` is called from both a slash-command path and a modal-submit path; both need to confirm-via-button next).
+- **`src/utils/onboarding/onboardingEngine.ts`** — `sendOnboardingFlow` split into 4 phases: `loadOnboardingState` (config + completion record + DM channel), `sendWelcomeMessage` (opening embed), `runOnboardingSteps` (sequential per-step send + wait + persist), `finalizeOnboarding` (completion role + closing embed). Public `sendOnboardingFlow` is now an 11-line orchestrator. Preserves the original ordering — `OnboardingCompletion` row is created before any DM is attempted, so the start is recorded even if DMs are closed (intentional per the patch).
+
+### Skipped
+
+- **Part 5 — memory tags collector pattern** — patch's coordination notes flag this as overlapping with the memory CRUD chorus already addressed in v3.1.32 (`logHandlerError` sweep). The collector body is structurally similar but a separate concern. Left as an open follow-up.
+
+### Notes
+
+- 1134 tests passing; build + biome clean.
+- All four changes preserve the public API of their respective entry points — pure internal restructuring.
+- Targets `design_coherence` 84.5 → 88+ on next desloppify rescore.
+
 ## [3.1.33] - 2026-04-29
 
 Mid-level elegance pass — fifth patch of the post-v3.1.28 desloppify rescore series. 4 of 5 `mid_level_elegance` findings closed; the fifth (AUDIT_RULES vs BUTTON_ROUTES "duplication") is a fresh-eyes false positive — the two tables operate on different key spaces (slash-command names vs customIds). No behavior change.

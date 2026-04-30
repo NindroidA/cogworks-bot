@@ -1,8 +1,14 @@
 /**
  * Message Cleanup
  *
- * Deletes all Cogworks-sent messages in a guild by iterating through
- * stored message IDs in config entities.
+ * Three-phase teardown of all Cogworks-sent content in a guild:
+ *  1. Tracked messages — fetch (channelId, messageId) pairs from config entities
+ *  2. Forum threads — delete archived ticket/application/memory threads
+ *  3. Untracked bot messages — Discord's guild message-search API (with channel-scan fallback)
+ *
+ * Each phase is split into its own function so the orchestration in
+ * `cleanupGuildMessages` reads top-to-bottom and the phases can be
+ * tested independently.
  */
 
 import { ChannelType, type Client, type ForumChannel, type TextChannel } from 'discord.js';
@@ -25,6 +31,12 @@ interface CleanupResult {
   details: string[];
 }
 
+interface TrackedMessageRef {
+  source: string;
+  channelId: string;
+  messageId: string;
+}
+
 /**
  * Delete a single message by channel ID and message ID.
  * Returns true if deleted or already gone, false on unexpected error.
@@ -39,91 +51,64 @@ async function deleteMessage(client: Client, channelId: string, messageId: strin
   } catch (error: any) {
     // 10008 = Unknown Message, 10003 = Unknown Channel — already gone, counts as success
     if (error?.code === 10008 || error?.code === 10003) return true;
-    // Real error (permissions, network, etc.) — count as failure
     return false;
   }
 }
 
 /**
- * Clean up all Cogworks-sent messages in a guild.
- * Iterates through all config entities that store message IDs.
+ * Phase 1: collect every (channelId, messageId) pair Cogworks has tracked
+ * across config entities. No Discord I/O — DB-only.
  */
-export async function cleanupGuildMessages(client: Client, guildId: string): Promise<CleanupResult> {
-  const result: CleanupResult = { deleted: 0, failed: 0, details: [] };
-
-  // Collect all (channelId, messageId) pairs from config entities
-  const messagesToDelete: Array<{
-    source: string;
-    channelId: string;
-    messageId: string;
-  }> = [];
+async function collectTrackedMessages(guildId: string): Promise<TrackedMessageRef[]> {
+  const refs: TrackedMessageRef[] = [];
 
   try {
-    // Ticket creation button
     const ticketConfig = await AppDataSource.getRepository(TicketConfig).findOneBy({ guildId });
     if (ticketConfig?.channelId && ticketConfig.messageId) {
-      messagesToDelete.push({
-        source: 'Ticket button',
-        channelId: ticketConfig.channelId,
-        messageId: ticketConfig.messageId,
-      });
+      refs.push({ source: 'Ticket button', channelId: ticketConfig.channelId, messageId: ticketConfig.messageId });
     }
 
-    // Application button
     const appConfig = await AppDataSource.getRepository(ApplicationConfig).findOneBy({ guildId });
     if (appConfig?.channelId && appConfig.messageId) {
-      messagesToDelete.push({
-        source: 'Application button',
-        channelId: appConfig.channelId,
-        messageId: appConfig.messageId,
-      });
+      refs.push({ source: 'Application button', channelId: appConfig.channelId, messageId: appConfig.messageId });
     }
 
-    // Bait channel warning
     const baitConfig = await AppDataSource.getRepository(BaitChannelConfig).findOneBy({ guildId });
     if (baitConfig?.channelId && baitConfig.channelMessageId) {
-      messagesToDelete.push({
+      refs.push({
         source: 'Bait warning',
         channelId: baitConfig.channelId,
         messageId: baitConfig.channelMessageId,
       });
     }
 
-    // Rules message
     const rulesConfig = await AppDataSource.getRepository(RulesConfig).findOneBy({ guildId });
     if (rulesConfig?.channelId && rulesConfig.messageId) {
-      messagesToDelete.push({
-        source: 'Rules message',
-        channelId: rulesConfig.channelId,
-        messageId: rulesConfig.messageId,
-      });
+      refs.push({ source: 'Rules message', channelId: rulesConfig.channelId, messageId: rulesConfig.messageId });
     }
 
-    // Archived ticket config message
     const archTicketConfig = await AppDataSource.getRepository(ArchivedTicketConfig).findOneBy({ guildId });
     if (archTicketConfig?.channelId && archTicketConfig.messageId) {
-      messagesToDelete.push({
+      refs.push({
         source: 'Ticket archive',
         channelId: archTicketConfig.channelId,
         messageId: archTicketConfig.messageId,
       });
     }
 
-    // Archived application config message
     const archAppConfig = await AppDataSource.getRepository(ArchivedApplicationConfig).findOneBy({ guildId });
     if (archAppConfig?.channelId && archAppConfig.messageId) {
-      messagesToDelete.push({
+      refs.push({
         source: 'App archive',
         channelId: archAppConfig.channelId,
         messageId: archAppConfig.messageId,
       });
     }
 
-    // Reaction role menu messages (can be multiple)
     const reactionMenus = await AppDataSource.getRepository(ReactionRoleMenu).find({ where: { guildId } });
     for (const menu of reactionMenus) {
       if (menu.channelId && menu.messageId) {
-        messagesToDelete.push({
+        refs.push({
           source: `Reaction role: ${menu.name}`,
           channelId: menu.channelId,
           messageId: menu.messageId,
@@ -136,8 +121,12 @@ export async function cleanupGuildMessages(client: Client, guildId: string): Pro
     });
   }
 
-  // Delete each message
-  for (const { source, channelId, messageId } of messagesToDelete) {
+  return refs;
+}
+
+/** Phase 1 deletion: walk the tracked list, mutating `result` with counts. */
+async function deleteTrackedMessages(client: Client, refs: TrackedMessageRef[], result: CleanupResult): Promise<void> {
+  for (const { source, channelId, messageId } of refs) {
     const success = await deleteMessage(client, channelId, messageId);
     if (success) {
       result.deleted++;
@@ -147,81 +136,50 @@ export async function cleanupGuildMessages(client: Client, guildId: string): Pro
       result.details.push(`Failed: ${source}`);
     }
   }
+}
 
-  // Phase 1.5: Delete forum threads created by Cogworks (archived tickets, applications, memory items)
+/**
+ * Phase 2: delete forum threads created by Cogworks (archived ticket forum
+ * posts, archived application forum posts, memory item threads). Each forum
+ * is handled the same way: fetch parent forum, iterate child entries, delete
+ * each thread (or skip if already gone).
+ */
+async function deleteForumThreads(client: Client, guildId: string, result: CleanupResult): Promise<void> {
   try {
-    // Archived ticket threads
     const archTicketConfig = await AppDataSource.getRepository(ArchivedTicketConfig).findOneBy({ guildId });
     if (archTicketConfig?.channelId) {
       const archivedTickets = await AppDataSource.getRepository(ArchivedTicket).find({ where: { guildId } });
-      const forumChannel = (await client.channels
-        .fetch(archTicketConfig.channelId)
-        .catch(() => null)) as ForumChannel | null;
-      if (forumChannel && forumChannel.type === ChannelType.GuildForum) {
-        for (const entry of archivedTickets) {
-          if (!entry.messageId) continue;
-          try {
-            const thread = await forumChannel.threads.fetch(entry.messageId).catch(() => null);
-            if (thread) {
-              await thread.delete('Bot reset cleanup');
-              result.deleted++;
-            }
-          } catch {
-            /* thread already gone */
-          }
-        }
-      }
+      await deleteForumEntries(
+        client,
+        archTicketConfig.channelId,
+        archivedTickets.map(t => t.messageId).filter((id): id is string => !!id),
+        result,
+      );
     }
 
-    // Archived application threads
     const archAppConfig = await AppDataSource.getRepository(ArchivedApplicationConfig).findOneBy({ guildId });
     if (archAppConfig?.channelId) {
       const archivedApps = await AppDataSource.getRepository(ArchivedApplication).find({ where: { guildId } });
-      const forumChannel = (await client.channels
-        .fetch(archAppConfig.channelId)
-        .catch(() => null)) as ForumChannel | null;
-      if (forumChannel && forumChannel.type === ChannelType.GuildForum) {
-        for (const entry of archivedApps) {
-          if (!entry.messageId) continue;
-          try {
-            const thread = await forumChannel.threads.fetch(entry.messageId).catch(() => null);
-            if (thread) {
-              await thread.delete('Bot reset cleanup');
-              result.deleted++;
-            }
-          } catch {
-            /* thread already gone */
-          }
-        }
-      }
+      await deleteForumEntries(
+        client,
+        archAppConfig.channelId,
+        archivedApps.map(a => a.messageId).filter((id): id is string => !!id),
+        result,
+      );
     }
 
-    // Memory item threads
-    const memoryConfigs = await AppDataSource.getRepository(MemoryConfig).find({
-      where: { guildId },
-    });
+    const memoryConfigs = await AppDataSource.getRepository(MemoryConfig).find({ where: { guildId } });
     for (const memConfig of memoryConfigs) {
       if (!memConfig.forumChannelId) continue;
       const memoryItems = await AppDataSource.getRepository(MemoryItem).find({
         where: { guildId, memoryConfigId: memConfig.id },
       });
-      const forumChannel = (await client.channels
-        .fetch(memConfig.forumChannelId)
-        .catch(() => null)) as ForumChannel | null;
-      if (forumChannel && forumChannel.type === ChannelType.GuildForum) {
-        for (const item of memoryItems) {
-          if (!item.threadId) continue;
-          try {
-            const thread = await forumChannel.threads.fetch(item.threadId).catch(() => null);
-            if (thread) {
-              await thread.delete('Bot reset cleanup');
-              result.deleted++;
-            }
-          } catch {
-            /* thread already gone */
-          }
-        }
-      }
+      await deleteForumEntries(
+        client,
+        memConfig.forumChannelId,
+        memoryItems.map(i => i.threadId).filter((id): id is string => !!id),
+        result,
+      );
     }
   } catch (error) {
     enhancedLogger.warn('Forum thread cleanup partially failed', LogCategory.COMMAND_EXECUTION, {
@@ -229,139 +187,193 @@ export async function cleanupGuildMessages(client: Client, guildId: string): Pro
       error: error instanceof Error ? error.message : String(error),
     });
   }
+}
 
-  // Phase 2: Use Discord's guild message search API to find ALL bot messages
-  // This catches messages not tracked in config (old wizard embeds, dev-suite, etc.)
-  // Endpoint: GET /guilds/{guild_id}/messages/search?author_id={bot_id}
-  try {
-    const botId = client.user?.id;
-    if (botId) {
-      const rest = client.rest;
-      let offset = 0;
-      const limit = 25; // Discord max per search request
-      let hasMore = true;
+/** Helper: delete a list of thread IDs from a forum channel. Best-effort. */
+async function deleteForumEntries(
+  client: Client,
+  forumChannelId: string,
+  threadIds: string[],
+  result: CleanupResult,
+): Promise<void> {
+  if (threadIds.length === 0) return;
+  const forumChannel = (await client.channels.fetch(forumChannelId).catch(() => null)) as ForumChannel | null;
+  if (!forumChannel || forumChannel.type !== ChannelType.GuildForum) return;
 
-      while (hasMore) {
-        try {
-          const searchResult = (await rest.get(
-            `/guilds/${guildId}/messages/search?author_id=${botId}&sort_by=timestamp&limit=${limit}&offset=${offset}`,
-          )) as any;
-
-          const messages = searchResult?.messages || [];
-          if (messages.length === 0) {
-            hasMore = false;
-            break;
-          }
-
-          for (const messageGroup of messages) {
-            // Search API returns arrays of message objects (each "hit" is an array with context)
-            const msg = Array.isArray(messageGroup) ? messageGroup[0] : messageGroup;
-            if (!msg?.id || !msg?.channel_id) continue;
-
-            // Skip messages we already deleted in Phase 1
-            if (messagesToDelete.some(m => m.messageId === msg.id)) continue;
-
-            try {
-              const channel = await client.channels.fetch(msg.channel_id).catch(() => null);
-              if (channel?.isTextBased()) {
-                const fetchedMsg = await (channel as TextChannel).messages.fetch(msg.id).catch(() => null);
-                if (fetchedMsg) {
-                  await fetchedMsg.delete();
-                  result.deleted++;
-                }
-              }
-            } catch {
-              // Message may be in an inaccessible channel or already deleted
-            }
-          }
-
-          offset += limit;
-          // Safety: don't scan more than 200 messages (8 pages)
-          if (offset >= 200) hasMore = false;
-        } catch {
-          // Search API may not be available (preview feature) — fall back to channel scan
-          hasMore = false;
-
-          // Fallback: scan accessible channels for recent bot messages
-          const guild = client.guilds.cache.get(guildId);
-          if (guild) {
-            // Scan text channels
-            const channels = guild.channels.cache.filter(ch => ch.isTextBased() && !ch.isThread());
-            for (const [, channel] of channels) {
-              try {
-                const messages = await (channel as TextChannel).messages.fetch({
-                  limit: 50,
-                });
-                const botMessages = messages.filter(m => m.author.id === botId);
-                for (const [, msg] of botMessages) {
-                  try {
-                    await msg.delete();
-                    result.deleted++;
-                  } catch {
-                    /* undeletable */
-                  }
-                }
-              } catch {
-                /* can't access channel */
-              }
-            }
-
-            // Scan forum channels — messages live inside threads (forum posts)
-            const forumChannels = guild.channels.cache.filter(ch => ch.type === ChannelType.GuildForum);
-            for (const [, forum] of forumChannels) {
-              try {
-                // Fetch active threads in the forum
-                const threads = await (forum as ForumChannel).threads.fetchActive();
-                for (const [, thread] of threads.threads) {
-                  try {
-                    const messages = await thread.messages.fetch({ limit: 50 });
-                    const botMessages = messages.filter((m: any) => m.author.id === botId);
-                    for (const [, msg] of botMessages) {
-                      try {
-                        await msg.delete();
-                        result.deleted++;
-                      } catch {
-                        /* undeletable */
-                      }
-                    }
-                  } catch {
-                    /* can't access thread */
-                  }
-                }
-                // Also fetch archived threads
-                const archived = await (forum as ForumChannel).threads.fetchArchived();
-                for (const [, thread] of archived.threads) {
-                  try {
-                    const messages = await thread.messages.fetch({ limit: 50 });
-                    const botMessages = messages.filter((m: any) => m.author.id === botId);
-                    for (const [, msg] of botMessages) {
-                      try {
-                        await msg.delete();
-                        result.deleted++;
-                      } catch {
-                        /* undeletable */
-                      }
-                    }
-                  } catch {
-                    /* can't access thread */
-                  }
-                }
-              } catch {
-                /* can't access forum */
-              }
-            }
-          }
-        }
+  for (const threadId of threadIds) {
+    try {
+      const thread = await forumChannel.threads.fetch(threadId).catch(() => null);
+      if (thread) {
+        await thread.delete('Bot reset cleanup');
+        result.deleted++;
       }
+    } catch {
+      /* thread already gone */
+    }
+  }
+}
+
+/**
+ * Phase 3: catch untracked bot messages via Discord's guild message-search
+ * endpoint. Falls back to a channel-by-channel scan if search is unavailable.
+ * Skips IDs already deleted in phase 1.
+ */
+async function searchAndDeleteUntrackedMessages(
+  client: Client,
+  guildId: string,
+  trackedMessageIds: Set<string>,
+  result: CleanupResult,
+): Promise<void> {
+  const botId = client.user?.id;
+  if (!botId) return;
+
+  try {
+    const usedSearch = await deleteViaSearchApi(client, guildId, botId, trackedMessageIds, result);
+    if (!usedSearch) {
+      await deleteViaChannelScan(client, guildId, botId, result);
     }
   } catch (error) {
-    // Phase 2 is best-effort — don't fail the reset if search fails, but log
-    // so operators can tell the difference between "nothing to find" and "search broke".
     enhancedLogger.warn('Phase 2 message-search cleanup failed', LogCategory.COMMAND_EXECUTION, {
       guildId,
       error: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+/**
+ * Try the Discord guild message-search API. Returns `true` if the API
+ * responded (even if it found nothing), `false` if it threw — caller should
+ * then fall back to channel-scan.
+ */
+async function deleteViaSearchApi(
+  client: Client,
+  guildId: string,
+  botId: string,
+  trackedMessageIds: Set<string>,
+  result: CleanupResult,
+): Promise<boolean> {
+  const rest = client.rest;
+  const limit = 25;
+  let offset = 0;
+
+  while (offset < 200) {
+    let searchResult: any;
+    try {
+      searchResult = await rest.get(
+        `/guilds/${guildId}/messages/search?author_id=${botId}&sort_by=timestamp&limit=${limit}&offset=${offset}`,
+      );
+    } catch {
+      // Search not available — caller will fall back to channel scan
+      return false;
+    }
+
+    const messages = searchResult?.messages || [];
+    if (messages.length === 0) return true;
+
+    for (const messageGroup of messages) {
+      // Search API returns arrays of message objects (each "hit" has context)
+      const msg = Array.isArray(messageGroup) ? messageGroup[0] : messageGroup;
+      if (!msg?.id || !msg?.channel_id) continue;
+      if (trackedMessageIds.has(msg.id)) continue; // already deleted in phase 1
+
+      try {
+        const channel = await client.channels.fetch(msg.channel_id).catch(() => null);
+        if (channel?.isTextBased()) {
+          const fetchedMsg = await (channel as TextChannel).messages.fetch(msg.id).catch(() => null);
+          if (fetchedMsg) {
+            await fetchedMsg.delete();
+            result.deleted++;
+          }
+        }
+      } catch {
+        // Inaccessible channel or already deleted — skip
+      }
+    }
+
+    offset += limit;
+  }
+
+  return true;
+}
+
+/**
+ * Fallback for environments where the search API is unavailable: scan every
+ * accessible text channel + forum thread (active and archived) for bot
+ * messages, delete what we can.
+ */
+async function deleteViaChannelScan(
+  client: Client,
+  guildId: string,
+  botId: string,
+  result: CleanupResult,
+): Promise<void> {
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return;
+
+  // Plain text channels
+  const textChannels = guild.channels.cache.filter(ch => ch.isTextBased() && !ch.isThread());
+  for (const [, channel] of textChannels) {
+    try {
+      const messages = await (channel as TextChannel).messages.fetch({ limit: 50 });
+      const botMessages = messages.filter(m => m.author.id === botId);
+      for (const [, msg] of botMessages) {
+        try {
+          await msg.delete();
+          result.deleted++;
+        } catch {
+          /* undeletable */
+        }
+      }
+    } catch {
+      /* can't access channel */
+    }
+  }
+
+  // Forum channels — messages live inside threads
+  const forumChannels = guild.channels.cache.filter(ch => ch.type === ChannelType.GuildForum);
+  for (const [, forum] of forumChannels) {
+    try {
+      const active = await (forum as ForumChannel).threads.fetchActive();
+      const archived = await (forum as ForumChannel).threads.fetchArchived();
+      for (const threads of [active.threads, archived.threads]) {
+        for (const [, thread] of threads) {
+          try {
+            const messages = await thread.messages.fetch({ limit: 50 });
+            const botMessages = messages.filter((m: any) => m.author.id === botId);
+            for (const [, msg] of botMessages) {
+              try {
+                await msg.delete();
+                result.deleted++;
+              } catch {
+                /* undeletable */
+              }
+            }
+          } catch {
+            /* can't access thread */
+          }
+        }
+      }
+    } catch {
+      /* can't access forum */
+    }
+  }
+}
+
+/**
+ * Clean up all Cogworks-sent messages in a guild.
+ *
+ * Three phases run in sequence (each phase mutates `result`):
+ *   1. Tracked messages from config entities
+ *   2. Forum threads created by Cogworks
+ *   3. Untracked bot messages via search API + scan fallback
+ */
+export async function cleanupGuildMessages(client: Client, guildId: string): Promise<CleanupResult> {
+  const result: CleanupResult = { deleted: 0, failed: 0, details: [] };
+
+  const tracked = await collectTrackedMessages(guildId);
+  await deleteTrackedMessages(client, tracked, result);
+  await deleteForumThreads(client, guildId, result);
+  await searchAndDeleteUntrackedMessages(client, guildId, new Set(tracked.map(t => t.messageId)), result);
 
   enhancedLogger.info('Guild message cleanup complete', LogCategory.COMMAND_EXECUTION, {
     guildId,
