@@ -5,6 +5,78 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.38] - 2026-04-30
+
+Interactive `/ticket type list`. The previous list command rendered a single embed with one summary field per type; admins still had to remember a second slash command (`/ticket type toggle|edit|default …`) to act on what they saw. Now the list is a single in-place workspace: pick a type from a select menu, see its full details embed, and click Activate/Deactivate, Set Default, or Edit right there. Build + biome clean. Tests 1166/1166.
+
+### Changed
+
+- **`/ticket type list` rewritten as an interactive view** ([commands/handlers/ticket/typeList.ts](src/commands/handlers/ticket/typeList.ts)).
+  - **Summary view** — same fields-per-type embed shape as before, but enriched with a ping indicator (🔔/🔕) and the full description inline. Below it: a `StringSelectMenu` populated with every type (capped at Discord's 25-option limit; admins beyond that still have the slash commands).
+  - **Detail view** — picking a type swaps the embed for `buildTypeConfirmationEmbed(type, false)` (the same rich format `/ticket type add` and `edit` show on success) and replaces the select with a four-button row:
+    - **Activate / Deactivate** — flips `isActive` (Danger style when active, Success when inactive, with 🔴/🟢).
+    - **Set as Default** — sets `isDefault` on the picked type and clears it on every other type in the same guild (single-default invariant). Disabled + relabeled "Already Default" when the picked type is already the default.
+    - **Edit** — opens the same new-format edit modal as `/ticket type edit` (extracted to `buildTypeEditModal()` + `parseTypeEditSubmit()` so the slash handler and the list button share the exact same flow).
+    - **Back to list** — returns to the summary view.
+  - **Permission model** — initial view requires `tickets:use`; mutating buttons re-check `tickets:manage` per click. View-only users can browse details without being able to act on them.
+  - **Concurrent edits** — every interaction re-fetches the types from the DB before rendering so a teammate editing in parallel doesn't get clobbered.
+  - **Lifecycle** — five-minute collector; only the invoking user can interact (filter by `interaction.user.id`); on timeout the message components are stripped so stale buttons don't sit around looking clickable.
+
+### Added
+
+- **`buildTypeEditModal(type)` + `parseTypeEditSubmit(submit)` exports** in `commands/handlers/ticket/typeEdit.ts`.
+  - `buildTypeEditModal` returns the new-format `RawModal` (5 components: 4 text inputs + the staff-ping checkbox).
+  - `parseTypeEditSubmit` reads the modal field values, sanitizes user input, validates the hex color, and returns either `{ fields: TypeEditFields }` or `{ error: string }` so callers handle the reply.
+  - The slash-command path (`typeEditHandler`) now uses both helpers; the list-Edit-button path uses both helpers. No duplicated validation logic.
+
+### Notes for dev test
+
+1. `/ticket type list` (with at least 1 custom type configured) → ephemeral message with summary embed + "Select a ticket type to manage…" dropdown.
+2. Pick a type → embed swaps to the rich confirmation format with all fields; four buttons appear below.
+3. **Activate/Deactivate** → label and color flip; embed status field updates in place.
+4. **Set as Default** → button disables and relabels; if you Back to list and re-pick a different type, *that* type's button is no longer disabled (default invariant held).
+5. **Edit** → same modal as `/ticket type edit`; on submit, the list message refreshes to show updated values.
+6. **Back to list** → returns to summary view, components reset.
+7. Wait 5 min without interacting → components vanish from the message.
+8. As a non-admin user with only `tickets:use` permission → can view the summary and pick types, but Activate/Edit buttons reply ephemerally with the permission denial.
+
+## [3.1.37] - 2026-04-30
+
+Dev-test feedback bundle — surface fixes found during the v3.1.29-v3.1.36 dev-bot validation run. Two real bugs (one production crash, one dead-UI), two consistency gaps in context menus, one UX redesign for ticket-type editing. Build + biome clean. Tests 1166/1166.
+
+### Fixed
+
+- **Language button on `/bot-setup` crashed with `BASE_TYPE_BAD_LENGTH`** ([botSetup/index.ts:357](src/commands/handlers/botSetup/index.ts#L357)). Discord's Label component description is capped at 100 characters; the existing string was 105. Shortened to "Bot language for this server. Untranslated strings fall back to English." (72 chars). I wrote a paren-balanced scanner over every `labelWrap()` call site in `src/` and confirmed this was the only violation — no other Label or option `description` field exceeds the limit.
+
+- **Two stale context menu commands had no router handler** ([commands/builders/contextMenus.ts](src/commands/builders/contextMenus.ts)). "Post as Announcement" and "Close Application" were registered with Discord but the dispatcher at `commands/handlers/contextMenus/index.ts` had no entry for either — clicking them fell through to `Unknown context menu command.` Removed the builders + the entries in `contextMenuCommands`. Discord auto-deregisters commands not in the registration list on next deploy.
+
+### Added
+
+- **Memory setup-check on the "Capture to Memory" context menu** ([contextMenus/captureToMemory.ts](src/commands/handlers/contextMenus/captureToMemory.ts)). Previously the handler showed the "use `/memory capture`" embed regardless of whether the guild had run `/memory-setup`. Now it queries `MemoryConfig.findOneBy({ guildId })` first — if missing, replies with `lang.general.contextMenu.memoryNotConfigured` ("Memory system is not configured. Run `/memory-setup` first."). Mirrors the existing `ticketNotConfigured` pattern in `openTicketForUser.ts`.
+
+- **Ticket setup-check on the "Manage Restrictions" context menu** ([contextMenus/manageRestrictions.ts](src/commands/handlers/contextMenus/manageRestrictions.ts)). Same gap — previously checked `ticketTypes.length === 0` but not `TicketConfig` existence. Added a `ticketConfigRepo.findOneBy({ guildId })` check using the existing `lang.general.contextMenu.ticketNotConfigured` string.
+
+- **`memoryNotConfigured` lang key across all 5 locales** ([src/lang/{en,es,pt-BR,fr,de}/general.json](src/lang/en/general.json) + types.ts). Non-EN locales carry the English string; the i18n Proxy fallback (v3.1.0) handles translation at runtime.
+
+- **`textInput()` and `paragraphInput()` helpers in `modalComponents.ts`** ([utils/modalComponents.ts](src/utils/modalComponents.ts)). New-format modals now support text inputs alongside checkboxes/radios. Returns `APITextInputComponent` from `discord-api-types/v10` with `style: TextInputStyle.Short` or `Paragraph`. Pair with `labelWrap()` to provide the field label and optional description. Took an options-object signature (`customId`, `value?`, `placeholder?`, `required?`, `minLength?`, `maxLength?`) so future helpers can extend without breaking call sites.
+
+### Changed
+
+- **`/ticket type edit` modal converted to new-format with `pingStaffOnCreate` checkbox** ([commands/handlers/ticket/typeEdit.ts](src/commands/handlers/ticket/typeEdit.ts)). Previously: 4 text inputs in a `ModalBuilder`, then a confirmation embed with a separate post-submit toggle button to flip the staff-ping setting. Now: one modal with 5 fields (displayName, emoji, color, description, pingStaffOnCreate as a checkbox). User sees one screen, fills it, gets a confirmation embed back. The whole flow lives in `typeEditHandler` using `showAndAwaitModal()` — no separate `typeEditModalHandler` and no dispatcher route. Re-fetches the type before save in case a concurrent edit landed between modal-show and submit. typeAdd left unchanged (5 text inputs already at the modal limit; the post-submit toggle button is preserved for the easy-toggle-after-create path).
+
+- **`typeEditModalHandler` removed from `events/ticket/interactionRoutes.ts`** — the inline-await pattern doesn't need a dispatcher route. Cleared the `MODAL_PREFIX_ROUTES` entry for `ticket-type-edit-modal:` and dropped the import.
+
+- **`tests/unit/events/ticketInteraction.test.ts`** — removed the dispatcher routing test for the old `typeEditModalHandler` route along with its mock factory and `mockTypeEditModalHandler` declaration. Suite is now 1166 (was 1167); -1 due to the removed test.
+
+### Notes for dev test
+
+Re-test these flows in dev:
+1. `/bot-setup` → Language button → modal opens cleanly (no `Invalid Form Body` crash).
+2. Right-click a message → only "Capture to Memory" appears (not "Post as Announcement" or "Close Application"). May take a few minutes for Discord to deregister.
+3. "Capture to Memory" on a guild without memory configured → "Memory system is not configured. Run `/memory-setup` first." reply.
+4. "Manage Restrictions" on a guild without ticket configured → "Ticket system is not configured. Run `/ticket-setup` first." reply.
+5. `/ticket type edit type:foo` → modal opens with all current values pre-filled including a Ping-Staff-on-Create checkbox reflecting the current state. Toggle, submit → confirmation embed shows updated state, DB row updated.
+
 ## [3.1.36] - 2026-04-30
 
 Test coverage — eighth patch of the post-v3.1.28 desloppify rescore series. Closes the largest remaining gap in `test_strategy`: the three delete event handlers (channelDelete, messageDelete, roleDelete) had zero direct coverage despite being load-bearing for v3.1.32's descriptor refactor. New tests verify the failure-attribution model (descriptor `name` field), Promise.allSettled isolation property, and per-entity mutation logic. Suite: 1134 → 1167 (+33 tests, no regressions).

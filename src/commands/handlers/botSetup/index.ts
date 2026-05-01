@@ -354,7 +354,7 @@ async function collectDashboardInteractions(
               default: code === currentLocale,
             })),
           ),
-          'Choose the language the bot uses when replying in this server. Untranslated strings fall back to English.',
+          'Bot language for this server. Untranslated strings fall back to English.',
         ),
       ]);
 

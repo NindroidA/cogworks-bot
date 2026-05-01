@@ -13,8 +13,9 @@ import type {
   APILabelComponent,
   APIRadioGroupComponent,
   APIRadioGroupOption,
+  APITextInputComponent,
 } from 'discord-api-types/v10';
-import { ComponentType } from 'discord-api-types/v10';
+import { ComponentType, TextInputStyle } from 'discord-api-types/v10';
 
 export interface RadioOption {
   label: string;
@@ -77,6 +78,46 @@ export function checkbox(customId: string, defaultValue?: boolean): APICheckboxC
     custom_id: customId,
     default: defaultValue,
   };
+}
+
+interface TextInputOptions {
+  customId: string;
+  value?: string;
+  placeholder?: string;
+  required?: boolean;
+  minLength?: number;
+  maxLength?: number;
+}
+
+/**
+ * Single-line text input (ComponentType 4, style Short) for use inside Label
+ * wrappers in new-format modals. Pair with `labelWrap()` so the label/description
+ * shows above the field.
+ */
+export function textInput(opts: TextInputOptions): APITextInputComponent {
+  return buildTextInput(opts, TextInputStyle.Short);
+}
+
+/**
+ * Multi-line text input (ComponentType 4, style Paragraph). Same wrapping rules
+ * as `textInput()` — must live inside a `labelWrap()` in new-format modals.
+ */
+export function paragraphInput(opts: TextInputOptions): APITextInputComponent {
+  return buildTextInput(opts, TextInputStyle.Paragraph);
+}
+
+function buildTextInput(opts: TextInputOptions, style: TextInputStyle): APITextInputComponent {
+  const component: APITextInputComponent = {
+    type: ComponentType.TextInput,
+    custom_id: opts.customId,
+    style,
+    required: opts.required ?? true,
+  };
+  if (opts.value !== undefined) component.value = opts.value;
+  if (opts.placeholder !== undefined) component.placeholder = opts.placeholder;
+  if (opts.minLength !== undefined) component.min_length = opts.minLength;
+  if (opts.maxLength !== undefined) component.max_length = opts.maxLength;
+  return component;
 }
 
 /**

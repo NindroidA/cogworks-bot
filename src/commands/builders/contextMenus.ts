@@ -14,16 +14,6 @@ export const captureToMemory = new ContextMenuCommandBuilder()
   .setType(ApplicationCommandType.Message)
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
-export const postAsAnnouncement = new ContextMenuCommandBuilder()
-  .setName('Post as Announcement')
-  .setType(ApplicationCommandType.Message)
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
-
-export const closeApplication = new ContextMenuCommandBuilder()
-  .setName('Close Application')
-  .setType(ApplicationCommandType.Message)
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
-
 // --- User Context Menu Commands ---
 
 export const openTicketForUser = new ContextMenuCommandBuilder()
@@ -43,11 +33,4 @@ export const manageRestrictions = new ContextMenuCommandBuilder()
 
 // --- All context menu commands for registration ---
 
-export const contextMenuCommands = [
-  captureToMemory,
-  postAsAnnouncement,
-  closeApplication,
-  openTicketForUser,
-  viewBaitScore,
-  manageRestrictions,
-];
+export const contextMenuCommands = [captureToMemory, openTicketForUser, viewBaitScore, manageRestrictions];

@@ -6,6 +6,7 @@
 
 import { EmbedBuilder, MessageFlags, type UserContextMenuCommandInteraction } from 'discord.js';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
+import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import { UserTicketRestriction } from '../../../typeorm/entities/ticket/UserTicketRestriction';
 import {
   enhancedLogger,
@@ -19,6 +20,7 @@ import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { checkboxGroup, labelWrap, rawModal } from '../../../utils/modalComponents';
 
 const tl = lang.ticket.customTypes.userRestrict;
+const ticketConfigRepo = lazyRepo(TicketConfig);
 const typeRepo = lazyRepo(CustomTicketType);
 const restrictionRepo = lazyRepo(UserTicketRestriction);
 
@@ -29,6 +31,16 @@ export async function manageRestrictionsHandler(interaction: UserContextMenuComm
 
     const guildId = interaction.guildId!;
     const targetUser = interaction.targetUser;
+
+    // Verify the ticket system is configured at all before showing the modal
+    const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
+    if (!ticketConfig) {
+      await interaction.reply({
+        content: lang.general.contextMenu.ticketNotConfigured,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
 
     // Get ticket types
     const ticketTypes = await typeRepo.find({

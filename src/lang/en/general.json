@@ -122,6 +122,7 @@
     "baitManagerUnavailable": "Bait channel manager is not available.",
     "userNotMember": "User is not a member of this server.",
     "ticketNotConfigured": "Ticket system is not configured. Run `/ticket-setup` first.",
+    "memoryNotConfigured": "Memory system is not configured. Run `/memory-setup` first.",
     "noTicketTypes": "No ticket types are configured for this server.",
     "selectRoleAndChannel": "Please select both a role and a channel."
   },

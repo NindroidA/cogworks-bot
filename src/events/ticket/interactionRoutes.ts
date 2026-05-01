@@ -7,7 +7,6 @@ import type {
 } from 'discord.js';
 import { emailImportModalHandler } from '../../commands/handlers/ticket/emailImport';
 import { typeAddModalHandler } from '../../commands/handlers/ticket/typeAdd';
-import { typeEditModalHandler } from '../../commands/handlers/ticket/typeEdit';
 import { adminOnlyButton, cancelAdminOnly, confirmAdminOnly } from './adminOnly';
 import { cancelClose, closeButton, confirmClose } from './close';
 import {
@@ -58,14 +57,7 @@ const BUTTON_PREFIX_ROUTES: PrefixRoute<ButtonHandler>[] = [
   { prefix: 'ticket_', handler: builtinTicketTypeButton },
 ];
 
-const MODAL_PREFIX_ROUTES: PrefixRoute<ModalHandler>[] = [
-  {
-    prefix: 'ticket-type-edit-modal:',
-    handler: (_client, interaction) =>
-      typeEditModalHandler(interaction, interaction.customId.replace('ticket-type-edit-modal:', '')),
-  },
-  { prefix: 'ticket_modal_', handler: submitTicketModal },
-];
+const MODAL_PREFIX_ROUTES: PrefixRoute<ModalHandler>[] = [{ prefix: 'ticket_modal_', handler: submitTicketModal }];
 
 export const dispatchTicketInteraction = async (client: Client, interaction: Interaction): Promise<boolean> => {
   if (interaction.isButton()) {

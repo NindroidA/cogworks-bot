@@ -41,7 +41,6 @@ import { Repository } from "typeorm";
 const mockTicketCloseEvent = jest.fn().mockResolvedValue(undefined);
 const mockTicketAdminOnlyEvent = jest.fn().mockResolvedValue(undefined);
 const mockTypeAddModalHandler = jest.fn().mockResolvedValue(undefined);
-const mockTypeEditModalHandler = jest.fn().mockResolvedValue(undefined);
 const mockEmailImportModalHandler = jest.fn().mockResolvedValue(undefined);
 
 mock.module("../../../src/events/ticket/close", () => ({
@@ -56,11 +55,6 @@ mock.module("../../../src/events/ticket/adminOnly", () => ({
 mock.module("../../../src/commands/handlers/ticket/typeAdd", () => ({
   typeAddModalHandler: (...args: unknown[]) => mockTypeAddModalHandler(...args),
   buildTypeConfirmationEmbed: jest.fn().mockReturnValue({}),
-}));
-
-mock.module("../../../src/commands/handlers/ticket/typeEdit", () => ({
-  typeEditModalHandler: (...args: unknown[]) =>
-    mockTypeEditModalHandler(...args),
 }));
 
 mock.module("../../../src/commands/handlers/ticket/emailImport", () => ({
@@ -1015,19 +1009,6 @@ describe("handleTicketInteraction", () => {
       await handleTicketInteraction(mockClient, interaction as never);
 
       expect(mockTypeAddModalHandler).toHaveBeenCalledWith(interaction);
-    });
-
-    test("should route ticket-type-edit-modal:<id> to typeEditModalHandler with the extracted typeId", async () => {
-      const interaction = makeModalInteraction(
-        "ticket-type-edit-modal:abc-123",
-      );
-
-      await handleTicketInteraction(mockClient, interaction as never);
-
-      expect(mockTypeEditModalHandler).toHaveBeenCalledWith(
-        interaction,
-        "abc-123",
-      );
     });
 
     test("should route ticket-email-import-modal to emailImportModalHandler", async () => {

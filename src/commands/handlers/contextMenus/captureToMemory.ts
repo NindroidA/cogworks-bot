@@ -6,19 +6,34 @@
  */
 
 import { EmbedBuilder, type MessageContextMenuCommandInteraction, MessageFlags } from 'discord.js';
+import { MemoryConfig } from '../../../typeorm/entities/memory/MemoryConfig';
 import {
   enhancedLogger,
   escapeDiscordMarkdown,
   guardFeatureAccess,
   handleInteractionError,
   LogCategory,
+  lang,
 } from '../../../utils';
 import { Colors } from '../../../utils/colors';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
+
+const memoryConfigRepo = lazyRepo(MemoryConfig);
 
 export async function captureToMemoryHandler(interaction: MessageContextMenuCommandInteraction): Promise<void> {
   try {
     const guard = await guardFeatureAccess(interaction, 'memory', 'use');
     if (!guard.allowed) return;
+
+    const guildId = interaction.guildId!;
+    const memoryConfig = await memoryConfigRepo.findOneBy({ guildId });
+    if (!memoryConfig) {
+      await interaction.reply({
+        content: lang.general.contextMenu.memoryNotConfigured,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
 
     const targetMessage = interaction.targetMessage;
     const author = escapeDiscordMarkdown(targetMessage.author?.displayName ?? 'Unknown');
