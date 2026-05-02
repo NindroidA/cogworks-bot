@@ -5,315 +5,108 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.1.38] - 2026-04-30
+## [3.1.40] - 2026-05-01
 
-Interactive `/ticket type list`. The previous list command rendered a single embed with one summary field per type; admins still had to remember a second slash command (`/ticket type toggle|edit|default …`) to act on what they saw. Now the list is a single in-place workspace: pick a type from a select menu, see its full details embed, and click Activate/Deactivate, Set Default, or Edit right there. Build + biome clean. Tests 1166/1166.
-
-### Changed
-
-- **`/ticket type list` rewritten as an interactive view** ([commands/handlers/ticket/typeList.ts](src/commands/handlers/ticket/typeList.ts)).
-  - **Summary view** — same fields-per-type embed shape as before, but enriched with a ping indicator (🔔/🔕) and the full description inline. Below it: a `StringSelectMenu` populated with every type (capped at Discord's 25-option limit; admins beyond that still have the slash commands).
-  - **Detail view** — picking a type swaps the embed for `buildTypeConfirmationEmbed(type, false)` (the same rich format `/ticket type add` and `edit` show on success) and replaces the select with a four-button row:
-    - **Activate / Deactivate** — flips `isActive` (Danger style when active, Success when inactive, with 🔴/🟢).
-    - **Set as Default** — sets `isDefault` on the picked type and clears it on every other type in the same guild (single-default invariant). Disabled + relabeled "Already Default" when the picked type is already the default.
-    - **Edit** — opens the same new-format edit modal as `/ticket type edit` (extracted to `buildTypeEditModal()` + `parseTypeEditSubmit()` so the slash handler and the list button share the exact same flow).
-    - **Back to list** — returns to the summary view.
-  - **Permission model** — initial view requires `tickets:use`; mutating buttons re-check `tickets:manage` per click. View-only users can browse details without being able to act on them.
-  - **Concurrent edits** — every interaction re-fetches the types from the DB before rendering so a teammate editing in parallel doesn't get clobbered.
-  - **Lifecycle** — five-minute collector; only the invoking user can interact (filter by `interaction.user.id`); on timeout the message components are stripped so stale buttons don't sit around looking clickable.
+Unify ticket-type management UX.
 
 ### Added
+- Activate/Deactivate button in the post-`/ticket type add` confirmation, alongside the existing Enable Staff Ping toggle.
 
-- **`buildTypeEditModal(type)` + `parseTypeEditSubmit(submit)` exports** in `commands/handlers/ticket/typeEdit.ts`.
-  - `buildTypeEditModal` returns the new-format `RawModal` (5 components: 4 text inputs + the staff-ping checkbox).
-  - `parseTypeEditSubmit` reads the modal field values, sanitizes user input, validates the hex color, and returns either `{ fields: TypeEditFields }` or `{ error: string }` so callers handle the reply.
-  - The slash-command path (`typeEditHandler`) now uses both helpers; the list-Edit-button path uses both helpers. No duplicated validation logic.
+### Changed
+- `/ticket type edit type:foo` jumps to the detail view (same as picking the type from `/ticket type list`'s dropdown) instead of opening the modal directly. Click Edit there to open the modal.
 
-### Notes for dev test
+### Removed
+- Close button on the `/ticket type list` interactive view — the 5-min collector timeout and Discord's Dismiss already handle this.
 
-1. `/ticket type list` (with at least 1 custom type configured) → ephemeral message with summary embed + "Select a ticket type to manage…" dropdown.
-2. Pick a type → embed swaps to the rich confirmation format with all fields; four buttons appear below.
-3. **Activate/Deactivate** → label and color flip; embed status field updates in place.
-4. **Set as Default** → button disables and relabels; if you Back to list and re-pick a different type, *that* type's button is no longer disabled (default invariant held).
-5. **Edit** → same modal as `/ticket type edit`; on submit, the list message refreshes to show updated values.
-6. **Back to list** → returns to summary view, components reset.
-7. Wait 5 min without interacting → components vanish from the message.
-8. As a non-admin user with only `tickets:use` permission → can view the summary and pick types, but Activate/Edit buttons reply ephemerally with the permission denial.
+## [3.1.39] - 2026-05-01
+
+### Fixed
+- `showAndAwaitModal` could resolve on a different modal — opening one modal, dismissing it, then submitting another caused the original handler to fire on the wrong submission. Now filtered by customId. Process-wide fix; affects every caller.
+- `/ticket type list` detail view no longer says "updated successfully" when just viewing.
+- `❓` placeholder for emoji-less types in the list summary replaced with no prefix.
+- Activate/Deactivate button emojis swapped from `🔴`/`🟢` (matched the button color and were hard to read) to `🚫`/`✅`.
+
+### Added
+- Hint text in the list summary moved from grey footer to embed description.
+
+## [3.1.38] - 2026-04-30
+
+### Changed
+- `/ticket type list` is now an interactive view. Pick a type from a dropdown to see its details; Activate/Deactivate, Set as Default, and Edit buttons are right there. Replaces the static fields-per-type embed.
 
 ## [3.1.37] - 2026-04-30
 
-Dev-test feedback bundle — surface fixes found during the v3.1.29-v3.1.36 dev-bot validation run. Two real bugs (one production crash, one dead-UI), two consistency gaps in context menus, one UX redesign for ticket-type editing. Build + biome clean. Tests 1166/1166.
-
 ### Fixed
-
-- **Language button on `/bot-setup` crashed with `BASE_TYPE_BAD_LENGTH`** ([botSetup/index.ts:357](src/commands/handlers/botSetup/index.ts#L357)). Discord's Label component description is capped at 100 characters; the existing string was 105. Shortened to "Bot language for this server. Untranslated strings fall back to English." (72 chars). I wrote a paren-balanced scanner over every `labelWrap()` call site in `src/` and confirmed this was the only violation — no other Label or option `description` field exceeds the limit.
-
-- **Two stale context menu commands had no router handler** ([commands/builders/contextMenus.ts](src/commands/builders/contextMenus.ts)). "Post as Announcement" and "Close Application" were registered with Discord but the dispatcher at `commands/handlers/contextMenus/index.ts` had no entry for either — clicking them fell through to `Unknown context menu command.` Removed the builders + the entries in `contextMenuCommands`. Discord auto-deregisters commands not in the registration list on next deploy.
-
-### Added
-
-- **Memory setup-check on the "Capture to Memory" context menu** ([contextMenus/captureToMemory.ts](src/commands/handlers/contextMenus/captureToMemory.ts)). Previously the handler showed the "use `/memory capture`" embed regardless of whether the guild had run `/memory-setup`. Now it queries `MemoryConfig.findOneBy({ guildId })` first — if missing, replies with `lang.general.contextMenu.memoryNotConfigured` ("Memory system is not configured. Run `/memory-setup` first."). Mirrors the existing `ticketNotConfigured` pattern in `openTicketForUser.ts`.
-
-- **Ticket setup-check on the "Manage Restrictions" context menu** ([contextMenus/manageRestrictions.ts](src/commands/handlers/contextMenus/manageRestrictions.ts)). Same gap — previously checked `ticketTypes.length === 0` but not `TicketConfig` existence. Added a `ticketConfigRepo.findOneBy({ guildId })` check using the existing `lang.general.contextMenu.ticketNotConfigured` string.
-
-- **`memoryNotConfigured` lang key across all 5 locales** ([src/lang/{en,es,pt-BR,fr,de}/general.json](src/lang/en/general.json) + types.ts). Non-EN locales carry the English string; the i18n Proxy fallback (v3.1.0) handles translation at runtime.
-
-- **`textInput()` and `paragraphInput()` helpers in `modalComponents.ts`** ([utils/modalComponents.ts](src/utils/modalComponents.ts)). New-format modals now support text inputs alongside checkboxes/radios. Returns `APITextInputComponent` from `discord-api-types/v10` with `style: TextInputStyle.Short` or `Paragraph`. Pair with `labelWrap()` to provide the field label and optional description. Took an options-object signature (`customId`, `value?`, `placeholder?`, `required?`, `minLength?`, `maxLength?`) so future helpers can extend without breaking call sites.
+- Language button on `/bot-setup` crashed with `BASE_TYPE_BAD_LENGTH` (modal description was 105 chars; Discord's cap is 100).
+- "Post as Announcement" and "Close Application" message-context-menu commands had no router handler; removed.
+- "Capture to Memory" and "Manage Restrictions" context menus now error gracefully when the system isn't configured for the guild.
 
 ### Changed
-
-- **`/ticket type edit` modal converted to new-format with `pingStaffOnCreate` checkbox** ([commands/handlers/ticket/typeEdit.ts](src/commands/handlers/ticket/typeEdit.ts)). Previously: 4 text inputs in a `ModalBuilder`, then a confirmation embed with a separate post-submit toggle button to flip the staff-ping setting. Now: one modal with 5 fields (displayName, emoji, color, description, pingStaffOnCreate as a checkbox). User sees one screen, fills it, gets a confirmation embed back. The whole flow lives in `typeEditHandler` using `showAndAwaitModal()` — no separate `typeEditModalHandler` and no dispatcher route. Re-fetches the type before save in case a concurrent edit landed between modal-show and submit. typeAdd left unchanged (5 text inputs already at the modal limit; the post-submit toggle button is preserved for the easy-toggle-after-create path).
-
-- **`typeEditModalHandler` removed from `events/ticket/interactionRoutes.ts`** — the inline-await pattern doesn't need a dispatcher route. Cleared the `MODAL_PREFIX_ROUTES` entry for `ticket-type-edit-modal:` and dropped the import.
-
-- **`tests/unit/events/ticketInteraction.test.ts`** — removed the dispatcher routing test for the old `typeEditModalHandler` route along with its mock factory and `mockTypeEditModalHandler` declaration. Suite is now 1166 (was 1167); -1 due to the removed test.
-
-### Notes for dev test
-
-Re-test these flows in dev:
-1. `/bot-setup` → Language button → modal opens cleanly (no `Invalid Form Body` crash).
-2. Right-click a message → only "Capture to Memory" appears (not "Post as Announcement" or "Close Application"). May take a few minutes for Discord to deregister.
-3. "Capture to Memory" on a guild without memory configured → "Memory system is not configured. Run `/memory-setup` first." reply.
-4. "Manage Restrictions" on a guild without ticket configured → "Ticket system is not configured. Run `/ticket-setup` first." reply.
-5. `/ticket type edit type:foo` → modal opens with all current values pre-filled including a Ping-Staff-on-Create checkbox reflecting the current state. Toggle, submit → confirmation embed shows updated state, DB row updated.
+- `/ticket type edit` modal now uses Discord's new modal format with a Ping-Staff-on-Create checkbox, replacing the post-submit toggle button on that path. (`/ticket type add` kept its post-submit toggle; see 3.1.40 for the consolidation.)
 
 ## [3.1.36] - 2026-04-30
 
-Test coverage — eighth patch of the post-v3.1.28 desloppify rescore series. Closes the largest remaining gap in `test_strategy`: the three delete event handlers (channelDelete, messageDelete, roleDelete) had zero direct coverage despite being load-bearing for v3.1.32's descriptor refactor. New tests verify the failure-attribution model (descriptor `name` field), Promise.allSettled isolation property, and per-entity mutation logic. Suite: 1134 → 1167 (+33 tests, no regressions).
-
 ### Added
-
-- **`tests/unit/events/channelDelete.test.ts`** — 10 tests for the 13-entity descriptor sweep. Covers DM-channel early-return, full descriptor sweep regression list (every entity must be queried — removing a descriptor would fail the test), TicketConfig per-column nullification (3 variants: channelId/messageId, categoryId, no-match), Promise.allSettled sibling isolation, RulesConfig delete + cache invalidation, ReactionRoleMenu delete + cache invalidation, BaitChannelConfig manager cache flush, XPConfig array filtering.
-
-- **`tests/unit/events/messageDelete.test.ts`** — 9 tests for the 8-entity descriptor sweep. Covers DM early-return, perf-guard for non-bot author (descriptor sweep skipped entirely), partial-message handling (null author still triggers full sweep), full descriptor sweep regression list, TicketConfig messageId clear, RulesConfig delete + cache invalidation, ReactionRoleMenu delete + invalidateMenuCache, Promise.allSettled isolation, baitChannelManager.handleMessageDelete invocation.
-
-- **`tests/unit/events/roleDelete.test.ts`** — 14 tests for the 9-entity descriptor sweep. Covers full descriptor sweep regression list, BotConfig globalStaffRole nullification + flag disable, RulesConfig delete + cache, ReactionRoleOption (which uses `createQueryBuilder` join — fake repo extended with chainable QB stub keyed on params), AnnouncementConfig defaultRoleId nullification, StaffRole bulk remove, XPConfig ignoredRoles filter, XPRoleReward bulk remove, OnboardingConfig completionRoleId nullification, BaitChannelConfig whitelistedRoles filter + manager cache flush, Promise.allSettled isolation.
-
-### Test pattern
-
-All three suites share the same shape:
-1. Per-entity fake-repo registry keyed on TypeORM entity class name.
-2. `AppDataSource.getRepository` patched at runtime via `(AppDataSource as any).getRepository = (entity) => fakeRepos[entity?.name]`. Works because lazyRepo's Proxy resolves on first property access — no production-code changes needed.
-3. `mock.module()` for cache helpers (`rulesCache`, `menuCache`, `starboardReaction`) — note Bun's `mock.module` is process-shared, so factories must include ALL real exports (not just the one being faked) to avoid undefined-export leaks across test files.
-4. Fake repo supports `findOneBy` / `find` / `save` / `remove` / `count`, with a `shouldThrowOn` toggle to verify Promise.allSettled isolation. roleDelete additionally adds a chainable `createQueryBuilder` stub for the ReactionRoleOption join path.
-
-These tests would fail if any descriptor is removed from CHANNEL_REF_CLEANERS / MESSAGE_REF_CLEANERS / ROLE_REF_CLEANERS — which is the regression they exist to catch. Deferred from this patch: integration tests, application handler tests, prototype-spy cleanup (handed off to follow-up versions).
+- Test coverage for the `channelDelete` / `messageDelete` / `roleDelete` event handlers introduced in 3.1.32. (+33 tests; 1134 → 1167.)
 
 ## [3.1.35] - 2026-04-30
 
-Incomplete migrations finalize — seventh patch of the post-v3.1.28 desloppify rescore series. 3 of 5 `incomplete_migration` findings closed (Part 4 was already done in v3.1.29); Parts 1 + 3 deliberately deferred pre-push because they're the highest-risk changes in this series (schema migration + user-visible command-shape change). No behavior change for landed parts.
-
 ### Changed
-
-- **Renamed `legacy*` ticket type identifiers to `builtin*` across the codebase** (Part 2 / Option B).
-  - `src/utils/ticket/legacyTypes.ts` → `src/utils/ticket/builtinTypes.ts`
-  - `LEGACY_TICKET_TYPE_IDS` → `BUILTIN_TICKET_TYPE_IDS`, `LEGACY_TYPES` → `BUILTIN_TYPES`, `LegacyTicketTypeId` → `BuiltinTicketTypeId`, `LegacyTypeDescriptor` → `BuiltinTypeDescriptor`
-  - `legacyTypeInfo()` → `builtinTypeInfo()`, `isLegacyTicketType()` → `isBuiltinTicketType()`, `resolveLegacyPingColumn()` → `resolveBuiltinPingColumn()`
-  - `ResolvedTicketType.isLegacy` → `isBuiltin`
-  - `ticketTypeAutocompleteWithLegacy` → `ticketTypeAutocompleteWithBuiltin` (autocomplete dispatcher updated)
-  - `legacyTicketTypeButton` (event handler) → `builtinTicketTypeButton`; private helpers `buildLegacyTicketModal` / `buildLegacyTicketDescription` similarly renamed
-  - User-visible "(Legacy)" suffix in admin autocomplete → "(Builtin)"
-  - Test file renamed: `tests/unit/utils/ticket/legacyTypes.test.ts` → `builtinTypes.test.ts`. The "legacy" concept is closed — these types are part of the supported product surface, not a leftover.
-
-- **Test infra: Jest dropped, Bun is the runner** (Part 5).
-  - 4 devDependencies removed from `package.json`: `jest`, `ts-jest`, `@jest/globals`, `@types/jest`. `bun install` regenerated the lockfile.
-  - Deleted `jest.config.js`. `tests/setup.ts` left untouched (just `import 'reflect-metadata'`).
-  - All 10 test files migrated from `import { ... } from '@jest/globals'` → `from 'bun:test'`. `jest.fn()` / `jest.spyOn()` continue to work via Bun's compatibility shim.
-
-- **`tests/unit/utils/ticket/closeWorkflow.test.ts`** — the `mock.module()` factory for `builtinTypes` now ALSO exposes the real `BUILTIN_TICKET_TYPE_IDS` / `BUILTIN_TYPES` / `isBuiltinTicketType` / `resolveBuiltinPingColumn` exports + sets a real-impl default for `fakeBuiltinTypeInfo`. Reason: Bun's `mock.module()` is process-shared once installed, so a partial mock factory causes `builtinTypes.test.ts` to read `undefined` for the unmocked exports when both suites run in the same process. The `beforeEach` block restores the real-impl default after each `mockReset` so per-test `mockReturnValue` overrides keep working.
-
-### Docs
-
-- **CLAUDE.md** — Testing section rewritten: "Runner: bun test (no separate config)", noted the `from 'bun:test'` import requirement, documented that `jest.mock()` is not supported (use `mock.module()`).
-- **CLAUDE.md** — directory map line updated: `legacyTypes, transcriptBuilder` → `builtinTypes, routingTypes, transcriptBuilder` (also captures the v3.1.31 routingTypes addition).
-
-### Skipped (deferred pre-push)
-
-- **Part 1 — Bait dual-column collapse.** Dropping `BaitChannelConfig.channelId` requires a real DB migration with back-fill. Schema-altering migrations are the highest-risk class of change to push without isolated dev-test validation, and the v3.1.x series is entering its push gate. Defer to its own version.
-- **Part 3 — Announcement legacy subcommands.** Removing `/announcement maintenance`, `/announcement back-online`, etc. is a user-visible command-shape change AND the patch's own constraint warns "the webapp may have hard-coded subcommand paths". Defer to its own version after a webapp audit.
-- **Part 4 — `applications` in FEATURES catalog.** Already added in v3.1.29 Part 1; nothing to do here.
-
-### Notes
-
-- 1134 tests passing; build + biome clean.
-- The `legacyTypes` finding closing is symbolic but real — the *concept* of "legacy" in the ticket-type subsystem is gone. Future contributors won't need to learn what makes a type "legacy"; they're builtin types now.
-- Targets `incomplete_migration` 78.0 → 84+ on next desloppify rescore (3 of 5 closed; Parts 1 + 3 deferred).
+- `legacy*` ticket type identifiers renamed to `builtin*` across the codebase. Code-internal rename only — stored type IDs are unchanged, no migration required.
+- Jest dropped; Bun is now the only test runner. Test files migrated from `@jest/globals` to `bun:test`.
 
 ## [3.1.34] - 2026-04-30
 
-Design coherence pass 2 — sixth patch of the post-v3.1.28 desloppify rescore series. 4 of 5 `design_coherence` findings closed; the 5th (memory tags collector pattern) is deferred per coordination notes — same code shape as the memory CRUD chorus that v3.1.32 partially addressed; left as a follow-up sweep. No behavior change.
+Internal refactor pass. No behavior change.
 
-### Changed
-
-- **`src/utils/offboarding/messageCleanup.ts`** — split the 350-line monolith into a 5-helper composition. `cleanupGuildMessages` is now a 6-line orchestrator chaining `collectTrackedMessages` (DB-only fetch), `deleteTrackedMessages`, `deleteForumThreads` (with `deleteForumEntries` helper), and `searchAndDeleteUntrackedMessages` (with `deleteViaSearchApi` + `deleteViaChannelScan` fallbacks). Each phase has a single concern and is independently testable.
-- **`src/utils/database/ensureDefaultTicketTypes.ts`** — hoisted the 200-line `defaultTypes` literal out of the function body to a module-top `DEFAULT_TICKET_TYPE_SEEDS` constant typed as `DefaultTicketTypeSeed[]`. Function body shrinks from ~230 lines to a 6-line loop. Adding a new default type is now a clearly-scoped diff at the top of the file.
-- **`src/commands/handlers/announcement/handler.ts`** — `previewAndSend` no longer hand-rolls its own button collector. Routes through `awaitConfirmation` from `utils/interactions/confirmHelper`. Function shrinks from ~100 lines to ~50; cancel/timeout handling now lives in the helper. `idPrefix: 'announcement'` keeps the customId namespace stable.
-- **`src/utils/interactions/confirmHelper.ts`** — `awaitConfirmation`'s `interaction` parameter widened to also accept `ModalSubmitInteraction` (the announcement `previewAndSend` is called from both a slash-command path and a modal-submit path; both need to confirm-via-button next).
-- **`src/utils/onboarding/onboardingEngine.ts`** — `sendOnboardingFlow` split into 4 phases: `loadOnboardingState` (config + completion record + DM channel), `sendWelcomeMessage` (opening embed), `runOnboardingSteps` (sequential per-step send + wait + persist), `finalizeOnboarding` (completion role + closing embed). Public `sendOnboardingFlow` is now an 11-line orchestrator. Preserves the original ordering — `OnboardingCompletion` row is created before any DM is attempted, so the start is recorded even if DMs are closed (intentional per the patch).
-
-### Skipped
-
-- **Part 5 — memory tags collector pattern** — patch's coordination notes flag this as overlapping with the memory CRUD chorus already addressed in v3.1.32 (`logHandlerError` sweep). The collector body is structurally similar but a separate concern. Left as an open follow-up.
-
-### Notes
-
-- 1134 tests passing; build + biome clean.
-- All four changes preserve the public API of their respective entry points — pure internal restructuring.
-- Targets `design_coherence` 84.5 → 88+ on next desloppify rescore.
+- `messageCleanup` (offboarding) split into 5 phase helpers.
+- Default ticket-type seeds hoisted out of `ensureDefaultTicketTypes` into a module-top constant.
+- Announcement `previewAndSend` now uses `awaitConfirmation` instead of a hand-rolled button collector.
+- `sendOnboardingFlow` split into 4 phases.
 
 ## [3.1.33] - 2026-04-29
 
-Mid-level elegance pass — fifth patch of the post-v3.1.28 desloppify rescore series. 4 of 5 `mid_level_elegance` findings closed; the fifth (AUDIT_RULES vs BUTTON_ROUTES "duplication") is a fresh-eyes false positive — the two tables operate on different key spaces (slash-command names vs customIds). No behavior change.
+Internal refactor pass. No behavior change.
 
-### Added
-
-- **`src/utils/setup/systemStates.ts`** — single source of truth for the per-system DB-state inspection. The slash-command setup dashboard and the webapp setup API now both call into it. Adding a new system requires updating one function plus the `SystemStates` interface.
-- **`createFieldHandlers<T>(config)`** factory in `src/commands/handlers/shared/fieldManagerCore.ts` — binds a `FieldManagerConfig` to its core helpers and returns a 5-method handler bundle (`showFieldManager`, `handleAddFieldModal`, `handleFieldButton`, `handleFieldSelectMenu`, `handlePreviewModal`). Replaces the wrapper-function chorus that `applicationFields.ts` and `typeFields.ts` both repeat.
-
-### Changed
-
-- **`commands/handlers/botSetup/setupDashboard.ts` + `utils/api/handlers/setupHandlers.ts`** — both `detectSystemStates` implementations replaced with import from the new util. `setupDashboard` re-exports for back-compat (so `botSetup/index.ts` and other callers don't need a churn pass). Net **-65 lines**.
-- **`events/autocomplete.ts`** — switch-statement dispatch (~115 LOC) replaced with `AUTOCOMPLETE_ROUTES` lookup table keyed by `command/group/subcommand` plus a `COMMAND_AUTOCOMPLETE_ROUTES` fallback for commands whose entire surface uses one autocomplete handler (`reactionrole`, `announcement`). Same shape as v3.1.10's button-route tables. Net ~-40 lines and adding a new autocomplete-using subcommand is now one row instead of a switch case.
-- **`commands/handlers/ticket/typeFields.ts`** — 4 wrapper functions (`handleAddFieldModal` / `handleFieldButton` / `handleFieldSelectMenu` / `handlePreviewModal`) collapsed into a `createFieldHandlers(config)` call + destructure-and-export. Net **-30 lines**.
-- **`commands/handlers/application/applicationFields.ts`** — same pattern. The wrapper chorus was thicker here because each function also did `String(positionId)` conversion — now the dispatcher passes strings directly.
-- **`events/applicationFieldsInteraction.ts`** — drops `parseInt` calls that were paired with the wrapper-side `String(...)` re-conversion. Match groups (already strings) are passed straight through.
-- **`events/typeFieldsInteraction.ts` + `events/applicationFieldsInteraction.ts`** — both now return `Promise<boolean>` (true when matched + handled, false otherwise) so the top-level router can iterate without duplicating prefix knowledge. Each dispatcher early-outs on prefix mismatch.
-- **`events/applicationInteraction.ts` + `events/ticketInteraction.ts`** — propagate the boolean return from their underlying `dispatchXxxInteraction` (which already returned `Promise<boolean>` from v3.1.10).
-- **`events/interactionRouter.ts`** — collapsed from 85 lines of inline prefix-matching to a 25-line dispatch loop. The top-level no longer encodes per-feature prefix knowledge — each feature dispatcher decides for itself whether to claim the interaction. Adding a new feature dispatcher is a one-line addition to `FEATURE_DISPATCHERS`.
-
-### Skipped
-
-- **AUDIT_RULES vs BUTTON_ROUTES "duplication"** — patch's premise was wrong. `AUDIT_RULES` keys are slash-command names (`ticket`, `memory`, `role`, `application`); `BUTTON_ROUTES` keys are interaction customIds (`close_ticket`, `confirm_close_ticket`...). Different key spaces; not parallel.
-
-### Notes
-
-- 1134 tests passing; build + biome clean.
-- `createFieldHandlers` is the kind of mechanical factory that pays for itself the second time it's used. Future field-bearing entities (e.g. announcement templates with custom fields) get the wrapper-free experience for free.
-- Targets `mid_level_elegance` 78.5 → 86+ on next desloppify rescore.
+- Autocomplete dispatch: switch statement → `AUTOCOMPLETE_ROUTES` lookup table.
+- New `createFieldHandlers<T>(config)` factory shared by `typeFields` and `applicationFields`.
+- `detectSystemStates` extracted to `utils/setup/systemStates.ts` — slash-command setup dashboard and webapp setup API now share one implementation.
+- Top-level interaction router collapsed from inline prefix-matching to a dispatch loop over `FEATURE_DISPATCHERS`.
 
 ## [3.1.32] - 2026-04-29
 
-AI debt cleanup pass 3 — fourth patch of the post-v3.1.28 desloppify rescore series. Closes 3 of 4 `ai_generated_debt` findings (the 4th — `guard_helpers_duplicated_rate_limit_tail` — was already done in v3.1.29). Plus absorbs the deferred `entityNames descriptor` finding from v3.1.31's cross-module-arch coordination notes. No behavior change.
+Internal refactor pass. No behavior change.
 
-### Added
-
-- **`logHandlerError(scope, error, ctx)`** at `src/utils/monitoring/enhancedLogger.ts` — one-line wrapper around `enhancedLogger.error` for the post-`deferReply` cleanup pattern. Replaces the 4-line `enhancedLogger.error(...) + error instanceof Error ? error : undefined + LogCategory.COMMAND_EXECUTION + { guildId }` shape that was repeated identically across 13 memory handler catch blocks.
-
-### Changed
-
-- **`channelDelete.ts`** — 13 inline IIFE blocks collapsed into a `CHANNEL_REF_CLEANERS` descriptor array. The parallel `entityNames` array (used for failure attribution by index) is gone — the descriptor's `name` field IS the attribution. Same `Promise.allSettled` semantics; one cleaner failing still doesn't abort siblings. **Net -25 lines** plus the load-bearing index coupling is gone.
-- **`messageDelete.ts`** — 8 IIFE blocks collapsed into `MESSAGE_REF_CLEANERS` descriptor. The 10-second `withTimeout` wrapper is preserved as a tiny module-level helper that the dispatcher applies to each cleaner.
-- **`roleDelete.ts`** — 9 IIFE blocks collapsed into `ROLE_REF_CLEANERS` descriptor.
-- **All 13 memory handler catch blocks** swept onto `logHandlerError`. Files touched: `add.ts`, `capture.ts`, `delete.ts`, `manageTags.ts` (4 sites), `tags.ts` (3 sites), `update.ts`, `updateStatus.ts`, `updateTags.ts`. `enhancedLogger` + `LogCategory` imports dropped from files that no longer use them directly. **Net ~50 lines deleted.**
-
-### Docs
-
-- **CLAUDE.md** — Error Handling section now distinguishes `handleInteractionError` (pre-reply: log + reply with error embed) from `logHandlerError` (post-`deferReply`: log only, caller controls `editReply` body). Both helpers shown side-by-side.
-
-### Notes
-
-- 1134 tests passing; build + biome clean.
-- Audit other features for the same chorus — application/ticket/baitchannel/announcement handlers may have similar shape. Out of scope for this commit; can land in a follow-up sweep.
-- Restating-comment sweep (Part 3 of the patch) deferred — explicit "don't bundle with other parts" instruction in the patch and the diff would be all noise-level.
-- Targets `ai_generated_debt` 80.5 → 88+ on next desloppify rescore. Also closes the `cross_module_architecture::delete_event_handlers_iife_boilerplate` finding deferred from v3.1.31.
+- Delete event handlers (`channelDelete`, `messageDelete`, `roleDelete`) refactored to descriptor arrays. Failure attribution now comes from each cleaner's `name` field instead of a parallel array.
+- New `logHandlerError(scope, error, ctx)` wrapper for the post-`deferReply` log shape; 13 memory handler catch blocks swept onto it.
 
 ## [3.1.31] - 2026-04-29
 
-Cross-module architecture pass — third patch of the post-v3.1.28 desloppify rescore series. Closes both `cross_module_architecture` findings: (1) events depending on commands/handlers for non-dispatch reasons, and (2) the `TicketConfig` entity importing a column type from a runtime utility. No behavior change.
+Internal refactor pass. No behavior change.
 
-### Added
-
-- **`src/utils/xp/configCache.ts`** — new module owning `getXPConfig`, `invalidateXPConfigCache`, `clearXPConfigCache`, plus the cache map and 5-minute TTL constant. The slash-command setup handler and the message/voice event handlers all read through this single util.
-- **`src/typeorm/entities/ticket/routingTypes.ts`** — new entity-side types module owning `RoutingRule` and `RoutingStrategy`. The entity (data shape) no longer depends on the runtime helper; the helper imports these types from the entity side.
-
-### Changed
-
-- **`xpMessageHandler.ts` + `xpVoiceHandler.ts`** — `getXPConfig` import path flipped from `../commands/handlers/xp/setup` → `../utils/xp/configCache`. Closes the genuine cross-module smell (events shouldn't depend on slash-command code for shared workflow utilities).
-- **`commands/handlers/xp/setup.ts`** — dropped the local cache map + getter/invalidator pair; now imports `invalidateXPConfigCache` from the new util. **Net -28 lines** in setup.ts.
-- **`commands/handlers/xp/index.ts`** — dropped the `clearXPConfigCache` / `getXPConfig` / `invalidateXPConfigCache` re-export block (those were existence proofs of the cross-module smell). Replaced with a one-line comment pointing readers to `utils/xp/configCache`.
-- **`commands/handlers/xp/leaderboard.ts` + `rank.ts`** — `getXPConfig` import path flipped to the new util.
-- **`utils/ticket/smartRouter.ts`** — `RoutingRule` and `RoutingStrategy` no longer defined here; imported from `entities/ticket/routingTypes` and re-exported for back-compat with existing util-side importers (so consumers don't need a churn pass). Stale "requires the following columns on TicketConfig" docblock note replaced with a pointer to the new types module.
-- **`typeorm/entities/ticket/TicketConfig.ts`** — `RoutingStrategy` import flipped from `../../../utils/ticket/smartRouter` → `./routingTypes`. The inline `routingRules: Array<{ ... }>` shape that duplicated `RoutingRule` is now `RoutingRule[]`.
-
-### Docs
-
-- **CLAUDE.md** — new **Layering rule** section under Architecture. ASCII diagram of the dependency arrows, explicit description of the dispatch exception (autocomplete + interaction-route dispatchers genuinely DO import handler functions from `commands/handlers/*` — that's the whole point of those files), and a note on the entity ← utility direction with `routingTypes.ts` as the canonical example.
-
-### Notes
-
-- After this patch, `grep "from '../commands/handlers" src/events/` still returns 13 hits — all in dispatcher files. That's intentional; the layering rule documents the exception. The genuinely-fixable smells (xp config cache + TicketConfig type import) are closed.
-- 1134 tests passing; build + biome clean.
-- Targets `cross_module_architecture` 76 → 88+ on next desloppify rescore.
+- `getXPConfig` moved from `commands/handlers/xp/setup.ts` to a new `utils/xp/configCache.ts`. Removes the events → commands/handlers cross-module coupling.
+- `RoutingRule` and `RoutingStrategy` types moved from `utils/ticket/smartRouter` to a new `entities/ticket/routingTypes.ts`. The entity (data shape) no longer depends on the runtime helper. Old import paths still resolve via re-export.
+- Layering rule documented in CLAUDE.md.
 
 ## [3.1.30] - 2026-04-29
 
-Init-coupling pass 2 + cosmetic cleanup bundle — second patch of the post-v3.1.28 desloppify rescore series. Closes 11 small findings across `initialization_coupling`, `abstraction_fitness`, `type_safety`, `naming_quality`, `logic_clarity`. Drops the persistent `lazyRepo` biome warning that survived v3.1.10 → v3.1.29. No behavior change.
+Internal refactor pass. No behavior change.
 
-### Added
-
-- **`ReactionRoleMode` type alias** in `src/typeorm/entities/reactionRole/ReactionRoleMenu.ts` and re-exported from `entities/reactionRole/index.ts`. Replaces the inline `'normal' | 'unique' | 'lock'` literal at 4 sites (entity column type, `reactionRoleHandlers.ts`, `reactionRole/edit.ts`, `reactionRole/create.ts`).
-- **`RawModal` interface** in `src/utils/modalComponents.ts` — explicit return type for `rawModal()`. Previously `rawModal` returned an inferred shape; new callers can now `import { type RawModal }` if they need to type a variable.
-
-### Changed
-
-- **`guildWebhook.ts`** — replaced module-scope `const API_URL = process.env.API_URL` with private `getApiUrl()` / `isDev()` getters. Mirrors the v3.1.7 `getRest()` deferral pattern. Importing the module no longer snapshots env at load time.
-- **`commandList.ts`** — `IS_DEV` env snapshot kept as-is with a justification comment. Commands are registered once at startup; runtime `RELEASE` mutation is not supported, so deferring would just shift the snapshot point.
-- **`lazyRepo.ts:29`** — `(value as Function).bind(cached)` → `(value as (...args: unknown[]) => unknown).bind(cached)`. **Drops the persistent biome `Function` type warning** noted across v3.1.10 → v3.1.29 memory entries. `bun run check` now reports zero warnings.
-- **`devTest.ts:466-489`** (`handleRoutingSimulate`) — removed the `routingConfig = config as typeof config & { smartRoutingEnabled?, routingRules?, routingStrategy? }` intersection cast and the cascading `as 'least-load' | 'round-robin' | 'random'` literal cast. `TicketConfig` already declares all three columns (with `routingStrategy: RoutingStrategy`), so direct property access is type-safe.
-- **`errorHandler.ts`** — `handleInteractionError`'s `Interaction` union widened to include `MessageContextMenuCommandInteraction`, `UserContextMenuCommandInteraction`, and `StringSelectMenuInteraction`. The 4 context-menu handlers (captureToMemory, manageRestrictions, openTicketForUser, viewBaitScore) dropped their `interaction as any` casts.
-- **`SetupState.systemStates`** — kept non-nullable but added a contract comment documenting that the DB column is nullable while every read path normalizes via `... || DEFAULT_SYSTEM_STATES`. Originally tried `SystemStates | null` but the spread inference cascade would have touched 18+ sites for ~2pt of type safety.
-- **`emojis.ts`** — removed the `em` namespace (28 lines, zero importers) and 11 dead emoji type aliases (`EmojiCategory`, `StatusEmoji`, `ActionEmoji`, `TimeEmoji`, `ModerationEmoji`, `FeatureEmoji`, `ContentEmoji`, `StatsEmoji`, `SystemEmoji`, `DecorativeEmoji`, `TicketTypeEmoji`). Module JSDoc updated to drop the `em.success(...)` example.
-- **Async without `await` sweep** — dropped `async` from three pure-sync functions: `buildApplicationMessage` (in `applicationPosition.ts`), `awaitButtonChoice` (in `botReset.ts`), `fetchTextChannelIds` (in `dev/devSuiteWorkflows.ts`). Call sites still use `await x` which is a no-op on non-Promises; left unchanged to minimize churn.
-
-### Removed
-
-- **`src/typeorm/entities/bait/index.ts`** — orphan re-export barrel with zero importers (verified — every `bait/*` consumer imports from the entity file directly). Also closed the `convention_outlier::entity_barrel_split` finding.
-
-### Skipped
-
-- **A.3 `enhancedLogger` sync FS** — finding stale, no `writeFileSync`/`readFileSync` calls in the file.
-- **A.4 `ReactionRoleMenu` `require()` comment** — comment was already present from v3.1.6.
-- **C.3 `messageGuard.ts` rename** — file has 4 peer exports (`safeChannelFetch`, `safeMessageFetch`, etc.) with no clear primary export. Renaming has higher cost than the linter signal warrants.
-- **C.4 `skipAdmin` → `skipPermissionCheck` rename** — already landed in v3.1.29 Part 6.
-
-### Notes
-
-- 1134 tests passing; build clean; `bun run check` now reports **zero warnings** (the persistent `Function` warning is gone).
-- Targets `initialization_coupling` 87.5 → 90+, `abstraction_fitness` 89 → 92+, `type_safety` 86 → 90+, `naming_quality` 89 → 92+, `logic_clarity` 87.5 → 90+ on next desloppify rescore.
+- New `ReactionRoleMode` type alias (`'normal' | 'unique' | 'lock'`) in `entities/reactionRole/ReactionRoleMenu.ts`. Replaces the inline literal at 4 sites.
+- New `RawModal` interface in `utils/modalComponents.ts` for typing `rawModal()` returns.
+- `guildWebhook.ts` no longer snapshots `process.env.API_URL` at module load — uses lazy getters.
+- Long-standing `Function`-type biome warning in `lazyRepo.ts` eliminated; the linter is now warning-free.
 
 ## [3.1.29] - 2026-04-29
 
-Authorization consistency pass 2 — closes the seven high-confidence auth gaps surfaced by the post-v3.1.28 desloppify rescore. Largest single regression in the rescore (`authorization_consistency` 88.0 → 78.5); this patch lands all eight scoped parts.
-
-### Added
-
-- **`'applications'` feature key** added to `FEATURES` catalog in `src/utils/validation/featurePermission.ts`. Flows through `permissionHandlers` automatically — webapp permissions UI now offers `applications` as a first-class scope. Test count for FEATURES catalog expectation updated to match.
-- **`guardOwner()`** wrapper at `src/utils/interactions/guardHelper.ts`. Mirrors `guardAdmin`'s shape: replies ephemerally on failure, returns `{ allowed }`. Replaces the 6-line `requireBotOwner + reply + return` boilerplate at all 13 call sites (status/dev). Exported from the `interactions` barrel.
-- **Regression test** for `pingToggleButton` denial when the user is not a Discord admin and no permission rows exist (1133 → 1134 tests).
+### Fixed
+- `pingToggleButton` (the staff-ping toggle on the ticket-type confirmation embed) now requires `tickets:manage` permission. Non-admins who could see the button could previously click it; this was always intended to be admin-only.
 
 ### Changed
-
-- **`application` command tree** migrated to feature-scoped guards. 13 sites across 5 files: `applicationEdit`, `applicationFields`, `applicationPosition`, `applicationSetup` (rate-limit preserved via `guardFeatureRateLimit`), `workflow.ts` (4 `workflow-*` admin commands + 3 previously-unguarded mutating handlers `applicationStatusHandler`/`applicationNoteHandler`/`applicationClaimHandler` now require `'applications', 'manage'`; read-only `applicationInfoHandler` requires `'use'`; applicant self-check `applicationCheckHandler` remains unguarded).
-- **`pingToggleButton`** at `src/events/ticket/typeAdmin.ts` now gates with `guardFeatureAccess('tickets', 'manage')`. The button mutates `TicketConfig.pingStaff*` columns — same write surface as the slash command form. Without this check a non-admin who could see the message could re-click the button at any time.
-- **Context menus** (`src/commands/handlers/contextMenus/`): `captureToMemory` → `'memory', 'use'`; `manageRestrictions` → `'tickets', 'manage'` (mutates `UserTicketRestriction`); `openTicketForUser` → `'tickets', 'use'` (read-only display); `viewBaitScore` → `'baitchannel', 'use'`.
-- **`guardHelper.ts`** internal cleanup — extracted private `applyRateLimit()` shared by `guardAdminRateLimit` and `guardFeatureRateLimit` (both now ~5 lines: do the auth check, delegate to `applyRateLimit`). Renamed `GuardOptions.skipAdmin` → `GuardOptions.skipPermissionCheck` (the old name was a misnomer for the feature-rate-limit variant). Updated single caller in `ticket/emailImport.ts`.
-- **Owner sweep** — replaced the `requireBotOwner(interaction.user.id) + reply + return` ladder with `guardOwner(interaction)` at all 13 sites: `status/{view,set,clear,history,subscribe (3)}`, `dev/{devSuite,devTest,devSuiteScaffold (4)}`. Net ~85 lines deleted.
-- **Raw `requireAdmin` sweep** — 8 call sites in `migrate.ts` (2), `dev/applicationDev.ts` (2), `dev/ticketDev.ts` (3), `import/index.ts` (1) collapsed onto `guardAdmin(interaction)`.
-- **`devSuiteTests.ts` static-analysis** — the `permissions-audit` heuristic that scans handler source for permission-check strings now recognises both legacy `require*` validators and the modern `guard*` wrappers (`guardAdmin`, `guardOwner`, `guardFeatureAccess`, `guardFeatureRateLimit`). Without this update the audit would have flagged every newly-migrated handler as "no permission check".
-- **Per-ticket close buttons** at `src/events/ticket/close.ts` left intentionally unguarded with an explanatory in-code comment — Discord channel ACLs (applicant + staff role + Discord admins) are the gate, and applicant-self-close is intentional UX.
-- **Test mock** for `ticketInteraction.test.ts` extended: `baseInteractionProps` now includes `isRepliable: true`, a truthy `guild`, and a `member.permissions.has` stub returning true (Discord-admin path). Tests exercising the non-admin path override `member` explicitly.
-
-### Docs
-
-- **`CLAUDE.md`** Permission Validation section rewritten to lead with the `guard*` wrappers, document the four levels (`use`/`manage`/`admin`/owner), and call out the meta-feature exceptions (`/bot-setup`, `/bot-reset`, `/data-export`, `/status`).
-- **`CLAUDE.md`** Common Pitfalls — added "use feature-scoped guards when the action is in the FEATURES catalog" and "use `guardAdmin`/`guardOwner` wrappers, not raw `require*` + hand-rolled reply".
-
-### Notes
-
-- All migrations preserve admin-only fallback for unconfigured guilds via `hasFeatureAccess`. No behavior change for guilds that have not visited the webapp permissions UI.
-- `pingToggleButton` (Part 3) is the one user-visible behaviour change: a non-admin who could previously click the button can no longer mutate the staff-ping config. This was always the intended behaviour — the button was an end-run that the dispatcher split (v3.1.10) didn't re-cover.
-- 1133 → 1134 tests passing; build + biome clean.
-- Targets `authorization_consistency` 78.5 → 88+ on the next desloppify rescore.
+- `application` command tree migrated from `guardAdmin` to feature-scoped `guardFeatureAccess('applications', ...)`. Includes new `'applications'` entry in the FEATURES catalog.
+- New `guardOwner()` wrapper mirroring `guardAdmin`'s shape; replaces the boilerplate around `requireBotOwner` at 13 status/dev call sites.
+- Four context menus (`captureToMemory`, `manageRestrictions`, `openTicketForUser`, `viewBaitScore`) now use feature-scoped guards.
+- Raw `requireAdmin` swept onto `guardAdmin()` at 8 remaining sites in migrate / dev.
 
 ## [3.1.28] - 2026-04-27
 

@@ -21,7 +21,9 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          # Pinned to match the local-dev baseline. Bumping this is a
+          # deliberate, single-line change rather than a silent CI shift.
+          bun-version: 1.2.17
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

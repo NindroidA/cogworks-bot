@@ -26,7 +26,11 @@ jobs:
           docker-compose stop cogworks 2>/dev/null || true
           docker-compose rm -f cogworks 2>/dev/null || true
           docker-compose up -d cogworks
-          docker image prune -f
+          # Prune dangling images only (the prior :latest tag we just replaced)
+          # so we don't accidentally evict images other services on this host
+          # may still want — even though the box is dedicated today, the
+          # narrower scope keeps that assumption explicit.
+          docker image prune -f --filter "dangling=true"
           echo "=== Deployment complete ==="
           docker-compose ps cogworks
 

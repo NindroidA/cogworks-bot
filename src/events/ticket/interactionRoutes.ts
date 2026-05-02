@@ -16,7 +16,7 @@ import {
   selectTicketType,
   submitTicketModal,
 } from './create';
-import { pingToggleButton } from './typeAdmin';
+import { activeToggleButton, pingToggleButton } from './typeAdmin';
 
 type ButtonHandler = (client: Client, interaction: ButtonInteraction) => Promise<void>;
 type ModalHandler = (client: Client, interaction: ModalSubmitInteraction) => Promise<void>;
@@ -53,6 +53,7 @@ interface PrefixRoute<H> {
  * The catch-all is button-only and validates with `isBuiltinTicketType`.
  */
 const BUTTON_PREFIX_ROUTES: PrefixRoute<ButtonHandler>[] = [
+  { prefix: 'ticket_type_active_toggle:', handler: activeToggleButton },
   { prefix: 'ticket_type_ping_toggle:', handler: pingToggleButton },
   { prefix: 'ticket_', handler: builtinTicketTypeButton },
 ];

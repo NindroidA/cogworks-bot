@@ -1,15 +1,6 @@
-import { type ChatInputCommandInteraction, MessageFlags, type ModalSubmitInteraction } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
-import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import {
-  enhancedLogger,
-  guardFeatureAccess,
-  handleInteractionError,
-  LogCategory,
-  lang,
-  sanitizeUserInput,
-  showAndAwaitModal,
-} from '../../../utils';
+import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
+import type { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
+import { lang, sanitizeUserInput } from '../../../utils';
 import {
   checkbox,
   labelWrap,
@@ -18,13 +9,14 @@ import {
   rawModal,
   textInput,
 } from '../../../utils/modalComponents';
-import { buildTypeConfirmationEmbed } from './typeAdd';
+import { renderInteractiveTypeView } from './typeList';
 
 const tl = lang.ticket.customTypes.typeEdit;
 
 /**
  * Build the new-format edit modal for a custom ticket type. Reused by both
- * the slash-command edit handler and the interactive list-view edit button.
+ * the slash-command edit handler (via the interactive list view) and the
+ * Edit button on the typeList detail view.
  */
 export function buildTypeEditModal(type: CustomTicketType): RawModal {
   const ta = lang.ticket.customTypes.typeAdd;
@@ -92,80 +84,14 @@ export function parseTypeEditSubmit(submit: ModalSubmitInteraction): { fields: T
 }
 
 /**
- * Handler for /ticket type edit command.
- *
- * Opens a single modal with all editable fields plus a checkbox for the
- * staff-ping toggle. The whole flow lives here — no separate
- * modal-submission dispatch — so the user sees one screen, fills it, and
- * gets a confirmation embed back.
+ * Handler for `/ticket type edit type:foo`. Behaves as a shortcut into the
+ * interactive type-management view — jumps straight to the detail screen for
+ * the selected type, where the user can toggle Active, set Default, click
+ * Edit to open the modal, or go Back to the full list. Same surface as
+ * picking the type from `/ticket type list`'s dropdown; this just skips the
+ * picker.
  */
 export async function typeEditHandler(interaction: ChatInputCommandInteraction): Promise<void> {
-  try {
-    const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
-    if (!guard.allowed) return;
-
-    const user = interaction.user.username;
-    const guildId = interaction.guildId!;
-    const typeId = interaction.options.getString('type', true);
-    enhancedLogger.info(`User ${user} opening type-edit modal for '${typeId}'`, LogCategory.COMMAND_EXECUTION);
-
-    const typeRepo = AppDataSource.getRepository(CustomTicketType);
-    const type = await typeRepo.findOne({ where: { guildId, typeId } });
-
-    if (!type) {
-      enhancedLogger.warn(`User ${user} type-edit failed: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION);
-      await interaction.reply({
-        content: tl.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    const submit = await showAndAwaitModal(interaction, buildTypeEditModal(type));
-    if (!submit) return;
-
-    const parsed = parseTypeEditSubmit(submit);
-    if ('error' in parsed) {
-      enhancedLogger.warn(`User ${user} type-edit validation failed`, LogCategory.COMMAND_EXECUTION);
-      await submit.reply({
-        content: parsed.error,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    // Re-fetch in case a concurrent edit landed between modal-show and submit.
-    const fresh = await typeRepo.findOne({ where: { guildId, typeId } });
-    if (!fresh) {
-      enhancedLogger.warn(
-        `User ${user} type-edit submit failed: type '${typeId}' not found`,
-        LogCategory.COMMAND_EXECUTION,
-      );
-      await submit.reply({
-        content: tl.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    fresh.displayName = parsed.fields.displayName;
-    fresh.emoji = parsed.fields.emoji;
-    fresh.embedColor = parsed.fields.embedColor;
-    fresh.description = parsed.fields.description;
-    fresh.pingStaffOnCreate = parsed.fields.pingStaffOnCreate;
-
-    await typeRepo.save(fresh);
-    enhancedLogger.info(
-      `User ${user} updated ticket type '${typeId}' (${fresh.displayName}) ping=${fresh.pingStaffOnCreate} in guild ${guildId}`,
-      LogCategory.COMMAND_EXECUTION,
-    );
-
-    const embed = buildTypeConfirmationEmbed(fresh, false);
-    await submit.reply({
-      embeds: [embed],
-      flags: [MessageFlags.Ephemeral],
-    });
-  } catch (error) {
-    await handleInteractionError(interaction, error, 'typeEditHandler');
-  }
+  const typeId = interaction.options.getString('type', true);
+  await renderInteractiveTypeView(interaction, { startWith: 'detail', typeId });
 }

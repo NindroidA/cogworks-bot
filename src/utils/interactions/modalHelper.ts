@@ -59,10 +59,28 @@ export async function showAndAwaitModal(
   // and present a clean typed signature to callers.
   await interaction.showModal(modal as ModalBuilder);
 
-  const submit = await interaction.awaitModalSubmit({ time: timeout }).catch(async () => {
-    await notifyModalTimeout(interaction);
-    return null;
-  });
+  // Filter on customId so we only resolve for THIS modal's submission. Without
+  // this, awaitModalSubmit catches the next modal the user submits from any
+  // surface — e.g. dismissing our edit modal and then submitting a ticket-
+  // create modal would wrongly route that submission back here.
+  const customId = extractCustomId(modal);
+  const submit = await interaction
+    .awaitModalSubmit({
+      time: timeout,
+      filter: i => i.customId === customId && i.user.id === interaction.user.id,
+    })
+    .catch(async () => {
+      await notifyModalTimeout(interaction);
+      return null;
+    });
 
   return submit;
+}
+
+function extractCustomId(modal: ModalBuilder | RawModalObject): string {
+  // ModalBuilder stores it on `.data.custom_id`; rawModal() stores it on
+  // `.custom_id` directly. Probe both — discord.js doesn't expose a uniform
+  // accessor across the legacy/new modal shapes yet.
+  const m = modal as { data?: { custom_id?: string }; custom_id?: string };
+  return m.data?.custom_id ?? m.custom_id ?? '';
 }

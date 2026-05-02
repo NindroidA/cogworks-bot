@@ -1,12 +1,5 @@
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  type ButtonInteraction,
-  ButtonStyle,
-  type Client,
-  MessageFlags,
-} from 'discord.js';
-import { buildTypeConfirmationEmbed } from '../../commands/handlers/ticket/typeAdd';
+import { type ButtonInteraction, type Client, MessageFlags } from 'discord.js';
+import { buildPostSubmitButtons, buildTypeConfirmationEmbed } from '../../commands/handlers/ticket/typeAdd';
 import { CustomTicketType } from '../../typeorm/entities/ticket/CustomTicketType';
 import { enhancedLogger, guardFeatureAccess, LogCategory, lang } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
@@ -48,8 +41,9 @@ export const pingToggleButton = async (_client: Client, interaction: ButtonInter
   const previousState = type.pingStaffOnCreate;
   type.pingStaffOnCreate = !type.pingStaffOnCreate;
   await customTypeRepo.save(type);
+
   enhancedLogger.info(
-    `Staff ping toggled for type '${typeId}': ${previousState} → ${type.pingStaffOnCreate}`,
+    `Type ping toggled: '${typeId}' ${previousState} → ${type.pingStaffOnCreate}`,
     LogCategory.COMMAND_EXECUTION,
     {
       userId: interaction.user.id,
@@ -60,15 +54,63 @@ export const pingToggleButton = async (_client: Client, interaction: ButtonInter
     },
   );
 
-  const embed = buildTypeConfirmationEmbed(type, false);
-  const tl = lang.ticket.customTypes.typeAdd;
-  const toggleButton = new ButtonBuilder()
-    .setCustomId(`ticket_type_ping_toggle:${typeId}`)
-    .setLabel(type.pingStaffOnCreate ? tl.pingToggleDisable : tl.pingToggleEnable)
-    .setStyle(type.pingStaffOnCreate ? ButtonStyle.Danger : ButtonStyle.Success)
-    .setEmoji(type.pingStaffOnCreate ? '🔕' : '🔔');
+  await interaction.update({
+    embeds: [buildTypeConfirmationEmbed(type, 'updated')],
+    components: [buildPostSubmitButtons(type)],
+  });
+};
 
-  const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(toggleButton);
+/**
+ * Toggles `isActive` for a custom ticket type — paired with the post-submit
+ * Activate/Deactivate button rendered alongside the staff-ping toggle.
+ * customId: `ticket_type_active_toggle:<typeId>`.
+ */
+export const activeToggleButton = async (_client: Client, interaction: ButtonInteraction) => {
+  const guildId = interaction.guildId;
+  if (!guildId) return;
 
-  await interaction.update({ embeds: [embed], components: [buttonRow] });
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
+  if (!guard.allowed) return;
+
+  const typeId = interaction.customId.replace('ticket_type_active_toggle:', '');
+  enhancedLogger.debug(`Button: active toggle for type '${typeId}'`, LogCategory.COMMAND_EXECUTION, {
+    userId: interaction.user.id,
+    guildId,
+    typeId,
+  });
+
+  const type = await customTypeRepo.findOne({ where: { guildId, typeId } });
+  if (!type) {
+    enhancedLogger.warn(`Active toggle failed: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      typeId,
+    });
+    await interaction.reply({
+      content: lang.ticket.customTypes.typeEdit.notFound,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  const previousState = type.isActive;
+  type.isActive = !type.isActive;
+  await customTypeRepo.save(type);
+
+  enhancedLogger.info(
+    `Type active toggled: '${typeId}' ${previousState} → ${type.isActive}`,
+    LogCategory.COMMAND_EXECUTION,
+    {
+      userId: interaction.user.id,
+      guildId,
+      typeId,
+      previousState,
+      newState: type.isActive,
+    },
+  );
+
+  await interaction.update({
+    embeds: [buildTypeConfirmationEmbed(type, 'updated')],
+    components: [buildPostSubmitButtons(type)],
+  });
 };
