@@ -12,6 +12,7 @@ import {
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import {
+  buildErrorMessage,
   enhancedLogger,
   guardFeatureAccess,
   handleInteractionError,
@@ -63,7 +64,10 @@ export async function renderInteractiveTypeView(
 
     const guildId = interaction.guildId!;
     const typeRepo = AppDataSource.getRepository(CustomTicketType);
-    let types = await typeRepo.find({ where: { guildId }, order: { sortOrder: 'ASC' } });
+    let types = await typeRepo.find({
+      where: { guildId },
+      order: { sortOrder: 'ASC' },
+    });
 
     if (types.length === 0) {
       await interaction.reply({
@@ -115,7 +119,10 @@ export async function renderInteractiveTypeView(
 
         // Refresh types from DB on every interaction so concurrent edits don't
         // leave the view stale.
-        types = await typeRepo.find({ where: { guildId }, order: { sortOrder: 'ASC' } });
+        types = await typeRepo.find({
+          where: { guildId },
+          order: { sortOrder: 'ASC' },
+        });
 
         if (i.isStringSelectMenu() && i.customId === CID_SELECT) {
           await renderDetail(i, types, i.values[0]);
@@ -148,7 +155,10 @@ export async function renderInteractiveTypeView(
             `Type list: toggled '${typeId}' active=${target.isActive} in guild ${guildId}`,
             LogCategory.COMMAND_EXECUTION,
           );
-          types = await typeRepo.find({ where: { guildId }, order: { sortOrder: 'ASC' } });
+          types = await typeRepo.find({
+            where: { guildId },
+            order: { sortOrder: 'ASC' },
+          });
           await i.update({
             embeds: [buildDetailEmbed(target)],
             components: buildDetailComponents(target),
@@ -178,7 +188,10 @@ export async function renderInteractiveTypeView(
             `Type list: set '${typeId}' as default in guild ${guildId}`,
             LogCategory.COMMAND_EXECUTION,
           );
-          types = await typeRepo.find({ where: { guildId }, order: { sortOrder: 'ASC' } });
+          types = await typeRepo.find({
+            where: { guildId },
+            order: { sortOrder: 'ASC' },
+          });
           const refreshed = types.find(t => t.typeId === typeId);
           if (!refreshed) return;
           await i.update({
@@ -234,7 +247,10 @@ export async function renderInteractiveTypeView(
             embeds: [buildDetailEmbed(reload)],
             components: buildDetailComponents(reload),
           });
-          types = await typeRepo.find({ where: { guildId }, order: { sortOrder: 'ASC' } });
+          types = await typeRepo.find({
+            where: { guildId },
+            order: { sortOrder: 'ASC' },
+          });
           return;
         }
       } catch (err) {
@@ -242,6 +258,19 @@ export async function renderInteractiveTypeView(
           guildId,
           userId: i.user.id,
         });
+        // If we threw before acknowledging the interaction, give the user
+        // visible feedback instead of letting Discord render "Interaction
+        // failed" with no clue why. The .catch swallows secondary failures
+        // (interaction expired, already replied) so the collector keeps
+        // running for the rest of the 5-min window.
+        if (!i.replied && !i.deferred) {
+          await i
+            .reply({
+              content: buildErrorMessage('Something went wrong while processing this action.'),
+              flags: [MessageFlags.Ephemeral],
+            })
+            .catch(() => undefined);
+        }
       }
     });
 

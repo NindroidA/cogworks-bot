@@ -16,6 +16,7 @@
  */
 
 import {
+  afterAll,
   afterEach,
   beforeAll,
   beforeEach,
@@ -76,6 +77,7 @@ let registerTicketHandlers: typeof import("../../../../src/utils/api/handlers/ti
 let routes: Map<string, any>;
 let fakeClient: Client;
 let fakeChannel: any;
+let originalGetRepository: ((entity: unknown) => unknown) | undefined;
 
 beforeAll(async () => {
   // Map each entity import to its corresponding fake repo.
@@ -90,6 +92,10 @@ beforeAll(async () => {
     [Ticket, ticketRepo],
     [ArchivedTicketConfig, archivedConfigRepo],
   ]);
+  // Capture so afterAll can restore. Bun shares module state across test files.
+  originalGetRepository = (
+    AppDataSource as unknown as { getRepository: (e: unknown) => unknown }
+  ).getRepository;
   (
     AppDataSource as unknown as { getRepository: (e: unknown) => unknown }
   ).getRepository = (entity) =>
@@ -99,6 +105,15 @@ beforeAll(async () => {
     })();
   const sut = await import("../../../../src/utils/api/handlers/ticketHandlers");
   registerTicketHandlers = sut.registerTicketHandlers;
+});
+
+afterAll(async () => {
+  if (originalGetRepository) {
+    const { AppDataSource } = await import("../../../../src/typeorm");
+    (
+      AppDataSource as unknown as { getRepository: (e: unknown) => unknown }
+    ).getRepository = originalGetRepository;
+  }
 });
 
 beforeEach(() => {

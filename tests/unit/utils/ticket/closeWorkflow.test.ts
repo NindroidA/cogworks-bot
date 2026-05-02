@@ -18,6 +18,7 @@
  */
 
 import {
+  afterAll,
   afterEach,
   beforeAll,
   beforeEach,
@@ -140,14 +141,29 @@ mock.module("../../../../src/utils/ticket/builtinTypes", () => ({
 type ArchiveTicketResult =
   import("../../../../src/utils/ticket/closeWorkflow").ArchiveTicketResult;
 let archiveAndCloseTicket: typeof import("../../../../src/utils/ticket/closeWorkflow").archiveAndCloseTicket;
+let originalGetRepository: ((entity: any) => unknown) | undefined;
 
 beforeAll(async () => {
   const { AppDataSource } = await import("../../../../src/typeorm");
+  // Capture so afterAll can restore. Bun runs test files in a single process;
+  // leaving the patch installed leaks into every file that runs after this one.
+  originalGetRepository = (
+    AppDataSource as unknown as { getRepository: (e: any) => unknown }
+  ).getRepository;
   // Patch getRepository so lazyRepo's Proxy.get returns our fake.
   (AppDataSource as unknown as { getRepository: () => unknown }).getRepository =
     () => fakeRepo;
   const sut = await import("../../../../src/utils/ticket/closeWorkflow");
   archiveAndCloseTicket = sut.archiveAndCloseTicket;
+});
+
+afterAll(async () => {
+  if (originalGetRepository) {
+    const { AppDataSource } = await import("../../../../src/typeorm");
+    (
+      AppDataSource as unknown as { getRepository: (e: any) => unknown }
+    ).getRepository = originalGetRepository;
+  }
 });
 
 // ---------------------------------------------------------------------------

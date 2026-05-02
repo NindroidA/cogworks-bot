@@ -14,6 +14,7 @@
  */
 
 import {
+  afterAll,
   afterEach,
   beforeAll,
   beforeEach,
@@ -73,12 +74,17 @@ const nullRepo = {
 let registerSetupHandlers: typeof import("../../../../src/utils/api/handlers/setupHandlers").registerSetupHandlers;
 let routes: Map<string, any>;
 const fakeClient = {} as Client;
+let originalGetRepository: ((entity: unknown) => unknown) | undefined;
 
 beforeAll(async () => {
   const { AppDataSource } = await import("../../../../src/typeorm");
   const { SetupState } = await import(
     "../../../../src/typeorm/entities/SetupState"
   );
+  // Capture so afterAll can restore. Bun shares module state across test files.
+  originalGetRepository = (
+    AppDataSource as unknown as { getRepository: (e: unknown) => unknown }
+  ).getRepository;
   // Patch getRepository: SetupState gets the stateful fake; everything else
   // gets the null/zero fake (used by detectSystemStates).
   (
@@ -87,6 +93,15 @@ beforeAll(async () => {
     entity === SetupState ? setupStateRepo : nullRepo;
   const sut = await import("../../../../src/utils/api/handlers/setupHandlers");
   registerSetupHandlers = sut.registerSetupHandlers;
+});
+
+afterAll(async () => {
+  if (originalGetRepository) {
+    const { AppDataSource } = await import("../../../../src/typeorm");
+    (
+      AppDataSource as unknown as { getRepository: (e: unknown) => unknown }
+    ).getRepository = originalGetRepository;
+  }
 });
 
 beforeEach(() => {
