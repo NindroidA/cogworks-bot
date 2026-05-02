@@ -1,6 +1,15 @@
-export type { Language } from '../lang';
+export type { Language, Locale } from '../lang';
 /** Re-export lang module with type safety */
-export { lang } from '../lang';
+export {
+  DEFAULT_LOCALE,
+  getGuildLang,
+  getGuildLocale,
+  getLangForLocale,
+  invalidateGuildLocaleCache,
+  isSupportedLocale,
+  lang,
+  SUPPORTED_LOCALES,
+} from '../lang';
 
 // Note: internalApiServer is NOT re-exported here to avoid a 20-file import cycle.
 // Import directly: import { internalApiServer } from './utils/api/internalApiServer';
@@ -24,12 +33,11 @@ export * from './errorHandler';
 export * from './forumTagManager';
 // Interaction helpers (guard, confirm, modal)
 export * from './interactions';
-// Logging utilities (extracted to break import cycles)
-export * from './logger';
 // Modal component helpers (raw API objects for new Discord components)
 export * from './modalComponents';
 // Monitoring utilities
 export * from './monitoring/enhancedLogger';
+export * from './monitoring/errorReporter';
 export * from './monitoring/healthMonitor';
 export * from './monitoring/healthServer';
 export * from './monitoring/memoryWatchdog';
@@ -64,10 +72,10 @@ export function formatBytes(bytes: number): string {
  * @param args - Arguments to replace placeholders with
  * @returns Formatted string
  * @example
- * LANGF("Hello {0}, you have {1} messages", "John", 5)
+ * formatLang("Hello {0}, you have {1} messages", "John", 5)
  * // Returns: "Hello John, you have 5 messages"
  */
-export function LANGF(template: string, ...args: (string | number)[]): string {
+export function formatLang(template: string, ...args: (string | number)[]): string {
   return template.replace(/\{(\d+)\}/g, (match, index) => {
     const argIndex = parseInt(index, 10);
     return args[argIndex] !== undefined ? String(args[argIndex]) : match;

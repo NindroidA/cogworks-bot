@@ -12,7 +12,7 @@ import {
   expect,
   jest,
   test,
-} from "@jest/globals";
+} from "bun:test";
 import {
   classifyError,
   ErrorCategory,

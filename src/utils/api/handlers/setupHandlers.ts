@@ -6,69 +6,14 @@
  */
 
 import type { Client } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
-import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
-import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
-import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
-import { BotConfig } from '../../../typeorm/entities/BotConfig';
-import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
-import { MemoryConfig } from '../../../typeorm/entities/memory/MemoryConfig';
-import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
-import { RulesConfig } from '../../../typeorm/entities/rules';
-import { DEFAULT_SYSTEM_STATES, SetupState, type SystemStates } from '../../../typeorm/entities/SetupState';
-import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
-import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
+import { SetupState } from '../../../typeorm/entities/SetupState';
 import { lazyRepo } from '../../database/lazyRepo';
-import { optionalStringArray, requireBoolean, requireString } from '../helpers';
+import { detectSystemStates } from '../../setup/systemStates';
+import { optionalString, optionalStringArray, requireBoolean, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
+import { writeAuditLog } from './auditHelper';
 
 const setupStateRepo = lazyRepo(SetupState);
-
-/**
- * Detect system states from actual DB configs (same logic as setupDashboard.ts).
- */
-async function detectSystemStates(guildId: string): Promise<SystemStates> {
-  const states: SystemStates = { ...DEFAULT_SYSTEM_STATES };
-
-  const [
-    botConfig,
-    ticketConfig,
-    archivedTicket,
-    appConfig,
-    archivedApp,
-    annConfig,
-    baitConfig,
-    memoryConfig,
-    rulesConfig,
-    reactionMenuCount,
-  ] = await Promise.all([
-    AppDataSource.getRepository(BotConfig).findOneBy({ guildId }),
-    AppDataSource.getRepository(TicketConfig).findOneBy({ guildId }),
-    AppDataSource.getRepository(ArchivedTicketConfig).findOneBy({ guildId }),
-    AppDataSource.getRepository(ApplicationConfig).findOneBy({ guildId }),
-    AppDataSource.getRepository(ArchivedApplicationConfig).findOneBy({
-      guildId,
-    }),
-    AppDataSource.getRepository(AnnouncementConfig).findOneBy({ guildId }),
-    AppDataSource.getRepository(BaitChannelConfig).findOneBy({ guildId }),
-    AppDataSource.getRepository(MemoryConfig).findOneBy({ guildId }),
-    AppDataSource.getRepository(RulesConfig).findOneBy({ guildId }),
-    AppDataSource.getRepository(ReactionRoleMenu).count({ where: { guildId } }),
-  ]);
-
-  if (botConfig?.enableGlobalStaffRole && botConfig.globalStaffRole) states.staffRole = 'complete';
-  if (ticketConfig && archivedTicket) states.ticket = 'complete';
-  else if (ticketConfig) states.ticket = 'partial';
-  if (appConfig && archivedApp) states.application = 'complete';
-  else if (appConfig) states.application = 'partial';
-  if (annConfig?.defaultRoleId && annConfig.defaultChannelId) states.announcement = 'complete';
-  if (baitConfig?.channelId) states.baitchannel = 'complete';
-  if (memoryConfig) states.memory = 'complete';
-  if (rulesConfig?.channelId && rulesConfig.roleId) states.rules = 'complete';
-  if (reactionMenuCount > 0) states.reactionRole = 'complete';
-
-  return states;
-}
 
 export function registerSetupHandlers(_client: Client, routes: Map<string, RouteHandler>): void {
   /**
@@ -114,6 +59,11 @@ export function registerSetupHandlers(_client: Client, routes: Map<string, Route
     }
 
     await setupStateRepo.save(state);
+
+    const triggeredBy = optionalString(body, 'triggeredBy');
+    await writeAuditLog(guildId, 'setup.systems', triggeredBy, {
+      enabledSystems,
+    });
 
     return {
       success: true,
@@ -165,6 +115,12 @@ export function registerSetupHandlers(_client: Client, routes: Map<string, Route
 
     state.selectedSystems = currentEnabled.size === allSystemIds.length ? null : [...currentEnabled];
     await setupStateRepo.save(state);
+
+    const triggeredBy = optionalString(body, 'triggeredBy');
+    await writeAuditLog(guildId, 'setup.toggle', triggeredBy, {
+      systemId,
+      enabled,
+    });
 
     return {
       success: true,

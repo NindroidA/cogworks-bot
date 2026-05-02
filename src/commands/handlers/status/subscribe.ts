@@ -1,7 +1,7 @@
 import { type CacheType, ChannelType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BotStatus } from '../../../typeorm/entities/status';
-import { enhancedLogger, LogCategory, lang, requireBotOwner } from '../../../utils';
+import { enhancedLogger, guardOwner, LogCategory, lang } from '../../../utils';
 import type { StatusManager } from '../../../utils/status/statusManager';
 
 const tl = lang.status;
@@ -19,14 +19,8 @@ export async function statusSubscribeHandler(
   interaction: ChatInputCommandInteraction<CacheType>,
   _statusManager: StatusManager,
 ) {
-  const ownerCheck = requireBotOwner(interaction.user.id);
-  if (!ownerCheck.allowed) {
-    await interaction.reply({
-      content: ownerCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardOwner(interaction);
+  if (!guard.allowed) return;
 
   try {
     const channel = interaction.options.getChannel('channel', true);
@@ -68,14 +62,8 @@ export async function statusUnsubscribeHandler(
   interaction: ChatInputCommandInteraction<CacheType>,
   _statusManager: StatusManager,
 ) {
-  const ownerCheck = requireBotOwner(interaction.user.id);
-  if (!ownerCheck.allowed) {
-    await interaction.reply({
-      content: ownerCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardOwner(interaction);
+  if (!guard.allowed) return;
 
   try {
     if (!process.env.STATUS_CHANNEL_ID) {
@@ -112,14 +100,8 @@ export async function statusMonitorSetHandler(
   interaction: ChatInputCommandInteraction<CacheType>,
   statusManager: StatusManager,
 ) {
-  const ownerCheck = requireBotOwner(interaction.user.id);
-  if (!ownerCheck.allowed) {
-    await interaction.reply({
-      content: ownerCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardOwner(interaction);
+  if (!guard.allowed) return;
 
   try {
     const url = interaction.options.getString('url', true).trim();

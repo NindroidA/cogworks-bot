@@ -1,187 +1,97 @@
+import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
+import type { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
+import { lang, sanitizeUserInput } from '../../../utils';
 import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  type ChatInputCommandInteraction,
-  MessageFlags,
-  ModalBuilder,
-  type ModalSubmitInteraction,
-  TextInputBuilder,
-  TextInputStyle,
-} from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
-import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import {
-  enhancedLogger,
-  guardAdmin,
-  handleInteractionError,
-  LogCategory,
-  lang,
-  sanitizeUserInput,
-} from '../../../utils';
-import { buildTypeConfirmationEmbed } from './typeAdd';
+  checkbox,
+  labelWrap,
+  paragraphInput,
+  type RawModal,
+  rawModal,
+  textInput,
+} from '../../../utils/modalComponents';
+import { renderInteractiveTypeView } from './typeList';
 
 const tl = lang.ticket.customTypes.typeEdit;
 
 /**
- * Handler for /ticket type-edit command
- * Shows modal for editing an existing custom ticket type
+ * Build the new-format edit modal for a custom ticket type. Reused by both
+ * the slash-command edit handler (via the interactive list view) and the
+ * Edit button on the typeList detail view.
  */
-export async function typeEditHandler(interaction: ChatInputCommandInteraction): Promise<void> {
-  try {
-    const guard = await guardAdmin(interaction);
-    if (!guard.allowed) return;
+export function buildTypeEditModal(type: CustomTicketType): RawModal {
+  const ta = lang.ticket.customTypes.typeAdd;
+  return rawModal(`ticket-type-edit-modal:${type.typeId}`, tl.modalTitle, [
+    labelWrap(
+      ta.displayNameLabel,
+      textInput({ customId: 'displayName', value: type.displayName, required: true, maxLength: 100 }),
+    ),
+    labelWrap(ta.emojiLabel, textInput({ customId: 'emoji', value: type.emoji ?? '', required: false, maxLength: 10 })),
+    labelWrap(ta.colorLabel, textInput({ customId: 'color', value: type.embedColor, required: false, maxLength: 7 })),
+    labelWrap(
+      ta.descriptionLabel,
+      paragraphInput({
+        customId: 'description',
+        value: type.description ?? '',
+        required: false,
+        maxLength: 500,
+      }),
+    ),
+    labelWrap(
+      'Ping Staff on Create',
+      checkbox('pingStaffOnCreate', type.pingStaffOnCreate),
+      'Mention staff when this type is used to open a ticket',
+    ),
+  ]);
+}
 
-    const user = interaction.user.username;
-
-    const guildId = interaction.guildId!;
-    const typeId = interaction.options.getString('type', true);
-    enhancedLogger.info(`User ${user} opening type-edit modal for '${typeId}'`, LogCategory.COMMAND_EXECUTION);
-
-    const typeRepo = AppDataSource.getRepository(CustomTicketType);
-
-    const type = await typeRepo.findOne({
-      where: { guildId, typeId },
-    });
-
-    if (!type) {
-      enhancedLogger.warn(`User ${user} type-edit failed: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION);
-      await interaction.reply({
-        content: tl.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    // Create modal pre-filled with existing values
-    const modal = new ModalBuilder().setCustomId(`ticket-type-edit-modal:${typeId}`).setTitle(tl.modalTitle);
-
-    const displayNameInput = new TextInputBuilder()
-      .setCustomId('displayName')
-      .setLabel(lang.ticket.customTypes.typeAdd.displayNameLabel)
-      .setValue(type.displayName)
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setMaxLength(100);
-
-    const emojiInput = new TextInputBuilder()
-      .setCustomId('emoji')
-      .setLabel(lang.ticket.customTypes.typeAdd.emojiLabel)
-      .setValue(type.emoji || '')
-      .setStyle(TextInputStyle.Short)
-      .setRequired(false)
-      .setMaxLength(10);
-
-    const colorInput = new TextInputBuilder()
-      .setCustomId('color')
-      .setLabel(lang.ticket.customTypes.typeAdd.colorLabel)
-      .setValue(type.embedColor)
-      .setStyle(TextInputStyle.Short)
-      .setRequired(false)
-      .setMaxLength(7);
-
-    const descriptionInput = new TextInputBuilder()
-      .setCustomId('description')
-      .setLabel(lang.ticket.customTypes.typeAdd.descriptionLabel)
-      .setValue(type.description || '')
-      .setStyle(TextInputStyle.Paragraph)
-      .setRequired(false)
-      .setMaxLength(500);
-
-    const row1 = new ActionRowBuilder<TextInputBuilder>().addComponents(displayNameInput);
-    const row2 = new ActionRowBuilder<TextInputBuilder>().addComponents(emojiInput);
-    const row3 = new ActionRowBuilder<TextInputBuilder>().addComponents(colorInput);
-    const row4 = new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput);
-
-    modal.addComponents(row1, row2, row3, row4);
-
-    await interaction.showModal(modal);
-  } catch (error) {
-    await handleInteractionError(interaction, error, 'typeEditHandler');
-  }
+export interface TypeEditFields {
+  displayName: string;
+  emoji: string | null;
+  embedColor: string;
+  description: string | null;
+  pingStaffOnCreate: boolean;
 }
 
 /**
- * Handler for ticket type-edit modal submission
+ * Read & validate the edit modal submission. Returns either the parsed fields
+ * or a user-facing error message — caller handles reply.
  */
-export async function typeEditModalHandler(interaction: ModalSubmitInteraction, typeId: string): Promise<void> {
-  try {
-    const user = interaction.user.username;
-    enhancedLogger.info(`User ${user} submitted type-edit modal for '${typeId}'`, LogCategory.COMMAND_EXECUTION);
+export function parseTypeEditSubmit(submit: ModalSubmitInteraction): { fields: TypeEditFields } | { error: string } {
+  const fields = submit.fields as any;
+  const rawDisplayName = (fields.getField('displayName')?.value as string | undefined) ?? '';
+  const rawEmoji = ((fields.getField('emoji')?.value as string | undefined) ?? '').trim();
+  const rawColor = ((fields.getField('color')?.value as string | undefined) ?? '').trim();
+  const rawDescription = (fields.getField('description')?.value as string | undefined) ?? '';
+  const pingStaffOnCreate = Boolean(fields.getField('pingStaffOnCreate')?.value);
 
-    const guildId = interaction.guildId!;
+  const displayName = sanitizeUserInput(rawDisplayName);
+  const embedColor = rawColor || '#0099ff';
+  const description = sanitizeUserInput(rawDescription) || null;
 
-    // Get modal inputs
-    const displayName = sanitizeUserInput(interaction.fields.getTextInputValue('displayName'));
-    const emoji = interaction.fields.getTextInputValue('emoji')?.trim() || null;
-    const colorInput = interaction.fields.getTextInputValue('color')?.trim() || '#0099ff';
-    const description = sanitizeUserInput(interaction.fields.getTextInputValue('description')) || null;
-
-    // Validate hex color
-    if (!/^#[0-9A-Fa-f]{6}$/.test(colorInput)) {
-      enhancedLogger.warn(
-        `User ${user} type-edit validation failed: invalid color '${colorInput}'`,
-        LogCategory.COMMAND_EXECUTION,
-      );
-      await interaction.reply({
-        content: lang.ticket.customTypes.typeAdd.invalidColor,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    const typeRepo = AppDataSource.getRepository(CustomTicketType);
-
-    const type = await typeRepo.findOne({
-      where: { guildId, typeId },
-    });
-
-    if (!type) {
-      enhancedLogger.warn(
-        `User ${user} type-edit modal failed: type '${typeId}' not found`,
-        LogCategory.COMMAND_EXECUTION,
-      );
-      await interaction.reply({
-        content: tl.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-
-    // Update ticket type
-    type.displayName = displayName;
-    type.emoji = emoji || null;
-    type.embedColor = colorInput;
-    type.description = description || null;
-
-    await typeRepo.save(type);
-    enhancedLogger.info(
-      `User ${user} updated ticket type '${typeId}' (${displayName}) in guild ${guildId}`,
-      LogCategory.COMMAND_EXECUTION,
-    );
-
-    // Build confirmation embed with type details
-    const embed = buildTypeConfirmationEmbed(type, false);
-
-    // Add toggle button for staff ping setting
-    const toggleButton = new ButtonBuilder()
-      .setCustomId(`ticket_type_ping_toggle:${typeId}`)
-      .setLabel(
-        type.pingStaffOnCreate
-          ? lang.ticket.customTypes.typeAdd.pingToggleDisable
-          : lang.ticket.customTypes.typeAdd.pingToggleEnable,
-      )
-      .setStyle(type.pingStaffOnCreate ? ButtonStyle.Danger : ButtonStyle.Success)
-      .setEmoji(type.pingStaffOnCreate ? '🔕' : '🔔');
-
-    const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(toggleButton);
-
-    await interaction.reply({
-      embeds: [embed],
-      components: [buttonRow],
-      flags: [MessageFlags.Ephemeral],
-    });
-  } catch (error) {
-    await handleInteractionError(interaction, error, 'typeEditModalHandler');
+  if (!/^#[0-9A-Fa-f]{6}$/.test(embedColor)) {
+    return { error: lang.ticket.customTypes.typeAdd.invalidColor };
   }
+
+  return {
+    fields: {
+      displayName,
+      emoji: rawEmoji || null,
+      embedColor,
+      description,
+      pingStaffOnCreate,
+    },
+  };
+}
+
+/**
+ * Handler for `/ticket type edit type:foo`. Behaves as a shortcut into the
+ * interactive type-management view — jumps straight to the detail screen for
+ * the selected type, where the user can toggle Active, set Default, click
+ * Edit to open the modal, or go Back to the full list. Same surface as
+ * picking the type from `/ticket type list`'s dropdown; this just skips the
+ * picker.
+ */
+export async function typeEditHandler(interaction: ChatInputCommandInteraction): Promise<void> {
+  const typeId = interaction.options.getString('type', true);
+  await renderInteractiveTypeView(interaction, { startWith: 'detail', typeId });
 }

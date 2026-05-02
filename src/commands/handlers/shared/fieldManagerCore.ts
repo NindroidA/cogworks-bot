@@ -18,9 +18,9 @@ import type { CustomInputField } from '../../../typeorm/entities/shared/CustomIn
 import {
   CACHE_TTL,
   enhancedLogger,
+  formatLang,
   handleInteractionError,
   INTERVALS,
-  LANGF,
   LogCategory,
   lang,
   MAX,
@@ -96,19 +96,29 @@ const fieldDraftCache = new Map<
   }
 >();
 
-// Clean up old drafts every minute
-const fieldDraftCleanupInterval = setInterval(() => {
-  const cutoff = Date.now() - CACHE_TTL.FIELD_DRAFT;
-  for (const [key, value] of fieldDraftCache.entries()) {
-    if (value.timestamp < cutoff) {
-      fieldDraftCache.delete(key);
+// Clean up old drafts every minute. Deferred to an explicit start() call
+// (wired from the bot's clientReady handler) so importing this module
+// does not kick off background timers during tests or tooling runs.
+let fieldDraftCleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+export function startFieldDraftCleanup(): void {
+  if (fieldDraftCleanupInterval) return;
+  fieldDraftCleanupInterval = setInterval(() => {
+    const cutoff = Date.now() - CACHE_TTL.FIELD_DRAFT;
+    for (const [key, value] of fieldDraftCache.entries()) {
+      if (value.timestamp < cutoff) {
+        fieldDraftCache.delete(key);
+      }
     }
-  }
-}, INTERVALS.FIELD_DRAFT_CLEANUP);
+  }, INTERVALS.FIELD_DRAFT_CLEANUP);
+}
 
 /** Stop the field draft cleanup interval (call on shutdown) */
 export function stopFieldDraftCleanup(): void {
-  clearInterval(fieldDraftCleanupInterval);
+  if (fieldDraftCleanupInterval) {
+    clearInterval(fieldDraftCleanupInterval);
+    fieldDraftCleanupInterval = null;
+  }
 }
 
 /**
@@ -403,7 +413,7 @@ async function showFieldSelectMenu<T extends FieldBearingEntity>(
 
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId(`${prefix}${action}_select_${entityId}`)
-    .setPlaceholder(LANGF(fm.selectFieldPlaceholder, action))
+    .setPlaceholder(formatLang(fm.selectFieldPlaceholder, action))
     .addOptions(
       fields.map((field, index) =>
         new StringSelectMenuOptionBuilder()
@@ -439,7 +449,7 @@ async function showReorderInterface<T extends FieldBearingEntity>(
   const { prefix } = config;
 
   const embed = new EmbedBuilder()
-    .setTitle(`🔀 ${LANGF(fm.reorderTitle, config.getDisplayTitle(entity).replace(/^🔧\s*/, ''))}`)
+    .setTitle(`🔀 ${formatLang(fm.reorderTitle, config.getDisplayTitle(entity).replace(/^🔧\s*/, ''))}`)
     .setColor(config.getEmbedColor(entity))
     .setDescription(
       `**${fm.currentOrder}**\n` +
@@ -605,7 +615,7 @@ async function handleMoveField<T extends FieldBearingEntity>(
 
   if (newIndex < 0 || newIndex >= fields.length) {
     await interaction.followUp({
-      content: `❌ ${LANGF(fm.cannotMoveField, direction)}`,
+      content: `❌ ${formatLang(fm.cannotMoveField, direction)}`,
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -779,4 +789,28 @@ export async function handlePreviewModal<T extends FieldBearingEntity>(
     content: `✅ ${config.messages.previewNote}`,
     flags: [MessageFlags.Ephemeral],
   });
+}
+
+/**
+ * Bind a `FieldManagerConfig` to its core helpers and return a per-feature
+ * handler bundle. Replaces the 5-line wrapper-function chorus that
+ * `applicationFields.ts` and `typeFields.ts` both repeat — the per-feature
+ * file declares its config and gets ready-to-export handlers.
+ *
+ * @example
+ * const fields = createFieldHandlers(ticketFieldConfig);
+ * export const { handleAddFieldModal, handleFieldButton, handleFieldSelectMenu, handlePreviewModal } = fields;
+ */
+export function createFieldHandlers<T extends FieldBearingEntity>(config: FieldManagerConfig<T>) {
+  return {
+    showFieldManager: (interaction: ChatInputCommandInteraction, entity: T) =>
+      showFieldManager(interaction, entity, config),
+    handleAddFieldModal: (interaction: ModalSubmitInteraction, entityId: string) =>
+      handleAddFieldModal(interaction, entityId, config),
+    handleFieldButton: (interaction: ButtonInteraction, action: string, entityId: string) =>
+      handleFieldButton(interaction, action, entityId, config),
+    handleFieldSelectMenu: (interaction: StringSelectMenuInteraction, action: string, entityId: string) =>
+      handleFieldSelectMenu(interaction, action, entityId, config),
+    handlePreviewModal: (interaction: ModalSubmitInteraction) => handlePreviewModal(interaction, config),
+  };
 }

@@ -1,21 +1,8 @@
-import {
-  type ButtonInteraction,
-  type ChatInputCommandInteraction,
-  MessageFlags,
-  type ModalSubmitInteraction,
-  type StringSelectMenuInteraction,
-} from 'discord.js';
+import { type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { guardAdmin, handleInteractionError, lang } from '../../../utils';
+import { guardFeatureAccess, handleInteractionError, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
-import {
-  handleAddFieldModal as coreHandleAddFieldModal,
-  handleFieldButton as coreHandleFieldButton,
-  handleFieldSelectMenu as coreHandleFieldSelectMenu,
-  handlePreviewModal as coreHandlePreviewModal,
-  type FieldManagerConfig,
-  showFieldManager,
-} from '../shared/fieldManagerCore';
+import { createFieldHandlers, type FieldManagerConfig } from '../shared/fieldManagerCore';
 
 const pl = lang.application.position;
 const fl = lang.application.position.fields;
@@ -45,19 +32,30 @@ function completeSession(userId: string, guildId: string, entityId?: string): vo
   fieldSessionMap.set(getSessionKey(userId, guildId, entityId), SESSION_COMPLETED);
 }
 
-// Clean up expired/completed sessions every minute
-const fieldSessionCleanupInterval = setInterval(() => {
-  const now = Date.now();
-  for (const [key, timestamp] of fieldSessionMap.entries()) {
-    if (timestamp === SESSION_COMPLETED || (timestamp > 0 && now - timestamp >= SESSION_TIMEOUT_MS)) {
-      fieldSessionMap.delete(key);
+// Clean up expired/completed sessions every minute. Deferred to an
+// explicit start() call (wired from the bot's clientReady handler) so
+// importing this module does not kick off background timers during tests
+// or tooling runs.
+let fieldSessionCleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+export function startFieldSessionCleanup(): void {
+  if (fieldSessionCleanupInterval) return;
+  fieldSessionCleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, timestamp] of fieldSessionMap.entries()) {
+      if (timestamp === SESSION_COMPLETED || (timestamp > 0 && now - timestamp >= SESSION_TIMEOUT_MS)) {
+        fieldSessionMap.delete(key);
+      }
     }
-  }
-}, 60 * 1000);
+  }, 60 * 1000);
+}
 
 /** Stop the field session cleanup interval (call on shutdown) */
 export function stopFieldSessionCleanup(): void {
-  clearInterval(fieldSessionCleanupInterval);
+  if (fieldSessionCleanupInterval) {
+    clearInterval(fieldSessionCleanupInterval);
+    fieldSessionCleanupInterval = null;
+  }
 }
 
 const positionRepo = lazyRepo(Position);
@@ -96,13 +94,19 @@ const appFieldConfig: FieldManagerConfig<Position> = {
   },
 };
 
+const fields = createFieldHandlers(appFieldConfig);
+export const handleAppAddFieldModal = fields.handleAddFieldModal;
+export const handleAppFieldButton = fields.handleFieldButton;
+export const handleAppFieldSelectMenu = fields.handleFieldSelectMenu;
+export const handleAppPreviewModal = fields.handlePreviewModal;
+
 /**
  * Handler for /application position fields command
  * Interactive UI for managing custom input fields
  */
 export async function applicationFieldsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'applications', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
@@ -124,44 +128,8 @@ export async function applicationFieldsHandler(interaction: ChatInputCommandInte
     // Start a new session for this user (keyed by positionId to allow concurrent editing)
     fieldSessionMap.set(getSessionKey(interaction.user.id, guildId, positionValue), Date.now());
 
-    await showFieldManager(interaction, position, appFieldConfig);
+    await fields.showFieldManager(interaction, position);
   } catch (error) {
     await handleInteractionError(interaction, error, 'applicationFieldsHandler');
   }
-}
-
-/**
- * Handle add field modal submission
- */
-export async function handleAppAddFieldModal(interaction: ModalSubmitInteraction, positionId: number): Promise<void> {
-  await coreHandleAddFieldModal(interaction, String(positionId), appFieldConfig);
-}
-
-/**
- * Handle preview modal submission (just dismiss it)
- */
-export async function handleAppPreviewModal(interaction: ModalSubmitInteraction): Promise<void> {
-  await coreHandlePreviewModal(interaction, appFieldConfig);
-}
-
-/**
- * Main button interaction handler
- */
-export async function handleAppFieldButton(
-  interaction: ButtonInteraction,
-  action: string,
-  positionId: number,
-): Promise<void> {
-  await coreHandleFieldButton(interaction, action, String(positionId), appFieldConfig);
-}
-
-/**
- * Handle field selection for delete
- */
-export async function handleAppFieldSelectMenu(
-  interaction: StringSelectMenuInteraction,
-  action: string,
-  positionId: number,
-): Promise<void> {
-  await coreHandleFieldSelectMenu(interaction, action, String(positionId), appFieldConfig);
 }

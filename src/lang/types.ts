@@ -110,6 +110,7 @@ export interface LangGeneral {
     baitManagerUnavailable: string;
     userNotMember: string;
     ticketNotConfigured: string;
+    memoryNotConfigured: string;
     noTicketTypes: string;
     selectRoleAndChannel: string;
   };

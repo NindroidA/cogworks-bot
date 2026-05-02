@@ -20,6 +20,7 @@ import { PendingBan } from './entities/bait/PendingBan';
 import { EventConfig } from './entities/event/EventConfig';
 import { EventReminder } from './entities/event/EventReminder';
 import { EventTemplate } from './entities/event/EventTemplate';
+import { GuildPermission } from './entities/GuildPermission';
 import { ImportLog } from './entities/import/ImportLog';
 import { MemoryConfig, MemoryItem, MemoryTag } from './entities/memory';
 import { OnboardingCompletion } from './entities/onboarding/OnboardingCompletion';
@@ -71,6 +72,7 @@ export const AppDataSource = new DataSource({
     UserTicketRestriction,
     StaffRole,
     BotConfig,
+    GuildPermission,
     Application,
     ApplicationConfig,
     ArchivedApplication,

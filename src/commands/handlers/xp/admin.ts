@@ -1,5 +1,5 @@
 import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import xpLang from '../../../lang/xp.json';
+import xpLang from '../../../lang/en/xp.json';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
 import { enhancedLogger, handleInteractionError, LogCategory } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';

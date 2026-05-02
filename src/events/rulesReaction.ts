@@ -5,9 +5,6 @@ import { lazyRepo } from '../utils/database/lazyRepo';
 import { ReactionCooldown } from '../utils/reactionCooldown';
 import { getCachedRulesConfig, setCachedRulesConfig } from '../utils/rules/rulesCache';
 
-// Re-export so existing importers don't break
-export { invalidateRulesCache } from '../utils/rules/rulesCache';
-
 const rulesConfigRepo = lazyRepo(RulesConfig);
 const tl = lang.rules.reaction;
 

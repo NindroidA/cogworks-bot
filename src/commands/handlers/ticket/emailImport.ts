@@ -21,9 +21,9 @@ import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import {
   enhancedLogger,
   extractIdFromMention,
-  guardAdminRateLimit,
+  formatLang,
+  guardFeatureRateLimit,
   handleInteractionError,
-  LANGF,
   LogCategory,
   lang,
   maskEmail,
@@ -40,7 +40,7 @@ const tl = lang.ticket.customTypes.emailImport;
 export async function emailImportHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     // Permission check — email import is an admin-level operation
-    const guard = await guardAdminRateLimit(interaction, {
+    const guard = await guardFeatureRateLimit(interaction, 'tickets', 'manage', {
       action: 'email-import',
       limit: RateLimits.TICKET_CREATE,
       scope: 'user',
@@ -123,7 +123,7 @@ async function parseAttachmentUrls(
 
   if (urls.length > 10) {
     await interaction.reply({
-      content: LANGF(tl.tooManyUrls, '10'),
+      content: formatLang(tl.tooManyUrls, '10'),
       flags: [MessageFlags.Ephemeral],
     });
     return null;
@@ -132,7 +132,7 @@ async function parseAttachmentUrls(
   for (const url of urls) {
     if (url.length > 500) {
       await interaction.reply({
-        content: LANGF(tl.urlTooLong, '500'),
+        content: formatLang(tl.urlTooLong, '500'),
         flags: [MessageFlags.Ephemeral],
       });
       return null;
@@ -141,7 +141,7 @@ async function parseAttachmentUrls(
     const urlCheck = validateSafeUrl(url);
     if (!urlCheck.valid) {
       await interaction.reply({
-        content: LANGF(tl.invalidUrl, url),
+        content: formatLang(tl.invalidUrl, url),
         flags: [MessageFlags.Ephemeral],
       });
       return null;
@@ -268,11 +268,11 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
     const userId = interaction.user.id;
 
     // Rate limit: shares TICKET_CREATE budget with manual ticket creation
-    const guard = await guardAdminRateLimit(interaction, {
+    const guard = await guardFeatureRateLimit(interaction, 'tickets', 'manage', {
       action: 'ticket-create',
       limit: RateLimits.TICKET_CREATE,
       scope: 'user',
-      skipAdmin: true,
+      skipPermissionCheck: true,
     });
     if (!guard.allowed) return;
 
@@ -305,7 +305,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
 
     if (body.length > 4000) {
       await interaction.reply({
-        content: LANGF(tl.bodyTooLong, '4000'),
+        content: formatLang(tl.bodyTooLong, '4000'),
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -414,7 +414,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
       );
 
       await interaction.reply({
-        content: LANGF(tl.success, ticketChannel.toString()),
+        content: formatLang(tl.success, ticketChannel.toString()),
         flags: [MessageFlags.Ephemeral],
       });
     } catch (error) {
@@ -438,7 +438,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
           errorCode: error.code,
         });
         await interaction.reply({
-          content: LANGF(tl.apiError, error.message),
+          content: formatLang(tl.apiError, error.message),
           flags: [MessageFlags.Ephemeral],
         });
         return;

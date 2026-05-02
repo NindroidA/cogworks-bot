@@ -1,12 +1,8 @@
-import fs from 'node:fs';
-import type { Client, ForumChannel, ForumThreadChannel, GuildTextBasedChannel } from 'discord.js';
+import type { Client, GuildTextBasedChannel } from 'discord.js';
 import { Application } from '../../../typeorm/entities/application/Application';
-import { ArchivedApplication } from '../../../typeorm/entities/application/ArchivedApplication';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
+import { archiveAndCloseApplication } from '../../application/closeWorkflow';
 import { lazyRepo } from '../../database/lazyRepo';
-import { verifiedChannelDelete } from '../../discord/verifiedDelete';
-import { fetchMessagesAndSaveToFile } from '../../fetchAllMessages';
-import { enhancedLogger, LogCategory } from '../../monitoring/enhancedLogger';
 import { ApiError } from '../apiError';
 import { optionalString, requireId, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
@@ -14,7 +10,6 @@ import { writeAuditLog } from './auditHelper';
 
 const applicationRepo = lazyRepo(Application);
 const archivedAppConfigRepo = lazyRepo(ArchivedApplicationConfig);
-const archivedAppRepo = lazyRepo(ArchivedApplication);
 
 export function registerApplicationHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // POST /internal/guilds/:guildId/applications/:id/approve
@@ -81,69 +76,18 @@ export function registerApplicationHandlers(client: Client, routes: Map<string, 
       return { success: true, archived: false };
     }
 
-    const transcriptPath = process.env.TEMP_STORAGE_PATH || 'temp/';
-    await fs.promises.mkdir(transcriptPath, { recursive: true });
-
-    try {
-      await fetchMessagesAndSaveToFile(channel as GuildTextBasedChannel, transcriptPath);
-    } catch {
-      return { success: true, archived: false };
-    }
-
-    try {
-      const forumChannel = (await client.channels.fetch(archivedConfig.channelId)) as ForumChannel;
-      const txtPath = `${transcriptPath}${app.channelId}.txt`;
-      const zipPath = `${transcriptPath}attachments_${app.channelId}.zip`;
-      const files = [txtPath];
-      if (fs.existsSync(zipPath)) files.push(zipPath);
-
-      const existingArchive = await archivedAppRepo.findOneBy({
-        createdBy: app.createdBy,
-        guildId,
-      });
-
-      if (!existingArchive) {
-        const user = await client.users.fetch(app.createdBy).catch(() => null);
-        const newPost = await forumChannel.threads.create({
-          name: user?.username || 'Unknown',
-          message: { files },
-        });
-        await archivedAppRepo.save(
-          archivedAppRepo.create({
-            guildId,
-            createdBy: app.createdBy,
-            messageId: newPost.id,
-          }),
-        );
-      } else if (existingArchive.messageId) {
-        const post = (await forumChannel.threads.fetch(existingArchive.messageId)) as ForumThreadChannel;
-        await post.send({ files });
-      }
-
-      await fs.promises.unlink(txtPath).catch(() => null);
-      if (files.includes(zipPath)) {
-        await fs.promises.unlink(zipPath).catch(() => null);
-      }
-    } catch {
-      // Archive failed
-    }
-
-    // Delete application channel (verified)
-    const deleteResult = await verifiedChannelDelete(channel as GuildTextBasedChannel, {
+    const result = await archiveAndCloseApplication(
+      client,
+      app,
       guildId,
-      label: 'application channel (API)',
-    });
-    if (!deleteResult.success) {
-      enhancedLogger.error('Application channel persisted after API archive', undefined, LogCategory.ERROR, {
-        guildId,
-        channelId: app.channelId,
-      });
-    }
+      channel as GuildTextBasedChannel,
+      archivedConfig.channelId,
+    );
 
     const triggeredBy = optionalString(body, 'triggeredBy');
     await writeAuditLog(guildId, 'application.archive', triggeredBy, {
       applicationId: app.id,
     });
-    return { success: true };
+    return { success: result.success, archived: result.archived };
   });
 }

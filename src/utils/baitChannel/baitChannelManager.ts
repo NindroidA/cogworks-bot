@@ -220,10 +220,9 @@ export class BaitChannelManager {
 
       const member = message.member!;
 
-      // Check whitelist
-      if (await this.isWhitelisted(member, config)) {
-        const whitelistReason = this.getWhitelistReason(member, config);
-
+      // Check whitelist (single lookup — reason and whitelisted status come together)
+      const whitelist = this.checkWhitelist(member, config);
+      if (whitelist.whitelisted) {
         // Still delete the message even for whitelisted users
         try {
           await message.delete();
@@ -238,7 +237,7 @@ export class BaitChannelManager {
         }
 
         // Log to channel explaining they're whitelisted
-        await this.logToChannelWhitelisted(member, message, config, whitelistReason);
+        await this.logToChannelWhitelisted(member, message, config, whitelist.reason);
 
         // Log to database
         await this.logAction(message, 'whitelisted', config);
@@ -500,14 +499,6 @@ export class BaitChannelManager {
     }
 
     return { whitelisted: false, reason: '' };
-  }
-
-  private async isWhitelisted(member: GuildMember, config: BaitChannelConfig): Promise<boolean> {
-    return this.checkWhitelist(member, config).whitelisted;
-  }
-
-  private getWhitelistReason(member: GuildMember, config: BaitChannelConfig): string {
-    return this.checkWhitelist(member, config).reason;
   }
 
   private determineAction(score: number, config: BaitChannelConfig): string {

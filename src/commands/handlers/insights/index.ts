@@ -4,7 +4,7 @@
  */
 
 import type { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
-import { guardAdmin } from '../../../utils';
+import { guardFeatureAccess } from '../../../utils';
 import { channelsHandler } from './channels';
 import { growthHandler } from './growth';
 import { hoursHandler } from './hours';
@@ -12,7 +12,9 @@ import { overviewHandler } from './overview';
 import { insightsSetupHandler } from './setup';
 
 export async function insightsHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  // Dispatcher uses 'use' — read-only subcommands (overview/growth/channels/hours)
+  // pass through. The setup subcommand's own guard escalates to 'manage'.
+  const guard = await guardFeatureAccess(interaction, 'analytics', 'use');
   if (!guard.allowed) return;
 
   const subcommand = interaction.options.getSubcommand();

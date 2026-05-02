@@ -15,9 +15,9 @@ import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketT
 import {
   E,
   enhancedLogger,
-  guardAdmin,
+  formatLang,
+  guardFeatureAccess,
   handleInteractionError,
-  LANGF,
   LogCategory,
   lang,
   sanitizeUserInput,
@@ -31,7 +31,7 @@ const tl = lang.ticket.customTypes.typeAdd;
  */
 export async function typeAddHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
     if (!guard.allowed) return;
 
     const user = interaction.user.username;
@@ -153,7 +153,7 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
     if (existing) {
       enhancedLogger.warn(`User ${user} type-add failed: duplicate typeId '${typeId}'`, LogCategory.COMMAND_EXECUTION);
       await interaction.reply({
-        content: LANGF(tl.duplicate, typeId),
+        content: formatLang(tl.duplicate, typeId),
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -185,17 +185,8 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
       LogCategory.COMMAND_EXECUTION,
     );
 
-    // Build confirmation embed with type details
-    const embed = buildTypeConfirmationEmbed(newType, true);
-
-    // Add toggle button for staff ping setting
-    const toggleButton = new ButtonBuilder()
-      .setCustomId(`ticket_type_ping_toggle:${typeId}`)
-      .setLabel(newType.pingStaffOnCreate ? tl.pingToggleDisable : tl.pingToggleEnable)
-      .setStyle(newType.pingStaffOnCreate ? ButtonStyle.Danger : ButtonStyle.Success)
-      .setEmoji(newType.pingStaffOnCreate ? '🔕' : '🔔');
-
-    const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(toggleButton);
+    const embed = buildTypeConfirmationEmbed(newType, 'created');
+    const buttonRow = buildPostSubmitButtons(newType);
 
     await interaction.reply({
       embeds: [embed],
@@ -208,15 +199,51 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
 }
 
 /**
- * Builds a confirmation embed showing ticket type details
+ * Action-row of post-submit toggle buttons used by typeAdd's confirmation
+ * reply and by the per-button refresh in `events/ticket/typeAdmin.ts`.
+ *  - Activate/Deactivate flips `isActive` (handled by `activeToggleButton`).
+ *  - Enable/Disable Staff Ping flips `pingStaffOnCreate` (handled by
+ *    `pingToggleButton`).
+ * Both handlers rebuild this row after their write so the row's labels +
+ * styles always reflect the current state.
  */
-export function buildTypeConfirmationEmbed(type: CustomTicketType, isNew: boolean): EmbedBuilder {
-  const tl = lang.ticket.customTypes;
-  const title = isNew ? tl.typeAdd.success : tl.typeEdit.success;
+export function buildPostSubmitButtons(type: CustomTicketType): ActionRowBuilder<ButtonBuilder> {
+  const ta = lang.ticket.customTypes.typeAdd;
+  const activeButton = new ButtonBuilder()
+    .setCustomId(`ticket_type_active_toggle:${type.typeId}`)
+    .setLabel(type.isActive ? 'Deactivate' : 'Activate')
+    .setStyle(type.isActive ? ButtonStyle.Danger : ButtonStyle.Success)
+    .setEmoji(type.isActive ? '🚫' : '✅');
 
-  const embed = new EmbedBuilder()
-    .setTitle(`${E.ok} ${LANGF(title, type.displayName).replace('!', '')}`)
-    .setColor(parseInt(type.embedColor.replace('#', ''), 16));
+  const pingButton = new ButtonBuilder()
+    .setCustomId(`ticket_type_ping_toggle:${type.typeId}`)
+    .setLabel(type.pingStaffOnCreate ? ta.pingToggleDisable : ta.pingToggleEnable)
+    .setStyle(type.pingStaffOnCreate ? ButtonStyle.Danger : ButtonStyle.Success)
+    .setEmoji(type.pingStaffOnCreate ? '🔕' : '🔔');
+
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(activeButton, pingButton);
+}
+
+export type TypeEmbedMode = 'created' | 'updated' | 'viewing';
+
+/**
+ * Builds a details embed for a ticket type. Three modes:
+ *  - 'created'  → "✅ Ticket type X created" + footer hint with next steps
+ *  - 'updated'  → "✅ Ticket type X updated"
+ *  - 'viewing'  → just the type's display name (no success verb), used by the
+ *                 interactive `/ticket type list` so picking a type to inspect
+ *                 doesn't read like the user just edited it.
+ */
+export function buildTypeConfirmationEmbed(type: CustomTicketType, mode: TypeEmbedMode): EmbedBuilder {
+  const tl = lang.ticket.customTypes;
+  const title =
+    mode === 'created'
+      ? `${E.ok} ${formatLang(tl.typeAdd.success, type.displayName).replace('!', '')}`
+      : mode === 'updated'
+        ? `${E.ok} ${formatLang(tl.typeEdit.success, type.displayName).replace('!', '')}`
+        : `${type.emoji ? `${type.emoji} ` : ''}${type.displayName}`;
+
+  const embed = new EmbedBuilder().setTitle(title).setColor(parseInt(type.embedColor.replace('#', ''), 16));
 
   // Type details
   const details = [
@@ -233,8 +260,8 @@ export function buildTypeConfirmationEmbed(type: CustomTicketType, isNew: boolea
 
   embed.setDescription(details.join('\n'));
 
-  // Add footer with next steps for new types
-  if (isNew) {
+  // Footer with next steps only for newly created types
+  if (mode === 'created') {
     embed.setFooter({
       text: `💡 Use /ticket type-fields type:${type.typeId} to configure fields, then /ticket type-toggle to activate.`,
     });

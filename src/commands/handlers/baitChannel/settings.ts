@@ -3,7 +3,7 @@ import { type BaitActionType, BaitChannelConfig } from '../../../typeorm/entitie
 import type { ExtendedClient } from '../../../types/ExtendedClient';
 import {
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   handleInteractionError,
   LogCategory,
   lang,
@@ -27,7 +27,7 @@ const VALID_ACTION_TYPES: BaitActionType[] = ['ban', 'kick', 'timeout', 'log-onl
 export async function settingsHandler(client: Client, interaction: ChatInputCommandInteraction) {
   try {
     const guildId = interaction.guildId!;
-    const guard = await guardAdminRateLimit(interaction, {
+    const guard = await guardFeatureRateLimit(interaction, 'baitchannel', 'manage', {
       action: 'bait-settings',
       limit: RateLimits.BOT_SETUP,
       scope: 'guild',
@@ -97,7 +97,7 @@ export async function settingsHandler(client: Client, interaction: ChatInputComm
       ),
     ]);
 
-    const modalSubmit = await showAndAwaitModal(interaction, modal as any);
+    const modalSubmit = await showAndAwaitModal(interaction, modal);
     if (!modalSubmit) return;
 
     // Extract and validate values

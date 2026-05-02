@@ -1,5 +1,5 @@
 import type { Client, TextChannel } from 'discord.js';
-import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole/ReactionRoleMenu';
+import { ReactionRoleMenu, type ReactionRoleMode } from '../../../typeorm/entities/reactionRole/ReactionRoleMenu';
 import { ReactionRoleOption } from '../../../typeorm/entities/reactionRole/ReactionRoleOption';
 import { lazyRepo } from '../../database/lazyRepo';
 import { buildMenuEmbed, updateMenuMessage } from '../../reactionRole/menuBuilder';
@@ -27,7 +27,7 @@ export function registerReactionRoleHandlers(client: Client, routes: Map<string,
       throw ApiError.notFound('Channel not found or not a text channel');
     }
 
-    const mode = (optionalString(body, 'mode') as 'normal' | 'unique' | 'lock') || 'normal';
+    const mode = (optionalString(body, 'mode') as ReactionRoleMode) || 'normal';
     const description = optionalString(body, 'description') ?? null;
 
     // Create menu entity first (need ID for options)
@@ -101,7 +101,9 @@ export function registerReactionRoleHandlers(client: Client, routes: Map<string,
     invalidateGuildMenuCache(guildId);
 
     const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'reactionRole.rebuild', triggeredBy, { menuId });
+    await writeAuditLog(guildId, 'reactionRole.rebuild', triggeredBy, {
+      menuId,
+    });
     return { success: true };
   });
 }

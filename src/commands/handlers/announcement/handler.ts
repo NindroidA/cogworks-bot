@@ -7,13 +7,10 @@
 
 import {
   ActionRowBuilder,
-  ButtonBuilder,
-  type ButtonInteraction,
   ButtonStyle,
   type CacheType,
   type ChatInputCommandInteraction,
   type Client,
-  ComponentType,
   MessageFlags,
   ModalBuilder,
   type ModalSubmitInteraction,
@@ -26,8 +23,9 @@ import { AnnouncementConfig } from '../../../typeorm/entities/announcement/Annou
 import { AnnouncementLog } from '../../../typeorm/entities/announcement/AnnouncementLog';
 import { AnnouncementTemplate } from '../../../typeorm/entities/announcement/AnnouncementTemplate';
 import {
+  awaitConfirmation,
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   LogCategory,
   lang,
   parseTimeInput,
@@ -67,8 +65,7 @@ export async function announcementHandler(client: Client, interaction: ChatInput
   const guildId = interaction.guildId;
 
   try {
-    // Permission + rate limit check
-    const guard = await guardAdminRateLimit(interaction, {
+    const guard = await guardFeatureRateLimit(interaction, 'announcements', 'manage', {
       action: 'announcement-create',
       limit: RateLimits.ANNOUNCEMENT_CREATE,
       scope: 'user',
@@ -337,83 +334,52 @@ async function previewAndSend(
     roleId,
   );
 
-  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('announcement_send')
-      .setLabel(lang.announcement.templates.sendButton)
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId('announcement_cancel')
-      .setLabel(lang.general.buttons.cancel)
-      .setStyle(ButtonStyle.Secondary),
-  );
-
-  await interaction.reply({
-    content: `**Preview** (will be sent to ${targetChannel})\n---`,
+  const result = await awaitConfirmation(interaction, {
+    message: `**Preview** (will be sent to ${targetChannel})\n---`,
     embeds: messageData.embeds,
-    components: [buttons],
-    flags: [MessageFlags.Ephemeral],
+    confirmLabel: lang.announcement.templates.sendButton,
+    confirmStyle: ButtonStyle.Success,
+    timeout: 120_000,
+    idPrefix: 'announcement',
+  });
+  if (!result) return;
+
+  for (const embed of messageData.embeds) {
+    embed.setTimestamp(new Date());
+  }
+
+  const sentMessage = await targetChannel.send({
+    content: messageData.content,
+    embeds: messageData.embeds,
+    allowedMentions: roleId ? { roles: [roleId] } : undefined,
   });
 
-  try {
-    const buttonInteraction = await interaction.channel?.awaitMessageComponent({
-      filter: (i: ButtonInteraction) =>
-        i.user.id === interaction.user.id &&
-        (i.customId === 'announcement_send' || i.customId === 'announcement_cancel'),
-      componentType: ComponentType.Button,
-      time: 120_000,
-    });
-
-    if (!buttonInteraction || buttonInteraction.customId === 'announcement_cancel') {
-      await buttonInteraction?.update({
-        content: lang.errors.cancelled,
-        embeds: [],
-        components: [],
-      });
-      return;
+  if (targetChannel instanceof NewsChannel) {
+    try {
+      await sentMessage.crosspost();
+    } catch (publishError) {
+      enhancedLogger.warn(lang.announcement.publish.fail + publishError, LogCategory.COMMAND_EXECUTION);
     }
-
-    await buttonInteraction.deferUpdate();
-
-    for (const embed of messageData.embeds) {
-      embed.setTimestamp(new Date());
-    }
-
-    const sentMessage = await targetChannel.send({
-      content: messageData.content,
-      embeds: messageData.embeds,
-      allowedMentions: roleId ? { roles: [roleId] } : undefined,
-    });
-
-    if (targetChannel instanceof NewsChannel) {
-      try {
-        await sentMessage.crosspost();
-      } catch (publishError) {
-        enhancedLogger.warn(lang.announcement.publish.fail + publishError, LogCategory.COMMAND_EXECUTION);
-      }
-    }
-
-    const newLog = new AnnouncementLog();
-    newLog.guildId = guildId;
-    newLog.channelId = targetChannel.id;
-    newLog.messageId = sentMessage.id;
-    newLog.type = template.name;
-    newLog.sentBy = interaction.user.id;
-    newLog.scheduledTime = params.time ? new Date(params.time * 1000) : null;
-    newLog.version = params.version || null;
-    await announcementLogRepo.save(newLog);
-
-    await buttonInteraction.editReply({
-      content: `Announcement sent to ${targetChannel}!`,
-      embeds: [],
-      components: [],
-    });
-
-    enhancedLogger.info(
-      `User ${interaction.user.username} sent ${template.name} announcement`,
-      LogCategory.COMMAND_EXECUTION,
-    );
-  } catch {
-    // Timeout
   }
+
+  const newLog = new AnnouncementLog();
+  newLog.guildId = guildId;
+  newLog.channelId = targetChannel.id;
+  newLog.messageId = sentMessage.id;
+  newLog.type = template.name;
+  newLog.sentBy = interaction.user.id;
+  newLog.scheduledTime = params.time ? new Date(params.time * 1000) : null;
+  newLog.version = params.version || null;
+  await announcementLogRepo.save(newLog);
+
+  await result.interaction.editReply({
+    content: `Announcement sent to ${targetChannel}!`,
+    embeds: [],
+    components: [],
+  });
+
+  enhancedLogger.info(
+    `User ${interaction.user.username} sent ${template.name} announcement`,
+    LogCategory.COMMAND_EXECUTION,
+  );
 }

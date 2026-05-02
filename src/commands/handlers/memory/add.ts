@@ -12,10 +12,9 @@ import {
 import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
   E,
-  enhancedLogger,
-  guardAdminRateLimit,
-  LogCategory,
+  guardFeatureRateLimit,
   lang,
+  logHandlerError,
   RateLimits,
   sanitizeUserInput,
   showAndAwaitModal,
@@ -29,7 +28,7 @@ const memoryTagRepo = lazyRepo(MemoryTag);
 const memoryItemRepo = lazyRepo(MemoryItem);
 
 export async function memoryAddHandler(interaction: ChatInputCommandInteraction) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'memory', 'manage', {
     action: 'memory-add',
     limit: RateLimits.MEMORY_OPERATION,
     scope: 'userGuild',
@@ -175,12 +174,7 @@ async function handleModalSubmit(
       content: `${E.success} ${tl.add.success}\n${tl.add.viewThread}: <#${thread.id}>`,
     });
   } catch (error) {
-    enhancedLogger.error(
-      `Memory add error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    logHandlerError('Memory add', error, { guildId });
     await interaction.editReply({ content: `${E.error} ${tl.add.error}` });
   }
 }

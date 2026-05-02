@@ -1,22 +1,8 @@
-/**
- * Enhanced Logger System
- *
- * Provides comprehensive logging with:
- * - Multiple log levels (DEBUG, INFO, WARN, ERROR, CRITICAL)
- * - Log categories for better organization
- * - Structured logging for easier parsing
- * - Optional file output with rotation
- * - Performance tracking
- * - Error context capture
- */
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import chalk from 'chalk';
 
-/**
- * Log levels in order of severity
- */
+/** Log levels in order of severity. */
 export enum LogLevel {
   DEBUG = 0,
   INFO = 1,
@@ -25,9 +11,6 @@ export enum LogLevel {
   CRITICAL = 4,
 }
 
-/**
- * Log categories for organizing log messages
- */
 export enum LogCategory {
   SYSTEM = 'SYSTEM',
   GUILD_LIFECYCLE = 'GUILD_LIFECYCLE',
@@ -41,9 +24,6 @@ export enum LogCategory {
   PERFORMANCE = 'PERFORMANCE',
 }
 
-/**
- * Structured log entry
- */
 export interface LogEntry {
   timestamp: Date;
   level: LogLevel;
@@ -55,9 +35,6 @@ export interface LogEntry {
   userId?: string;
 }
 
-/**
- * Logger configuration options
- */
 export interface LoggerConfig {
   minLevel: LogLevel;
   enableConsole: boolean;
@@ -95,9 +72,6 @@ class EnhancedLogger {
     }
   }
 
-  /**
-   * Initialize file logging system
-   */
   private initializeFileLogging(): void {
     if (!this.config.logDirectory) return;
 
@@ -114,9 +88,6 @@ class EnhancedLogger {
     this.rotateLogsIfNeeded();
   }
 
-  /**
-   * Rotate log files if max count exceeded
-   */
   private rotateLogsIfNeeded(): void {
     if (!this.config.logDirectory || !this.config.maxFiles) return;
 
@@ -138,9 +109,6 @@ class EnhancedLogger {
     }
   }
 
-  /**
-   * Format timestamp for display
-   */
   private formatTimestamp(date: Date): string {
     return date.toLocaleString('en-US', {
       year: 'numeric',
@@ -153,9 +121,6 @@ class EnhancedLogger {
     });
   }
 
-  /**
-   * Get color for log level
-   */
   private getLevelColor(level: LogLevel): chalk.Chalk {
     switch (level) {
       case LogLevel.DEBUG:
@@ -173,16 +138,10 @@ class EnhancedLogger {
     }
   }
 
-  /**
-   * Get string name for log level
-   */
   private getLevelName(level: LogLevel): string {
     return LogLevel[level];
   }
 
-  /**
-   * Format log entry for console output
-   */
   private formatConsoleMessage(entry: LogEntry): string {
     const parts: string[] = [];
 
@@ -217,9 +176,6 @@ class EnhancedLogger {
     return parts.join(' ');
   }
 
-  /**
-   * Format log entry for file output
-   */
   private formatFileMessage(entry: LogEntry): string {
     const base = {
       timestamp: entry.timestamp.toISOString(),
@@ -240,9 +196,6 @@ class EnhancedLogger {
     return JSON.stringify(base);
   }
 
-  /**
-   * Write log entry to file
-   */
   private async writeToFile(entry: LogEntry): Promise<void> {
     if (!this.config.enableFile || !this.currentLogFile) return;
 
@@ -255,9 +208,6 @@ class EnhancedLogger {
     }
   }
 
-  /**
-   * Flush log queue to file
-   */
   private async flushQueue(): Promise<void> {
     if (this.isWriting || this.logQueue.length === 0 || !this.currentLogFile) return;
 
@@ -288,9 +238,6 @@ class EnhancedLogger {
     }
   }
 
-  /**
-   * Core logging method
-   */
   private log(entry: LogEntry): void {
     // Skip if below minimum level
     if (entry.level < this.config.minLevel) return;
@@ -412,9 +359,6 @@ class EnhancedLogger {
     });
   }
 
-  /**
-   * Log command execution
-   */
   public command(message: string, userId: string, guildId?: string, metadata?: Record<string, unknown>): void {
     this.log({
       timestamp: new Date(),
@@ -427,9 +371,6 @@ class EnhancedLogger {
     });
   }
 
-  /**
-   * Log security event
-   */
   public security(message: string, userId?: string, guildId?: string, metadata?: Record<string, unknown>): void {
     this.log({
       timestamp: new Date(),
@@ -442,9 +383,6 @@ class EnhancedLogger {
     });
   }
 
-  /**
-   * Log rate limit event
-   */
   public rateLimit(message: string, userId?: string, guildId?: string, metadata?: Record<string, unknown>): void {
     this.log({
       timestamp: new Date(),
@@ -472,9 +410,6 @@ class EnhancedLogger {
     });
   }
 
-  /**
-   * Log database operation
-   */
   public database(message: string, level: LogLevel = LogLevel.DEBUG, metadata?: Record<string, unknown>): void {
     this.log({
       timestamp: new Date(),
@@ -501,9 +436,6 @@ class EnhancedLogger {
     });
   }
 
-  /**
-   * Update logger configuration
-   */
   public configure(config: Partial<LoggerConfig>): void {
     this.config = { ...this.config, ...config };
 
@@ -543,5 +475,32 @@ export const enhancedLogger = new EnhancedLogger({
   enableFile: process.env.NODE_ENV === 'production',
   colorize: process.env.NODE_ENV !== 'production',
 });
+
+/**
+ * One-line wrapper around `enhancedLogger.error` for the common shape:
+ *
+ *     enhancedLogger.error(`${scope} error: ${error}`,
+ *       error instanceof Error ? error : undefined,
+ *       LogCategory.COMMAND_EXECUTION,
+ *       ctx);
+ *
+ * Use in `} catch (error) { ... }` blocks AFTER `deferReply` (post-defer
+ * cleanup paths). For pre-reply errors, prefer `handleInteractionError` from
+ * `utils/errorHandler.ts` — it logs AND replies with a user-facing embed.
+ *
+ * @example
+ * } catch (error) {
+ *   logHandlerError('Memory tag-add', error, { guildId });
+ *   await interaction.editReply({ content: tl.tags.add.error });
+ * }
+ */
+export function logHandlerError(scope: string, error: unknown, ctx: Record<string, unknown> = {}): void {
+  enhancedLogger.error(
+    `${scope} error: ${error}`,
+    error instanceof Error ? error : undefined,
+    LogCategory.COMMAND_EXECUTION,
+    ctx,
+  );
+}
 
 export default enhancedLogger;

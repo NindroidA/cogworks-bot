@@ -5,10 +5,11 @@ import {
   Colors,
   E,
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   healthMonitor,
   LogCategory,
   lang,
+  logHandlerError,
   RateLimits,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -20,7 +21,7 @@ const memoryItemRepo = lazyRepo(MemoryItem);
 
 export async function memoryUpdateStatusHandler(interaction: ChatInputCommandInteraction) {
   const startTime = Date.now();
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'memory', 'manage', {
     action: 'memory-update-status',
     limit: RateLimits.MEMORY_OPERATION,
     scope: 'userGuild',
@@ -145,14 +146,7 @@ export async function memoryUpdateStatusHandler(interaction: ChatInputCommandInt
 
     healthMonitor.recordCommand('memory update-status', Date.now() - startTime, false);
   } catch (error) {
-    enhancedLogger.error(
-      `Memory update-status error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        guildId,
-      },
-    );
+    logHandlerError('Memory update-status', error, { guildId });
     await interaction.editReply({
       content: `${E.error} ${tl.quickUpdate.statusError}`,
     });

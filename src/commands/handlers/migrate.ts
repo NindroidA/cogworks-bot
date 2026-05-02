@@ -7,10 +7,11 @@ import {
   applyForumTags,
   enhancedLogger,
   ensureForumTag,
+  guardAdmin,
   handleInteractionError,
   LogCategory,
-  requireAdmin,
 } from '../../utils';
+import { builtinTypeInfo } from '../../utils/ticket/builtinTypes';
 
 /**
  * Migrate existing archived tickets to use forum tags
@@ -18,15 +19,8 @@ import {
  */
 export async function migrateTicketTagsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    // Admin-only command
-    const ownerCheck = requireAdmin(interaction);
-    if (!ownerCheck.allowed) {
-      await interaction.reply({
-        content: ownerCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
@@ -80,19 +74,11 @@ export async function migrateTicketTagsHandler(interaction: ChatInputCommandInte
             emoji = customType.emoji;
           }
         } else if (archived.ticketType) {
-          // Legacy type mapping
-          const legacyTypeMap: Record<string, { display: string; emoji: string }> = {
-            '18_verify': { display: '18+ Verification', emoji: '🔞' },
-            ban_appeal: { display: 'Ban Appeal', emoji: '⚖️' },
-            player_report: { display: 'Player Report', emoji: '📢' },
-            bug_report: { display: 'Bug Report', emoji: '🐛' },
-            other: { display: 'Other', emoji: '❓' },
-          };
-          const legacyInfo = legacyTypeMap[archived.ticketType];
-          if (legacyInfo) {
-            typeId = archived.ticketType;
-            displayName = legacyInfo.display;
-            emoji = legacyInfo.emoji;
+          const builtinInfo = builtinTypeInfo(archived.ticketType);
+          if (builtinInfo) {
+            typeId = builtinInfo.typeId;
+            displayName = builtinInfo.displayName;
+            emoji = builtinInfo.emoji;
           }
         }
 
@@ -150,15 +136,8 @@ export async function migrateTicketTagsHandler(interaction: ChatInputCommandInte
  */
 export async function migrateApplicationTagsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    // Admin-only command
-    const ownerCheck = requireAdmin(interaction);
-    if (!ownerCheck.allowed) {
-      await interaction.reply({
-        content: ownerCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     await interaction.reply({
       content:

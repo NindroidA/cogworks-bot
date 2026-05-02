@@ -4,22 +4,15 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
-import { enhancedLogger, handleInteractionError, LogCategory, lang, requireAdmin } from '../../../utils';
+import { enhancedLogger, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
 import { csvImportHandler } from './csv';
 import { mee6ImportHandler } from './mee6';
 import { importStatusHandler } from './status';
 
 export async function importHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    // All import commands require admin
-    const permissionCheck = requireAdmin(interaction);
-    if (!permissionCheck.allowed) {
-      await interaction.reply({
-        content: permissionCheck.message,
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardAdmin(interaction);
+    if (!guard.allowed) return;
 
     const subcommand = interaction.options.getSubcommand();
 

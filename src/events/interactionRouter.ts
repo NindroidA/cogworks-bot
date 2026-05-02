@@ -2,8 +2,15 @@
  * Centralized Interaction Router
  *
  * Dispatches button, select menu, and modal interactions to the correct
- * feature handler based on customId prefix. Replaces the previous pattern
- * where all four handlers received every interaction via client.emit().
+ * feature handler. Each feature handler is a `FeatureDispatcher` that
+ * inspects the customId itself and returns `true` when it claims the
+ * interaction (`false` otherwise). This router is just an ordered loop —
+ * the per-feature prefix knowledge lives WITH each feature, not duplicated
+ * here. Order matters where prefixes overlap (see notes per dispatcher).
+ *
+ * Unmatched interactions are silently ignored — they may belong to
+ * collector-based flows (e.g., bot-setup wizard, reaction role setup)
+ * which handle their own interactions via message component collectors.
  */
 
 import type { Client, Interaction } from 'discord.js';
@@ -12,74 +19,28 @@ import { handleApplicationInteraction } from './applicationInteraction';
 import { handleTicketInteraction } from './ticketInteraction';
 import { typeFieldsInteraction } from './typeFieldsInteraction';
 
+type FeatureDispatcher = (client: Client, interaction: Interaction) => Promise<boolean>;
+
 /**
- * Routes an interaction to the appropriate feature handler.
- *
- * Routing rules (checked in order):
- *
- * **typeFieldsInteraction** — `field_*` prefix (ticket type field management)
- * **applicationFieldsInteraction** — `appfield_*` prefix, `application-position-edit-modal:*`
- * **applicationInteraction** — `apply_*`, `age_verify_*`, `cancel_application`,
- *   `close_application`, `confirm_close_application`, `cancel_close_application`,
- *   `application_modal_*`
- * **ticketInteraction** — `create_ticket`, `cancel_ticket`, `close_ticket`,
- *   `confirm_close_ticket`, `cancel_close_ticket`, `admin_only_ticket`,
- *   `confirm_admin_only_ticket`, `cancel_admin_only_ticket`,
- *   `ticket_type_ping_toggle:*`, `ticket_type_select`, `ticket-type-add-modal`,
- *   `ticket-type-edit-modal:*`, `ticket-email-import-modal`
+ * Per-feature dispatchers, tried in order. The first one returning `true`
+ * claims the interaction; the rest are skipped. Field dispatchers come
+ * first because their prefixes are narrower (`field_` / `appfield_`) and
+ * the broader `apply_` / `ticket_` family wouldn't false-match them, but
+ * keeping the narrower ones first makes the contract explicit.
  */
+const FEATURE_DISPATCHERS: FeatureDispatcher[] = [
+  typeFieldsInteraction,
+  applicationFieldsInteraction,
+  handleApplicationInteraction,
+  handleTicketInteraction,
+];
+
 export const routeInteraction = async (client: Client, interaction: Interaction): Promise<void> => {
   if (!interaction.isButton() && !interaction.isStringSelectMenu() && !interaction.isModalSubmit()) {
     return;
   }
 
-  const customId = interaction.customId;
-
-  // --- Field management (ticket types) ---
-  if (customId.startsWith('field_')) {
-    return typeFieldsInteraction(client, interaction);
+  for (const dispatch of FEATURE_DISPATCHERS) {
+    if (await dispatch(client, interaction)) return;
   }
-
-  // --- Field management (application positions) + position edit modal ---
-  if (customId.startsWith('appfield_') || customId.startsWith('application-position-edit-modal:')) {
-    return applicationFieldsInteraction(client, interaction);
-  }
-
-  // --- Application system ---
-  if (
-    customId.startsWith('apply_') ||
-    customId.startsWith('age_verify_') ||
-    customId.startsWith('application_modal_') ||
-    customId === 'cancel_application' ||
-    customId === 'close_application' ||
-    customId === 'confirm_close_application' ||
-    customId === 'cancel_close_application'
-  ) {
-    return handleApplicationInteraction(client, interaction);
-  }
-
-  // --- Ticket system ---
-  // Covers: create_ticket, cancel_ticket, close_ticket, confirm_close_ticket,
-  // cancel_close_ticket, admin_only_ticket, confirm_admin_only_ticket,
-  // cancel_admin_only_ticket, ticket_* (legacy type buttons), ticket_modal_*,
-  // ticket_type_select, ticket_type_ping_toggle:*, ticket-type-add-modal,
-  // ticket-type-edit-modal:*, ticket-email-import-modal
-  if (
-    customId.startsWith('ticket_') ||
-    customId.startsWith('ticket-') ||
-    customId === 'create_ticket' ||
-    customId === 'cancel_ticket' ||
-    customId === 'close_ticket' ||
-    customId === 'confirm_close_ticket' ||
-    customId === 'cancel_close_ticket' ||
-    customId === 'admin_only_ticket' ||
-    customId === 'confirm_admin_only_ticket' ||
-    customId === 'cancel_admin_only_ticket'
-  ) {
-    return handleTicketInteraction(client, interaction);
-  }
-
-  // Unmatched interactions are silently ignored — they may belong to
-  // collector-based flows (e.g., bot-setup wizard, reaction role setup)
-  // which handle their own interactions via message component collectors.
 };

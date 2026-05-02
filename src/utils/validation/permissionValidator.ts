@@ -1,9 +1,3 @@
-/**
- * Permission Validation Utilities
- *
- * Centralized permission checking for all commands
- */
-
 import {
   type GuildMember,
   type Interaction,
@@ -70,9 +64,6 @@ function requireGuild(interaction: Interaction): PermissionCheckResult {
   return { allowed: true };
 }
 
-/**
- * Combined check for admin permission with logging
- */
 export function requireAdmin(interaction: Interaction): PermissionCheckResult {
   const guildCheck = requireGuild(interaction);
   if (!guildCheck.allowed) {
@@ -93,9 +84,6 @@ export function requireAdmin(interaction: Interaction): PermissionCheckResult {
   return adminCheck;
 }
 
-/**
- * Check if user is the bot owner (via BOT_OWNER_ID env var)
- */
 export function requireBotOwner(userId: string): PermissionCheckResult {
   const BOT_OWNER_ID = process.env.BOT_OWNER_ID;
   if (!BOT_OWNER_ID || userId !== BOT_OWNER_ID) {

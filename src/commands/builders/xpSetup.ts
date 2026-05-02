@@ -9,7 +9,6 @@ import { ChannelType, PermissionsBitField, SlashCommandBuilder } from 'discord.j
  *   role-reward add/remove/list
  *   ignore-channel add/remove
  *   multiplier set/remove
- *   import mee6
  */
 export const xpSetup = new SlashCommandBuilder()
   .setName('xp-setup')
@@ -141,6 +140,4 @@ export const xpSetup = new SlashCommandBuilder()
           .setRequired(true),
       ),
   )
-  // import mee6
-  .addSubcommand(sub => sub.setName('import-mee6').setDescription('Import XP data from MEE6 leaderboard'))
   .toJSON();

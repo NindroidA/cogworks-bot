@@ -7,7 +7,7 @@ import {
 } from 'discord.js';
 import { escapeDiscordMarkdown } from '../../utils';
 
-export const banAppealModal = async (modal: ModalBuilder) => {
+export const banAppealModal = (modal: ModalBuilder) => {
   const modalIGN = new ActionRowBuilder<TextInputBuilder>().addComponents(
     new TextInputBuilder()
       .setCustomId('appeal_ign_input')
@@ -49,7 +49,7 @@ export const banAppealModal = async (modal: ModalBuilder) => {
   return modal.addComponents(modalIGN, modalRFB, modalDOB, modalS, modalR);
 };
 
-export const banAppealMessage = async (fields: ModalSubmitFields) => {
+export const banAppealMessage = (fields: ModalSubmitFields) => {
   const header = '# Ban Appeal\n';
   const ign = `**In Game Name:** ${escapeDiscordMarkdown(fields.getTextInputValue('appeal_ign_input'))}\n`;
   const rfb = `**Reason for Ban:** ${escapeDiscordMarkdown(fields.getTextInputValue('appeal_rfb_input'))}\n`;

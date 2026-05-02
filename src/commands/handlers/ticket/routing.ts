@@ -10,7 +10,7 @@
 import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { enhancedLogger, guardAdmin, LANGF, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import {
   getStaffWorkload,
@@ -31,7 +31,7 @@ const VALID_STRATEGIES: RoutingStrategy[] = ['round-robin', 'least-load', 'rando
 // ============================================================================
 
 export async function routingEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -79,7 +79,7 @@ export async function routingEnableHandler(interaction: ChatInputCommandInteract
 // ============================================================================
 
 export async function routingDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -122,7 +122,7 @@ export async function routingDisableHandler(interaction: ChatInputCommandInterac
 // ============================================================================
 
 export async function routingRuleAddHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -153,7 +153,7 @@ export async function routingRuleAddHandler(interaction: ChatInputCommandInterac
   // Check for duplicate type
   if (rules.some(r => r.ticketTypeId === ticketTypeId)) {
     await interaction.reply({
-      content: LANGF(tl.ruleDuplicate, ticketTypeId),
+      content: formatLang(tl.ruleDuplicate, ticketTypeId),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -162,7 +162,7 @@ export async function routingRuleAddHandler(interaction: ChatInputCommandInterac
   // Check max rules
   if (rules.length >= MAX_ROUTING_RULES) {
     await interaction.reply({
-      content: LANGF(tl.maxRules, MAX_ROUTING_RULES),
+      content: formatLang(tl.maxRules, MAX_ROUTING_RULES),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -180,7 +180,7 @@ export async function routingRuleAddHandler(interaction: ChatInputCommandInterac
 
   const maxOpenText = maxOpen != null ? ` (max ${maxOpen} open per staff)` : '';
   await interaction.reply({
-    content: LANGF(tl.ruleAdded, ticketTypeId, role.name) + maxOpenText,
+    content: formatLang(tl.ruleAdded, ticketTypeId, role.name) + maxOpenText,
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -197,7 +197,7 @@ export async function routingRuleAddHandler(interaction: ChatInputCommandInterac
 // ============================================================================
 
 export async function routingRuleRemoveHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -225,7 +225,7 @@ export async function routingRuleRemoveHandler(interaction: ChatInputCommandInte
   const ruleIndex = rules.findIndex(r => r.ticketTypeId === ticketTypeId);
   if (ruleIndex === -1) {
     await interaction.reply({
-      content: LANGF(tl.ruleNotFound, ticketTypeId),
+      content: formatLang(tl.ruleNotFound, ticketTypeId),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -236,7 +236,7 @@ export async function routingRuleRemoveHandler(interaction: ChatInputCommandInte
   await ticketConfigRepo.save(config);
 
   await interaction.reply({
-    content: LANGF(tl.ruleRemoved, ticketTypeId),
+    content: formatLang(tl.ruleRemoved, ticketTypeId),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -251,7 +251,7 @@ export async function routingRuleRemoveHandler(interaction: ChatInputCommandInte
 // ============================================================================
 
 export async function routingStrategyHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -277,7 +277,7 @@ export async function routingStrategyHandler(interaction: ChatInputCommandIntera
 
   if (!VALID_STRATEGIES.includes(strategy)) {
     await interaction.reply({
-      content: LANGF(tl.invalidStrategy, VALID_STRATEGIES.join(', ')),
+      content: formatLang(tl.invalidStrategy, VALID_STRATEGIES.join(', ')),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -292,7 +292,7 @@ export async function routingStrategyHandler(interaction: ChatInputCommandIntera
   await ticketConfigRepo.save(config);
 
   await interaction.reply({
-    content: LANGF(tl.strategySet, strategy),
+    content: formatLang(tl.strategySet, strategy),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -307,7 +307,7 @@ export async function routingStrategyHandler(interaction: ChatInputCommandIntera
 // ============================================================================
 
 export async function routingStatsHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;

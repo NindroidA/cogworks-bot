@@ -3,6 +3,7 @@ import { BotConfig } from '../typeorm/entities/BotConfig';
 import {
   createRateLimitKey,
   enhancedLogger,
+  getGuildLang,
   healthMonitor,
   LogCategory,
   lang,
@@ -223,9 +224,13 @@ export const handleSlashCommand = async (client: Client, interaction: ChatInputC
     } else {
       const botConfig = await botConfigRepo.findOneBy({ guildId });
       if (!botConfig) {
-        enhancedLogger.warn(lang.botConfig.notFound, LogCategory.COMMAND_EXECUTION);
+        // Guild has no BotConfig row yet — localize the reply to the guild's
+        // locale so users see the message in their chosen language even for
+        // this pre-setup edge case.
+        const glang = await getGuildLang(guildId);
+        enhancedLogger.warn(glang.botConfig.notFound, LogCategory.COMMAND_EXECUTION);
         await interaction.reply({
-          content: lang.botConfig.notFound,
+          content: glang.botConfig.notFound,
           flags: [MessageFlags.Ephemeral],
         });
       } else {
@@ -460,47 +465,69 @@ const AUDITABLE_MEMORY_SUBCOMMANDS = new Set(['add', 'capture', 'update', 'updat
 
 const AUDITABLE_ROLE_GROUPS = new Set(['add', 'remove']);
 
+/**
+ * Audit rules keyed by command name. Each entry is a builder that returns the
+ * `action` string to log (or null to skip), and may populate `details`. Keeping
+ * one table instead of a parallel if/else ladder means when a new auditable
+ * command is added to the dispatcher, forgetting the audit entry shows up as
+ * a missing key rather than a silent drop.
+ */
+type AuditRuleBuilder = (
+  interaction: ChatInputCommandInteraction<CacheType>,
+  details: Record<string, unknown>,
+) => string | null;
+
+const AUDIT_RULES: Record<string, AuditRuleBuilder> = {
+  ticket: (interaction, details) => {
+    const group = interaction.options.getSubcommandGroup(false);
+    const sub = interaction.options.getSubcommand(false);
+    if (group && AUDITABLE_TICKET_GROUPS.has(group) && sub) {
+      details.subcommandGroup = group;
+      details.subcommand = sub;
+      return `command:ticket:${group}:${sub}`;
+    }
+    return null;
+  },
+  memory: (interaction, details) => {
+    const sub = interaction.options.getSubcommand(false);
+    if (sub && AUDITABLE_MEMORY_SUBCOMMANDS.has(sub)) {
+      details.subcommand = sub;
+      return `command:memory:${sub}`;
+    }
+    return null;
+  },
+  role: (interaction, details) => {
+    const group = interaction.options.getSubcommandGroup(false);
+    if (group && AUDITABLE_ROLE_GROUPS.has(group)) {
+      details.subcommandGroup = group;
+      return `command:role:${group}`;
+    }
+    return null;
+  },
+  application: (interaction, details) => {
+    const group = interaction.options.getSubcommandGroup(false);
+    const sub = interaction.options.getSubcommand(false);
+    if (group === 'position' && sub) {
+      details.subcommand = sub;
+      return `command:application:position:${sub}`;
+    }
+    if (!group && sub) {
+      details.subcommand = sub;
+      return `command:application:${sub}`;
+    }
+    return null;
+  },
+};
+
 function logCommandAudit(
   interaction: ChatInputCommandInteraction<CacheType>,
   commandName: string,
   guildId: string,
 ): void {
-  let action: string | null = null;
   const details: Record<string, unknown> = {};
-
-  if (AUDITABLE_COMMANDS.has(commandName)) {
-    action = `command:${commandName}`;
-  } else if (commandName === 'ticket') {
-    const group = interaction.options.getSubcommandGroup(false);
-    const sub = interaction.options.getSubcommand(false);
-    if (group && AUDITABLE_TICKET_GROUPS.has(group) && sub) {
-      action = `command:ticket:${group}:${sub}`;
-      details.subcommandGroup = group;
-      details.subcommand = sub;
-    }
-  } else if (commandName === 'memory') {
-    const sub = interaction.options.getSubcommand(false);
-    if (sub && AUDITABLE_MEMORY_SUBCOMMANDS.has(sub)) {
-      action = `command:memory:${sub}`;
-      details.subcommand = sub;
-    }
-  } else if (commandName === 'role') {
-    const group = interaction.options.getSubcommandGroup(false);
-    if (group && AUDITABLE_ROLE_GROUPS.has(group)) {
-      action = `command:role:${group}`;
-      details.subcommandGroup = group;
-    }
-  } else if (commandName === 'application') {
-    const group = interaction.options.getSubcommandGroup(false);
-    const sub = interaction.options.getSubcommand(false);
-    if (group === 'position' && sub) {
-      action = `command:application:position:${sub}`;
-      details.subcommand = sub;
-    } else if (!group && sub) {
-      action = `command:application:${sub}`;
-      details.subcommand = sub;
-    }
-  }
+  const action = AUDITABLE_COMMANDS.has(commandName)
+    ? `command:${commandName}`
+    : (AUDIT_RULES[commandName]?.(interaction, details) ?? null);
 
   if (action) {
     void writeAuditLog(guildId, action, interaction.user.id, details, 'command');

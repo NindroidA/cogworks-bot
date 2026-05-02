@@ -11,7 +11,7 @@ import {
 import { AppDataSource } from '../../../typeorm';
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { enhancedLogger, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
+import { enhancedLogger, guardFeatureRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { getTemplate } from './applicationTemplates';
 
@@ -23,7 +23,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
 
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'applications', 'manage', {
     action: 'application-position',
     limit: RateLimits.APPLICATION_POSITION,
     scope: 'guild',
@@ -385,7 +385,7 @@ export async function updateApplicationMessage(client: Client, guildId: string) 
 }
 
 // helper function to build the application message
-export async function buildApplicationMessage(positions: Position[]) {
+export function buildApplicationMessage(positions: Position[]) {
   let content = '# __Welcome to Job Applications__\n\n';
 
   if (positions.length === 0) {

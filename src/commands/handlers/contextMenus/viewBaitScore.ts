@@ -7,7 +7,7 @@
 import { type Client, EmbedBuilder, MessageFlags, type UserContextMenuCommandInteraction } from 'discord.js';
 import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { enhancedLogger, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, guardFeatureAccess, handleInteractionError, LogCategory, lang } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
@@ -19,7 +19,7 @@ export async function viewBaitScoreHandler(
   interaction: UserContextMenuCommandInteraction,
 ): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'baitchannel', 'use');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
@@ -109,6 +109,6 @@ export async function viewBaitScoreHandler(
       targetUserId: targetUser.id,
     });
   } catch (error) {
-    await handleInteractionError(interaction as any, error, 'View bait score context menu');
+    await handleInteractionError(interaction, error, 'View bait score context menu');
   }
 }

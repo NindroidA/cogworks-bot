@@ -8,6 +8,7 @@
 
 import type { CacheType, ChatInputCommandInteraction, Client, MessageComponentInteraction } from 'discord.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, EmbedBuilder, MessageFlags } from 'discord.js';
+import { DEFAULT_LOCALE, invalidateGuildLocaleCache, isSupportedLocale, SUPPORTED_LOCALES } from '../../../lang';
 import { BotConfig } from '../../../typeorm/entities/BotConfig';
 import { SetupState, type SystemStates } from '../../../typeorm/entities/SetupState';
 import {
@@ -20,9 +21,17 @@ import {
   showAndAwaitModal,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
-import { checkboxGroup, labelWrap, rawModal } from '../../../utils/modalComponents';
+import { checkboxGroup, labelWrap, radioGroup, rawModal } from '../../../utils/modalComponents';
 import { buildDashboardEmbed, buildSystemSelector, detectSystemStates, mergeStates, SYSTEMS } from './setupDashboard';
 import { runSystemFlow } from './systemFlows';
+
+const LOCALE_LABELS: Record<string, string> = {
+  en: 'English',
+  es: 'Español',
+  'pt-BR': 'Português (Brasil)',
+  fr: 'Français',
+  de: 'Deutsch',
+};
 
 const setupStateRepo = lazyRepo(SetupState);
 const botConfigRepo = lazyRepo(BotConfig);
@@ -114,7 +123,7 @@ async function showSystemSelection(
     ),
   ]);
 
-  const submit = await showAndAwaitModal(interaction, modal as any);
+  const submit = await showAndAwaitModal(interaction, modal);
   if (!submit) return;
 
   const selectedSystems: string[] = (submit.fields as any).getField('setup_systems')?.values ?? [];
@@ -254,17 +263,45 @@ async function collectDashboardInteractions(
 
   let explicitlyClosed = false;
 
-  buttonCollector.on('collect', async (btnInteraction: any) => {
-    if (btnInteraction.customId === 'setup_finish_later') {
-      explicitlyClosed = true;
-      await btnInteraction.update({
+  // Re-detect states from DB and replace the dashboard message with a fresh embed.
+  // Used by the manage-systems, language, and reset-cancel handlers.
+  const refreshDashboard = async (): Promise<void> => {
+    try {
+      const dbStates = await detectSystemStates(guildId);
+      const freshStates = mergeStates(dbStates, setupState);
+      setupState.systemStates = freshStates;
+      const embed = buildDashboardEmbed(freshStates, setupState.selectedSystems);
+      const selector = buildSystemSelector(freshStates, setupState.selectedSystems);
+      const buttons = buildDashboardButtons(freshStates, setupState.selectedSystems);
+      await interaction.editReply({
+        content: '',
+        embeds: [embed],
+        components: [selector, buttons],
+      });
+    } catch {
+      /* interaction may have expired */
+    }
+  };
+
+  const closeDashboard = (): void => {
+    explicitlyClosed = true;
+    selectCollector.stop();
+    buttonCollector.stop();
+  };
+
+  type DashboardHandler = (btn: any) => Promise<void>;
+
+  const DASHBOARD_ROUTES: Record<string, DashboardHandler> = {
+    setup_finish_later: async btn => {
+      await btn.update({
         content: 'Setup progress saved. Run `/bot-setup` anytime to continue.',
         embeds: [],
         components: [],
       });
-      selectCollector.stop();
-      buttonCollector.stop();
-    } else if (btnInteraction.customId === 'setup_manage_systems') {
+      closeDashboard();
+    },
+
+    setup_manage_systems: async btn => {
       const currentEnabled = setupState.selectedSystems;
       const modal = rawModal(`setup_manage_${Date.now()}`, 'Manage Systems', [
         labelWrap(
@@ -283,36 +320,76 @@ async function collectDashboardInteractions(
         ),
       ]);
 
-      const modalSubmit = await showAndAwaitModal(btnInteraction, modal as any);
+      const modalSubmit = await showAndAwaitModal(btn, modal);
       if (!modalSubmit) return;
 
       const enabledValues: string[] = (modalSubmit.fields as any).getField('setup_enabled_systems')?.values ?? [];
       setupState.selectedSystems = enabledValues.length > 0 ? enabledValues : null;
       await setupStateRepo.save(setupState);
-
-      // Refresh dashboard
-      const dbStates = await detectSystemStates(guildId);
-      const freshStates = mergeStates(dbStates, setupState);
-      setupState.systemStates = freshStates;
-      await setupStateRepo.save(setupState);
-
       await modalSubmit.deferUpdate();
+      await refreshDashboard();
+      await setupStateRepo.save(setupState);
+    },
+
+    setup_language: async btn => {
+      // Load the guild's current locale so the radio group reflects it.
+      let currentLocale: string = DEFAULT_LOCALE;
+      try {
+        const config = await botConfigRepo.findOneBy({ guildId });
+        if (config?.locale && isSupportedLocale(config.locale)) {
+          currentLocale = config.locale;
+        }
+      } catch {
+        /* fall back to DEFAULT_LOCALE */
+      }
+
+      const modal = rawModal(`setup_language_${Date.now()}`, 'Bot Language', [
+        labelWrap(
+          'Language',
+          radioGroup(
+            'setup_locale',
+            SUPPORTED_LOCALES.map(code => ({
+              label: LOCALE_LABELS[code] ?? code,
+              value: code,
+              default: code === currentLocale,
+            })),
+          ),
+          'Bot language for this server. Untranslated strings fall back to English.',
+        ),
+      ]);
+
+      const modalSubmit = await showAndAwaitModal(btn, modal);
+      if (!modalSubmit) return;
+
+      const chosen: string | undefined = (modalSubmit.fields as any).getField('setup_locale')?.values?.[0];
+      const nextLocale = isSupportedLocale(chosen) ? chosen : DEFAULT_LOCALE;
 
       try {
-        const embed = buildDashboardEmbed(freshStates, setupState.selectedSystems);
-        const selector = buildSystemSelector(freshStates, setupState.selectedSystems);
-        const buttons = buildDashboardButtons(freshStates, setupState.selectedSystems);
-        await interaction.editReply({
-          content: '',
-          embeds: [embed],
-          components: [selector, buttons],
+        let config = await botConfigRepo.findOneBy({ guildId });
+        if (!config) {
+          config = botConfigRepo.create({
+            guildId,
+            enableGlobalStaffRole: false,
+            locale: nextLocale,
+          });
+        } else {
+          config.locale = nextLocale;
+        }
+        await botConfigRepo.save(config);
+        invalidateGuildLocaleCache(guildId);
+      } catch (err) {
+        enhancedLogger.warn('Failed to persist guild locale', LogCategory.COMMAND_EXECUTION, {
+          guildId,
+          error: err instanceof Error ? err.message : String(err),
         });
-      } catch {
-        /* interaction may have expired */
       }
-    } else if (btnInteraction.customId === 'setup_reset') {
-      // Confirmation prompt before resetting
-      await btnInteraction.update({
+
+      await modalSubmit.deferUpdate();
+      await refreshDashboard();
+    },
+
+    setup_reset: async btn => {
+      await btn.update({
         embeds: [
           new EmbedBuilder()
             .setColor(0xff4444)
@@ -328,28 +405,26 @@ async function collectDashboardInteractions(
           ),
         ],
       });
-    } else if (btnInteraction.customId === 'setup_reset_confirm') {
-      explicitlyClosed = true;
+    },
+
+    setup_reset_confirm: async btn => {
       await setupStateRepo.delete({ guildId });
-      await btnInteraction.update({
+      await btn.update({
         content: 'Setup state reset. Run `/bot-setup` to start fresh.',
         embeds: [],
         components: [],
       });
-      selectCollector.stop();
-      buttonCollector.stop();
-    } else if (btnInteraction.customId === 'setup_reset_cancel') {
-      // Restore the dashboard
-      const dbStates = await detectSystemStates(guildId);
-      const freshStates = mergeStates(dbStates, setupState);
-      const embed = buildDashboardEmbed(freshStates, setupState.selectedSystems);
-      const selector = buildSystemSelector(freshStates, setupState.selectedSystems);
-      const buttons = buildDashboardButtons(freshStates, setupState.selectedSystems);
-      await btnInteraction.update({
-        embeds: [embed],
-        components: [selector, buttons],
-      });
-    }
+      closeDashboard();
+    },
+
+    setup_reset_cancel: async () => {
+      await refreshDashboard();
+    },
+  };
+
+  buttonCollector.on('collect', async (btnInteraction: any) => {
+    const handler = DASHBOARD_ROUTES[btnInteraction.customId];
+    if (handler) await handler(btnInteraction);
   });
 
   selectCollector.on('end', async () => {
@@ -382,6 +457,11 @@ function buildDashboardButtons(
       .setLabel('Manage Systems')
       .setStyle(ButtonStyle.Primary)
       .setEmoji('⚙️'),
+    new ButtonBuilder()
+      .setCustomId('setup_language')
+      .setLabel('Language')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('🌐'),
     new ButtonBuilder().setCustomId('setup_reset').setLabel('Reset Setup').setStyle(ButtonStyle.Danger).setEmoji('🔄'),
   );
 }

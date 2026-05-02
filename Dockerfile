@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM oven/bun:1-alpine AS builder
+FROM oven/bun:1.2.17-alpine AS builder
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ COPY tsconfig.json ./
 RUN bun run build
 
 # Stage 2: Production
-FROM oven/bun:1-alpine AS production
+FROM oven/bun:1.2.17-alpine AS production
 
 WORKDIR /app
 

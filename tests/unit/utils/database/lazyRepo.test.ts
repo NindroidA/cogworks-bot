@@ -7,7 +7,7 @@
  * - Accessing methods before DataSource is initialized throws a clear error
  */
 
-import { describe, expect, test } from '@jest/globals';
+import { describe, expect, test } from 'bun:test';
 import { lazyRepo } from '../../../../src/utils/database/lazyRepo';
 
 // Use a minimal fake entity class — lazyRepo accepts any EntityTarget

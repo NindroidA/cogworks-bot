@@ -1,7 +1,15 @@
 import { type AutocompleteInteraction, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, guardAdmin, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  guardFeatureAccess,
+  handleInteractionError,
+  LogCategory,
+  lang,
+} from '../../../utils';
+import { BUILTIN_TICKET_TYPE_IDS, BUILTIN_TYPES } from '../../../utils/ticket/builtinTypes';
 
 const tl = lang.ticket.customTypes.typeToggle;
 
@@ -11,7 +19,7 @@ const tl = lang.ticket.customTypes.typeToggle;
  */
 export async function typeToggleHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
@@ -59,7 +67,9 @@ export async function typeToggleHandler(interaction: ChatInputCommandInteraction
       },
     );
 
-    const message = type.isActive ? LANGF(tl.activated, type.displayName) : LANGF(tl.deactivated, type.displayName);
+    const message = type.isActive
+      ? formatLang(tl.activated, type.displayName)
+      : formatLang(tl.deactivated, type.displayName);
 
     await interaction.reply({
       content: message,
@@ -111,22 +121,11 @@ export async function ticketTypeAutocomplete(interaction: AutocompleteInteractio
   }
 }
 
-// Legacy ticket types for autocomplete
-const LEGACY_TYPES = [
-  { typeId: '18_verify', displayName: '18+ Verification', emoji: '🔞' },
-  { typeId: 'ban_appeal', displayName: 'Ban Appeal', emoji: '⚖️' },
-  { typeId: 'player_report', displayName: 'Player Report', emoji: '🚨' },
-  { typeId: 'bug_report', displayName: 'Bug Report', emoji: '🐛' },
-  { typeId: 'other', displayName: 'Other', emoji: '❓' },
-];
-
-const LEGACY_TYPE_IDS = LEGACY_TYPES.map(t => t.typeId);
-
 /**
- * Autocomplete handler that includes both legacy and custom ticket types
- * Used by settings command for ping-on-create setting
+ * Autocomplete handler that includes both builtin and custom ticket types.
+ * Used by settings command for ping-on-create setting.
  */
-export async function ticketTypeAutocompleteWithLegacy(interaction: AutocompleteInteraction): Promise<void> {
+export async function ticketTypeAutocompleteWithBuiltin(interaction: AutocompleteInteraction): Promise<void> {
   try {
     const guildId = interaction.guildId!;
     const focusedValue = interaction.options.getFocused().toLowerCase();
@@ -138,22 +137,24 @@ export async function ticketTypeAutocompleteWithLegacy(interaction: Autocomplete
       order: { sortOrder: 'ASC' },
     });
 
-    // Filter out custom types that have the same typeId as legacy types to avoid duplicates
-    const filteredCustomTypes = customTypes.filter(t => !LEGACY_TYPE_IDS.includes(t.typeId));
+    // Filter out custom types that have the same typeId as builtin types to avoid duplicates
+    const filteredCustomTypes = customTypes.filter(
+      t => !(BUILTIN_TICKET_TYPE_IDS as readonly string[]).includes(t.typeId),
+    );
 
-    // Combine legacy and custom types (legacy first, then custom)
+    // Combine builtin and custom types (builtin first, then custom)
     const allTypes = [
-      ...LEGACY_TYPES.map(t => ({
+      ...BUILTIN_TYPES.map(t => ({
         typeId: t.typeId,
         displayName: t.displayName,
         emoji: t.emoji,
-        isLegacy: true,
+        isBuiltin: true,
       })),
       ...filteredCustomTypes.map(t => ({
         typeId: t.typeId,
         displayName: t.displayName,
         emoji: t.emoji || '📝',
-        isLegacy: false,
+        isBuiltin: false,
       })),
     ];
 
@@ -166,13 +167,13 @@ export async function ticketTypeAutocompleteWithLegacy(interaction: Autocomplete
 
     await interaction.respond(
       filtered.map(type => ({
-        name: `${type.emoji} ${type.displayName}${type.isLegacy ? ' (Legacy)' : ''}`,
+        name: `${type.emoji} ${type.displayName}${type.isBuiltin ? ' (Builtin)' : ''}`,
         value: type.typeId,
       })),
     );
   } catch (error) {
     enhancedLogger.error(
-      'Autocomplete error in ticketTypeAutocompleteWithLegacy',
+      'Autocomplete error in ticketTypeAutocompleteWithBuiltin',
       error instanceof Error ? error : new Error(String(error)),
       LogCategory.COMMAND_EXECUTION,
       { userId: interaction.user.id, guildId: interaction.guildId },

@@ -8,7 +8,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { enhancedLogger, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, guardFeatureAccess, handleInteractionError, LogCategory, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { updateApplicationMessage } from './applicationPosition';
 
@@ -21,7 +21,7 @@ const positionRepo = lazyRepo(Position);
  */
 export async function applicationEditHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'applications', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;

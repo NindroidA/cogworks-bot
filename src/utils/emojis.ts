@@ -1,20 +1,16 @@
 /**
- * Centralized emoji system for all Discord messages and embeds
- * Uses 'as const' pattern for type safety and tree-shaking
- * Organized by category for easy maintenance and scaling
+ * Centralized emoji system for all Discord messages and embeds.
+ * Uses 'as const' pattern for type safety and tree-shaking.
  *
  * @example
  * ```typescript
- * import { Emoji, E, em } from '../utils';
+ * import { Emoji, E } from '../utils';
  *
  * // Raw emoji access
  * const text = `${E.ok} Operation complete`;
  *
  * // Category access
  * const status = Emoji.status.success; // "✅"
- *
- * // Wrapper functions
- * const message = em.success(lang.ticket.created);
  * ```
  */
 
@@ -226,76 +222,5 @@ export const E = {
   wrench: Emoji.decorative.wrench,
   exclaim: Emoji.decorative.exclaim,
 } as const;
-
-/**
- * Emoji wrapper functions that prepend emojis to strings
- * Useful for adding consistent emoji prefixes to lang strings
- *
- * @example
- * ```typescript
- * em.success(lang.ticket.created)  // "✅ Your ticket has been created"
- * em.error(lang.errors.generic)    // "❌ An error occurred"
- * ```
- */
-export const em = {
-  // Status wrappers
-  success: (text: string) => `${Emoji.status.success} ${text}`,
-  error: (text: string) => `${Emoji.status.error} ${text}`,
-  warning: (text: string) => `${Emoji.status.warning} ${text}`,
-  info: (text: string) => `${Emoji.status.info} ${text}`,
-  pending: (text: string) => `${Emoji.status.pending} ${text}`,
-
-  // State wrappers
-  active: (text: string) => `${Emoji.status.active} ${text}`,
-  inactive: (text: string) => `${Emoji.status.inactive} ${text}`,
-
-  // Time wrappers
-  timer: (text: string) => `${Emoji.time.timer} ${text}`,
-  calendar: (text: string) => `${Emoji.time.calendar} ${text}`,
-
-  // Moderation wrappers
-  ban: (text: string) => `${Emoji.moderation.ban} ${text}`,
-  kick: (text: string) => `${Emoji.moderation.kick} ${text}`,
-  restrict: (text: string) => `${Emoji.moderation.restrict} ${text}`,
-  alert: (text: string) => `${Emoji.moderation.alert} ${text}`,
-
-  // Feature wrappers
-  ticket: (text: string) => `${Emoji.feature.ticket} ${text}`,
-  application: (text: string) => `${Emoji.feature.application} ${text}`,
-  announcement: (text: string) => `${Emoji.feature.announcement} ${text}`,
-
-  // Generic wrapper (use any emoji)
-  with: (emoji: string, text: string) => `${emoji} ${text}`,
-};
-
-/**
- * Creates an emoji-prefixed formatted string
- * Use when you need both emoji prefix AND template formatting
- *
- * @example
- * ```typescript
- * const formatted = emLANGF(E.error, lang.errors.rateLimit, "5");
- * // "❌ You're using this command too quickly. Please try again in 5 minutes."
- * ```
- */
-export function emLANGF(emoji: string, template: string, ...args: (string | number)[]): string {
-  const formatted = template.replace(/\{(\d+)\}/g, (match, index) => {
-    const argIndex = parseInt(index, 10);
-    return args[argIndex] !== undefined ? String(args[argIndex]) : match;
-  });
-  return `${emoji} ${formatted}`;
-}
-
-export type EmojiCategory = keyof typeof Emoji;
-export type StatusEmoji = keyof typeof Emoji.status;
-export type ActionEmoji = keyof typeof Emoji.action;
-export type TimeEmoji = keyof typeof Emoji.time;
-export type ModerationEmoji = keyof typeof Emoji.moderation;
-export type FeatureEmoji = keyof typeof Emoji.feature;
-export type ContentEmoji = keyof typeof Emoji.content;
-export type StatsEmoji = keyof typeof Emoji.stats;
-export type SystemEmoji = keyof typeof Emoji.system;
-export type DecorativeEmoji = keyof typeof Emoji.decorative;
-export type TicketTypeEmoji = keyof typeof Emoji.ticketTypes;
 
 export default Emoji;

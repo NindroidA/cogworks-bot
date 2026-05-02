@@ -26,7 +26,7 @@ export function lazyRepo<T extends ObjectLiteral>(entity: EntityTarget<T>): Repo
       cached ??= AppDataSource.getRepository(entity);
       const value = (cached as unknown as Record<string | symbol, unknown>)[prop];
       if (typeof value === 'function') {
-        return (value as Function).bind(cached);
+        return (value as (...args: unknown[]) => unknown).bind(cached);
       }
       return value;
     },

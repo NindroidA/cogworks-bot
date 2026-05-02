@@ -4,7 +4,7 @@
  * Tests bearer token authentication with timing-safe comparison.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, test } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import type { IncomingMessage } from 'node:http';
 
 function createMockRequest(authorization?: string): IncomingMessage {

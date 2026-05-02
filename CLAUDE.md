@@ -5,7 +5,7 @@
 - **Runtime**: Bun
 - **Deployment**: Docker containers
 - **Branches**: `main` (production)
-- **Version**: 3.0.18
+- **Version**: 3.1.28
 
 ## Critical Rules
 
@@ -45,6 +45,20 @@ await repo.remove(entity);
 
 ## Architecture
 
+### Layering rule
+
+```
+events ─┬─► utils ◄─┬─ commands/handlers
+        │           │
+        └─► entities (typeorm/) ◄────────┘
+```
+
+`events/*` and `commands/handlers/*` both depend on `utils/*` and `typeorm/entities/*`. Cross-cutting workflows (close ticket, archive application, XP config caching, etc.) belong in `utils`, not in a slash-command handler — both events and slash commands then call into the same util.
+
+**Documented exception — dispatch:** the autocomplete + interaction-route dispatchers (`src/events/autocomplete.ts`, `src/events/ticket/interactionRoutes.ts`, `src/events/application/interactionRoutes.ts`, `src/events/typeFieldsInteraction.ts`, `src/events/applicationFieldsInteraction.ts`) DO import handler functions from `commands/handlers`. That's intentional — they exist precisely to route Discord interactions to the right per-command handler. Don't try to "fix" the dependency direction by moving handlers to utils; the per-command logic lives with its slash command builder, and the dispatcher is the bridge.
+
+Entities never import from utils (the entity is the data shape; the runtime helper consumes the shape). If you find an entity importing a util-side type, the type belongs with the entity — see `typeorm/entities/ticket/routingTypes.ts` for the pattern.
+
 ### Command Handler Pattern
 All commands follow this structure (see `src/commands/commands.ts`):
 ```typescript
@@ -79,8 +93,15 @@ Translation files: `src/lang/*.json` with types in `src/lang/types.ts`.
 
 ### Error Handling
 ```typescript
-// For command handlers
+// Pre-reply: log + send a user-facing error embed
 await handleInteractionError(interaction, error, 'Custom context message');
+
+// Post-deferReply cleanup: log only (caller follows up with editReply)
+import { logHandlerError } from '../utils';
+} catch (error) {
+  logHandlerError('Memory tag-add', error, { guildId });
+  await interaction.editReply({ content: tl.tags.add.error });
+}
 
 // For non-interaction code
 const { category, severity } = classifyError(error);
@@ -92,6 +113,7 @@ await interaction.reply({ content: buildErrorMessage('Something went wrong.') })
 ```
 - ErrorCategory: `DATABASE`, `PERMISSIONS`, `VALIDATION`, `CONFIGURATION`, `EXTERNAL_API`, `UNKNOWN`
 - ErrorSeverity: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`
+- `handleInteractionError` vs `logHandlerError`: the former logs AND replies with an error embed (use pre-reply); the latter logs only (use post-`deferReply` when the handler still wants to control its own `editReply` body).
 
 **Modal Timeout Feedback** — Use `notifyModalTimeout(interaction)` in `awaitModalSubmit` catch blocks:
 ```typescript
@@ -109,15 +131,32 @@ if (!check.allowed) { /* deny */ }
 ```
 
 ### Permission Validation
-`requireAdmin()` and `requireOwner()` accept any Discord `Interaction` (commands, buttons, modals):
+Prefer the `guard*` wrappers from `utils/interactions` over the raw `require*` validators — they reply ephemerally and return `{ allowed }` in one line. Use feature-scoped guards when the action is in the `FEATURES` catalog (see `src/utils/validation/featurePermission.ts`); reserve `guardAdmin` / `guardOwner` for meta-features (`/bot-setup`, `/bot-reset`, `/data-export`, `/status`).
+
 ```typescript
-const adminCheck = requireAdmin(interaction);
-if (!adminCheck.allowed) {
-    await interaction.reply({ content: adminCheck.message, flags: [MessageFlags.Ephemeral] });
-    return;
-}
-// Other validators: requireOwner(), hasRole(), hasPermission(), hasAnyPermission()
+import { guardAdmin, guardOwner, guardFeatureAccess, guardFeatureRateLimit } from '../utils';
+
+// Admin (legacy / meta-features)
+const guard = await guardAdmin(interaction);
+if (!guard.allowed) return;
+
+// Bot owner only (status commands, dev tools)
+const guard = await guardOwner(interaction);
+if (!guard.allowed) return;
+
+// Feature-scoped — preferred for anything in FEATURES
+const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
+if (!guard.allowed) return;
+
+// Feature + rate limit (drop-in for guardAdminRateLimit)
+const guard = await guardFeatureRateLimit(interaction, 'tickets', 'manage', {
+  action: 'ticket-create',
+  limit: RateLimits.TICKET_CREATE,
+});
+if (!guard.allowed) return;
 ```
+
+Levels: `'use'` (read-only / view), `'manage'` (mutate config / per-item CRUD), `'admin'` (GDPR-scoped or destructive). Higher levels satisfy lower ones. Unconfigured guilds fall back to admin-only via `hasFeatureAccess`. Raw validators (`requireAdmin`, `hasRole`, `hasPermission`, `hasAnyPermission`, `requireBotOwner`) are still exported but should be reserved for cases the wrappers don't cover (e.g. permission overwrite assembly, non-interaction code paths).
 
 ### Input Sanitization
 Use helpers from `src/utils/validation/inputSanitizer.ts`:
@@ -139,7 +178,8 @@ import { CACHE_TTL, INTERVALS, RETENTION_DAYS, MAX, TEXT_LIMITS } from '../utils
 
 ### Shared REST Client
 ```typescript
-import { rest, CLIENT_ID } from '../utils/restClient';
+import { CLIENT_ID, getRest } from '../utils/restClient';
+await getRest().put(...); // lazy — constructs the REST client on first call
 ```
 
 ### Lazy Repository Pattern
@@ -208,25 +248,26 @@ const repo = AppDataSource.getRepository(Ticket);
 ```
 src/typeorm/entities/
 ├── AuditLog.ts           # Dashboard action audit log (90-day TTL)
-├── bait/                 # BaitChannelConfig, BaitChannelLog, BaitKeyword, JoinEvent, PendingBan
 ├── BotConfig.ts          # Per-guild bot configuration
-├── StaffRole.ts          # Staff/saved roles (table: staff_roles)
+├── GuildPermission.ts    # Feature-based permission overrides (v3.1.3)
 ├── SetupState.ts         # Persistent setup dashboard state (v3)
+├── StaffRole.ts          # Staff/saved roles (table: staff_roles)
 ├── UserActivity.ts       # User activity tracking
 ├── analytics/            # AnalyticsConfig, AnalyticsSnapshot
 ├── announcement/         # AnnouncementConfig, AnnouncementLog, AnnouncementTemplate
 ├── application/          # ApplicationConfig, ArchivedApplicationConfig, Position, Application, ArchivedApplication
+├── bait/                 # BaitChannelConfig, BaitChannelLog, BaitKeyword, JoinEvent, PendingBan
 ├── event/                # EventConfig, EventTemplate, EventReminder
 ├── import/               # ImportLog
 ├── memory/               # MemoryConfig, MemoryItem, MemoryTag
 ├── onboarding/           # OnboardingConfig, OnboardingCompletion
 ├── reactionRole/         # ReactionRoleMenu, ReactionRoleOption (CASCADE)
 ├── rules/                # RulesConfig
-├── shared/               # CustomInputField (interface)
+├── shared/               # CustomInputField (interface, not an entity)
 ├── starboard/            # StarboardConfig, StarboardEntry
 ├── status/               # BotStatus (singleton, PrimaryColumn id=1), StatusIncident
 ├── ticket/               # TicketConfig, ArchivedTicketConfig, Ticket, ArchivedTicket,
-│                         #   CustomTicketType, CustomTicketField, UserTicketRestriction
+│                         #   CustomTicketType, UserTicketRestriction
 └── xp/                   # XPConfig, XPUser, XPRoleReward
 ```
 
@@ -334,18 +375,45 @@ src/
 │   ├── migrations/         # TypeORM migrations
 │   └── index.ts            # DataSource configuration
 ├── utils/
-│   ├── api/                # Internal API server, router, handlers, guildWebhook
+│   ├── analytics/          # activityTracker, snapshot query helpers
+│   ├── announcement/       # preview builders, send orchestration
+│   ├── api/                # Internal API server, router, handlers, guildWebhook, helpers
 │   ├── archive/            # archiveExporter (export + delete archived data)
-│   ├── database/           # guildQueries, logCleanup, legacyMigration, lazyRepo
+│   ├── automod/            # automod rules + feature setup
+│   ├── baitChannel/        # BaitChannelManager + whitelist + keyword helpers
+│   ├── database/           # guildQueries, logCleanup, legacyMigration, lazyRepo, safeDbOperation
 │   ├── discord/            # verifiedDelete (deletion with verification + bug report)
+│   ├── event/              # event template + reminder helpers
+│   ├── import/             # mee6 / bot-import helpers (some deferred)
 │   ├── interactions/       # guardHelper, confirmHelper, modalHelper (standardized patterns)
-│   ├── monitoring/         # enhancedLogger, healthMonitor, healthServer, memoryWatchdog
+│   ├── monitoring/         # enhancedLogger, healthMonitor, healthServer, memoryWatchdog, errorReporter
 │   ├── offboarding/        # archiveCompiler, messageCleanup (for bot-reset)
+│   ├── onboarding/         # onboarding flow helpers
+│   ├── reactionRole/       # menu + option persistence helpers
+│   ├── rules/              # rulesCache (invalidateRulesCache lives here — v3.1.6)
+│   ├── security/           # rateLimiter, featurePermission (v3.1.3)
 │   ├── setup/              # channelCreator, channelDefaults, channelFormatDetector, configStatusEmbed
-│   ├── security/           # rateLimiter
-│   ├── ticket/             # autoClose, slaChecker, smartRouter, closeWorkflow, legacyTypes
+│   ├── status/             # statusManager (client-attached)
+│   ├── ticket/             # autoClose, slaChecker, smartRouter, closeWorkflow, builtinTypes, routingTypes, transcriptBuilder
 │   ├── validation/         # permissionValidator, inputSanitizer, validators
-│   └── ...
+│   ├── workflow/           # cross-feature workflow helpers
+│   ├── xp/                 # xp calc + role reward helpers
+│   ├── apiConnector.ts     # External API client (dashboard sync)
+│   ├── collectors.ts       # createButtonCollector, createSelectMenuCollector
+│   ├── colors.ts           # Brand color constants
+│   ├── constants.ts        # CACHE_TTL, INTERVALS, RETENTION_DAYS, MAX, TEXT_LIMITS
+│   ├── embedBuilders.ts    # Shared embed templates
+│   ├── emojis.ts           # Emoji constants
+│   ├── errorHandler.ts     # classifyError, handleInteractionError
+│   ├── fetchAllMessages.ts # fetchMessagesAsTranscript (v3.1.8)
+│   ├── forumTagManager.ts  # ensureForumTag helpers
+│   ├── logger.ts           # Direct logger (breaks utils/index.ts cycle)
+│   ├── modalComponents.ts  # Shared modal field helpers
+│   ├── profileFunctions.ts # Per-request performance profiling
+│   ├── reactionCooldown.ts # Reaction add throttling
+│   ├── restClient.ts       # Shared REST client (lazy getRest)
+│   ├── types.ts            # Shared TS interfaces
+│   └── index.ts            # Barrel (keep imports direct inside utils/ to avoid cycles)
 └── index.ts                # Main entry point
 ```
 
@@ -393,7 +461,9 @@ const triggeredBy = optionalString(body, 'triggeredBy');   // for audit logs
 - Replace forum tags (use tag accumulation pattern)
 - Use deprecated `ephemeral: true` (use `flags: [MessageFlags.Ephemeral]`)
 - Use `requireAdmin()` with truthy check (use `.allowed` property)
-- Create new REST instances (use shared `rest` from `restClient.ts`)
+- Use raw `requireAdmin`/`requireBotOwner` and format your own reply (use `guardAdmin`/`guardOwner` wrappers — same shape, one line)
+- Use `guardAdmin` when the action is in the `FEATURES` catalog (use `guardFeatureAccess`/`guardFeatureRateLimit` so the webapp permission UI is load-bearing)
+- Create new REST instances (use shared `getRest()` from `restClient.ts`)
 - Use `as string` casts on API request body fields (use `requireString`/`optionalString` from `api/helpers`)
 - Write manual `requireAdmin` + `rateLimiter.check` boilerplate (use `guardAdminRateLimit` from `utils/interactions`)
 - Swallow errors silently with `catch {}` (at minimum log with `enhancedLogger`)
@@ -413,9 +483,11 @@ const triggeredBy = optionalString(body, 'triggeredBy');   // for audit logs
 
 ## Testing
 
-- Config: `jest.config.js` (ts-jest), Setup: `tests/setup.ts`
+- Runner: `bun test` (no separate config). Setup: `tests/setup.ts` (`import 'reflect-metadata'`).
 - Run: `bun test` or `bun run test:watch`
 - Tests: `tests/unit/` — events, utils, handlers
+- Imports: use `from 'bun:test'` (NOT `from '@jest/globals'` — Jest was removed in v3.1.35).
+- Mocking: prefer hand-rolled fakes / `mock.module(...)` from `bun:test`. `jest.fn()` / `jest.spyOn()` work via Bun's compatibility shim. `jest.mock()` is NOT supported — use `mock.module()` instead.
 
 ## Security
 

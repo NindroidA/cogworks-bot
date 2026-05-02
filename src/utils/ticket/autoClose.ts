@@ -10,7 +10,7 @@ import { lang } from '../../lang';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
 import { lazyRepo } from '../database/lazyRepo';
-import { LANGF } from '../index';
+import { formatLang } from '../index';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
 const ticketConfigRepo = lazyRepo(TicketConfig);
@@ -103,7 +103,7 @@ async function sendAutoCloseWarning(client: Client, config: TicketConfig, ticket
     if (!channel) return;
 
     const embed = new EmbedBuilder()
-      .setDescription(LANGF(tl.autoCloseWarning, config.autoCloseWarningHours.toString()))
+      .setDescription(formatLang(tl.autoCloseWarning, config.autoCloseWarningHours.toString()))
       .setColor(0xffa500);
 
     await channel.send({ embeds: [embed] });
@@ -146,7 +146,7 @@ async function autoCloseTicket(client: Client, config: TicketConfig, ticket: Tic
 
     // Post auto-close message
     const embed = new EmbedBuilder()
-      .setDescription(LANGF(tl.autoClosed, config.autoCloseDays.toString()))
+      .setDescription(formatLang(tl.autoClosed, config.autoCloseDays.toString()))
       .setColor(0x808080);
 
     await channel.send({ embeds: [embed] });

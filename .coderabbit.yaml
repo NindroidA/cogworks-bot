@@ -1,0 +1,87 @@
+# CodeRabbit configuration — see https://docs.coderabbit.ai/reference/configuration
+#
+# Tuned for cogworks-bot: TypeScript / Bun / Discord.js / TypeORM. Keep the
+# profile chill so the bot focuses on real issues over style nitpicks (biome
+# already enforces formatting + lint).
+
+language: en-US
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  poem: false
+  collapse_walkthrough: true
+
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+
+  path_filters:
+    # Build output / dependencies — never review.
+    - "!dist/**"
+    - "!node_modules/**"
+    - "!**/*.lock"
+    - "!bun.lock"
+    # Generated / vendored content.
+    - "!public/**"
+    - "!.github/badges/**"
+    # Plans & internal docs — review prose elsewhere if needed.
+    - "!.plans/**"
+
+  path_instructions:
+    - path: "src/typeorm/migrations/**"
+      instructions: |
+        Migrations are append-only and immutable once landed. Flag any
+        edits to existing migration files. Verify new migrations have
+        a sortable timestamp prefix and both `up()` + `down()`.
+    - path: "src/typeorm/entities/**"
+      instructions: |
+        Multi-tenant entities MUST have a `guildId` column with
+        `@Index(['guildId'])`. Flag entities that omit it. Entity
+        files should NOT import from `src/utils/**` (entity ← utility
+        dependency direction is enforced — see CLAUDE.md Layering rule).
+    - path: "src/utils/api/handlers/**"
+      instructions: |
+        API request body fields must use the validation helpers in
+        `src/utils/api/helpers.ts` (`requireString`, `optionalString`,
+        `requireNumber`, etc.) — never raw `as string` casts on
+        untrusted body input.
+    - path: "src/commands/handlers/**"
+      instructions: |
+        Permission checks should use the `guard*` wrappers
+        (`guardAdmin`, `guardOwner`, `guardFeatureAccess`,
+        `guardFeatureRateLimit`). Flag any raw `requireAdmin` /
+        `requireBotOwner` usage outside non-interaction code paths.
+        Database queries must be guild-scoped (filter by `guildId`).
+    - path: "tests/**"
+      instructions: |
+        Imports should use `from 'bun:test'`, never `from '@jest/globals'`
+        (Jest was removed in v3.1.35). Mocks should use `mock.module()`,
+        not `jest.mock()`. Note that `mock.module()` and global state
+        mutations (e.g. patching `AppDataSource.getRepository`) are
+        process-shared across test files — capture & restore originals
+        in `afterAll`.
+
+  tools:
+    biome:
+      enabled: true
+    languagetool:
+      enabled: false  # English prose checks aren't useful for code-heavy PRs
+    markdownlint:
+      enabled: true
+    yamllint:
+      enabled: true
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: auto
+  issues:
+    scope: auto

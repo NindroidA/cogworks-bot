@@ -1,4 +1,5 @@
 import type { Client } from 'discord.js';
+import { registerAnalyticsHandlers } from './handlers/analyticsHandlers';
 import { registerAnnouncementHandlers } from './handlers/announcementHandlers';
 import { registerApplicationHandlers } from './handlers/applicationHandlers';
 import { registerBaitChannelHandlers } from './handlers/baitChannelHandlers';
@@ -7,6 +8,7 @@ import { registerConfigHandlers } from './handlers/configHandlers';
 import { registerGuildHandlers } from './handlers/guildHandlers';
 import { registerMaintenanceHandlers } from './handlers/maintenanceHandlers';
 import { registerMemoryHandlers } from './handlers/memoryHandlers';
+import { registerPermissionHandlers } from './handlers/permissionHandlers';
 import { registerReactionRoleHandlers } from './handlers/reactionRoleHandlers';
 import { registerRulesHandlers } from './handlers/rulesHandlers';
 import { registerSetupHandlers } from './handlers/setupHandlers';
@@ -36,6 +38,8 @@ export function registerHandlers(client: Client): Map<string, RouteHandler> {
   registerConfigHandlers(client, routes);
   registerBaitChannelHandlers(client, routes);
   registerSetupHandlers(client, routes);
+  registerAnalyticsHandlers(client, routes);
+  registerPermissionHandlers(client, routes);
 
   return routes;
 }

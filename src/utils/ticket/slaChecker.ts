@@ -11,7 +11,7 @@ import { lang } from '../../lang';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
 import { lazyRepo } from '../database/lazyRepo';
-import { LANGF } from '../index';
+import { formatLang } from '../index';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
 const ticketConfigRepo = lazyRepo(TicketConfig);
@@ -91,7 +91,7 @@ async function processGuildSla(client: Client, config: TicketConfig): Promise<vo
         const embed = new EmbedBuilder()
           .setTitle(tl.breachAlertTitle)
           .setDescription(
-            LANGF(
+            formatLang(
               tl.breachAlert,
               ticket.id.toString(),
               ticket.channelId || 'unknown',

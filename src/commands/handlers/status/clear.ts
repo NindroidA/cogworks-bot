@@ -2,12 +2,12 @@ import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from '
 import {
   createRateLimitKey,
   enhancedLogger,
-  LANGF,
+  formatLang,
+  guardOwner,
   LogCategory,
   lang,
   RateLimits,
   rateLimiter,
-  requireBotOwner,
 } from '../../../utils';
 import type { StatusManager } from '../../../utils/status/statusManager';
 
@@ -17,21 +17,15 @@ export async function statusClearHandler(
   interaction: ChatInputCommandInteraction<CacheType>,
   statusManager: StatusManager,
 ) {
-  const ownerCheck = requireBotOwner(interaction.user.id);
-  if (!ownerCheck.allowed) {
-    await interaction.reply({
-      content: ownerCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardOwner(interaction);
+  if (!guard.allowed) return;
 
   // Rate limit (5 per hour)
   const rateLimitKey = createRateLimitKey.user(interaction.user.id, 'status-clear');
   const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.BOT_SETUP);
   if (!rateCheck.allowed) {
     await interaction.reply({
-      content: LANGF(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
+      content: formatLang(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
       flags: [MessageFlags.Ephemeral],
     });
     return;

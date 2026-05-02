@@ -6,10 +6,11 @@
 
 import { EmbedBuilder, MessageFlags, type UserContextMenuCommandInteraction } from 'discord.js';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
+import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import { UserTicketRestriction } from '../../../typeorm/entities/ticket/UserTicketRestriction';
 import {
   enhancedLogger,
-  guardAdmin,
+  guardFeatureAccess,
   handleInteractionError,
   LogCategory,
   lang,
@@ -19,16 +20,27 @@ import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { checkboxGroup, labelWrap, rawModal } from '../../../utils/modalComponents';
 
 const tl = lang.ticket.customTypes.userRestrict;
+const ticketConfigRepo = lazyRepo(TicketConfig);
 const typeRepo = lazyRepo(CustomTicketType);
 const restrictionRepo = lazyRepo(UserTicketRestriction);
 
 export async function manageRestrictionsHandler(interaction: UserContextMenuCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
     const targetUser = interaction.targetUser;
+
+    // Verify the ticket system is configured at all before showing the modal
+    const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
+    if (!ticketConfig) {
+      await interaction.reply({
+        content: lang.general.contextMenu.ticketNotConfigured,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
 
     // Get ticket types
     const ticketTypes = await typeRepo.find({
@@ -66,7 +78,7 @@ export async function manageRestrictionsHandler(interaction: UserContextMenuComm
       ),
     ]);
 
-    const modalSubmit = await showAndAwaitModal(interaction, modal as any);
+    const modalSubmit = await showAndAwaitModal(interaction, modal);
     if (!modalSubmit) return;
 
     // Get selected restricted types — validate against guild-owned types
@@ -122,6 +134,6 @@ export async function manageRestrictionsHandler(interaction: UserContextMenuComm
       updatedBy: interaction.user.id,
     });
   } catch (error) {
-    await handleInteractionError(interaction as any, error, 'Manage restrictions context menu');
+    await handleInteractionError(interaction, error, 'Manage restrictions context menu');
   }
 }

@@ -1,5 +1,5 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
-import type { RoutingStrategy } from '../../../utils/ticket/smartRouter';
+import type { RoutingRule, RoutingStrategy } from './routingTypes';
 
 export interface WorkflowStatus {
   id: string;
@@ -81,11 +81,7 @@ export class TicketConfig {
   smartRoutingEnabled: boolean;
 
   @Column({ type: 'simple-json', nullable: true })
-  routingRules: Array<{
-    ticketTypeId: string;
-    staffRoleId: string;
-    maxOpen?: number;
-  }> | null;
+  routingRules: RoutingRule[] | null;
 
   @Column({ type: 'varchar', default: 'least-load' })
   routingStrategy: RoutingStrategy;

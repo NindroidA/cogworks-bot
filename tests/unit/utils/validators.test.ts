@@ -4,7 +4,7 @@
  * Tests input validation utilities for Discord entities and data formats
  */
 
-import { describe, expect, test } from '@jest/globals';
+import { describe, expect, test } from 'bun:test';
 import { Channel, ChannelType, Guild, GuildMember, Role } from 'discord.js';
 import {
     validateChannel,

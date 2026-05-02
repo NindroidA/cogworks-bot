@@ -15,10 +15,9 @@ import {
 import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
   E,
-  enhancedLogger,
-  guardAdminRateLimit,
-  LogCategory,
+  guardFeatureRateLimit,
   lang,
+  logHandlerError,
   RateLimits,
   sanitizeUserInput,
   showAndAwaitModal,
@@ -118,7 +117,7 @@ async function resolveTargetMessage(
 }
 
 export async function memoryCaptureHandler(interaction: ChatInputCommandInteraction) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'memory', 'manage', {
     action: 'memory-capture',
     limit: RateLimits.MEMORY_OPERATION,
     scope: 'userGuild',
@@ -311,12 +310,7 @@ async function handleCaptureModalSubmit(
       content: `${E.success} ${tl.capture.success}\n${tl.add.viewThread}: <#${thread.id}>`,
     });
   } catch (error) {
-    enhancedLogger.error(
-      `Memory capture error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    logHandlerError('Memory capture', error, { guildId });
     await interaction.editReply({ content: `${E.error} ${tl.capture.error}` });
   }
 }

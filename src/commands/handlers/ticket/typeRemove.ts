@@ -8,7 +8,14 @@ import {
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, guardAdmin, handleInteractionError, LANGF, LogCategory, lang } from '../../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  guardFeatureAccess,
+  handleInteractionError,
+  LogCategory,
+  lang,
+} from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeRemove;
 
@@ -18,7 +25,7 @@ const tl = lang.ticket.customTypes.typeRemove;
  */
 export async function typeRemoveHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
@@ -61,7 +68,7 @@ export async function typeRemoveHandler(interaction: ChatInputCommandInteraction
         .setStyle(ButtonStyle.Secondary),
     );
 
-    const confirmMessage = LANGF(tl.confirmMessage, ticketType.displayName);
+    const confirmMessage = formatLang(tl.confirmMessage, ticketType.displayName);
 
     await interaction.reply({
       content: `**${tl.confirmTitle}**\n\n${confirmMessage}`,
@@ -83,7 +90,7 @@ export async function typeRemoveHandler(interaction: ChatInputCommandInteraction
           await typeRepo.remove(ticketType);
 
           await i.update({
-            content: LANGF(tl.success, ticketType.displayName),
+            content: formatLang(tl.success, ticketType.displayName),
             components: [],
           });
 

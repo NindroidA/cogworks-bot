@@ -51,7 +51,7 @@ async function fetchMemberIds(interaction: ChatInputCommandInteraction, limit: n
 }
 
 /** Fetch real text channel IDs from the guild */
-async function fetchTextChannelIds(interaction: ChatInputCommandInteraction): Promise<string[]> {
+function fetchTextChannelIds(interaction: ChatInputCommandInteraction): string[] {
   const channels = interaction.guild!.channels.cache.filter(c => c.isTextBased() && !c.isThread()).map(c => c.id);
   return channels.slice(0, 10);
 }

@@ -4,11 +4,19 @@ import { BaitChannelConfig } from '../typeorm/entities/bait/BaitChannelConfig';
 import { JoinEvent } from '../typeorm/entities/bait/JoinEvent';
 import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';
+import { activityTracker } from '../utils/analytics/activityTracker';
 
 export default {
   name: 'guildMemberAdd',
   async execute(member: GuildMember, client: ExtendedClient) {
     try {
+      // Feed the analytics tracker first so even if the downstream bait
+      // flow bails (e.g. missing config), the join still shows up in the
+      // daily snapshot. Dev guild skipped to match the rest of the handler.
+      if (!process.env.DEV_GUILD_ID || member.guild.id !== process.env.DEV_GUILD_ID) {
+        activityTracker.recordMemberJoin(member.guild.id);
+      }
+
       const extClient = client;
 
       // Only track joins for guilds with bait channel enabled

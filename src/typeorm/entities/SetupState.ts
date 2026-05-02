@@ -57,7 +57,12 @@ export class SetupState {
   @Column({ type: 'json', nullable: true })
   selectedSystems: string[] | null;
 
-  /** Per-system configuration status (MySQL JSON columns can't have defaults — set in code) */
+  /**
+   * Per-system configuration status. DB column is nullable (MySQL JSON
+   * columns can't have defaults), but every read path normalizes via
+   * `... || DEFAULT_SYSTEM_STATES` before use, and writers always assign a
+   * non-null SystemStates. Typed non-nullable to match the runtime contract.
+   */
   @Column({ type: 'json', nullable: true })
   systemStates: SystemStates;
 

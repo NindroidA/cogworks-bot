@@ -8,97 +8,90 @@ import {
 import { enhancedLogger, LogCategory } from '../utils';
 
 /**
- * Event handler for type-fields interactions (buttons, select menus, modals)
+ * Event handler for type-fields interactions (buttons, select menus, modals).
+ * Returns `true` if the interaction was matched + handled, `false` otherwise.
+ * The top-level router uses this to know when to stop trying further handlers.
  */
-export const typeFieldsInteraction = async (_client: Client, interaction: Interaction) => {
-  if (!interaction.guildId) return;
+export const typeFieldsInteraction = async (_client: Client, interaction: Interaction): Promise<boolean> => {
+  if (!interaction.guildId) return false;
   const guildId = interaction.guildId;
 
   try {
-    // Handle button interactions for field management
     if (interaction.isButton()) {
       const customId = interaction.customId;
+      if (!customId.startsWith('field_')) return false;
+
       enhancedLogger.debug(`Button: ${customId}`, LogCategory.COMMAND_EXECUTION, {
         userId: interaction.user.id,
         guildId,
         customId,
       });
 
-      // Check if this is a field management button
-      // Pattern: field_action_typeId (e.g., field_add_my-type-id)
-      // Special patterns:
-      //   - field_moveup_index_typeId or field_movedown_index_typeId
-      //   - field_reorder_done_typeId
-
-      // Try to match move buttons first (field_moveup_0_typeId or field_movedown_0_typeId)
+      // Move buttons: field_moveup_<index>_<typeId> | field_movedown_<index>_<typeId>
       const moveMatch = customId.match(/^field_(moveup|movedown)_(\d+)_(.+)$/);
       if (moveMatch) {
         const [, direction, index, typeId] = moveMatch;
-        const action = `${direction}_${index}`;
-        await handleFieldButton(interaction as ButtonInteraction, action, typeId);
-        return;
+        await handleFieldButton(interaction as ButtonInteraction, `${direction}_${index}`, typeId);
+        return true;
       }
 
-      // Try to match reorder_done button (field_reorder_done_typeId)
+      // Reorder-done: field_reorder_done_<typeId>
       const reorderDoneMatch = customId.match(/^field_reorder_done_(.+)$/);
       if (reorderDoneMatch) {
-        const typeId = reorderDoneMatch[1];
-        await handleFieldButton(interaction as ButtonInteraction, 'reorder_done', typeId);
-        return;
+        await handleFieldButton(interaction as ButtonInteraction, 'reorder_done', reorderDoneMatch[1]);
+        return true;
       }
 
-      // Regular field buttons (field_action_typeId)
+      // Generic field buttons: field_<action>_<typeId>
       const fieldButtonMatch = customId.match(/^field_([^_]+)_(.+)$/);
       if (fieldButtonMatch) {
         const [, action, typeId] = fieldButtonMatch;
         await handleFieldButton(interaction as ButtonInteraction, action, typeId);
-        return;
+        return true;
       }
+      return false;
     }
 
-    // Handle select menu interactions for field editing/deleting
     if (interaction.isStringSelectMenu()) {
       const customId = interaction.customId;
+      if (!customId.startsWith('field_')) return false;
+
       enhancedLogger.debug(`Select: ${customId}`, LogCategory.COMMAND_EXECUTION, {
         userId: interaction.user.id,
         guildId,
         customId,
       });
 
-      // Check if this is a field select menu
-      // Pattern: field_action_select_typeId (e.g., field_edit_select_my-type-id)
       const fieldSelectMatch = customId.match(/^field_([^_]+)_select_(.+)$/);
       if (fieldSelectMatch) {
         const [, action, typeId] = fieldSelectMatch;
         await handleFieldSelectMenu(interaction as StringSelectMenuInteraction, action, typeId);
-        return;
+        return true;
       }
+      return false;
     }
 
-    // Handle modal submissions for field management
     if (interaction.isModalSubmit()) {
       const customId = interaction.customId;
+      if (!customId.startsWith('field_')) return false;
+
       enhancedLogger.debug(`Modal submit: ${customId}`, LogCategory.COMMAND_EXECUTION, {
         userId: interaction.user.id,
         guildId,
         customId,
       });
 
-      // Check if this is an add field modal
       const addFieldMatch = customId.match(/^field_add_modal_(.+)$/);
       if (addFieldMatch) {
-        const typeId = addFieldMatch[1];
-        await handleAddFieldModal(interaction, typeId);
-        return;
+        await handleAddFieldModal(interaction, addFieldMatch[1]);
+        return true;
       }
 
-      // Check if this is a preview modal
-      const previewMatch = customId.match(/^field_preview_modal_(.+)$/);
-      if (previewMatch) {
-        const typeId = previewMatch[1];
-        await handlePreviewModal(interaction, typeId);
-        return;
+      if (customId.match(/^field_preview_modal_(.+)$/)) {
+        await handlePreviewModal(interaction);
+        return true;
       }
+      return false;
     }
   } catch (error) {
     enhancedLogger.error(
@@ -107,5 +100,8 @@ export const typeFieldsInteraction = async (_client: Client, interaction: Intera
       LogCategory.COMMAND_EXECUTION,
       { userId: interaction.user.id, guildId },
     );
+    return true; // we tried; don't fall through to other handlers
   }
+
+  return false;
 };

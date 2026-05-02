@@ -4,10 +4,17 @@
  */
 
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import onboardingLang from '../../../lang/onboarding.json';
+import onboardingLang from '../../../lang/en/onboarding.json';
 import { AppDataSource } from '../../../typeorm';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
-import { enhancedLogger, guardAdminRateLimit, handleInteractionError, LANGF, lang, RateLimits } from '../../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  guardFeatureRateLimit,
+  handleInteractionError,
+  lang,
+  RateLimits,
+} from '../../../utils';
 import { sendOnboardingFlow } from '../../../utils/onboarding/onboardingEngine';
 import { completionRoleHandler, disableHandler, enableHandler, welcomeMessageHandler } from './setup';
 import { onboardingStatsHandler } from './stats';
@@ -17,7 +24,11 @@ const tl = onboardingLang;
 
 export async function onboardingHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   try {
-    const guard = await guardAdminRateLimit(interaction, {
+    // Dispatcher-level guard: 'manage' covers the mutating subcommands
+    // (enable/disable/welcome-message/completion-role/step-add/step-remove/
+    // resend). Read-only subcommands (step-list/stats/preview) inherit the
+    // same level — per-subcommand granularity is out of scope here.
+    const guard = await guardFeatureRateLimit(interaction, 'onboarding', 'manage', {
       action: 'onboarding',
       limit: RateLimits.ANNOUNCEMENT_SETUP,
       scope: 'guild',
@@ -134,7 +145,7 @@ const resendHandler = async (_client: Client, interaction: ChatInputCommandInter
   const member = interaction.guild?.members.cache.get(targetUser.id);
   if (!member) {
     await interaction.reply({
-      content: LANGF(tl.resend.failed, targetUser.toString()),
+      content: formatLang(tl.resend.failed, targetUser.toString()),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -145,11 +156,11 @@ const resendHandler = async (_client: Client, interaction: ChatInputCommandInter
   const sent = await sendOnboardingFlow(member);
   if (sent) {
     await interaction.editReply({
-      content: LANGF(tl.resend.success, targetUser.toString()),
+      content: formatLang(tl.resend.success, targetUser.toString()),
     });
   } else {
     await interaction.editReply({
-      content: LANGF(tl.resend.failed, targetUser.toString()),
+      content: formatLang(tl.resend.failed, targetUser.toString()),
     });
   }
 

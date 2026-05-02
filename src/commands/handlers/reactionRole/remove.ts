@@ -2,7 +2,7 @@ import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from '
 import { ReactionRoleMenu, ReactionRoleOption } from '../../../typeorm/entities/reactionRole';
 import {
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   invalidateMenuCache,
   LogCategory,
   lang,
@@ -16,7 +16,7 @@ const menuRepo = lazyRepo(ReactionRoleMenu);
 const optionRepo = lazyRepo(ReactionRoleOption);
 
 export async function reactionRoleRemoveHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'reactionroles', 'manage', {
     action: 'reactionrole-remove',
     limit: RateLimits.ANNOUNCEMENT_SETUP,
     scope: 'guild',

@@ -1,0 +1,153 @@
+{
+  "cmdDescrp": "Manage scheduled events for your server.",
+  "setup": {
+    "enableSuccess": "Scheduled events system has been enabled.",
+    "disableSuccess": "Scheduled events system has been disabled.",
+    "alreadyEnabled": "Scheduled events system is already enabled.",
+    "alreadyDisabled": "Scheduled events system is already disabled.",
+    "reminderChannelSet": "Reminder channel set to {0}.",
+    "summaryChannelSet": "Summary channel set to {0}.",
+    "reminderChannelCleared": "Reminder channel has been cleared.",
+    "summaryChannelCleared": "Summary channel has been cleared.",
+    "defaultReminderSet": "Default reminder time set to {0} minutes before events.",
+    "summaryEnabled": "Post-event summaries have been enabled.",
+    "summaryDisabled": "Post-event summaries have been disabled.",
+    "notConfigured": "Scheduled events are not configured. Run `/event setup enable` first.",
+    "error": "Failed to update event configuration."
+  },
+  "create": {
+    "success": "Scheduled event **{0}** created successfully!",
+    "error": "Failed to create scheduled event.",
+    "invalidStart": "Invalid start time. Please use the format: YYYY-MM-DD HH:MM AM/PM (e.g., 2026-03-20 3:00 PM).",
+    "startInPast": "Start time must be in the future.",
+    "invalidDuration": "Duration must be between 1 and 1440 minutes (24 hours).",
+    "missingChannel": "A voice or stage channel is required for non-external events.",
+    "permissionError": "The bot does not have permission to create events in this server.",
+    "reminderSet": "A reminder has been set for {0} minutes before the event."
+  },
+  "fromTemplate": {
+    "success": "Event created from template **{0}**.",
+    "templateNotFound": "Template not found. Use `/event template list` to see available templates.",
+    "error": "Failed to create event from template."
+  },
+  "cancel": {
+    "success": "Event **{0}** has been cancelled.",
+    "notFound": "Event not found or already ended.",
+    "error": "Failed to cancel event.",
+    "confirmMessage": "Are you sure you want to cancel the event **{0}**?",
+    "cancelled": "Event cancellation aborted."
+  },
+  "remind": {
+    "success": "Reminder set for {0} minutes before **{1}**.",
+    "error": "Failed to set reminder.",
+    "eventNotFound": "Event not found.",
+    "alreadyPast": "Cannot set a reminder for an event that has already started.",
+    "invalidMinutes": "Reminder time must be between 1 and 10080 minutes (7 days)."
+  },
+  "template": {
+    "create": {
+      "success": "Event template **{0}** created successfully.",
+      "limitReached": "You have reached the maximum number of event templates (25).",
+      "duplicate": "A template with that name already exists.",
+      "invalidName": "Template name must be lowercase, start with a letter or number, and contain only letters, numbers, and hyphens.",
+      "error": "Failed to create event template."
+    },
+    "edit": {
+      "success": "Event template **{0}** updated successfully.",
+      "notFound": "Template not found.",
+      "error": "Failed to update event template."
+    },
+    "delete": {
+      "success": "Event template **{0}** deleted.",
+      "notFound": "Template not found.",
+      "confirmMessage": "Are you sure you want to delete template **{0}**?",
+      "cancelled": "Template deletion cancelled.",
+      "error": "Failed to delete event template."
+    },
+    "list": {
+      "title": "Event Templates",
+      "empty": "No event templates found. Create one with `/event template create`.",
+      "footer": "{0}/25 templates"
+    }
+  },
+  "recurring": {
+    "success": "Recurring event created from template **{0}** ({1}). Next occurrence: {2}.",
+    "templateNotFound": "Template not found. Use `/event template list` to see available templates.",
+    "templateNotRecurring": "This template is not configured as recurring. Edit it first with `/event template edit`.",
+    "error": "Failed to create recurring event."
+  },
+  "reminder": {
+    "message": "**{0}** starts {1}!",
+    "channelNotFound": "Reminder channel not found, skipping reminder.",
+    "sent": "Reminder sent for event: {0}"
+  },
+  "summary": {
+    "message": "**{0}** has ended.",
+    "withRsvp": "**{0}** has ended. {1} users were interested."
+  },
+  "listener": {
+    "eventCreated": "Scheduled event created: {0}",
+    "eventUpdated": "Scheduled event updated: {0}",
+    "eventDeleted": "Scheduled event deleted: {0}",
+    "userSubscribed": "User subscribed to event: {0}",
+    "userUnsubscribed": "User unsubscribed from event: {0}",
+    "reminderCreated": "Auto-reminder created for event: {0}",
+    "remindersCleared": "Reminders cleared for deleted event: {0}"
+  },
+  "builder": {
+    "cmdDescrp": "Manage scheduled events for your server.",
+    "create": {
+      "descrp": "Create a new scheduled event.",
+      "title": "Event title",
+      "description": "Event description",
+      "channel": "Voice or stage channel for the event",
+      "start": "Start time (YYYY-MM-DD HH:MM AM/PM)",
+      "duration": "Duration in minutes (default: 60)",
+      "location": "External event location"
+    },
+    "fromTemplate": {
+      "descrp": "Create an event from a saved template.",
+      "template": "Template to use",
+      "start": "Start time (YYYY-MM-DD HH:MM AM/PM)"
+    },
+    "cancel": {
+      "descrp": "Cancel a scheduled event.",
+      "event": "Event to cancel"
+    },
+    "remind": {
+      "descrp": "Set a reminder for a scheduled event.",
+      "event": "Event to set reminder for",
+      "minutes": "Minutes before event to send reminder"
+    },
+    "template": {
+      "descrp": "Manage event templates.",
+      "create": "Create a new event template",
+      "edit": "Edit an existing event template",
+      "delete": "Delete an event template",
+      "list": "List all event templates",
+      "templateOption": "Template to manage"
+    },
+    "setup": {
+      "descrp": "Configure the scheduled events system.",
+      "enable": "Enable the scheduled events system",
+      "disable": "Disable the scheduled events system",
+      "reminderChannel": "Set the channel for event reminders",
+      "summaryChannel": "Set the channel for post-event summaries",
+      "channelOption": "Channel for notifications",
+      "defaultReminder": "Set default reminder time (minutes before event)",
+      "minutesOption": "Minutes before event (default: 30)"
+    },
+    "recurring": {
+      "descrp": "Create a recurring event from a template.",
+      "template": "Recurring template to use",
+      "start": "Start time for first occurrence (YYYY-MM-DD HH:MM AM/PM)",
+      "pattern": "Recurrence pattern"
+    }
+  },
+  "errors": {
+    "notEnabled": "Scheduled events are not enabled. Run `/event setup enable` first.",
+    "noPermission": "You need Administrator permissions to manage events.",
+    "generic": "An error occurred while processing the event command.",
+    "fetchEvents": "Failed to fetch scheduled events."
+  }
+}

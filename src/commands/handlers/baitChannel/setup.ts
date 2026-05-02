@@ -9,7 +9,7 @@ import {
 import { AppDataSource } from '../../../typeorm';
 import { type BaitActionType, BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { enhancedLogger, handleInteractionError, LANGF, LogCategory, lang, safeDbOperation } from '../../../utils';
+import { enhancedLogger, formatLang, handleInteractionError, LogCategory, lang, safeDbOperation } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
@@ -195,7 +195,7 @@ export async function handleBaitChannelAddChannel(client: Client, interaction: C
     // Check for duplicate
     if (currentChannels.includes(channel.id)) {
       await interaction.reply({
-        content: LANGF(tl.multiChannel.alreadyAdded, channel.id),
+        content: formatLang(tl.multiChannel.alreadyAdded, channel.id),
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -219,7 +219,7 @@ export async function handleBaitChannelAddChannel(client: Client, interaction: C
     const embed = new EmbedBuilder()
       .setColor(Colors.status.success)
       .setTitle(tl.multiChannel.title)
-      .setDescription(LANGF(tl.multiChannel.added, channel.id))
+      .setDescription(formatLang(tl.multiChannel.added, channel.id))
       .addFields({
         name: tl.multiChannel.channelsLabel,
         value: channelList,
@@ -271,7 +271,7 @@ export async function handleBaitChannelRemoveChannel(client: Client, interaction
     // Check channel is in the list
     if (!currentChannels.includes(channel.id)) {
       await interaction.reply({
-        content: LANGF(tl.multiChannel.notInList, channel.id),
+        content: formatLang(tl.multiChannel.notInList, channel.id),
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -295,7 +295,7 @@ export async function handleBaitChannelRemoveChannel(client: Client, interaction
     const embed = new EmbedBuilder()
       .setColor(Colors.status.success)
       .setTitle(tl.multiChannel.title)
-      .setDescription(LANGF(tl.multiChannel.removed, channel.id))
+      .setDescription(formatLang(tl.multiChannel.removed, channel.id))
       .addFields({
         name: tl.multiChannel.channelsLabel,
         value: channelList,

@@ -9,91 +9,80 @@ import {
 import { enhancedLogger, LogCategory } from '../utils';
 
 /**
- * Event handler for application field interactions (buttons, select menus, modals)
- * Uses `appfield_` prefix to avoid collision with ticket `field_` prefix
+ * Event handler for application field interactions (buttons, select menus, modals).
+ * Uses `appfield_` prefix (and `application-position-edit-modal:`) to avoid
+ * collision with ticket `field_` prefix. Returns `true` if the interaction was
+ * matched + handled, `false` otherwise.
  */
-export const applicationFieldsInteraction = async (_client: Client, interaction: Interaction) => {
-  if (!interaction.guildId) return;
+export const applicationFieldsInteraction = async (_client: Client, interaction: Interaction): Promise<boolean> => {
+  if (!interaction.guildId) return false;
   const guildId = interaction.guildId;
 
   try {
-    // Handle button interactions for field management
     if (interaction.isButton()) {
       const customId = interaction.customId;
+      if (!customId.startsWith('appfield_')) return false;
 
-      // Check if this is an application field management button
-      // Pattern: appfield_action_positionId
-      // Special patterns:
-      //   - appfield_moveup_index_positionId or appfield_movedown_index_positionId
-      //   - appfield_reorder_done_positionId
-
-      // Try to match move buttons first (appfield_moveup_0_123 or appfield_movedown_0_123)
+      // Move buttons: appfield_moveup_<index>_<positionId> | appfield_movedown_<index>_<positionId>
       const moveMatch = customId.match(/^appfield_(moveup|movedown)_(\d+)_(\d+)$/);
       if (moveMatch) {
         const [, direction, index, positionId] = moveMatch;
-        const action = `${direction}_${index}`;
-        await handleAppFieldButton(interaction as ButtonInteraction, action, parseInt(positionId, 10));
-        return;
+        await handleAppFieldButton(interaction as ButtonInteraction, `${direction}_${index}`, positionId);
+        return true;
       }
 
-      // Try to match reorder_done button (appfield_reorder_done_123)
+      // Reorder-done: appfield_reorder_done_<positionId>
       const reorderDoneMatch = customId.match(/^appfield_reorder_done_(\d+)$/);
       if (reorderDoneMatch) {
-        const positionId = parseInt(reorderDoneMatch[1], 10);
-        await handleAppFieldButton(interaction as ButtonInteraction, 'reorder_done', positionId);
-        return;
+        await handleAppFieldButton(interaction as ButtonInteraction, 'reorder_done', reorderDoneMatch[1]);
+        return true;
       }
 
-      // Regular field buttons (appfield_action_positionId) — but skip label_ buttons
+      // Generic field buttons: appfield_<action>_<positionId> — skip label_ buttons
       const fieldButtonMatch = customId.match(/^appfield_([^_]+)_(\d+)$/);
       if (fieldButtonMatch) {
         const [, action, positionId] = fieldButtonMatch;
         if (action !== 'label') {
-          await handleAppFieldButton(interaction as ButtonInteraction, action, parseInt(positionId, 10));
+          await handleAppFieldButton(interaction as ButtonInteraction, action, positionId);
         }
-        return;
+        return true;
       }
+      return false;
     }
 
-    // Handle select menu interactions for field deleting
     if (interaction.isStringSelectMenu()) {
       const customId = interaction.customId;
+      if (!customId.startsWith('appfield_')) return false;
 
-      // Pattern: appfield_action_select_positionId (e.g., appfield_delete_select_123)
       const fieldSelectMatch = customId.match(/^appfield_([^_]+)_select_(\d+)$/);
       if (fieldSelectMatch) {
         const [, action, positionId] = fieldSelectMatch;
-        await handleAppFieldSelectMenu(interaction as StringSelectMenuInteraction, action, parseInt(positionId, 10));
-        return;
+        await handleAppFieldSelectMenu(interaction as StringSelectMenuInteraction, action, positionId);
+        return true;
       }
+      return false;
     }
 
-    // Handle modal submissions for field management and position editing
     if (interaction.isModalSubmit()) {
       const customId = interaction.customId;
 
-      // Check if this is an add field modal
       const addFieldMatch = customId.match(/^appfield_add_modal_(\d+)$/);
       if (addFieldMatch) {
-        const positionId = parseInt(addFieldMatch[1], 10);
-        await handleAppAddFieldModal(interaction, positionId);
-        return;
+        await handleAppAddFieldModal(interaction, addFieldMatch[1]);
+        return true;
       }
 
-      // Check if this is a preview modal
-      const previewMatch = customId.match(/^appfield_preview_modal_(\d+)$/);
-      if (previewMatch) {
+      if (customId.match(/^appfield_preview_modal_(\d+)$/)) {
         await handleAppPreviewModal(interaction);
-        return;
+        return true;
       }
 
-      // Check if this is a position edit modal
       const editMatch = customId.match(/^application-position-edit-modal:(\d+)$/);
       if (editMatch) {
-        const positionId = parseInt(editMatch[1], 10);
-        await applicationEditModalHandler(interaction, positionId);
-        return;
+        await applicationEditModalHandler(interaction, parseInt(editMatch[1], 10));
+        return true;
       }
+      return false;
     }
   } catch (error) {
     enhancedLogger.error(
@@ -102,5 +91,8 @@ export const applicationFieldsInteraction = async (_client: Client, interaction:
       LogCategory.COMMAND_EXECUTION,
       { userId: interaction.user.id, guildId },
     );
+    return true;
   }
+
+  return false;
 };

@@ -3,14 +3,15 @@ import dotenv from 'dotenv';
 import 'reflect-metadata';
 import { commands } from './commands/commandList';
 import { handleSlashCommand } from './commands/commands';
-import { stopFieldSessionCleanup } from './commands/handlers/application/applicationFields';
+import { startFieldSessionCleanup, stopFieldSessionCleanup } from './commands/handlers/application/applicationFields';
 import { handleContextMenuCommand } from './commands/handlers/contextMenus';
-import { stopFieldDraftCleanup } from './commands/handlers/shared/fieldManagerCore';
+import { startFieldDraftCleanup, stopFieldDraftCleanup } from './commands/handlers/shared/fieldManagerCore';
 import { handleAutocomplete } from './events/autocomplete';
 import channelDeleteEvent from './events/channelDelete';
 import guildCreateEvent from './events/guildCreate';
 import guildDeleteEvent from './events/guildDelete';
 import guildMemberAddEvent from './events/guildMemberAdd';
+import guildMemberRemoveEvent from './events/guildMemberRemove';
 import { routeInteraction } from './events/interactionRouter';
 import messageCreateEvent from './events/messageCreate';
 import messageDeleteEvent from './events/messageDelete';
@@ -31,6 +32,7 @@ import {
 } from './events/scheduledEventHandlers';
 import { handleStarboardReactionAdd, handleStarboardReactionRemove } from './events/starboardReaction';
 import threadDeleteEvent from './events/threadDelete';
+import voiceAnalyticsEvent from './events/voiceAnalytics';
 import xpMessageHandler from './events/xpMessageHandler';
 import xpVoiceHandler from './events/xpVoiceHandler';
 import { AppDataSource } from './typeorm';
@@ -61,14 +63,32 @@ import { BaitChannelManager } from './utils/baitChannel/baitChannelManager';
 import { JoinVelocityTracker } from './utils/baitChannel/joinVelocityTracker';
 import { checkAndSendWeeklySummaries } from './utils/baitChannel/weeklySummary';
 import { startLogCleanup, stopLogCleanup } from './utils/database/logCleanup';
-import { announcementRoleRename } from './utils/database/migrations/announcementRoleRename';
 import { baitChannelIdsBackfill } from './utils/database/migrations/baitChannelIdsBackfill';
-import { setupGlobalErrorHandlers } from './utils/errorHandler';
+import { ErrorSeverity, setupGlobalErrorHandlers } from './utils/errorHandler';
+import { errorReporter } from './utils/monitoring/errorReporter';
 import { setDescription, setStatus } from './utils/profileFunctions';
 import { StatusManager } from './utils/status/statusManager';
 import { checkAndAutoCloseTickets } from './utils/ticket/autoClose';
 
 dotenv.config();
+
+// Configure external error reporter. Reads envs once at startup:
+//   ERROR_WEBHOOK_URL          — Discord webhook (disables reporter if empty)
+//   ERROR_REPORTING_ENABLED    — explicit override ('true' | 'false')
+// Dev defaults to disabled; prod defaults to enabled (only takes effect when
+// a webhook URL is present). The reporter gains the Discord client later in
+// `clientReady` so embeds can include guild-count metadata.
+const errorReportingEnabled =
+  process.env.ERROR_REPORTING_ENABLED !== undefined
+    ? process.env.ERROR_REPORTING_ENABLED.toLowerCase() === 'true'
+    : (process.env.RELEASE || 'prod').toLowerCase().trim() !== 'dev';
+errorReporter.configure({
+  webhookUrl: process.env.ERROR_WEBHOOK_URL,
+  enabled: errorReportingEnabled,
+  dedupeWindowMs: 60_000,
+  maxReportsPerMinute: 10,
+  minSeverity: ErrorSeverity.MEDIUM,
+});
 
 // Setup global error handlers for unhandled rejections and exceptions
 // gracefulShutdown is hoisted — safe to reference before its textual position
@@ -143,7 +163,7 @@ const client = new Client({
 });
 
 // Shared REST client (also used by guildCreate event handler)
-import { rest } from './utils/restClient';
+import { getRest } from './utils/restClient';
 
 /* init API connector */
 if (!process.env.API_URL && !IS_DEV) {
@@ -199,6 +219,7 @@ client.on(threadDeleteEvent.name, thread => threadDeleteEvent.execute(thread));
 
 // register member lifecycle events
 client.on(guildMemberAddEvent.name, member => guildMemberAddEvent.execute(member, extClient));
+client.on(guildMemberRemoveEvent.name, member => guildMemberRemoveEvent.execute(member));
 
 // register onboarding join event (sends DM onboarding flow to new members)
 client.on(onboardingJoinEvent.name, member => onboardingJoinEvent.execute(member, extClient));
@@ -206,6 +227,7 @@ client.on(onboardingJoinEvent.name, member => onboardingJoinEvent.execute(member
 // register XP event handlers
 client.on('messageCreate', message => xpMessageHandler.execute(message, extClient));
 client.on('voiceStateUpdate', (oldState, newState) => xpVoiceHandler.execute(oldState, newState, extClient));
+client.on('voiceStateUpdate', (oldState, newState) => voiceAnalyticsEvent.execute(oldState, newState));
 
 // register scheduled event handlers
 client.on(guildScheduledEventCreate.name, event => guildScheduledEventCreate.execute(event, client));
@@ -220,6 +242,9 @@ client.on(guildScheduledEventUserRemove.name, (event, user) => guildScheduledEve
 client.once('clientReady', async () => {
   // initialize health monitor first
   healthMonitor.initialize(client);
+
+  // attach client to error reporter so embeds can include guild count
+  errorReporter.setClient(client);
 
   // THEN initialize health server
   healthServer.initialize(client);
@@ -313,6 +338,16 @@ client.once('clientReady', async () => {
   // start daily log cleanup (bait channel logs: 90d, announcement logs: 365d)
   startLogCleanup();
 
+  // start per-minute cleanup loops for interactive field editors. Previously
+  // these ticked at module-import time; now they start here so importing the
+  // modules doesn't kick off timers in tests/tooling.
+  startFieldDraftCleanup();
+  startFieldSessionCleanup();
+
+  // rateLimiter's internal cleanup timer is deferred here too — v3.1.x
+  // init-coupling cleanup.
+  rateLimiter.startCleanup();
+
   // Initialize memory watchdog — register tracked maps and start
   memoryWatchdog.setClient(client);
   memoryWatchdog.trackMap('rateLimiter', () => rateLimiter.getSize());
@@ -351,7 +386,7 @@ client.once('clientReady', async () => {
   if (unconfiguredGuilds.size > 0) {
     const results = await Promise.allSettled(
       unconfiguredGuilds.map(guild =>
-        rest.put(Routes.applicationGuildCommands(CLIENT, guild.id), {
+        getRest().put(Routes.applicationGuildCommands(CLIENT, guild.id), {
           body: commands,
         }),
       ),
@@ -434,7 +469,7 @@ async function main() {
 
     // remove any global application commands (skip in dev — saves ~2-5s API call)
     if (!IS_DEV) {
-      await rest.put(Routes.applicationCommands(CLIENT), { body: [] });
+      await getRest().put(Routes.applicationCommands(CLIENT), { body: [] });
       console.log(`${E.ok} Global commands cleared (${Date.now() - startupStart}ms)`);
     }
 
@@ -471,7 +506,6 @@ async function main() {
           concurrency: 5,
           dryRun: false,
         });
-        migrationRunner.register(announcementRoleRename);
         migrationRunner.register(baitChannelIdsBackfill);
 
         const report = await migrationRunner.runAll(guildIds);
@@ -511,7 +545,7 @@ async function main() {
     // register commands for each guild found in database (in parallel)
     const registrationResults = await Promise.allSettled(
       botConfigs.map(config =>
-        rest
+        getRest()
           .put(Routes.applicationGuildCommands(CLIENT, config.guildId), {
             body: commands,
           })

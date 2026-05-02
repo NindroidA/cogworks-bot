@@ -1,30 +1,17 @@
-/**
- * Error Handler Module
- *
- * Centralized error handling system providing consistent error handling,
- * logging, and user feedback across the bot.
- * Features:
- * - Error classification by category and severity
- * - Structured error logging
- * - User-friendly error messages
- * - Interaction error handling
- * - Global error handlers
- * - Safe database operation wrapper
- */
-
 import {
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   EmbedBuilder,
+  type MessageContextMenuCommandInteraction,
   MessageFlags,
   type ModalSubmitInteraction,
+  type StringSelectMenuInteraction,
+  type UserContextMenuCommandInteraction,
 } from 'discord.js';
 import { E } from './emojis';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
+import { errorReporter } from './monitoring/errorReporter';
 
-/**
- * Error severity levels
- */
 export enum ErrorSeverity {
   /** Low severity - expected errors */
   LOW = 'LOW',
@@ -36,9 +23,6 @@ export enum ErrorSeverity {
   CRITICAL = 'CRITICAL',
 }
 
-/**
- * Error categories for better organization
- */
 export enum ErrorCategory {
   /** Database-related errors */
   DATABASE = 'DATABASE',
@@ -56,9 +40,6 @@ export enum ErrorCategory {
   UNKNOWN = 'UNKNOWN',
 }
 
-/**
- * Structured error information
- */
 export interface ErrorInfo {
   /** Error category */
   category: ErrorCategory;
@@ -78,9 +59,6 @@ export interface ErrorInfo {
   };
 }
 
-/**
- * User-friendly error messages based on category
- */
 const USER_ERROR_MESSAGES: Record<ErrorCategory, string> = {
   [ErrorCategory.DATABASE]: `${E.error} Database error occurred. Please try again in a moment.`,
   [ErrorCategory.DISCORD_API]: `${E.error} Discord API error. The issue might be temporary, please try again.`,
@@ -91,9 +69,6 @@ const USER_ERROR_MESSAGES: Record<ErrorCategory, string> = {
   [ErrorCategory.UNKNOWN]: `${E.error} An unexpected error occurred. Please try again.`,
 };
 
-/**
- * Classify an error based on its type and message
- */
 export function classifyError(error: unknown): {
   category: ErrorCategory;
   severity: ErrorSeverity;
@@ -163,9 +138,6 @@ export function classifyError(error: unknown): {
   return { category: ErrorCategory.UNKNOWN, severity: ErrorSeverity.MEDIUM };
 }
 
-/**
- * Log error with appropriate severity
- */
 export function logError(errorInfo: ErrorInfo): void {
   const { category, severity, message, error, context } = errorInfo;
 
@@ -191,11 +163,23 @@ export function logError(errorInfo: ErrorInfo): void {
       LogCategory.ERROR,
     );
   }
+
+  // Fire-and-forget external reporter (Discord webhook). Disabled unless
+  // ERROR_WEBHOOK_URL + ERROR_REPORTING_ENABLED are set; gated by severity
+  // inside the reporter itself. Non-Error rejection reasons are coerced so
+  // `unhandledRejection` with a plain string still reaches the reporter.
+  const reportable = error instanceof Error ? error : new Error(String(error ?? message));
+  errorReporter.report({
+    error: reportable,
+    category,
+    severity,
+    context,
+    guildId: typeof context?.guildId === 'string' ? context.guildId : undefined,
+    userId: typeof context?.userId === 'string' ? context.userId : undefined,
+    command: typeof context?.command === 'string' ? context.command : undefined,
+  });
 }
 
-/**
- * Create user-friendly error embed with full error details
- */
 export function createDetailedErrorEmbed(errorInfo: ErrorInfo): EmbedBuilder {
   const { category, message } = errorInfo;
   const userMessage = USER_ERROR_MESSAGES[category];
@@ -212,11 +196,14 @@ export function createDetailedErrorEmbed(errorInfo: ErrorInfo): EmbedBuilder {
     .setFooter({ text: 'If this persists, please contact an administrator.' });
 }
 
-/**
- * Handle error in interaction context
- */
 export async function handleInteractionError(
-  interaction: ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction,
+  interaction:
+    | ChatInputCommandInteraction
+    | ButtonInteraction
+    | ModalSubmitInteraction
+    | StringSelectMenuInteraction
+    | MessageContextMenuCommandInteraction
+    | UserContextMenuCommandInteraction,
   error: unknown,
   customMessage?: string,
 ): Promise<void> {
@@ -262,9 +249,6 @@ export async function handleInteractionError(
   }
 }
 
-/**
- * Wrap async handler function with error handling
- */
 export function withErrorHandling<T extends Array<unknown>>(
   handler: (...args: T) => Promise<void>,
   handlerName: string,
@@ -292,9 +276,6 @@ export function withErrorHandling<T extends Array<unknown>>(
   };
 }
 
-/**
- * Handle unhandled rejections
- */
 export function setupGlobalErrorHandlers(onFatalShutdown?: (signal: string) => Promise<void>): void {
   process.on('unhandledRejection', (reason, promise) => {
     enhancedLogger.error(
@@ -336,9 +317,6 @@ export function setupGlobalErrorHandlers(onFatalShutdown?: (signal: string) => P
   });
 }
 
-/**
- * Safe database operation wrapper
- */
 export async function safeDbOperation<T>(operation: () => Promise<T>, errorContext: string): Promise<T | null> {
   try {
     return await operation();

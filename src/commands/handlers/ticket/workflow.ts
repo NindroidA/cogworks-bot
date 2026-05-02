@@ -19,8 +19,8 @@ import { TicketConfig, type WorkflowStatus } from '../../../typeorm/entities/tic
 import {
   DEFAULT_TICKET_STATUSES,
   enhancedLogger,
-  guardAdmin,
-  LANGF,
+  formatLang,
+  guardFeatureAccess,
   LogCategory,
   lang,
   MAX,
@@ -80,14 +80,6 @@ function appendStatusHistory(ticket: Ticket, status: string, changedBy: string, 
 }
 
 // ============================================================================
-// Helper: Find status definition by ID
-// ============================================================================
-
-function findStatus(statuses: WorkflowStatus[], statusId: string): WorkflowStatus | undefined {
-  return findStatusById(statuses, statusId);
-}
-
-// ============================================================================
 // /ticket status <status>
 // ============================================================================
 
@@ -119,11 +111,11 @@ export async function ticketStatusHandler(interaction: ChatInputCommandInteracti
   const currentStatus = mapStatus(ticket.status);
 
   // Validate status
-  const statusDef = findStatus(statuses, newStatusId);
+  const statusDef = findStatusById(statuses, newStatusId);
   if (!statusDef) {
     const validIds = statuses.map(s => `\`${s.id}\``).join(', ');
     await interaction.reply({
-      content: LANGF(tl.invalidStatus, newStatusId, validIds),
+      content: formatLang(tl.invalidStatus, newStatusId, validIds),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -132,7 +124,7 @@ export async function ticketStatusHandler(interaction: ChatInputCommandInteracti
   // Check if same
   if (currentStatus === newStatusId) {
     await interaction.reply({
-      content: LANGF(tl.sameStatus, statusDef.label),
+      content: formatLang(tl.sameStatus, statusDef.label),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -146,7 +138,7 @@ export async function ticketStatusHandler(interaction: ChatInputCommandInteracti
 
   // Post status change embed in channel
   const embed = new EmbedBuilder()
-    .setDescription(LANGF(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`))
+    .setDescription(formatLang(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`))
     .setColor(parseInt(statusDef.color.replace('#', ''), 16));
 
   await (interaction.channel as GuildTextBasedChannel)?.send({
@@ -155,7 +147,7 @@ export async function ticketStatusHandler(interaction: ChatInputCommandInteracti
 
   // Reply ephemeral
   await interaction.reply({
-    content: LANGF(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`),
+    content: formatLang(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -204,14 +196,14 @@ export async function ticketAssignHandler(interaction: ChatInputCommandInteracti
   ticket.lastActivityAt = new Date();
   await ticketRepo.save(ticket);
 
-  const embed = new EmbedBuilder().setDescription(LANGF(tl.assigned, `<@${user.id}>`)).setColor(0x5865f2);
+  const embed = new EmbedBuilder().setDescription(formatLang(tl.assigned, `<@${user.id}>`)).setColor(0x5865f2);
 
   await (interaction.channel as GuildTextBasedChannel)?.send({
     embeds: [embed],
   });
 
   await interaction.reply({
-    content: LANGF(tl.assigned, `<@${user.id}>`),
+    content: formatLang(tl.assigned, `<@${user.id}>`),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -308,7 +300,7 @@ export async function ticketInfoHandler(interaction: ChatInputCommandInteraction
 
   const { config, statuses } = await getWorkflowConfig(guildId);
   const currentStatus = mapStatus(ticket.status);
-  const statusDef = findStatus(statuses, currentStatus);
+  const statusDef = findStatusById(statuses, currentStatus);
 
   const embed = new EmbedBuilder()
     .setTitle(tlInfo.title)
@@ -348,7 +340,7 @@ export async function ticketInfoHandler(interaction: ChatInputCommandInteraction
     const recentHistory = ticket.statusHistory.slice(-5).reverse();
     const historyText = recentHistory
       .map((entry: TicketStatusHistoryEntry) => {
-        const entryStatusDef = findStatus(statuses, entry.status);
+        const entryStatusDef = findStatusById(statuses, entry.status);
         const label = entryStatusDef ? `${entryStatusDef.emoji} ${entryStatusDef.label}` : entry.status;
         const timestamp = Math.floor(new Date(entry.changedAt).getTime() / 1000);
         return `${label} by <@${entry.changedBy}> <t:${timestamp}:R>`;
@@ -366,7 +358,7 @@ export async function ticketInfoHandler(interaction: ChatInputCommandInteraction
 // ============================================================================
 
 export async function workflowEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -407,7 +399,7 @@ export async function workflowEnableHandler(interaction: ChatInputCommandInterac
 // ============================================================================
 
 export async function workflowDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -448,7 +440,7 @@ export async function workflowDisableHandler(interaction: ChatInputCommandIntera
 const STATUS_ID_REGEX = /^[a-z0-9-]{1,20}$/;
 
 export async function workflowAddStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -488,7 +480,7 @@ export async function workflowAddStatusHandler(interaction: ChatInputCommandInte
   // Check max
   if (statuses.length >= MAX.TICKET_WORKFLOW_STATUSES) {
     await interaction.reply({
-      content: LANGF(tl.maxStatuses, MAX.TICKET_WORKFLOW_STATUSES),
+      content: formatLang(tl.maxStatuses, MAX.TICKET_WORKFLOW_STATUSES),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -497,7 +489,7 @@ export async function workflowAddStatusHandler(interaction: ChatInputCommandInte
   // Check duplicate
   if (statuses.some(s => s.id === statusId)) {
     await interaction.reply({
-      content: LANGF(tl.statusExists, statusId),
+      content: formatLang(tl.statusExists, statusId),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -522,7 +514,7 @@ export async function workflowAddStatusHandler(interaction: ChatInputCommandInte
   await ticketConfigRepo.save(config);
 
   await interaction.reply({
-    content: LANGF(tl.statusAdded, `${emoji} ${label}`),
+    content: formatLang(tl.statusAdded, `${emoji} ${label}`),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -538,7 +530,7 @@ export async function workflowAddStatusHandler(interaction: ChatInputCommandInte
 // ============================================================================
 
 export async function workflowRemoveStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -565,7 +557,7 @@ export async function workflowRemoveStatusHandler(interaction: ChatInputCommandI
   // Check if required
   if (REQUIRED_WORKFLOW_STATUSES.includes(statusId)) {
     await interaction.reply({
-      content: LANGF(tl.cannotRemoveRequired, statusId),
+      content: formatLang(tl.cannotRemoveRequired, statusId),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -576,7 +568,7 @@ export async function workflowRemoveStatusHandler(interaction: ChatInputCommandI
 
   if (!statusDef) {
     await interaction.reply({
-      content: LANGF(tl.invalidStatus, statusId, statuses.map(s => `\`${s.id}\``).join(', ')),
+      content: formatLang(tl.invalidStatus, statusId, statuses.map(s => `\`${s.id}\``).join(', ')),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -591,9 +583,9 @@ export async function workflowRemoveStatusHandler(interaction: ChatInputCommandI
   config.workflowStatuses = statuses.filter(s => s.id !== statusId);
   await ticketConfigRepo.save(config);
 
-  let reply = LANGF(tl.statusRemoved, `${statusDef.emoji} ${statusDef.label}`);
+  let reply = formatLang(tl.statusRemoved, `${statusDef.emoji} ${statusDef.label}`);
   if (ticketsWithStatus > 0) {
-    reply += `\n${LANGF(tl.statusInUse, ticketsWithStatus.toString())}`;
+    reply += `\n${formatLang(tl.statusInUse, ticketsWithStatus.toString())}`;
   }
 
   await interaction.reply({ content: reply, flags: [MessageFlags.Ephemeral] });
@@ -610,7 +602,7 @@ export async function workflowRemoveStatusHandler(interaction: ChatInputCommandI
 // ============================================================================
 
 export async function autoCloseEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;
@@ -643,7 +635,7 @@ export async function autoCloseEnableHandler(interaction: ChatInputCommandIntera
   await ticketConfigRepo.save(config);
 
   await interaction.reply({
-    content: LANGF(tl.autoCloseEnabled, status, days.toString(), warningHours.toString()),
+    content: formatLang(tl.autoCloseEnabled, status, days.toString(), warningHours.toString()),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -660,7 +652,7 @@ export async function autoCloseEnableHandler(interaction: ChatInputCommandIntera
 // ============================================================================
 
 export async function autoCloseDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;

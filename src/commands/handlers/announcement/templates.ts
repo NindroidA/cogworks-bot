@@ -21,7 +21,7 @@ import { AnnouncementTemplate } from '../../../typeorm/entities/announcement/Ann
 import {
   awaitConfirmation,
   enhancedLogger,
-  guardAdmin,
+  guardFeatureAccess,
   lang,
   sanitizeUserInput,
   showAndAwaitModal,
@@ -61,8 +61,7 @@ export async function templateHandler(
   const guildId = interaction.guildId;
   const _tl = lang.announcement;
 
-  // Permission check
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'announcements', 'manage');
   if (!guard.allowed) return;
 
   switch (subcommand) {

@@ -2,31 +2,10 @@ import { type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'di
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { Colors, E, enhancedLogger, guardAdmin, LANGF, LogCategory, lang } from '../../../utils';
+import { Colors, E, enhancedLogger, formatLang, guardFeatureAccess, LogCategory, lang } from '../../../utils';
+import { builtinTypeInfo, isBuiltinTicketType, resolveBuiltinPingColumn } from '../../../utils/ticket/builtinTypes';
 
 const tl = lang.ticket.settings;
-
-// Legacy ticket type IDs
-const LEGACY_TYPES = ['18_verify', 'ban_appeal', 'player_report', 'bug_report', 'other'] as const;
-type LegacyType = (typeof LEGACY_TYPES)[number];
-
-// Map legacy type IDs to their TicketConfig column names
-const LEGACY_TYPE_COLUMNS: Record<LegacyType, keyof TicketConfig> = {
-  '18_verify': 'pingStaffOn18Verify',
-  ban_appeal: 'pingStaffOnBanAppeal',
-  player_report: 'pingStaffOnPlayerReport',
-  bug_report: 'pingStaffOnBugReport',
-  other: 'pingStaffOnOther',
-};
-
-// Display names for legacy types
-const LEGACY_TYPE_NAMES: Record<LegacyType, string> = {
-  '18_verify': '18+ Verification',
-  ban_appeal: 'Ban Appeal',
-  player_report: 'Player Report',
-  bug_report: 'Bug Report',
-  other: 'Other',
-};
 
 /**
  * Handler for /ticket settings command
@@ -47,7 +26,7 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
   }
 
   // Permission check: only admins can modify ticket settings
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
 
   const setting = interaction.options.getString('setting', true);
@@ -114,13 +93,15 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
 
     let displayName: string;
 
-    // Check if it's a legacy type
-    if (LEGACY_TYPES.includes(typeId as LegacyType)) {
-      const columnName = LEGACY_TYPE_COLUMNS[typeId as LegacyType];
-      displayName = LEGACY_TYPE_NAMES[typeId as LegacyType];
+    // Check if it's a builtin type
+    if (isBuiltinTicketType(typeId)) {
+      const columnName = resolveBuiltinPingColumn(typeId);
+      displayName = builtinTypeInfo(typeId)?.displayName ?? typeId;
 
-      // Update the legacy type's ping setting
-      await ticketConfigRepo.update({ guildId }, { [columnName]: enabled });
+      if (columnName) {
+        // Update the builtin type's ping setting
+        await ticketConfigRepo.update({ guildId }, { [columnName]: enabled });
+      }
     } else {
       // It's a custom type
       const customTypeRepo = AppDataSource.getRepository(CustomTicketType);
@@ -133,7 +114,7 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
           typeId,
         });
         await interaction.reply({
-          content: LANGF(tl.typeNotFound, typeId),
+          content: formatLang(tl.typeNotFound, typeId),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -154,7 +135,7 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
     const embed = new EmbedBuilder()
       .setTitle(`${E.ok} ${tl.updated}`)
       .setDescription(
-        enabled ? LANGF(tl.pingOnCreateEnabled, displayName) : LANGF(tl.pingOnCreateDisabled, displayName),
+        enabled ? formatLang(tl.pingOnCreateEnabled, displayName) : formatLang(tl.pingOnCreateDisabled, displayName),
       )
       .setColor(Colors.status.success);
 

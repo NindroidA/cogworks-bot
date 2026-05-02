@@ -801,24 +801,34 @@ async function runPermissionsAudit(): Promise<PermissionAuditResult[]> {
         }
 
         // Check if the router/index file has an admin check — if so, all files
-        // in this directory are covered by the router's gate
+        // in this directory are covered by the router's gate. We accept both
+        // the legacy raw `require*` validators and the modern `guard*`
+        // wrappers (guardAdmin/guardOwner/guardFeatureAccess + their rate-
+        // limit variants), since both produce the same permission gate.
+        const hasAdminGate = (content: string) =>
+          content.includes('requireAdmin') ||
+          content.includes('guardAdmin') ||
+          content.includes('guardFeatureAccess') ||
+          content.includes('guardFeatureRateLimit');
+        const hasOwnerGate = (content: string) => content.includes('requireBotOwner') || content.includes('guardOwner');
+
         let routerHasAdminGate = false;
         const indexFile = files.find(f => f.startsWith('index.') && !target.fileFilter);
         if (indexFile) {
           const indexContent = fs.readFileSync(path.join(targetPath, indexFile), 'utf-8');
-          routerHasAdminGate = indexContent.includes('requireAdmin') || indexContent.includes('requireBotOwner');
+          routerHasAdminGate = hasAdminGate(indexContent) || hasOwnerGate(indexContent);
         }
 
         for (const file of files) {
           const filePath = path.join(targetPath, file);
           const content = fs.readFileSync(filePath, 'utf-8');
-          const hasAdmin = content.includes('requireAdmin');
-          const hasOwner = content.includes('requireBotOwner');
+          const hasAdmin = hasAdminGate(content);
+          const hasOwner = hasOwnerGate(content);
 
           let checkType: string | null = null;
-          if (hasAdmin && hasOwner) checkType = 'requireAdmin + requireBotOwner';
-          else if (hasAdmin) checkType = 'requireAdmin';
-          else if (hasOwner) checkType = 'requireBotOwner';
+          if (hasAdmin && hasOwner) checkType = 'admin + owner';
+          else if (hasAdmin) checkType = 'admin';
+          else if (hasOwner) checkType = 'owner';
 
           const baseName = file.replace(/\.(ts|js)$/, '');
           const isPublic = INTENTIONALLY_PUBLIC.has(baseName);
@@ -838,15 +848,20 @@ async function runPermissionsAudit(): Promise<PermissionAuditResult[]> {
           });
         }
       } else if (stat.isFile()) {
-        // Single file target
+        // Single file target — same heuristic as above. Accept both raw
+        // `require*` validators and `guard*` wrappers.
         const content = fs.readFileSync(targetPath, 'utf-8');
-        const hasAdmin = content.includes('requireAdmin');
-        const hasOwner = content.includes('requireBotOwner');
+        const hasAdmin =
+          content.includes('requireAdmin') ||
+          content.includes('guardAdmin') ||
+          content.includes('guardFeatureAccess') ||
+          content.includes('guardFeatureRateLimit');
+        const hasOwner = content.includes('requireBotOwner') || content.includes('guardOwner');
 
         let checkType: string | null = null;
-        if (hasAdmin && hasOwner) checkType = 'requireAdmin + requireBotOwner';
-        else if (hasAdmin) checkType = 'requireAdmin';
-        else if (hasOwner) checkType = 'requireBotOwner';
+        if (hasAdmin && hasOwner) checkType = 'admin + owner';
+        else if (hasAdmin) checkType = 'admin';
+        else if (hasOwner) checkType = 'owner';
 
         results.push({
           file: target.label,

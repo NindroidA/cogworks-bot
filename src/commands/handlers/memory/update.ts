@@ -11,7 +11,16 @@ import {
   type ThreadChannel,
 } from 'discord.js';
 import { MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
-import { Colors, E, enhancedLogger, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
+import {
+  Colors,
+  E,
+  enhancedLogger,
+  guardFeatureRateLimit,
+  LogCategory,
+  lang,
+  logHandlerError,
+  RateLimits,
+} from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveConfigFromThread } from './channelPicker';
 
@@ -139,7 +148,7 @@ async function handleCompletedStatus(threadChannel: ThreadChannel, userId: strin
 }
 
 export async function memoryUpdateHandler(interaction: ChatInputCommandInteraction) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'memory', 'manage', {
     action: 'memory-update',
     limit: RateLimits.MEMORY_OPERATION,
     scope: 'userGuild',
@@ -252,12 +261,7 @@ export async function memoryUpdateHandler(interaction: ChatInputCommandInteracti
           await handleCompletedStatus(threadChannel, interaction.user.id, guildId);
         }
       } catch (error) {
-        enhancedLogger.error(
-          `Memory update error: ${error}`,
-          error instanceof Error ? error : undefined,
-          LogCategory.COMMAND_EXECUTION,
-          { guildId },
-        );
+        logHandlerError('Memory update', error, { guildId });
         await interaction.editReply({
           content: `${E.error} ${tl.update.error}`,
           embeds: [],

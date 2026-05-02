@@ -1,7 +1,7 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
-import onboardingLang from '../../../lang/onboarding.json';
+import onboardingLang from '../../../lang/en/onboarding.json';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
-import { enhancedLogger, LANGF } from '../../../utils';
+import { enhancedLogger, formatLang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import type { OnboardingStepDef, OnboardingStepType } from '../../../utils/onboarding/types';
 
@@ -71,7 +71,7 @@ export async function stepAddHandler(_client: Client, interaction: ChatInputComm
   await configRepo.save(config);
 
   await interaction.reply({
-    content: LANGF(tl.step.added, title, steps.length.toString()),
+    content: formatLang(tl.step.added, title, steps.length.toString()),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -113,7 +113,7 @@ export async function stepRemoveHandler(_client: Client, interaction: ChatInputC
   }
 
   await interaction.reply({
-    content: LANGF(tl.step.removed, removedStep.title),
+    content: formatLang(tl.step.removed, removedStep.title),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -141,7 +141,7 @@ export async function stepListHandler(_client: Client, interaction: ChatInputCom
     .setColor('#5865F2')
     .setTitle(tl.step.list.title)
     .setFooter({
-      text: LANGF(tl.step.list.footer, steps.length.toString()),
+      text: formatLang(tl.step.list.footer, steps.length.toString()),
     });
 
   for (let i = 0; i < steps.length; i++) {

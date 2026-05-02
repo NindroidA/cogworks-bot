@@ -1,14 +1,37 @@
-/**
- * Shared Discord REST client
- *
- * Single REST instance reused by index.ts and event handlers (e.g., guildCreate)
- * to avoid creating duplicate clients with the same token.
- */
-
 import { REST } from 'discord.js';
 
-const TOKEN = process.env.RELEASE === 'dev' ? process.env.DEV_BOT_TOKEN! : process.env.BOT_TOKEN!;
+/**
+ * Resolve the Discord application client ID from environment. Deferred so
+ * importing this module does not require the env to be set — matching the
+ * `getRest()` lazy pattern. Throws if both CLIENT_ID and DEV_CLIENT_ID are
+ * unset in the respective mode.
+ */
+export function getClientId(): string {
+  const id = process.env.RELEASE === 'dev' ? process.env.DEV_CLIENT_ID : process.env.CLIENT_ID;
+  if (!id) {
+    throw new Error(
+      'Discord client ID not configured — set CLIENT_ID (or DEV_CLIENT_ID when RELEASE=dev) before calling getClientId()',
+    );
+  }
+  return id;
+}
 
-export const CLIENT_ID = process.env.RELEASE === 'dev' ? process.env.DEV_CLIENT_ID! : process.env.CLIENT_ID!;
+let _rest: REST | null = null;
 
-export const rest = new REST({ version: '10' }).setToken(TOKEN);
+/**
+ * Shared Discord REST client. Reused across `index.ts`, `guildCreate`, and
+ * `botReset` so we don't spin up multiple REST instances with the same
+ * token. Constructed lazily on first call so importing this module does
+ * not require a bot token.
+ */
+export function getRest(): REST {
+  if (_rest) return _rest;
+  const token = process.env.RELEASE === 'dev' ? process.env.DEV_BOT_TOKEN : process.env.BOT_TOKEN;
+  if (!token) {
+    throw new Error(
+      'Discord bot token not configured — set BOT_TOKEN (or DEV_BOT_TOKEN when RELEASE=dev) before calling getRest()',
+    );
+  }
+  _rest = new REST({ version: '10' }).setToken(token);
+  return _rest;
+}

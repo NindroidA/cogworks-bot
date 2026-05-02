@@ -1,7 +1,7 @@
 import type { CacheType, ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import { StarboardConfig } from '../../../typeorm/entities/starboard';
-import { guardAdmin, handleInteractionError, LANGF, lang } from '../../../utils';
+import { formatLang, guardFeatureAccess, handleInteractionError, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const configRepo = lazyRepo(StarboardConfig);
@@ -12,7 +12,7 @@ const tl = lang.starboard;
  */
 export async function starboardIgnoreHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'starboard', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
@@ -36,7 +36,7 @@ export async function starboardIgnoreHandler(interaction: ChatInputCommandIntera
     }
 
     await interaction.reply({
-      content: LANGF(tl.ignore.added, `<#${channel.id}>`),
+      content: formatLang(tl.ignore.added, `<#${channel.id}>`),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
@@ -49,7 +49,7 @@ export async function starboardIgnoreHandler(interaction: ChatInputCommandIntera
  */
 export async function starboardUnignoreHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'starboard', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
@@ -80,7 +80,7 @@ export async function starboardUnignoreHandler(interaction: ChatInputCommandInte
     await configRepo.save(config);
 
     await interaction.reply({
-      content: LANGF(tl.ignore.removed, `<#${channel.id}>`),
+      content: formatLang(tl.ignore.removed, `<#${channel.id}>`),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {

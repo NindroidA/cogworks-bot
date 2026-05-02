@@ -7,7 +7,7 @@ import {
 } from 'discord.js';
 import { escapeDiscordMarkdown } from '../../utils';
 
-export const ageVerifyModal = async (modal: ModalBuilder) => {
+export const ageVerifyModal = (modal: ModalBuilder) => {
   const verifyModal = new ActionRowBuilder<TextInputBuilder>().addComponents(
     new TextInputBuilder()
       .setCustomId('dob_input')
@@ -19,7 +19,7 @@ export const ageVerifyModal = async (modal: ModalBuilder) => {
   return modal.addComponents(verifyModal);
 };
 
-export const ageVerifyMessage = async (fields: ModalSubmitFields) => {
+export const ageVerifyMessage = (fields: ModalSubmitFields) => {
   const header = '# 18+ Verify\n';
   const vdob = `**Date of Birth:** ${escapeDiscordMarkdown(fields.getTextInputValue('dob_input'))}\n`;
   return header + vdob;

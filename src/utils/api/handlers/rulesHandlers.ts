@@ -1,7 +1,7 @@
 import type { Client, TextChannel } from 'discord.js';
-import { invalidateRulesCache } from '../../../events/rulesReaction';
 import { RulesConfig } from '../../../typeorm/entities/rules/RulesConfig';
 import { lazyRepo } from '../../database/lazyRepo';
+import { invalidateRulesCache } from '../../rules/rulesCache';
 import { ApiError } from '../apiError';
 import { isValidSnowflake, optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';

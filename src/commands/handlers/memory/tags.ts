@@ -15,16 +15,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { MemoryTag, type MemoryTagType } from '../../../typeorm/entities/memory';
-import {
-  Colors,
-  E,
-  enhancedLogger,
-  guardAdminRateLimit,
-  LogCategory,
-  lang,
-  RateLimits,
-  showAndAwaitModal,
-} from '../../../utils';
+import { Colors, E, guardFeatureRateLimit, lang, logHandlerError, RateLimits, showAndAwaitModal } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveMemoryConfig } from './channelPicker';
 
@@ -32,7 +23,7 @@ const tl = lang.memory;
 const memoryTagRepo = lazyRepo(MemoryTag);
 
 export async function memoryTagsHandler(interaction: ChatInputCommandInteraction) {
-  const guard = await guardAdminRateLimit(interaction, {
+  const guard = await guardFeatureRateLimit(interaction, 'memory', 'manage', {
     action: 'memory-tags',
     limit: RateLimits.MEMORY_OPERATION,
     scope: 'userGuild',
@@ -179,12 +170,7 @@ async function handleAddTagSubmit(
       content: `${E.success} ${tl.tags.add.success}`,
     });
   } catch (error) {
-    enhancedLogger.error(
-      `Memory tag add error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    logHandlerError('Memory tag add', error, { guildId });
     await interaction.editReply({ content: `${E.error} ${tl.tags.add.error}` });
   }
 }
@@ -339,12 +325,7 @@ async function handleEditTagSubmit(
       content: `${E.success} ${tl.tags.edit.success}`,
     });
   } catch (error) {
-    enhancedLogger.error(
-      `Memory tag edit error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    logHandlerError('Memory tag edit', error, { guildId });
     await interaction.editReply({
       content: `${E.error} ${tl.tags.edit.error}`,
     });
@@ -485,14 +466,7 @@ async function confirmRemoveTag(interaction: StringSelectMenuInteraction, guildI
           components: [],
         });
       } catch (error) {
-        enhancedLogger.error(
-          `Memory tag remove error: ${error}`,
-          error instanceof Error ? error : undefined,
-          LogCategory.COMMAND_EXECUTION,
-          {
-            guildId,
-          },
-        );
+        logHandlerError('Memory tag remove', error, { guildId });
         await i.update({
           content: `${E.error} ${tl.tags.remove.error}`,
           components: [],

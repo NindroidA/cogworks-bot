@@ -7,19 +7,13 @@
  */
 
 import { ActionRowBuilder, EmbedBuilder, StringSelectMenuBuilder } from 'discord.js';
-import { AppDataSource } from '../../../typeorm';
-import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
-import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
-import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
-import { BotConfig } from '../../../typeorm/entities/BotConfig';
-import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
-import { MemoryConfig } from '../../../typeorm/entities/memory/MemoryConfig';
-import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
-import { RulesConfig } from '../../../typeorm/entities/rules';
 import type { SetupState, SystemStates, SystemStatus } from '../../../typeorm/entities/SetupState';
-import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
-import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import { Colors } from '../../../utils/colors';
+import { detectSystemStates } from '../../../utils/setup/systemStates';
+
+// Re-export so existing importers (botSetup/index.ts) keep resolving without
+// a churn pass. The single implementation lives in utils/setup/systemStates.
+export { detectSystemStates };
 
 /** System metadata for display */
 interface SystemInfo {
@@ -91,68 +85,6 @@ const STATUS_LABELS: Record<SystemStatus, string> = {
   partial: 'In Progress (saved)',
   complete: 'Configured',
 };
-
-/**
- * Detect actual system states by checking what configs exist in the database.
- * This ensures the dashboard always reflects reality, not just SetupState.
- */
-export async function detectSystemStates(guildId: string): Promise<SystemStates> {
-  const states: SystemStates = {
-    staffRole: 'not_started',
-    ticket: 'not_started',
-    application: 'not_started',
-    announcement: 'not_started',
-    baitchannel: 'not_started',
-    memory: 'not_started',
-    rules: 'not_started',
-    reactionRole: 'not_started',
-  };
-
-  try {
-    const [
-      botConfig,
-      ticketConfig,
-      archivedTicket,
-      appConfig,
-      archivedApp,
-      annConfig,
-      baitConfig,
-      memoryConfig,
-      rulesConfig,
-      reactionMenuCount,
-    ] = await Promise.all([
-      AppDataSource.getRepository(BotConfig).findOneBy({ guildId }),
-      AppDataSource.getRepository(TicketConfig).findOneBy({ guildId }),
-      AppDataSource.getRepository(ArchivedTicketConfig).findOneBy({ guildId }),
-      AppDataSource.getRepository(ApplicationConfig).findOneBy({ guildId }),
-      AppDataSource.getRepository(ArchivedApplicationConfig).findOneBy({
-        guildId,
-      }),
-      AppDataSource.getRepository(AnnouncementConfig).findOneBy({ guildId }),
-      AppDataSource.getRepository(BaitChannelConfig).findOneBy({ guildId }),
-      AppDataSource.getRepository(MemoryConfig).findOneBy({ guildId }),
-      AppDataSource.getRepository(RulesConfig).findOneBy({ guildId }),
-      AppDataSource.getRepository(ReactionRoleMenu).count({
-        where: { guildId },
-      }),
-    ]);
-
-    if (botConfig?.enableGlobalStaffRole && botConfig.globalStaffRole) states.staffRole = 'complete';
-    if (ticketConfig && archivedTicket) states.ticket = 'complete';
-    else if (ticketConfig) states.ticket = 'partial';
-    if (appConfig && archivedApp) states.application = 'complete';
-    else if (appConfig) states.application = 'partial';
-    if (annConfig?.defaultRoleId && annConfig.defaultChannelId) states.announcement = 'complete';
-    if (baitConfig?.channelId) states.baitchannel = 'complete';
-    if (memoryConfig) states.memory = 'complete';
-    if (rulesConfig?.channelId && rulesConfig.roleId) states.rules = 'complete';
-    if (reactionMenuCount > 0) states.reactionRole = 'complete';
-  } catch {
-    // If DB queries fail, return defaults (not_started)
-  }
-
-  return states;
-}
 
 /**
  * Merge detected DB states with SetupState partial data.

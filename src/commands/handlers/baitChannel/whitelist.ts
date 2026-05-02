@@ -62,43 +62,33 @@ export async function whitelistHandler(client: Client, interaction: ChatInputCom
       return;
     }
 
+    type WhitelistTarget = {
+      field: 'whitelistedRoles' | 'whitelistedUsers';
+      id: string;
+    };
+    const targets: WhitelistTarget[] = [];
+    if (role) targets.push({ field: 'whitelistedRoles', id: role.id });
+    if (targetUser) targets.push({ field: 'whitelistedUsers', id: targetUser.id });
+
     let changed = false;
     let alreadyExists = false;
     let notInList = false;
 
-    if (role) {
+    for (const { field, id } of targets) {
+      const current = config[field] ?? [];
+      const exists = current.includes(id);
       if (action === 'add') {
-        if (!config.whitelistedRoles) config.whitelistedRoles = [];
-        if (config.whitelistedRoles.includes(role.id)) {
+        if (exists) {
           alreadyExists = true;
         } else {
-          config.whitelistedRoles.push(role.id);
+          config[field] = [...current, id];
           changed = true;
         }
       } else {
-        if (!config.whitelistedRoles?.includes(role.id)) {
+        if (!exists) {
           notInList = true;
         } else {
-          config.whitelistedRoles = config.whitelistedRoles?.filter(id => id !== role.id) || [];
-          changed = true;
-        }
-      }
-    }
-
-    if (targetUser) {
-      if (action === 'add') {
-        if (!config.whitelistedUsers) config.whitelistedUsers = [];
-        if (config.whitelistedUsers.includes(targetUser.id)) {
-          alreadyExists = true;
-        } else {
-          config.whitelistedUsers.push(targetUser.id);
-          changed = true;
-        }
-      } else {
-        if (!config.whitelistedUsers?.includes(targetUser.id)) {
-          notInList = true;
-        } else {
-          config.whitelistedUsers = config.whitelistedUsers?.filter(id => id !== targetUser.id) || [];
+          config[field] = current.filter(x => x !== id);
           changed = true;
         }
       }

@@ -1,13 +1,13 @@
 import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
-import { Colors, enhancedLogger, guardAdmin, LogCategory, lang } from '../../../utils';
+import { Colors, enhancedLogger, guardFeatureAccess, LogCategory, lang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.reactionRole;
 const menuRepo = lazyRepo(ReactionRoleMenu);
 
 export async function reactionRoleListHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'reactionroles', 'use');
   if (!guard.allowed) return;
 
   if (!interaction.guildId) return;

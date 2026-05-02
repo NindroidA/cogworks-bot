@@ -4,31 +4,20 @@
  * Auto-assigns tickets to staff based on type-to-role mapping,
  * workload balancing, and availability (online/idle presence).
  *
- * NOTE: Requires the following columns on TicketConfig (added separately):
- *   - smartRoutingEnabled: boolean (default false)
- *   - routingRules: simple-json (RoutingRule[])
- *   - routingStrategy: string ('round-robin' | 'least-load' | 'random', default 'least-load')
+ * Routing column types (`RoutingRule`, `RoutingStrategy`) are owned by the
+ * entity at `typeorm/entities/ticket/routingTypes.ts` and re-exported below.
  */
 
 import type { Guild, GuildMember } from 'discord.js';
+import type { RoutingRule, RoutingStrategy } from '../../typeorm/entities/ticket/routingTypes';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { lazyRepo } from '../database/lazyRepo';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface RoutingRule {
-  /** The custom ticket type ID (e.g., 'bug_report', 'ban_appeal') */
-  ticketTypeId: string;
-  /** Discord role ID for the staff group that handles this type */
-  staffRoleId: string;
-  /** Maximum open assigned tickets per staff member (optional cap) */
-  maxOpen?: number;
-}
-
-export type RoutingStrategy = 'round-robin' | 'least-load' | 'random';
+// Routing column types live with the entity — the runtime helper consumes
+// the data shape, not the other way around. Re-exported here so existing
+// util-side importers (`from '../utils/ticket/smartRouter'`) still resolve.
+export type { RoutingRule, RoutingStrategy };
 
 export interface RoutingResult {
   /** The selected staff member, or null if no one is available */

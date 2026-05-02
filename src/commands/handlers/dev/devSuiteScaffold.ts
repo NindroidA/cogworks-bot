@@ -37,7 +37,7 @@ import { UserTicketRestriction } from '../../../typeorm/entities/ticket/UserTick
 import { XPConfig } from '../../../typeorm/entities/xp/XPConfig';
 import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
-import { enhancedLogger, handleInteractionError, LogCategory, requireBotOwner } from '../../../utils';
+import { enhancedLogger, guardOwner, handleInteractionError, LogCategory } from '../../../utils';
 import type { OnboardingStepDef } from '../../../utils/onboarding/types';
 import { seedDefaultTemplates } from '../announcement/templates';
 
@@ -1117,14 +1117,8 @@ export async function handleScaffold(
   guildId: string,
 ): Promise<void> {
   try {
-    const ownerCheck = requireBotOwner(interaction.user.id);
-    if (!ownerCheck.allowed) {
-      await interaction.reply({
-        content: ownerCheck.message || '❌ Bot owner only.',
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardOwner(interaction);
+    if (!guard.allowed) return;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
@@ -1156,14 +1150,8 @@ export async function handleTeardown(
   guildId: string,
 ): Promise<void> {
   try {
-    const ownerCheck = requireBotOwner(interaction.user.id);
-    if (!ownerCheck.allowed) {
-      await interaction.reply({
-        content: ownerCheck.message || '❌ Bot owner only.',
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardOwner(interaction);
+    if (!guard.allowed) return;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
@@ -1194,14 +1182,8 @@ export async function handleScaffoldAll(
   guildId: string,
 ): Promise<void> {
   try {
-    const ownerCheck = requireBotOwner(interaction.user.id);
-    if (!ownerCheck.allowed) {
-      await interaction.reply({
-        content: ownerCheck.message || '❌ Bot owner only.',
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardOwner(interaction);
+    if (!guard.allowed) return;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
@@ -1244,14 +1226,8 @@ export async function handleTeardownAll(
   guildId: string,
 ): Promise<void> {
   try {
-    const ownerCheck = requireBotOwner(interaction.user.id);
-    if (!ownerCheck.allowed) {
-      await interaction.reply({
-        content: ownerCheck.message || '❌ Bot owner only.',
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
+    const guard = await guardOwner(interaction);
+    if (!guard.allowed) return;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 

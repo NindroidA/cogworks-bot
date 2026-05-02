@@ -181,27 +181,26 @@ graph LR
 ```mermaid
 flowchart TD
     Start[Close Triggered] --> Mark[Mark ticket 'closed']
-    Mark --> Transcript[Create transcript .txt + .zip]
-    Transcript -->|fail| ErrReply[Return error to caller]
-    Transcript -->|ok| Forum[Fetch archive forum channel]
-    Forum --> TypeInfo{Custom or legacy type?}
-    TypeInfo -->|custom| DBLookup[Query CustomTicketType]
-    TypeInfo -->|legacy| LegacyMap[Use LEGACY_TYPE_INFO]
-    TypeInfo -->|none| NoTag[Skip tags]
-    DBLookup --> EnsureTag[ensureForumTag]
-    LegacyMap --> EnsureTag
-    EnsureTag --> Exists{Existing archive?}
-    NoTag --> Exists
-    Exists -->|no| CreatePost[Create forum thread]
-    Exists -->|yes| AddToPost[Add transcript to thread]
-    CreatePost --> ApplyTags[Apply forum tags]
-    AddToPost --> MergeTags[Merge new tags with existing]
-    ApplyTags --> SaveArchive[Save ArchivedTicket to DB]
-    MergeTags --> Cleanup[Delete temp files]
-    SaveArchive --> Cleanup
-    Cleanup --> DeleteCh[verifiedChannelDelete]
+    Mark --> Fetch[fetchMessagesAsTranscript<br/>returns TranscriptMessage array]
+    Fetch --> Resolve[resolveTicketType<br/>unified legacy + custom]
+    Resolve --> Build[buildTranscript<br/>returns header + markdown chunks]
+    Build --> Forum[Fetch archive forum channel]
+    Forum --> Tag{Type has metadata?}
+    Tag -->|yes| EnsureTag[ensureForumTag]
+    Tag -->|no| SkipTag[Skip tag]
+    EnsureTag --> Exists{Existing archive thread<br/>for this user?}
+    SkipTag --> Exists
+    Exists -->|no| CreatePost[Create forum thread<br/>with header as first message]
+    Exists -->|yes| AddHeader[Post header into existing thread]
+    CreatePost --> PostChunks[Post each markdown chunk<br/>as follow-up message]
+    AddHeader --> PostChunks
+    PostChunks --> MergeTags[Merge forum tags — accumulate]
+    MergeTags --> SaveArchive[Save ArchivedTicket to DB]
+    SaveArchive --> DeleteCh[verifiedChannelDelete<br/>ticket channel]
     DeleteCh --> Done[Done]
 ```
+
+Transcripts post directly into the archive forum thread as Discord markdown — no `.txt` files, no `.zip` attachments. Long tickets split on message boundaries into &le;1900-char chunks. See `src/utils/ticket/transcriptBuilder.ts` for formatting rules.
 
 ## Internal API
 

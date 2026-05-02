@@ -2,19 +2,13 @@ import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, Message
 import { MoreThan } from 'typeorm';
 import { AppDataSource } from '../../../typeorm';
 import { StatusIncident } from '../../../typeorm/entities/status';
-import { Colors, enhancedLogger, handleInteractionError, LogCategory, lang, requireBotOwner } from '../../../utils';
+import { Colors, enhancedLogger, guardOwner, handleInteractionError, LogCategory, lang } from '../../../utils';
 
 const tl = lang.status;
 
 export async function statusHistoryHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const ownerCheck = requireBotOwner(interaction.user.id);
-  if (!ownerCheck.allowed) {
-    await interaction.reply({
-      content: ownerCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  const guard = await guardOwner(interaction);
+  if (!guard.allowed) return;
 
   try {
     const days = interaction.options.getInteger('days') ?? 7;

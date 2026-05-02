@@ -12,12 +12,19 @@ import {
   GuildScheduledEventPrivacyLevel,
   MessageFlags,
 } from 'discord.js';
-import eventLang from '../../../lang/event.json';
+import eventLang from '../../../lang/en/event.json';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
 import type { RecurringPattern } from '../../../typeorm/entities/event/EventTemplate';
 import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
-import { enhancedLogger, guardAdmin, LANGF, LogCategory, parseTimeInput, sanitizeUserInput } from '../../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  guardFeatureAccess,
+  LogCategory,
+  parseTimeInput,
+  sanitizeUserInput,
+} from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const eventConfigRepo = lazyRepo(EventConfig);
@@ -66,7 +73,7 @@ export async function handleEventCreate(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'events', 'manage');
   if (!guard.allowed) return;
 
   if (!interaction.guildId || !interaction.guild) return;
@@ -149,9 +156,9 @@ export async function handleEventCreate(
       await createAutoReminder(guildId, scheduledEvent.id, title, startDate, config.defaultReminderMinutes);
     }
 
-    let replyContent = LANGF(tl.create.success, title);
+    let replyContent = formatLang(tl.create.success, title);
     if (config.reminderChannelId && config.defaultReminderMinutes > 0) {
-      replyContent += `\n${LANGF(tl.create.reminderSet, config.defaultReminderMinutes.toString())}`;
+      replyContent += `\n${formatLang(tl.create.reminderSet, config.defaultReminderMinutes.toString())}`;
     }
 
     await interaction.editReply({ content: replyContent });
@@ -178,7 +185,7 @@ export async function handleFromTemplate(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'events', 'manage');
   if (!guard.allowed) return;
 
   if (!interaction.guildId || !interaction.guild) return;
@@ -253,7 +260,7 @@ export async function handleFromTemplate(
     }
 
     await interaction.editReply({
-      content: LANGF(tl.fromTemplate.success, template.title),
+      content: formatLang(tl.fromTemplate.success, template.title),
     });
 
     enhancedLogger.command(`Event created from template '${templateName}'`, interaction.user.id, guildId);
@@ -276,7 +283,7 @@ export async function handleEventCancel(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'events', 'manage');
   if (!guard.allowed) return;
 
   if (!interaction.guildId || !interaction.guild) return;
@@ -301,7 +308,7 @@ export async function handleEventCancel(
     await eventReminderRepo.delete({ guildId, discordEventId: eventId });
 
     await interaction.reply({
-      content: LANGF(tl.cancel.success, scheduledEvent.name),
+      content: formatLang(tl.cancel.success, scheduledEvent.name),
       flags: [MessageFlags.Ephemeral],
     });
 
@@ -325,7 +332,7 @@ export async function handleRecurring(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'events', 'manage');
   if (!guard.allowed) return;
 
   if (!interaction.guildId || !interaction.guild) return;
@@ -408,7 +415,7 @@ export async function handleRecurring(
     const startTimestamp = `<t:${Math.floor(startDate.getTime() / 1000)}:F>`;
 
     await interaction.editReply({
-      content: LANGF(tl.recurring.success, template.title, pattern, startTimestamp),
+      content: formatLang(tl.recurring.success, template.title, pattern, startTimestamp),
     });
 
     enhancedLogger.command(`Recurring event '${template.title}' created (${pattern})`, interaction.user.id, guildId);

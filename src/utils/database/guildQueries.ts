@@ -3,18 +3,24 @@
  *
  * Utilities for safe, guild-scoped database queries to prevent cross-guild data leaks.
  * All queries should use these helpers to ensure proper guild isolation.
+ *
+ * Error contract (v3.1.5+): these helpers propagate database errors to the
+ * caller just like the underlying TypeORM methods. A `null` / `[]` / `0`
+ * return means "no row exists", NOT "the query failed". Callers that need
+ * graceful degradation on DB errors should wrap the call in
+ * `safeDbOperation()` from `../errorHandler`.
  */
 
 import type { FindManyOptions, FindOneOptions, FindOptionsWhere, Repository } from 'typeorm';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
 /**
- * Safely find one entity scoped to a specific guild
+ * Find one entity scoped to a specific guild. Propagates DB errors.
  *
  * @param repo - TypeORM repository
  * @param guildId - Guild ID to scope the query to
  * @param options - Additional find options (merged with guildId filter)
- * @returns Entity or null
+ * @returns Entity or null when no row matches
  *
  * @example
  * const config = await findOneByGuild(ticketConfigRepo, guildId, {
@@ -26,28 +32,19 @@ export async function findOneByGuild<T extends { guildId: string }>(
   guildId: string,
   options?: Omit<FindOneOptions<T>, 'where'>,
 ): Promise<T | null> {
-  try {
-    return await repo.findOne({
-      ...options,
-      where: { guildId } as FindOptionsWhere<T>,
-    });
-  } catch (error) {
-    enhancedLogger.error(
-      `Error in findOneByGuild for ${repo.metadata.name}: ${(error as Error).message}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.DATABASE,
-    );
-    return null;
-  }
+  return repo.findOne({
+    ...options,
+    where: { guildId } as FindOptionsWhere<T>,
+  });
 }
 
 /**
- * Safely find multiple entities scoped to a specific guild
+ * Find multiple entities scoped to a specific guild. Propagates DB errors.
  *
  * @param repo - TypeORM repository
  * @param guildId - Guild ID to scope the query to
  * @param options - Additional find options (merged with guildId filter)
- * @returns Array of entities
+ * @returns Array of entities (empty when nothing matches)
  *
  * @example
  * const tickets = await findManyByGuild(ticketRepo, guildId, {
@@ -63,28 +60,19 @@ export async function findManyByGuild<T extends { guildId: string }>(
     where?: Omit<FindOptionsWhere<T>, 'guildId'>;
   },
 ): Promise<T[]> {
-  try {
-    const { where, ...restOptions } = options || {};
+  const { where, ...restOptions } = options || {};
 
-    return await repo.find({
-      ...restOptions,
-      where: {
-        ...(where as object),
-        guildId,
-      } as FindOptionsWhere<T>,
-    });
-  } catch (error) {
-    enhancedLogger.error(
-      `Error in findManyByGuild for ${repo.metadata.name}: ${(error as Error).message}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.DATABASE,
-    );
-    return [];
-  }
+  return repo.find({
+    ...restOptions,
+    where: {
+      ...(where as object),
+      guildId,
+    } as FindOptionsWhere<T>,
+  });
 }
 
 /**
- * Safely count entities scoped to a specific guild
+ * Count entities scoped to a specific guild. Propagates DB errors.
  *
  * @param repo - TypeORM repository
  * @param guildId - Guild ID to scope the query to
@@ -103,33 +91,24 @@ export async function countByGuild<T extends { guildId: string }>(
     where?: Omit<FindOptionsWhere<T>, 'guildId'>;
   },
 ): Promise<number> {
-  try {
-    const { where, ...restOptions } = options || {};
+  const { where, ...restOptions } = options || {};
 
-    return await repo.count({
-      ...restOptions,
-      where: {
-        ...(where as object),
-        guildId,
-      } as FindOptionsWhere<T>,
-    });
-  } catch (error) {
-    enhancedLogger.error(
-      `Error in countByGuild for ${repo.metadata.name}: ${(error as Error).message}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.DATABASE,
-    );
-    return 0;
-  }
+  return repo.count({
+    ...restOptions,
+    where: {
+      ...(where as object),
+      guildId,
+    } as FindOptionsWhere<T>,
+  });
 }
 
 /**
- * Safely delete entities scoped to a specific guild
+ * Delete entities scoped to a specific guild. Propagates DB errors.
  *
  * @param repo - TypeORM repository
  * @param guildId - Guild ID to scope the deletion to
  * @param additionalWhere - Additional where conditions (merged with guildId filter)
- * @returns Delete result
+ * @returns `{ affected }` reporting the number of rows deleted
  *
  * @example
  * // Delete all closed tickets for a guild
@@ -140,21 +119,12 @@ export async function deleteByGuild<T extends { guildId: string }>(
   guildId: string,
   additionalWhere?: Omit<FindOptionsWhere<T>, 'guildId'>,
 ): Promise<{ affected: number }> {
-  try {
-    const result = await repo.delete({
-      ...(additionalWhere as object),
-      guildId,
-    } as FindOptionsWhere<T>);
+  const result = await repo.delete({
+    ...(additionalWhere as object),
+    guildId,
+  } as FindOptionsWhere<T>);
 
-    return { affected: result.affected || 0 };
-  } catch (error) {
-    enhancedLogger.error(
-      `Error in deleteByGuild for ${repo.metadata.name}: ${(error as Error).message}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.DATABASE,
-    );
-    return { affected: 0 };
-  }
+  return { affected: result.affected || 0 };
 }
 
 /**
@@ -341,10 +311,19 @@ export async function deleteAllGuildData(guildId: string): Promise<{
       },
     ];
 
+    // Per-table resilience: one table failing shouldn't abort the whole
+    // GDPR purge. `safeDbOperation` logs the error and returns null; we
+    // treat null as "0 affected" and continue to the next table. This is
+    // the one place that genuinely needs graceful degradation — best-effort
+    // partial deletion beats all-or-nothing for compliance work.
+    const { safeDbOperation } = await import('../errorHandler');
     for (const { name, repo } of deletions) {
-      const result = await deleteByGuild(repo as Repository<{ guildId: string }>, guildId);
-      details[name] = result.affected;
-      total += result.affected;
+      const result = await safeDbOperation(
+        () => deleteByGuild(repo as Repository<{ guildId: string }>, guildId),
+        `deleteAllGuildData:${name}`,
+      );
+      details[name] = result?.affected ?? 0;
+      total += details[name];
     }
 
     return {
@@ -354,6 +333,9 @@ export async function deleteAllGuildData(guildId: string): Promise<{
       details,
     };
   } catch (error) {
+    // Covers failures before the deletion loop starts (dynamic imports,
+    // repository resolution). Once the loop runs, per-table errors are
+    // absorbed by `safeDbOperation` and never reach this catch.
     enhancedLogger.error(
       `Error in deleteAllGuildData for guildId ${guildId}: ${(error as Error).message}`,
       error instanceof Error ? error : undefined,
@@ -371,7 +353,7 @@ export async function deleteAllGuildData(guildId: string): Promise<{
 }
 
 /**
- * Verify that a guild ID is valid and exists in bot configs
+ * Verify that a guild ID is valid and exists in bot configs. Propagates DB errors.
  *
  * @param guildId - Guild ID to verify
  * @returns True if guild exists in database
@@ -383,21 +365,12 @@ export async function deleteAllGuildData(guildId: string): Promise<{
  * }
  */
 export async function verifyGuildExists(guildId: string): Promise<boolean> {
-  try {
-    const { AppDataSource } = await import('../../typeorm');
-    const { BotConfig } = await import('../../typeorm/entities/BotConfig');
+  const { AppDataSource } = await import('../../typeorm');
+  const { BotConfig } = await import('../../typeorm/entities/BotConfig');
 
-    const config = await AppDataSource.getRepository(BotConfig).findOne({
-      where: { guildId },
-    });
+  const config = await AppDataSource.getRepository(BotConfig).findOne({
+    where: { guildId },
+  });
 
-    return config !== null;
-  } catch (error) {
-    enhancedLogger.error(
-      `Error in verifyGuildExists for guildId ${guildId}: ${(error as Error).message}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.DATABASE,
-    );
-    return false;
-  }
+  return config !== null;
 }

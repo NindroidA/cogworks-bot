@@ -11,7 +11,7 @@ import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import {
   DEFAULT_TICKET_STATUSES,
   enhancedLogger,
-  guardAdmin,
+  guardFeatureAccess,
   handleInteractionError,
   LogCategory,
   lang,
@@ -25,7 +25,7 @@ const ticketConfigRepo = lazyRepo(TicketConfig);
 
 export async function workflowSettingsHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
@@ -52,7 +52,7 @@ export async function workflowSettingsHandler(interaction: ChatInputCommandInter
       ),
     ]);
 
-    const modalSubmit = await showAndAwaitModal(interaction, modal as any);
+    const modalSubmit = await showAndAwaitModal(interaction, modal);
     if (!modalSubmit) return;
 
     const enableWorkflow = (modalSubmit.fields as any).getField('wf_enable')?.value as boolean;

@@ -8,7 +8,7 @@
  * - BUG_REPORT_MESSAGE constant
  */
 
-import { describe, expect, test } from '@jest/globals';
+import { describe, expect, test } from 'bun:test';
 import {
     buildErrorMessage,
     BUG_REPORT_MESSAGE,

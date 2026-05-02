@@ -18,6 +18,7 @@ import {
   type Message,
   type MessageComponentInteraction,
   MessageFlags,
+  type ModalSubmitInteraction,
 } from 'discord.js';
 import { lang } from '../../lang';
 import { TIMEOUTS } from '../constants';
@@ -65,7 +66,7 @@ export interface ConfirmationResult {
  * await result.interaction.editReply({ content: 'Deleted!' });
  */
 export async function awaitConfirmation(
-  interaction: ChatInputCommandInteraction | MessageComponentInteraction,
+  interaction: ChatInputCommandInteraction | MessageComponentInteraction | ModalSubmitInteraction,
   options: ConfirmationOptions,
 ): Promise<ConfirmationResult | null> {
   const prefix = options.idPrefix ?? 'confirm';

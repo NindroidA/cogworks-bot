@@ -16,12 +16,12 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import eventLang from '../../../lang/event.json';
+import eventLang from '../../../lang/en/event.json';
 import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
 import {
   awaitConfirmation,
   enhancedLogger,
-  guardAdmin,
+  guardFeatureAccess,
   LogCategory,
   lang,
   sanitizeUserInput,
@@ -48,7 +48,7 @@ export async function eventTemplateHandler(
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
 
-  const guard = await guardAdmin(interaction);
+  const guard = await guardFeatureAccess(interaction, 'events', 'manage');
   if (!guard.allowed) return;
 
   switch (subcommand) {
