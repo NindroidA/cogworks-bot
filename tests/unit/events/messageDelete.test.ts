@@ -46,9 +46,7 @@ function makeFakeRepo(initialRows: any[] = []): FakeRepoState & {
       state.findCalls.push(opts);
       if (state.shouldThrowOn === 'find') throw new Error('boom');
       const where = opts?.where ?? {};
-      return [...state.rows.values()].filter(row =>
-        Object.entries(where).every(([k, v]) => (row as any)[k] === v),
-      );
+      return [...state.rows.values()].filter(row => Object.entries(where).every(([k, v]) => (row as any)[k] === v));
     },
     async save(entity: any) {
       state.saveCalls.push({ ...entity });
@@ -99,9 +97,15 @@ mock.module('../../../src/utils/reactionRole/menuCache', () => ({
 }));
 
 let messageDeleteHandler: typeof import('../../../src/events/messageDelete').default;
+let originalGetRepository: ((entity: any) => unknown) | undefined;
 
 beforeAll(async () => {
   const { AppDataSource } = await import('../../../src/typeorm');
+  // Capture the original so afterAll can put it back. Bun runs test files in
+  // a single process, so leaving the patch installed leaks into every file
+  // that runs after this one — applicationInteraction.test.ts hit `Position`
+  // and crashed when this guard wasn't here.
+  originalGetRepository = (AppDataSource as unknown as { getRepository: (e: any) => unknown }).getRepository;
   (AppDataSource as unknown as { getRepository: (e: any) => unknown }).getRepository = (entity: any) => {
     const name = entity?.name ?? 'unknown';
     if (!fakeRepos[name]) {
@@ -112,15 +116,14 @@ beforeAll(async () => {
   messageDeleteHandler = (await import('../../../src/events/messageDelete')).default;
 });
 
-afterAll(() => {
-  // Bun isolates per-process; nothing to restore.
+afterAll(async () => {
+  if (originalGetRepository) {
+    const { AppDataSource } = await import('../../../src/typeorm');
+    (AppDataSource as unknown as { getRepository: (e: any) => unknown }).getRepository = originalGetRepository;
+  }
 });
 
-function makeMessage(opts: {
-  guildId: string | null;
-  messageId: string;
-  authorId?: string | null;
-}): any {
+function makeMessage(opts: { guildId: string | null; messageId: string; authorId?: string | null }): any {
   return {
     id: opts.messageId,
     guild: opts.guildId ? { id: opts.guildId } : null,
@@ -142,7 +145,11 @@ describe('messageDelete event handler', () => {
   });
 
   test('returns early when message has no guild (DM context)', async () => {
-    const msg = makeMessage({ guildId: null, messageId: 'm-1', authorId: 'bot-id' });
+    const msg = makeMessage({
+      guildId: null,
+      messageId: 'm-1',
+      authorId: 'bot-id',
+    });
     await messageDeleteHandler.execute(msg, mockClient);
     expect(fakeBaitHandleMessageDelete).not.toHaveBeenCalled();
     for (const repo of Object.values(fakeRepos)) {
@@ -151,7 +158,11 @@ describe('messageDelete event handler', () => {
   });
 
   test('skips DB scan when known author is not the bot (perf guard)', async () => {
-    const msg = makeMessage({ guildId: 'g-1', messageId: 'm-1', authorId: 'other-user' });
+    const msg = makeMessage({
+      guildId: 'g-1',
+      messageId: 'm-1',
+      authorId: 'other-user',
+    });
     await messageDeleteHandler.execute(msg, mockClient);
     // Bait manager not invoked either since we returned BEFORE calling it
     expect(fakeBaitHandleMessageDelete).not.toHaveBeenCalled();
@@ -161,7 +172,11 @@ describe('messageDelete event handler', () => {
   });
 
   test('partial message (author null) still triggers full descriptor sweep', async () => {
-    const msg = makeMessage({ guildId: 'g-1', messageId: 'm-1', authorId: null });
+    const msg = makeMessage({
+      guildId: 'g-1',
+      messageId: 'm-1',
+      authorId: null,
+    });
     await messageDeleteHandler.execute(msg, mockClient);
 
     const queriedEntities = Object.entries(fakeRepos)
@@ -169,12 +184,25 @@ describe('messageDelete event handler', () => {
       .map(([name]) => name)
       .sort();
     expect(queriedEntities).toEqual(
-      ['ApplicationConfig', 'ArchivedApplicationConfig', 'ArchivedTicketConfig', 'BaitChannelConfig', 'MemoryConfig', 'ReactionRoleMenu', 'RulesConfig', 'TicketConfig'].sort(),
+      [
+        'ApplicationConfig',
+        'ArchivedApplicationConfig',
+        'ArchivedTicketConfig',
+        'BaitChannelConfig',
+        'MemoryConfig',
+        'ReactionRoleMenu',
+        'RulesConfig',
+        'TicketConfig',
+      ].sort(),
     );
   });
 
   test('descriptor sweep: every entity is queried for bot-authored deletes', async () => {
-    const msg = makeMessage({ guildId: 'g-1', messageId: 'm-1', authorId: 'bot-id' });
+    const msg = makeMessage({
+      guildId: 'g-1',
+      messageId: 'm-1',
+      authorId: 'bot-id',
+    });
     await messageDeleteHandler.execute(msg, mockClient);
 
     const queriedEntities = Object.entries(fakeRepos)
@@ -183,29 +211,64 @@ describe('messageDelete event handler', () => {
       .sort();
     // 8 entities — the regression list. Removing a descriptor would fail this.
     expect(queriedEntities).toEqual(
-      ['ApplicationConfig', 'ArchivedApplicationConfig', 'ArchivedTicketConfig', 'BaitChannelConfig', 'MemoryConfig', 'ReactionRoleMenu', 'RulesConfig', 'TicketConfig'].sort(),
+      [
+        'ApplicationConfig',
+        'ArchivedApplicationConfig',
+        'ArchivedTicketConfig',
+        'BaitChannelConfig',
+        'MemoryConfig',
+        'ReactionRoleMenu',
+        'RulesConfig',
+        'TicketConfig',
+      ].sort(),
     );
   });
 
   test('TicketConfig: clears messageId when matching message is found', async () => {
-    fakeRepos.TicketConfig.rows.set('1', { id: 1, guildId: 'g-1', messageId: 'm-1' });
-    const msg = makeMessage({ guildId: 'g-1', messageId: 'm-1', authorId: 'bot-id' });
+    fakeRepos.TicketConfig.rows.set('1', {
+      id: 1,
+      guildId: 'g-1',
+      messageId: 'm-1',
+    });
+    const msg = makeMessage({
+      guildId: 'g-1',
+      messageId: 'm-1',
+      authorId: 'bot-id',
+    });
     await messageDeleteHandler.execute(msg, mockClient);
     expect(fakeRepos.TicketConfig.saveCalls.length).toBe(1);
     expect(fakeRepos.TicketConfig.saveCalls[0].messageId).toBe('');
   });
 
   test('RulesConfig: removes the matching record and invalidates cache', async () => {
-    fakeRepos.RulesConfig.rows.set('1', { id: 1, guildId: 'g-1', messageId: 'm-1', channelId: 'c-1' });
-    const msg = makeMessage({ guildId: 'g-1', messageId: 'm-1', authorId: 'bot-id' });
+    fakeRepos.RulesConfig.rows.set('1', {
+      id: 1,
+      guildId: 'g-1',
+      messageId: 'm-1',
+      channelId: 'c-1',
+    });
+    const msg = makeMessage({
+      guildId: 'g-1',
+      messageId: 'm-1',
+      authorId: 'bot-id',
+    });
     await messageDeleteHandler.execute(msg, mockClient);
     expect(fakeRepos.RulesConfig.removeCalls.length).toBe(1);
     expect(fakeInvalidateRulesCache).toHaveBeenCalledWith('g-1');
   });
 
   test('ReactionRoleMenu: deletes the matching menu and invalidates cache', async () => {
-    fakeRepos.ReactionRoleMenu.rows.set('1', { id: 1, guildId: 'g-1', messageId: 'm-1', name: 'menu' });
-    const msg = makeMessage({ guildId: 'g-1', messageId: 'm-1', authorId: 'bot-id' });
+    fakeRepos.ReactionRoleMenu.rows.set('1', {
+      id: 1,
+      guildId: 'g-1',
+      messageId: 'm-1',
+      name: 'menu',
+    });
+    const msg = makeMessage({
+      guildId: 'g-1',
+      messageId: 'm-1',
+      authorId: 'bot-id',
+    });
     await messageDeleteHandler.execute(msg, mockClient);
     expect(fakeRepos.ReactionRoleMenu.removeCalls.length).toBe(1);
     expect(fakeInvalidateMenuCache).toHaveBeenCalledWith('m-1');
@@ -213,15 +276,27 @@ describe('messageDelete event handler', () => {
 
   test('Promise.allSettled: one cleaner failing does not abort siblings', async () => {
     fakeRepos.BaitChannelConfig.shouldThrowOn = 'findOneBy';
-    fakeRepos.TicketConfig.rows.set('1', { id: 1, guildId: 'g-1', messageId: 'm-1' });
-    const msg = makeMessage({ guildId: 'g-1', messageId: 'm-1', authorId: 'bot-id' });
+    fakeRepos.TicketConfig.rows.set('1', {
+      id: 1,
+      guildId: 'g-1',
+      messageId: 'm-1',
+    });
+    const msg = makeMessage({
+      guildId: 'g-1',
+      messageId: 'm-1',
+      authorId: 'bot-id',
+    });
     await messageDeleteHandler.execute(msg, mockClient);
     // Sibling TicketConfig still got cleaned up
     expect(fakeRepos.TicketConfig.saveCalls.length).toBe(1);
   });
 
   test('bait channel manager is invoked before the DB sweep', async () => {
-    const msg = makeMessage({ guildId: 'g-1', messageId: 'm-1', authorId: 'bot-id' });
+    const msg = makeMessage({
+      guildId: 'g-1',
+      messageId: 'm-1',
+      authorId: 'bot-id',
+    });
     await messageDeleteHandler.execute(msg, mockClient);
     expect(fakeBaitHandleMessageDelete).toHaveBeenCalledWith('m-1', 'g-1');
   });
