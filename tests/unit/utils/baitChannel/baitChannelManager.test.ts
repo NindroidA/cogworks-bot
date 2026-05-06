@@ -55,8 +55,14 @@ function makeManager(opts: {
   keywordState?: FakeRepoState<any>;
   withKeywordRepo?: boolean;
 }) {
-  const configState = opts.configState ?? { findOneResult: null, findResults: [] };
-  const keywordState = opts.keywordState ?? { findOneResult: null, findResults: [] };
+  const configState = opts.configState ?? {
+    findOneResult: null,
+    findResults: [],
+  };
+  const keywordState = opts.keywordState ?? {
+    findOneResult: null,
+    findResults: [],
+  };
   const configRepo = makeFakeRepo(configState);
   const logRepo = makeFakeRepo({ findOneResult: null, findResults: [] });
   const activityRepo = makeFakeRepo({ findOneResult: null, findResults: [] });
@@ -64,26 +70,19 @@ function makeManager(opts: {
   const keywordRepo = opts.withKeywordRepo === false ? undefined : makeFakeRepo(keywordState);
 
   const fakeClient = {} as any;
-  const manager = new BaitChannelManager(
-    fakeClient,
-    configRepo,
-    logRepo,
-    activityRepo,
-    pendingBanRepo,
-    keywordRepo,
-  );
+  const manager = new BaitChannelManager(fakeClient, configRepo, logRepo, activityRepo, pendingBanRepo, keywordRepo);
   return { manager, configRepo, keywordRepo, configState, keywordState };
 }
 
-function makeMember(overrides: {
-  id?: string;
-  ownerId?: string;
-  whitelistedRoleIds?: string[];
-  hasAdmin?: boolean;
-} = {}) {
+function makeMember(
+  overrides: { id?: string; ownerId?: string; whitelistedRoleIds?: string[]; hasAdmin?: boolean } = {},
+) {
   const id = overrides.id ?? 'user-1';
   const ownerId = overrides.ownerId ?? 'owner-99';
-  const roles = (overrides.whitelistedRoleIds ?? []).map(roleId => ({ id: roleId, name: `role-${roleId}` }));
+  const roles = (overrides.whitelistedRoleIds ?? []).map(roleId => ({
+    id: roleId,
+    name: `role-${roleId}`,
+  }));
   return {
     id,
     guild: { ownerId },
@@ -171,19 +170,26 @@ describe('checkWhitelist', () => {
   test('server owner is always whitelisted (highest precedence)', () => {
     const member = makeMember({ id: 'owner-99', ownerId: 'owner-99' });
     const result = mgr.checkWhitelist(member, {} as any);
-    expect(result).toEqual({ whitelisted: true, reason: 'User is the Server Owner' });
+    expect(result).toEqual({
+      whitelisted: true,
+      reason: 'User is the Server Owner',
+    });
   });
 
   test('user in whitelistedUsers list is whitelisted', () => {
     const member = makeMember({ id: 'user-1' });
-    const result = mgr.checkWhitelist(member, { whitelistedUsers: ['user-1', 'user-2'] } as any);
+    const result = mgr.checkWhitelist(member, {
+      whitelistedUsers: ['user-1', 'user-2'],
+    } as any);
     expect(result.whitelisted).toBe(true);
     expect(result.reason).toBe('User is in manual whitelist');
   });
 
   test('user with whitelisted role is whitelisted, with role name in reason', () => {
     const member = makeMember({ whitelistedRoleIds: ['role-mod'] });
-    const result = mgr.checkWhitelist(member, { whitelistedRoles: ['role-mod'] } as any);
+    const result = mgr.checkWhitelist(member, {
+      whitelistedRoles: ['role-mod'],
+    } as any);
     expect(result.whitelisted).toBe(true);
     expect(result.reason).toContain('role-role-mod');
   });
@@ -191,18 +197,25 @@ describe('checkWhitelist', () => {
   test('admin is whitelisted by default', () => {
     const member = makeMember({ hasAdmin: true });
     const result = mgr.checkWhitelist(member, {} as any);
-    expect(result).toEqual({ whitelisted: true, reason: 'User is an Administrator' });
+    expect(result).toEqual({
+      whitelisted: true,
+      reason: 'User is an Administrator',
+    });
   });
 
   test('disableAdminWhitelist: admin is NOT whitelisted (test mode)', () => {
     const member = makeMember({ hasAdmin: true });
-    const result = mgr.checkWhitelist(member, { disableAdminWhitelist: true } as any);
+    const result = mgr.checkWhitelist(member, {
+      disableAdminWhitelist: true,
+    } as any);
     expect(result).toEqual({ whitelisted: false, reason: '' });
   });
 
   test('non-owner non-listed non-admin user is not whitelisted', () => {
     const member = makeMember({ id: 'rando-1' });
-    const result = mgr.checkWhitelist(member, { whitelistedUsers: ['other-user'] } as any);
+    const result = mgr.checkWhitelist(member, {
+      whitelistedUsers: ['other-user'],
+    } as any);
     expect(result).toEqual({ whitelisted: false, reason: '' });
   });
 });
@@ -323,8 +336,95 @@ describe('getKeywords (caching)', () => {
 describe('setJoinVelocityTracker', () => {
   test('assigns the tracker reference for later use', () => {
     const { manager } = makeManager({});
-    const tracker = { isBurstActive: () => false, getJoinCount: () => 0 } as any;
+    const tracker = {
+      isBurstActive: () => false,
+      getJoinCount: () => 0,
+    } as any;
     manager.setJoinVelocityTracker(tracker);
     expect((manager as any).joinVelocityTracker).toBe(tracker);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// logAction (null-safety regression — see prod incident 2026-05-04)
+//
+// `logAction` used to read `message.member!`, which Discord.js drops to null
+// once the user has been banned/kicked. Result: every post-ban or post-delete
+// log call threw `TypeError: null is not an object (evaluating 'member.id')`
+// and silently failed to record the action. Now `member` is passed explicitly
+// from the caller, so the logger no longer cares about `message.member`'s
+// state.
+// ---------------------------------------------------------------------------
+
+function makeRichMember(overrides: { id?: string; joinedTimestamp?: number | null } = {}) {
+  return {
+    id: overrides.id ?? 'banned-user-1',
+    user: {
+      tag: 'banned-user-1#0001',
+      createdTimestamp: Date.now() - 24 * 60 * 60 * 1000, // 1 day old account
+    },
+    joinedTimestamp: overrides.joinedTimestamp === undefined ? Date.now() - 60_000 : overrides.joinedTimestamp,
+    roles: {
+      cache: { some: (_predicate: (r: any) => boolean) => false },
+    },
+  } as any;
+}
+
+function makeMessage(overrides: { memberOverride?: any } = {}) {
+  return {
+    id: 'msg-123',
+    content: 'spammy content',
+    channelId: 'chan-1',
+    guild: { id: 'guild-1' },
+    member: 'memberOverride' in overrides ? overrides.memberOverride : makeRichMember(),
+    author: { id: 'banned-user-1' },
+  } as any;
+}
+
+describe('logAction (null-safety)', () => {
+  test('writes log row using passed-in member when message.member is null', async () => {
+    const { manager } = makeManager({});
+    const logRepo = (manager as any).logRepo;
+    const member = makeRichMember();
+    const message = makeMessage({ memberOverride: null }); // simulates post-ban Discord.js
+
+    await (manager as any).logAction(message, member, 'ban', {} as any, undefined, undefined);
+
+    expect(logRepo.create).toHaveBeenCalledTimes(1);
+    expect(logRepo.save).toHaveBeenCalledTimes(1);
+    const saved = logRepo.create.mock.calls[0][0];
+    expect(saved.userId).toBe('banned-user-1');
+    expect(saved.username).toBe('banned-user-1#0001');
+    expect(saved.actionTaken).toBe('ban');
+    expect(saved.guildId).toBe('guild-1');
+  });
+
+  test('falls back to Date.now for membershipMinutes when joinedTimestamp is null', async () => {
+    const { manager } = makeManager({});
+    const logRepo = (manager as any).logRepo;
+    const member = makeRichMember({ joinedTimestamp: null });
+    const message = makeMessage({ memberOverride: null });
+
+    await (manager as any).logAction(message, member, 'deleted-in-time', {} as any);
+
+    expect(logRepo.create).toHaveBeenCalledTimes(1);
+    const saved = logRepo.create.mock.calls[0][0];
+    expect(saved.actionTaken).toBe('deleted-in-time');
+    // Coalesced to ~now → membershipMinutes is a finite non-negative number
+    expect(Number.isFinite(saved.membershipMinutes)).toBe(true);
+    expect(saved.membershipMinutes).toBeGreaterThanOrEqual(0);
+  });
+
+  test('still works when message.member is the same captured ref (non-regression)', async () => {
+    const { manager } = makeManager({});
+    const logRepo = (manager as any).logRepo;
+    const member = makeRichMember();
+    const message = makeMessage({ memberOverride: member });
+
+    await (manager as any).logAction(message, member, 'whitelisted', {} as any);
+
+    expect(logRepo.save).toHaveBeenCalledTimes(1);
+    const saved = logRepo.create.mock.calls[0][0];
+    expect(saved.actionTaken).toBe('whitelisted');
   });
 });

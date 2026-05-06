@@ -3,6 +3,7 @@ import {
   type Client,
   type Collection,
   type ColorResolvable,
+  DiscordAPIError,
   EmbedBuilder,
   type Guild,
   type GuildMember,
@@ -240,7 +241,7 @@ export class BaitChannelManager {
         await this.logToChannelWhitelisted(member, message, config, whitelist.reason);
 
         // Log to database
-        await this.logAction(message, 'whitelisted', config);
+        await this.logAction(message, member, 'whitelisted', config);
         return;
       }
 
@@ -615,18 +616,35 @@ export class BaitChannelManager {
       });
     }
 
-    // Reply to the user's message in the channel
+    // Reply to the user's message in the channel.
+    // If the user already deleted their message before our reply lands,
+    // Discord rejects the reply with `MESSAGE_REFERENCE_UNKNOWN_MESSAGE`.
+    // That's the user complying — log at debug, not as an error.
     let warningMessage: Message | null = null;
     try {
       warningMessage = await message.reply({ embeds: [warningEmbed] });
     } catch (error) {
-      logError({
-        category: ErrorCategory.DISCORD_API,
-        severity: ErrorSeverity.MEDIUM,
-        message: 'Failed to send warning reply to user',
-        error,
-        context: { userId: member.id, guildId: message.guild!.id },
-      });
+      if (
+        error instanceof DiscordAPIError &&
+        typeof error.rawError === 'object' &&
+        error.rawError !== null &&
+        // 50035 = Invalid Form Body; nested message_reference error indicates the original message is gone
+        JSON.stringify(error.rawError).includes('MESSAGE_REFERENCE_UNKNOWN_MESSAGE')
+      ) {
+        enhancedLogger.debug(
+          `Skipped warning reply for ${member.user.tag} — user deleted their message before reply landed`,
+          LogCategory.SECURITY,
+          { userId: member.id, guildId: message.guild!.id },
+        );
+      } else {
+        logError({
+          category: ErrorCategory.DISCORD_API,
+          severity: ErrorSeverity.MEDIUM,
+          message: 'Failed to send warning reply to user',
+          error,
+          context: { userId: member.id, guildId: message.guild!.id },
+        });
+      }
     }
 
     // Set up action timer
@@ -667,7 +685,7 @@ export class BaitChannelManager {
         if (this.pendingBans.has(key)) {
           this.pendingBans.delete(key);
           await this.removePendingBanFromDb(member.id, message.id, message.guild?.id);
-          await this.logAction(message, 'deleted-in-time', config, analysis);
+          await this.logAction(message, member, 'deleted-in-time', config, analysis);
 
           // Delete the bot's warning message since the user complied
           if (warningMessage) {
@@ -1100,7 +1118,7 @@ export class BaitChannelManager {
     );
 
     // Step 6: Log to database
-    await this.logAction(message, actionTaken, config, analysis, failureReason);
+    await this.logAction(message, member, actionTaken, config, analysis, failureReason);
   }
 
   /**
@@ -1154,19 +1172,26 @@ export class BaitChannelManager {
 
   private async logAction(
     message: Message,
+    member: GuildMember,
     action: string,
     _config: BaitChannelConfig,
     analysis?: SuspicionAnalysis,
     failureReason?: string,
   ): Promise<void> {
+    // We accept `member` from the caller rather than re-deriving it from
+    // `message.member`. Discord.js drops `message.member` to null once the
+    // user has been banned/kicked or once the partial is evicted from cache,
+    // so by the time we reach this function (post-ban or post-delete) the
+    // lookup would null-deref. The caller always has a fresh reference in
+    // scope from when the bait message was first seen — pass it through.
     try {
-      const member = message.member!;
       const userActivity = await this.activityRepo.findOne({
         where: { guildId: message.guild!.id, userId: member.id },
       });
 
       const accountAgeDays = (Date.now() - member.user.createdTimestamp) / (1000 * 60 * 60 * 24);
-      const membershipMinutes = (Date.now() - member.joinedTimestamp!) / (1000 * 60);
+      const joinedTs = member.joinedTimestamp ?? Date.now();
+      const membershipMinutes = (Date.now() - joinedTs) / (1000 * 60);
 
       const logEntry: Partial<BaitChannelLog> = {
         guildId: message.guild!.id,
@@ -1196,7 +1221,7 @@ export class BaitChannelManager {
         error,
         context: {
           guildId: message.guild!.id,
-          userId: message.author.id,
+          userId: member.id,
           action,
         },
       });
