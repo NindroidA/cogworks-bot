@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.41] - 2026-05-05
+
+Two prod-bug fixes from 2026-05-04/05 incident logs.
+
+### Fixed
+- **Bait channel**: `logAction` no longer crashes with `TypeError: null is not an object (evaluating 'member.id')` when called after a successful ban/kick or after the user deleted their own message during a parallel grace period. Discord.js drops `message.member` to null in those cases; the helper now takes a `GuildMember` ref from the caller (already in scope at every call site) instead of re-deriving from a stale `message.member`. Also defensively coalesces `member.joinedTimestamp ?? Date.now()`.
+- **Bait channel**: `MESSAGE_REFERENCE_UNKNOWN_MESSAGE` from `message.reply()` (when the user deletes their bait message before the warning reply lands) is now logged at debug instead of MEDIUM-severity error. That's the user complying with the warning — no need to spam the error webhook.
+- **Ticket creation**: 18+ verification (and the 4 other builtin types) now show the modal built from the seeded `CustomTicketType` row's `customFields` instead of the hardcoded builtin modal. The submit handler already preferred the custom row via `resolveTicketType()`, but the show path short-circuited on `isBuiltinTicketType()` — producing tickets with just a heading and the user's input silently dropped (prod 2026-05-05, ticket #112 — the user's date of birth in 18+ verify never made it into the ticket message).
+- **Ticket creation**: silent `catch {}` around `fields.getTextInputValue(field.id)` upgraded to `enhancedLogger.warn` with field id + ticket type, so any future field-id mismatch is loud, not invisible.
+
 ## [3.1.40] - 2026-05-01
 
 Unify ticket-type management UX.
