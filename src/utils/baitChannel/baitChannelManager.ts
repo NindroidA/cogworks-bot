@@ -16,6 +16,7 @@ import { AppDataSource } from '../../typeorm';
 import type { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelConfig';
 import type { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
 import type { BaitKeyword } from '../../typeorm/entities/bait/BaitKeyword';
+import type { IdempotencyKey as IdempotencyKeyEntity } from '../../typeorm/entities/bait/IdempotencyKey';
 import { JoinEvent } from '../../typeorm/entities/bait/JoinEvent';
 import type { PendingAction as PendingActionEntity } from '../../typeorm/entities/bait/PendingAction';
 import type { UserActivity } from '../../typeorm/entities/UserActivity';
@@ -23,6 +24,8 @@ import { Colors } from '../colors';
 import { CACHE_TTL, INTERVALS } from '../constants';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+import { buildAuditReason, flagsTriggered } from './auditReason';
+import { type BanExecutorAction, type BanExecutorResult, executeBanAction } from './banExecutor';
 import type { JoinVelocityTracker } from './joinVelocityTracker';
 import { analyzeUrls } from './urlAnalyzer';
 import { analyzeUsername } from './usernameAnalyzer';
@@ -97,6 +100,7 @@ export class BaitChannelManager {
     private activityRepo: Repository<UserActivity>,
     private pendingActionRepo?: Repository<PendingActionEntity>,
     private keywordRepo?: Repository<BaitKeyword>,
+    private idempotencyRepo?: Repository<IdempotencyKeyEntity>,
   ) {}
 
   setJoinVelocityTracker(tracker: JoinVelocityTracker): void {
@@ -929,150 +933,119 @@ export class BaitChannelManager {
       dmSent = await this.sendDmNotification(member, resolvedAction, config, analysis);
     }
 
-    // Step 3: Execute the resolved action (skip in test mode)
-    if (isTestMode) {
-      actionTaken = `test-${resolvedAction}`;
+    // Step 3: Execute the resolved action via REST executor (idempotent, leave-tolerant).
+    // 'kick' is mapped to 'softban' when we have BAN_MEMBERS so messages get
+    // deleted via the ban API (softban = ban + immediate unban). Without
+    // BAN_MEMBERS we fall back to a true kick + bot-side purge sweep.
+    const deleteHours = config.deleteMessageHours ?? 24;
+    const timeoutMs = (config.timeoutDurationMinutes ?? 60) * 60 * 1000;
+    const channelName =
+      'name' in message.channel && typeof message.channel.name === 'string' ? message.channel.name : message.channelId;
+    const auditReason = buildAuditReason({
+      score: analysis.score,
+      channelName,
+      flags: flagsTriggered(analysis.flags),
+      messageId: message.id,
+      extra: reason,
+    });
+
+    let apiAction: BanExecutorAction = resolvedAction as BanExecutorAction;
+    if (resolvedAction === 'kick') {
+      const hasBanPermission = message.guild!.members.me?.permissions.has(PermissionFlagsBits.BanMembers);
+      apiAction = hasBanPermission ? 'softban' : 'kick';
+    }
+
+    const executorResult: BanExecutorResult | null = this.idempotencyRepo
+      ? await executeBanAction(
+          {
+            guild: message.guild!,
+            userId: member.id,
+            action: apiAction,
+            reason: auditReason,
+            executorId: this.client.user?.id ?? null,
+            deleteMessageSeconds: apiAction === 'ban' || apiAction === 'softban' ? deleteHours * 3600 : undefined,
+            timeoutMs: apiAction === 'timeout' ? timeoutMs : undefined,
+            member,
+            testMode: isTestMode,
+          },
+          this.idempotencyRepo,
+        )
+      : null;
+
+    // Translate executor result into the BaitChannelLog `actionTaken` value
+    // the rest of this method expects. Preserve existing test-* / failed /
+    // logged naming so the channel embed + DB row stay backward-compatible.
+    if (executorResult === null) {
+      // No idempotency repo wired — boot path / test fixture. Defer to
+      // best-effort path so the manager still functions before Phase 2 is
+      // fully wired. (Removed once index.ts boot passes the repo.)
+      actionResult = 'failed';
+      actionTaken = 'failed';
+      failureReason = 'idempotency repo unavailable';
+    } else if (executorResult.status === 'duplicate') {
+      // Someone (mod, retry queue, prior call) already did this action today.
+      actionTaken = 'superseded';
       enhancedLogger.info(
-        `[TEST MODE] Would have executed ${resolvedAction} on ${member.user.tag} (Score: ${analysis.score})`,
+        `Bait action ${apiAction} for ${member.user.tag} skipped — idempotency dedup`,
+        LogCategory.SECURITY,
+        { userId: member.id, guildId: message.guild!.id, action: apiAction },
+      );
+    } else if (executorResult.status === 'queued') {
+      // Retry queue (Phase 3) will pick this up. Record as failed for now
+      // so the log row reflects current state.
+      actionResult = 'failed';
+      actionTaken = 'queued';
+      failureReason = executorResult.failureReason;
+      enhancedLogger.warn(
+        `Bait action ${apiAction} for ${member.user.tag} queued for retry: ${executorResult.failureReason ?? 'unknown'}`,
+        LogCategory.SECURITY,
+        { userId: member.id, guildId: message.guild!.id, action: apiAction },
+      );
+    } else if (executorResult.status === 'failed') {
+      actionResult = 'failed';
+      actionTaken = 'failed';
+      failureReason = executorResult.failureReason;
+      logError({
+        category: ErrorCategory.DISCORD_API,
+        severity: ErrorSeverity.HIGH,
+        message: `Bait action ${apiAction} failed terminally`,
+        error: new Error(executorResult.failureReason ?? 'unknown'),
+        context: {
+          userId: member.id,
+          guildId: message.guild!.id,
+          action: apiAction,
+          errorCode: executorResult.errorCode,
+        },
+      });
+    } else {
+      // executed — including test mode dry-run (the executor itself logs the [TEST MODE] line).
+      if (isTestMode) {
+        actionTaken = `test-${resolvedAction}`;
+      } else if (resolvedAction === 'log-only') {
+        actionTaken = 'logged';
+      } else {
+        actionTaken = resolvedAction;
+      }
+
+      enhancedLogger.info(
+        isTestMode
+          ? `[TEST MODE] Bait dry-run ${apiAction} for ${member.user.tag} (Score: ${analysis.score})`
+          : `Bait ${apiAction} executed for ${member.user.tag} (Score: ${analysis.score})`,
         LogCategory.SECURITY,
         {
           userId: member.id,
           score: analysis.score,
-          action: `test-${resolvedAction}`,
+          action: actionTaken,
+          deleteMessageHours: apiAction === 'ban' || apiAction === 'softban' ? deleteHours : undefined,
+          timeoutMinutes: apiAction === 'timeout' ? (config.timeoutDurationMinutes ?? 60) : undefined,
           guildId: message.guild!.id,
         },
       );
-    } else {
-      try {
-        switch (resolvedAction) {
-          case 'ban': {
-            const deleteHours = config.deleteMessageHours ?? 24;
-            await member.ban({
-              reason: `${config.banReason} (${reason})`,
-              deleteMessageSeconds: deleteHours * 3600,
-            });
-            enhancedLogger.info(`Banned user ${member.user.tag} (Score: ${analysis.score})`, LogCategory.SECURITY, {
-              userId: member.id,
-              score: analysis.score,
-              action: 'ban',
-              deleteMessageHours: deleteHours,
-              guildId: message.guild!.id,
-            });
-            break;
-          }
 
-          case 'kick': {
-            const deleteHoursKick = config.deleteMessageHours ?? 24;
-            const hasBanPermission = message.guild!.members.me?.permissions.has(PermissionFlagsBits.BanMembers);
-            if (hasBanPermission) {
-              // Softban: ban to delete messages, then immediately unban
-              await member.ban({
-                reason: `Softban — ${config.banReason} (${reason})`,
-                deleteMessageSeconds: deleteHoursKick * 3600,
-              });
-              await new Promise(r => setTimeout(r, 500));
-              await message.guild!.bans.remove(member.id, 'Softban complete — user may rejoin');
-              enhancedLogger.info(
-                `Softbanned (kick) user ${member.user.tag} (Score: ${analysis.score})`,
-                LogCategory.SECURITY,
-                {
-                  userId: member.id,
-                  score: analysis.score,
-                  action: 'kick-softban',
-                  deleteMessageHours: deleteHoursKick,
-                  guildId: message.guild!.id,
-                },
-              );
-            } else {
-              // Fallback: regular kick (no message deletion via Discord API)
-              await member.kick(`${config.banReason} (${reason})`);
-              // Run purge since we couldn't softban
-              if (message.guild) {
-                await this.purgeUserMessages(message.guild, member.id, []);
-              }
-              enhancedLogger.info(
-                `Kicked user ${member.user.tag} (Score: ${analysis.score}) — no ban perms, used fallback kick + purge`,
-                LogCategory.SECURITY,
-                {
-                  userId: member.id,
-                  score: analysis.score,
-                  action: 'kick-fallback',
-                  guildId: message.guild!.id,
-                },
-              );
-            }
-            break;
-          }
-
-          case 'timeout': {
-            const timeoutMs = (config.timeoutDurationMinutes ?? 60) * 60 * 1000;
-            await member.timeout(timeoutMs, `${config.banReason} (${reason})`);
-            // Timeout can't use softban — purge messages bot-side
-            if (message.guild) {
-              purgeResult = await this.purgeUserMessages(message.guild, member.id, []);
-            }
-            enhancedLogger.info(
-              `Timed out user ${member.user.tag} for ${config.timeoutDurationMinutes ?? 60}min (Score: ${analysis.score})`,
-              LogCategory.SECURITY,
-              {
-                userId: member.id,
-                score: analysis.score,
-                action: 'timeout',
-                purgedMessages: purgeResult?.totalDeleted ?? 0,
-                guildId: message.guild!.id,
-              },
-            );
-            break;
-          }
-
-          case 'log-only':
-            enhancedLogger.info(
-              `Logged user ${member.user.tag} (Score: ${analysis.score}) - no action taken`,
-              LogCategory.SECURITY,
-              {
-                userId: member.id,
-                score: analysis.score,
-                action: 'log-only',
-                guildId: message.guild!.id,
-              },
-            );
-            actionTaken = 'logged';
-            break;
-
-          default:
-            enhancedLogger.warn(`Unknown action type: ${resolvedAction}`, LogCategory.ERROR, {
-              actionType: resolvedAction,
-              guildId: message.guild!.id,
-            });
-        }
-      } catch (error) {
-        const err = error as Error;
-        actionResult = 'failed';
-        failureReason = err.message;
-        actionTaken = 'failed';
-
-        enhancedLogger.error(
-          `Failed to execute action ${resolvedAction} for ${member.user.tag}`,
-          err,
-          LogCategory.ERROR,
-          {
-            userId: member.id,
-            action: resolvedAction,
-            guildId: message.guild!.id,
-          },
-        );
-
-        logError({
-          category: ErrorCategory.DISCORD_API,
-          severity: ErrorSeverity.HIGH,
-          message: `Failed to execute bait channel action: ${resolvedAction}`,
-          error,
-          context: {
-            userId: member.id,
-            guildId: message.guild!.id,
-            action: resolvedAction,
-          },
-        });
+      // Timeout + kick-fallback need a bot-side message purge — Discord's
+      // ban API isn't involved so we do it ourselves. Skipped in test mode.
+      if (!isTestMode && (apiAction === 'timeout' || apiAction === 'kick') && message.guild) {
+        purgeResult = await this.purgeUserMessages(message.guild, member.id, []);
       }
     }
 
