@@ -6,6 +6,7 @@ import { handleSlashCommand } from './commands/commands';
 import { startFieldSessionCleanup, stopFieldSessionCleanup } from './commands/handlers/application/applicationFields';
 import { handleContextMenuCommand } from './commands/handlers/contextMenus';
 import { startFieldDraftCleanup, stopFieldDraftCleanup } from './commands/handlers/shared/fieldManagerCore';
+import { registerAuditLogEntryCreateHandler } from './events/auditLogEntryCreate';
 import { handleAutocomplete } from './events/autocomplete';
 import channelDeleteEvent from './events/channelDelete';
 import guildCreateEvent from './events/guildCreate';
@@ -143,6 +144,10 @@ const client = new Client({
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildScheduledEvents,
+    // GuildModeration (v3.2.0) — required for the auditLogEntryCreate
+    // listener (Phase 4) that attributes ban/kick/timeout actions to
+    // bot-self vs mod and dedups the mod-supersedes-us race.
+    GatewayIntentBits.GuildModeration,
   ],
   partials: [Partials.Message, Partials.Reaction, Partials.User],
   makeCache: Options.cacheWithLimits({
@@ -222,6 +227,9 @@ client.on(threadDeleteEvent.name, thread => threadDeleteEvent.execute(thread));
 // register member lifecycle events
 client.on(guildMemberAddEvent.name, member => guildMemberAddEvent.execute(member, extClient));
 client.on(guildMemberRemoveEvent.name, member => guildMemberRemoveEvent.execute(member));
+
+// v3.2.0 — real-time audit-log attribution for bait actions
+registerAuditLogEntryCreateHandler(client);
 
 // register onboarding join event (sends DM onboarding flow to new members)
 client.on(onboardingJoinEvent.name, member => onboardingJoinEvent.execute(member, extClient));
