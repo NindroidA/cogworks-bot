@@ -235,6 +235,30 @@ export class BaitChannelManager {
     }
   }
 
+  /**
+   * Clear any in-memory pending grace timers for a user. Called from
+   * `guildMemberRemove` before draining DB rows, so the setTimeout
+   * callback's `pendingBans.has(key)` guard short-circuits and we don't
+   * race with leave-drain's REST execution. The actual DB row is removed
+   * by the caller (leave-drain owns its own pending_actions.remove call).
+   */
+  cancelGraceForUser(guildId: string, userId: string): void {
+    for (const [key, ban] of this.pendingBans.entries()) {
+      if (ban.userId === userId) {
+        clearTimeout(ban.timeoutId);
+        this.pendingBans.delete(key);
+        enhancedLogger.debug(
+          `Cleared in-memory grace timer for ${userId} in ${guildId} (user left)`,
+          LogCategory.SECURITY,
+          {
+            guildId,
+            userId,
+          },
+        );
+      }
+    }
+  }
+
   async handleMessage(message: Message): Promise<void> {
     try {
       if (!message.guild || message.author.bot || message.system) return;

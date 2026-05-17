@@ -32,7 +32,7 @@
  */
 
 import { AuditLogEvent, type Client, Events, type GuildAuditLogsEntry } from 'discord.js';
-import { LessThan, MoreThanOrEqual } from 'typeorm';
+import { IsNull, LessThan, MoreThanOrEqual } from 'typeorm';
 import { AppDataSource } from '../typeorm';
 import { BaitChannelLog } from '../typeorm/entities/bait/BaitChannelLog';
 import { IdempotencyKey } from '../typeorm/entities/bait/IdempotencyKey';
@@ -123,7 +123,11 @@ export function registerAuditLogEntryCreateHandler(client: Client): void {
         severity: ErrorSeverity.MEDIUM,
         message: 'auditLogEntryCreate handler failed',
         error,
-        context: { guildId: guild.id, action: entry.action, targetId: entry.targetId },
+        context: {
+          guildId: guild.id,
+          action: entry.action,
+          targetId: entry.targetId,
+        },
       });
     }
   });
@@ -230,7 +234,14 @@ async function handleModSupersedes(
   enhancedLogger.info(
     `Mod ${executorId} superseded bait ${action} against ${userId} in ${guildId} (cancelled ${cancelled.affected ?? 0} pending row(s))`,
     LogCategory.SECURITY,
-    { guildId, userId, executorId, action, auditLogId, pendingCancelled: cancelled.affected ?? 0 },
+    {
+      guildId,
+      userId,
+      executorId,
+      action,
+      auditLogId,
+      pendingCancelled: cancelled.affected ?? 0,
+    },
   );
 }
 
@@ -247,13 +258,16 @@ async function handleUnban(guildId: string, userId: string, executorId: string, 
   // softban reverses are filtered out (bot-self executor); a mod reversing
   // a bot ban is what we care about.
   const since = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+  // `unbannedAt: undefined` is a no-op in TypeORM's where — we want
+  // `IS NULL` so already-unbanned rows aren't re-stamped if the same user
+  // is banned + unbanned a second time.
   const log = await repo.findOne({
     where: {
       guildId,
       userId,
       actionTaken: 'ban',
       createdAt: MoreThanOrEqual(since),
-      unbannedAt: undefined,
+      unbannedAt: IsNull(),
     },
     order: { createdAt: 'DESC' },
   });

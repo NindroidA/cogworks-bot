@@ -180,6 +180,58 @@ export class RaidModeManager {
     await this.releaseRaidMode(guild, 'system:auto-release', 'duration cap (4h) elapsed');
   }
 
+  /**
+   * Boot-time recovery for guilds where `currentRaidModeUntil > now()`.
+   * Re-applies the channel lockdown — if the bot crashed mid-`enterRaidMode`
+   * (after DB write, before/during `applyChannelLockdown`), some channels
+   * may have been left unlocked while the dashboard says "active". This
+   * sweep is idempotent: re-applying the deny-overwrite on an
+   * already-locked channel is a no-op at the Discord API level.
+   *
+   * Called from `clientReady` in `src/index.ts` once per boot.
+   */
+  async restoreActiveLockdowns(): Promise<void> {
+    // Find all guilds with active raid mode. Repo query — small table,
+    // typically < 1k rows.
+    const configs = await this.deps.configRepo.find({});
+    const now = Date.now();
+    let restored = 0;
+    for (const config of configs) {
+      if (!config.currentRaidModeUntil) continue;
+      if (config.currentRaidModeUntil.getTime() <= now) {
+        // Expired during the offline window → auto-release.
+        const guild = await this.fetchGuildSilent(config.guildId);
+        if (guild) {
+          await this.releaseRaidMode(guild, 'system:boot-cleanup', 'duration cap elapsed while offline');
+        }
+        continue;
+      }
+      const guild = await this.fetchGuildSilent(config.guildId);
+      if (!guild) continue;
+      await this.applyChannelLockdown(guild, config, true);
+      restored++;
+    }
+    if (restored > 0) {
+      enhancedLogger.warn(
+        `Restored raid mode lockdown on ${restored} guild(s) after bot restart`,
+        LogCategory.SECURITY,
+        { count: restored },
+      );
+    }
+  }
+
+  /** Internal helper — config repo doesn't have a Discord client ref, so we need one from `enterRaidMode`'s usual call shape. */
+  private fetchGuildSilent: (guildId: string) => Promise<Guild | null> = async () => null;
+
+  /**
+   * Wire the guild-fetcher (typically `client.guilds.fetch.bind(client.guilds)` from boot).
+   * Separates the boot-time recovery from the per-call paths that already
+   * have a Guild ref in scope.
+   */
+  setGuildFetcher(fetcher: (guildId: string) => Promise<Guild | null>): void {
+    this.fetchGuildSilent = fetcher;
+  }
+
   /** Read-only state for the dashboard / API. */
   async getStatus(guildId: string): Promise<{
     active: boolean;

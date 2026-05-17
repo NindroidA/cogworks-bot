@@ -58,6 +58,17 @@ async function drainPendingBaitActions(member: GuildMember | PartialGuildMember)
   const pendingRepo = AppDataSource.getRepository(PendingAction);
   const idempotencyRepo = AppDataSource.getRepository(IdempotencyKey);
 
+  // Race avoidance: clear any in-memory grace timers for this user FIRST,
+  // so a concurrent setTimeout callback in `baitChannelManager` short-
+  // circuits on its `pendingBans.has(key)` guard. Without this, both
+  // paths can reach `executeBanAction` — idempotency catches the double
+  // execution at Discord level but creates a confusing 'superseded' log
+  // row alongside the real action.
+  const extClient = member.client as typeof member.client & {
+    baitChannelManager?: { cancelGraceForUser(g: string, u: string): void };
+  };
+  extClient.baitChannelManager?.cancelGraceForUser(member.guild.id, member.id);
+
   const rows = await pendingRepo
     .find({ where: { guildId: member.guild.id, userId: member.id } })
     .catch(() => [] as PendingAction[]);
@@ -67,9 +78,13 @@ async function drainPendingBaitActions(member: GuildMember | PartialGuildMember)
   for (const row of rows) {
     if (row.deadAt) continue; // already dead-lettered; mod can review via dashboard
 
-    // Demote timeout to softban — timeout requires a live member.
+    // Demote actions that need a live member to softban — the REST ban
+    // endpoint works by user ID even after they've left.
+    //   - timeout: Discord API requires live GuildMember
+    //   - kick: discord.js exposes kick only via `member.kick()`
+    //   - log-only: no demotion (just persists the audit row)
     let action = row.action;
-    if (action === 'timeout') action = 'softban';
+    if (action === 'timeout' || action === 'kick') action = 'softban';
 
     const result = await executeBanAction(
       {

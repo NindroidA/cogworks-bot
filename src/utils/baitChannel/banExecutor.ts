@@ -158,12 +158,12 @@ function isRetryableDiscordError(error: unknown): boolean {
 }
 
 /**
- * Discord API error codes worth logging out separately.
+ * Discord API error codes that are terminal — retrying won't help.
  * 10007 = Unknown Member (already left — should not retry; demote).
  * 10026 = Unknown Ban (already removed — for softban remove step).
  * 50013 = Missing Permissions (won't fix on retry).
  */
-const TERMINAL_DISCORD_CODES = new Set([10007, 10013, 10026, 50013]);
+const TERMINAL_DISCORD_CODES = new Set([10007, 10026, 50013]);
 
 function isTerminalDiscordError(error: unknown): boolean {
   return error instanceof DiscordAPIError && TERMINAL_DISCORD_CODES.has(Number(error.code));
@@ -235,7 +235,11 @@ export async function executeBanAction(
           enhancedLogger.warn(
             `Softban remove step failed terminally for ${userId} — leaving as-is`,
             LogCategory.SECURITY,
-            { guildId: guild.id, userId, error: (removeError as Error).message },
+            {
+              guildId: guild.id,
+              userId,
+              error: (removeError as Error).message,
+            },
           );
         }
         return { status: 'executed', action };
@@ -247,7 +251,11 @@ export async function executeBanAction(
         // (well, technically `DELETE /guilds/:id/members/:id` exists, but
         // discord.js exposes it only via `member.kick()`).
         if (!member) {
-          return { status: 'failed', action, failureReason: 'kick requires a live GuildMember ref' };
+          return {
+            status: 'failed',
+            action,
+            failureReason: 'kick requires a live GuildMember ref',
+          };
         }
         await member.kick(reason);
         return { status: 'executed', action };
@@ -263,7 +271,11 @@ export async function executeBanAction(
           };
         }
         if (!timeoutMs || timeoutMs <= 0) {
-          return { status: 'failed', action, failureReason: 'timeout requires positive timeoutMs' };
+          return {
+            status: 'failed',
+            action,
+            failureReason: 'timeout requires positive timeoutMs',
+          };
         }
         await member.timeout(timeoutMs, reason);
         return { status: 'executed', action };
@@ -276,7 +288,11 @@ export async function executeBanAction(
 
       default: {
         const _exhaustive: never = action;
-        return { status: 'failed', action: _exhaustive, failureReason: 'unknown action' };
+        return {
+          status: 'failed',
+          action: _exhaustive,
+          failureReason: 'unknown action',
+        };
       }
     }
   } catch (error) {
@@ -284,11 +300,26 @@ export async function executeBanAction(
     const message = error instanceof Error ? error.message : String(error);
 
     if (isTerminalDiscordError(error)) {
-      return { status: 'failed', action, failureReason: message, errorCode: errCode };
+      return {
+        status: 'failed',
+        action,
+        failureReason: message,
+        errorCode: errCode,
+      };
     }
     if (isRetryableDiscordError(error)) {
-      return { status: 'queued', action, failureReason: message, errorCode: errCode };
+      return {
+        status: 'queued',
+        action,
+        failureReason: message,
+        errorCode: errCode,
+      };
     }
-    return { status: 'failed', action, failureReason: message, errorCode: errCode };
+    return {
+      status: 'failed',
+      action,
+      failureReason: message,
+      errorCode: errCode,
+    };
   }
 }

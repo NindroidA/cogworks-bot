@@ -302,10 +302,15 @@ client.once('clientReady', async () => {
   retryQueue.start();
 
   // raid mode manager — guild-wide lockdown when bait actions stack rapidly
-  initRaidModeManager({
+  const raidMgr = initRaidModeManager({
     configRepo: AppDataSource.getRepository(BaitChannelConfig),
     logRepo: AppDataSource.getRepository(BaitChannelLog),
   });
+  raidMgr.setGuildFetcher(async (id: string) => client.guilds.fetch(id).catch(() => null));
+  // Boot-time recovery for raid lockdowns the bot was running before
+  // shutdown. Re-applies permission overwrites — idempotent on the
+  // Discord side, so doubly-locked channels are a no-op.
+  await raidMgr.restoreActiveLockdowns();
 
   // content-burst detector — same content posted in N channels in M seconds
   initContentBurstDetector();

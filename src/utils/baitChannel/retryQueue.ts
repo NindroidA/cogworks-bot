@@ -58,7 +58,9 @@ export class RetryQueue {
     this.interval = setInterval(() => {
       void this.tick();
     }, TICK_INTERVAL_MS);
-    enhancedLogger.info('Bait retry queue started', LogCategory.SYSTEM, { tickIntervalMs: TICK_INTERVAL_MS });
+    enhancedLogger.info('Bait retry queue started', LogCategory.SYSTEM, {
+      tickIntervalMs: TICK_INTERVAL_MS,
+    });
   }
 
   stop(): void {
@@ -189,7 +191,12 @@ export class RetryQueue {
       enhancedLogger.info(
         `Bait retry succeeded: ${row.action} on ${row.userId} (attempts=${row.attempts})`,
         LogCategory.SECURITY,
-        { guildId: row.guildId, userId: row.userId, action: row.action, attempts: row.attempts },
+        {
+          guildId: row.guildId,
+          userId: row.userId,
+          action: row.action,
+          attempts: row.attempts,
+        },
       );
       return;
     }
@@ -221,16 +228,21 @@ export class RetryQueue {
       return;
     }
 
-    // Promote to attempts=1 so this row is owned by the retry queue henceforth.
-    row.attempts = 1;
-    await this.deps.pendingActionRepo.save(row);
-
     enhancedLogger.warn(
       `Orphaned grace row promoted to retry queue (${row.action} on ${row.userId} in ${row.guildId})`,
       LogCategory.SECURITY,
-      { guildId: row.guildId, userId: row.userId, age: Date.now() - row.createdAt.getTime() },
+      {
+        guildId: row.guildId,
+        userId: row.userId,
+        age: Date.now() - row.createdAt.getTime(),
+      },
     );
 
+    // Don't pre-consume an attempt — `processRow`'s failure path will
+    // increment from 0→1 on the first failure, then 1→2, then 2→3
+    // (dead-letter). That gives the row the full 3 attempts the
+    // documented backoff promises. If we'd pre-set attempts=1 here, we'd
+    // only get 2 Discord retries before dead-lettering.
     await this.processRow(row);
   }
 
