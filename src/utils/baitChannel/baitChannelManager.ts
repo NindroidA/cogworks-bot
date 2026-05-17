@@ -27,8 +27,39 @@ import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { buildAuditReason, flagsTriggered } from './auditReason';
 import { type BanExecutorAction, type BanExecutorResult, executeBanAction } from './banExecutor';
 import type { JoinVelocityTracker } from './joinVelocityTracker';
+import { getRetryQueue } from './retryQueue';
 import { analyzeUrls } from './urlAnalyzer';
 import { analyzeUsername } from './usernameAnalyzer';
+
+// Mirrors `BaitChannelLog.dmFailureReason` — kept in sync deliberately.
+type DmFailureReason = 'closed' | 'no_shared_guild' | 'timeout' | 'unknown';
+interface DmResult {
+  sent: boolean;
+  failureReason?: DmFailureReason;
+}
+
+/**
+ * Map a DM-send error to a structured failure reason. Discord error codes:
+ *   - 50007 = Cannot send messages to this user (DMs disabled, or no
+ *     shared guild)
+ *   - Custom `dm_timeout` → our own 5s race timeout
+ * Anything else is `unknown` (logged but not bucketed for stats).
+ */
+function classifyDmFailure(error: unknown): DmFailureReason {
+  if (error instanceof DiscordAPIError) {
+    if (error.code === 50007) {
+      // Discord doesn't distinguish "DMs closed" from "no shared guild" in
+      // the error code. We bucket both as "closed" — the practical outcome
+      // is the same (we can't reach them).
+      return 'closed';
+    }
+    return 'unknown';
+  }
+  if (error instanceof Error && error.message === 'dm_timeout') {
+    return 'timeout';
+  }
+  return 'unknown';
+}
 
 interface PurgeResult {
   totalDeleted: number;
@@ -526,9 +557,9 @@ export class BaitChannelManager {
     action: string,
     config: BaitChannelConfig,
     _analysis: SuspicionAnalysis,
-  ): Promise<boolean> {
-    if (!config.dmBeforeAction) return false;
-    if (action === 'log-only') return false;
+  ): Promise<DmResult> {
+    if (!config.dmBeforeAction) return { sent: false };
+    if (action === 'log-only') return { sent: false };
 
     const actionLabels: Record<string, string> = {
       ban: 'Ban',
@@ -557,11 +588,22 @@ export class BaitChannelManager {
         });
       }
 
-      await member.send({ embeds: [embed] });
-      return true;
-    } catch {
-      enhancedLogger.debug(`Failed to send DM notification to ${member.user.tag}`, LogCategory.SECURITY);
-      return false;
+      // Race the DM against a 5s timeout — Discord can stall this call
+      // indefinitely when the user's privacy settings have blocked us, and
+      // we don't want the action path to wait forever.
+      await Promise.race([
+        member.send({ embeds: [embed] }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('dm_timeout')), 5_000)),
+      ]);
+      return { sent: true };
+    } catch (error) {
+      const failureReason = classifyDmFailure(error);
+      enhancedLogger.debug(
+        `Failed to send DM notification to ${member.user.tag}: ${failureReason}`,
+        LogCategory.SECURITY,
+        { userId: member.id, guildId: member.guild.id, failureReason },
+      );
+      return { sent: false, failureReason };
     }
   }
 
@@ -927,11 +969,15 @@ export class BaitChannelManager {
     const isTestMode = config.testMode === true;
     let purgeResult: PurgeResult | undefined;
 
-    // Step 2: Send DM notification BEFORE action (user must still be in server)
-    let dmSent = false;
+    // Step 2: Send DM notification BEFORE action (user must still be in server).
+    // The DM result is structured — we record whether it landed and (if not)
+    // why, so admins reviewing the bait log can distinguish DM-blocked from
+    // DM-attempted-and-failed cases.
+    let dmResult: DmResult = { sent: false };
     if (!isTestMode) {
-      dmSent = await this.sendDmNotification(member, resolvedAction, config, analysis);
+      dmResult = await this.sendDmNotification(member, resolvedAction, config, analysis);
     }
+    const dmSent = dmResult.sent;
 
     // Step 3: Execute the resolved action via REST executor (idempotent, leave-tolerant).
     // 'kick' is mapped to 'softban' when we have BAN_MEMBERS so messages get
@@ -991,11 +1037,27 @@ export class BaitChannelManager {
         { userId: member.id, guildId: message.guild!.id, action: apiAction },
       );
     } else if (executorResult.status === 'queued') {
-      // Retry queue (Phase 3) will pick this up. Record as failed for now
-      // so the log row reflects current state.
+      // Hand off to the retry queue. The action is recorded as 'queued' in
+      // the BaitChannelLog (admins can see it pending review); the retry
+      // queue will flip the action to its real value on success or
+      // dead-letter it after MAX_ATTEMPTS.
       actionResult = 'failed';
       actionTaken = 'queued';
       failureReason = executorResult.failureReason;
+
+      const queue = getRetryQueue();
+      if (queue) {
+        await queue.enqueue({
+          guildId: message.guild!.id,
+          userId: member.id,
+          messageId: message.id,
+          channelId: message.channelId,
+          action: apiAction as 'ban' | 'softban' | 'kick' | 'timeout' | 'log-only',
+          suspicionScore: analysis.score,
+          lastError: executorResult.failureReason,
+        });
+      }
+
       enhancedLogger.warn(
         `Bait action ${apiAction} for ${member.user.tag} queued for retry: ${executorResult.failureReason ?? 'unknown'}`,
         LogCategory.SECURITY,
@@ -1075,8 +1137,10 @@ export class BaitChannelManager {
       repeatOffenderResult = await this.detectRepeatOffenders(member, message.guild!.id);
     }
 
-    // Step 5: Log to channel AFTER purge (with result)
-    await this.logToChannel(
+    // Step 5: Log to channel AFTER purge. The result determines whether the
+    // BaitChannelLog row gets `logDeliveryFailed=true` so admins can audit
+    // silent log-delivery failures from the dashboard.
+    const logDelivered = await this.logToChannel(
       member,
       message,
       config,
@@ -1090,8 +1154,12 @@ export class BaitChannelManager {
       repeatOffenderResult,
     );
 
-    // Step 6: Log to database
-    await this.logAction(message, member, actionTaken, config, analysis, failureReason);
+    // Step 6: Log to database with full v3.2.0 observability columns.
+    await this.logAction(message, member, actionTaken, config, analysis, failureReason, {
+      dmResult,
+      logDeliveryFailed: !logDelivered,
+      executorId: executorResult?.status === 'executed' ? (this.client.user?.id ?? null) : null,
+    });
   }
 
   /**
@@ -1150,6 +1218,11 @@ export class BaitChannelManager {
     _config: BaitChannelConfig,
     analysis?: SuspicionAnalysis,
     failureReason?: string,
+    extras?: {
+      dmResult?: DmResult;
+      logDeliveryFailed?: boolean;
+      executorId?: string | null;
+    },
   ): Promise<void> {
     // We accept `member` from the caller rather than re-deriving it from
     // `message.member`. Discord.js drops `message.member` to null once the
@@ -1183,6 +1256,14 @@ export class BaitChannelManager {
         ),
         suspicionScore: analysis?.score || 0,
         detectionFlags: analysis?.flags || undefined,
+        // v3.2.0 audit/observability columns. dmSent + dmFailureReason
+        // populated from the caller's DmResult; executorId tags self vs mod
+        // (Phase 4 fills it for the superseded-by-mod case);
+        // logDeliveryFailed mirrors whether the channel embed landed.
+        dmSent: extras?.dmResult?.sent ?? false,
+        dmFailureReason: extras?.dmResult?.failureReason ?? null,
+        executorId: extras?.executorId ?? null,
+        logDeliveryFailed: extras?.logDeliveryFailed ?? false,
       };
 
       await this.logRepo.save(this.logRepo.create(logEntry));
@@ -1213,14 +1294,17 @@ export class BaitChannelManager {
     purgeResult?: PurgeResult,
     dmSent?: boolean,
     repeatOffenderResult?: RepeatOffenderResult | null,
-  ): Promise<void> {
-    if (!config.logChannelId) return;
+  ): Promise<boolean> {
+    if (!config.logChannelId) return true; // not configured — not a failure
 
     try {
       const logChannel = (await message
         .guild!.channels.fetch(config.logChannelId)
         .catch(() => null)) as TextChannel | null;
-      if (!logChannel) return;
+      if (!logChannel) {
+        // Configured but inaccessible — try the owner-DM fallback.
+        return await this.fallbackLogDmOwner(message.guild!, resolvedAction, member.id, 'log channel not accessible');
+      }
 
       // Check if this is a test mode action
       const isTestMode = config.testMode === true;
@@ -1389,6 +1473,7 @@ export class BaitChannelManager {
       embed;
 
       await logChannel.send({ embeds: [embed] });
+      return true;
     } catch (error) {
       logError({
         category: ErrorCategory.DISCORD_API,
@@ -1400,6 +1485,42 @@ export class BaitChannelManager {
           logChannelId: config.logChannelId,
         },
       });
+      // Last-ditch: DM the guild owner so the action doesn't go silently
+      // unrecorded. They can then re-create the log channel or pick a new one.
+      return await this.fallbackLogDmOwner(
+        message.guild!,
+        resolvedAction,
+        member.id,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  /**
+   * Last-resort log delivery when the configured `logChannelId` is gone or
+   * the bot can't send to it. Returns `true` if the owner DM landed,
+   * `false` if it also failed. A `false` return signals `logDeliveryFailed`
+   * on the BaitChannelLog row so admins can audit silent-failure cases.
+   */
+  private async fallbackLogDmOwner(guild: Guild, action: string, userId: string, reason: string): Promise<boolean> {
+    try {
+      const owner = await guild.fetchOwner().catch(() => null);
+      if (!owner) return false;
+      await owner.send({
+        content:
+          `⚠️ **Bait channel log delivery failed** in **${guild.name}**.\n` +
+          `Action \`${action}\` was taken against <@${userId}> but the configured ` +
+          `log channel is unreachable (\`${reason}\`).\n` +
+          `Please update the bait log channel via \`/baitchannel setup\` or the dashboard.`,
+      });
+      return true;
+    } catch (error) {
+      enhancedLogger.warn(
+        `Bait log owner-DM fallback also failed for guild ${guild.id}: ${error instanceof Error ? error.message : String(error)}`,
+        LogCategory.SECURITY,
+        { guildId: guild.id, userId, action },
+      );
+      return false;
     }
   }
 

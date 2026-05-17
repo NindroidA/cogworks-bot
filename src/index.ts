@@ -62,6 +62,7 @@ import { internalApiServer } from './utils/api/internalApiServer';
 import { APIConnector } from './utils/apiConnector';
 import { BaitChannelManager } from './utils/baitChannel/baitChannelManager';
 import { JoinVelocityTracker } from './utils/baitChannel/joinVelocityTracker';
+import { initRetryQueue, stopRetryQueue } from './utils/baitChannel/retryQueue';
 import { checkAndSendWeeklySummaries } from './utils/baitChannel/weeklySummary';
 import { startLogCleanup, stopLogCleanup } from './utils/database/logCleanup';
 import { baitChannelIdsBackfill } from './utils/database/migrations/baitChannelIdsBackfill';
@@ -281,6 +282,15 @@ client.once('clientReady', async () => {
   await baitChannelManager.initialize();
   baitChannelManager.startActivityFlush();
 
+  // retry queue picks up actions that returned 'queued' from the executor
+  // (Discord 429/5xx, network) and orphaned grace rows after a bot restart
+  const retryQueue = initRetryQueue({
+    client,
+    pendingActionRepo: AppDataSource.getRepository(PendingAction),
+    idempotencyRepo: AppDataSource.getRepository(IdempotencyKey),
+  });
+  retryQueue.start();
+
   // initialize join velocity tracker for burst detection
   const joinVelocityTracker = new JoinVelocityTracker();
   joinVelocityTracker.startCleanupInterval();
@@ -431,6 +441,9 @@ async function gracefulShutdown(signal: string) {
     extClient.baitChannelManager.stopActivityFlush();
     await extClient.baitChannelManager.flushActivityBuffer();
   }
+
+  // stop the bait retry queue (pending rows resume on next boot)
+  stopRetryQueue();
 
   // destroy join velocity tracker (clear interval + free memory)
   if (extClient.joinVelocityTracker) {
