@@ -169,7 +169,8 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     const { ReactionRoleMenu } = await import('../../typeorm/entities/reactionRole');
     const { CustomTicketType } = await import('../../typeorm/entities/ticket/CustomTicketType');
     const { UserTicketRestriction } = await import('../../typeorm/entities/ticket/UserTicketRestriction');
-    const { PendingBan } = await import('../../typeorm/entities/bait/PendingBan');
+    const { PendingAction } = await import('../../typeorm/entities/bait/PendingAction');
+    const { IdempotencyKey } = await import('../../typeorm/entities/bait/IdempotencyKey');
     const { AnnouncementLog } = await import('../../typeorm/entities/announcement/AnnouncementLog');
     const { AnnouncementTemplate } = await import('../../typeorm/entities/announcement/AnnouncementTemplate');
     const { AuditLog } = await import('../../typeorm/entities/AuditLog');
@@ -210,7 +211,14 @@ export async function deleteAllGuildData(guildId: string): Promise<{
       { name: 'MemoryTag', repo: AppDataSource.getRepository(MemoryTag) },
       { name: 'MemoryItem', repo: AppDataSource.getRepository(MemoryItem) },
       { name: 'MemoryConfig', repo: AppDataSource.getRepository(MemoryConfig) },
-      { name: 'PendingBan', repo: AppDataSource.getRepository(PendingBan) },
+      {
+        name: 'PendingAction',
+        repo: AppDataSource.getRepository(PendingAction),
+      },
+      {
+        name: 'IdempotencyKey',
+        repo: AppDataSource.getRepository(IdempotencyKey),
+      },
       {
         name: 'AnnouncementLog',
         repo: AppDataSource.getRepository(AnnouncementLog),

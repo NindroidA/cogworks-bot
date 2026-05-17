@@ -1,5 +1,7 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
+export type DmFailureReason = 'closed' | 'no_shared_guild' | 'timeout' | 'unknown';
+
 @Entity('bait_channel_logs')
 @Index(['guildId', 'createdAt'])
 export class BaitChannelLog {
@@ -24,8 +26,11 @@ export class BaitChannelLog {
   @Column()
   messageId: string;
 
+  // 'banned', 'kicked', 'timed-out', 'softban', 'whitelisted', 'deleted-in-time',
+  // 'failed', 'ban-after-leave', 'demoted-after-leave', 'superseded-by-mod',
+  // 'raid-mode-entered', 'raid-mode-released', 'test-*'
   @Column()
-  actionTaken: string; // 'banned', 'kicked', 'whitelisted', 'deleted-in-time', 'failed'
+  actionTaken: string;
 
   @Column({ type: 'varchar', nullable: true })
   failureReason: string | null;
@@ -63,9 +68,10 @@ export class BaitChannelLog {
     phishingUrl: boolean;
     attachmentOnly: boolean;
     joinBurst: boolean;
+    crossChannelBurst?: boolean;
   } | null;
 
-  // Override tracking (Plan 06)
+  // Override tracking (Plan 06 / v3.0.0)
   @Column({ default: false })
   overridden: boolean;
 
@@ -74,6 +80,34 @@ export class BaitChannelLog {
 
   @Column({ type: 'datetime', nullable: true })
   overriddenAt: Date | null;
+
+  // Audit-log correlation (v3.2.0)
+  @Column({ type: 'varchar', nullable: true })
+  discordAuditLogId: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  executorId: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  actionConfirmedAt: Date | null;
+
+  // Unban tracking (v3.2.0)
+  @Column({ type: 'datetime', nullable: true })
+  unbannedAt: Date | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  unbannedBy: string | null;
+
+  // DM observability (v3.2.0)
+  @Column({ default: false })
+  dmSent: boolean;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  dmFailureReason: DmFailureReason | null;
+
+  // Log channel delivery (v3.2.0)
+  @Column({ default: false })
+  logDeliveryFailed: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

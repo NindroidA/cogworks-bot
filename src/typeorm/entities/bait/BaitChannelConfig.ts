@@ -124,6 +124,40 @@ export class BaitChannelConfig {
   @Column({ type: 'varchar', nullable: true })
   summaryChannelId: string | null;
 
+  // Raid mode (v3.2.0)
+  @Column({ default: true })
+  enableRaidMode: boolean;
+
+  @Column({ default: 5 })
+  raidModeThreshold: number; // triggers within window to auto-enter raid mode
+
+  @Column({ default: 60 })
+  raidModeWindowSeconds: number;
+
+  @Column({ type: 'varchar', nullable: true })
+  raidModeAlertRoleId: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  currentRaidModeUntil: Date | null; // NULL = inactive, non-null = active until this time (4h cap)
+
+  // Cross-channel content burst (v3.2.0)
+  @Column({ default: 3 })
+  crossChannelBurstThreshold: number; // distinct channels in window to flag
+
+  @Column({ default: 30 })
+  crossChannelBurstWindowSeconds: number;
+
+  // Appeal link (v3.2.0)
+  @Column({ default: false })
+  enableAppealLink: boolean;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  appealLinkBaseUrl: string | null; // HTTPS only — token gets appended as query param
+
+  // Log retention (v3.2.0)
+  @Column({ default: 90 })
+  logRetentionDays: number; // 30-365 range — enforced at write time
+
   @CreateDateColumn()
   createdAt: Date;
 

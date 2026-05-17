@@ -17,7 +17,7 @@ import type { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelC
 import type { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
 import type { BaitKeyword } from '../../typeorm/entities/bait/BaitKeyword';
 import { JoinEvent } from '../../typeorm/entities/bait/JoinEvent';
-import type { PendingBan as PendingBanEntity } from '../../typeorm/entities/bait/PendingBan';
+import type { PendingAction as PendingActionEntity } from '../../typeorm/entities/bait/PendingAction';
 import type { UserActivity } from '../../typeorm/entities/UserActivity';
 import { Colors } from '../colors';
 import { CACHE_TTL, INTERVALS } from '../constants';
@@ -95,7 +95,7 @@ export class BaitChannelManager {
     private configRepo: Repository<BaitChannelConfig>,
     private logRepo: Repository<BaitChannelLog>,
     private activityRepo: Repository<UserActivity>,
-    private pendingBanRepo?: Repository<PendingBanEntity>,
+    private pendingActionRepo?: Repository<PendingActionEntity>,
     private keywordRepo?: Repository<BaitKeyword>,
   ) {}
 
@@ -108,18 +108,18 @@ export class BaitChannelManager {
    * Call after construction once the bot is ready.
    */
   async initialize(): Promise<void> {
-    if (!this.pendingBanRepo) return;
+    if (!this.pendingActionRepo) return;
 
     try {
       // Clean up expired entries
-      await this.pendingBanRepo.delete({ expiresAt: LessThan(new Date()) });
+      await this.pendingActionRepo.delete({ expiresAt: LessThan(new Date()) });
 
       // Load unexpired pending bans and re-create timeouts
-      const activeBans = await this.pendingBanRepo.find();
+      const activeBans = await this.pendingActionRepo.find();
       for (const ban of activeBans) {
         const remainingMs = ban.expiresAt.getTime() - Date.now();
         if (remainingMs <= 0) {
-          await this.pendingBanRepo.remove(ban);
+          await this.pendingActionRepo.remove(ban);
           continue;
         }
 
@@ -155,9 +155,9 @@ export class BaitChannelManager {
   }
 
   private async savePendingBanToDb(guildId: string, pendingBan: PendingBan, gracePeriodSeconds: number): Promise<void> {
-    if (!this.pendingBanRepo) return;
+    if (!this.pendingActionRepo) return;
     try {
-      const entity = this.pendingBanRepo.create({
+      const entity = this.pendingActionRepo.create({
         guildId,
         userId: pendingBan.userId,
         messageId: pendingBan.messageId,
@@ -167,7 +167,7 @@ export class BaitChannelManager {
         createdAt: new Date(pendingBan.timestamp),
         expiresAt: new Date(pendingBan.timestamp + gracePeriodSeconds * 1000),
       });
-      await this.pendingBanRepo.save(entity);
+      await this.pendingActionRepo.save(entity);
     } catch (error) {
       logError({
         category: ErrorCategory.DATABASE,
@@ -180,11 +180,11 @@ export class BaitChannelManager {
   }
 
   private async removePendingBanFromDb(userId: string, messageId: string, guildId?: string): Promise<void> {
-    if (!this.pendingBanRepo) return;
+    if (!this.pendingActionRepo) return;
     try {
       const where: Record<string, string> = { userId, messageId };
       if (guildId) where.guildId = guildId;
-      await this.pendingBanRepo.delete(where);
+      await this.pendingActionRepo.delete(where);
     } catch (error) {
       logError({
         category: ErrorCategory.DATABASE,

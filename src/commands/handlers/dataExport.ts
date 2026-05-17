@@ -28,7 +28,7 @@ import { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelConfig
 import { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
 import { BaitKeyword } from '../../typeorm/entities/bait/BaitKeyword';
 import { JoinEvent } from '../../typeorm/entities/bait/JoinEvent';
-import { PendingBan } from '../../typeorm/entities/bait/PendingBan';
+import { PendingAction } from '../../typeorm/entities/bait/PendingAction';
 import { EventConfig } from '../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../typeorm/entities/event/EventReminder';
 import { EventTemplate } from '../../typeorm/entities/event/EventTemplate';
@@ -68,34 +68,91 @@ interface ExportEntity {
   buildFindOptions: (guildId: string) => FindManyOptions<ObjectLiteral> | undefined;
 }
 
-const guildScoped = (guildId: string): FindManyOptions<ObjectLiteral> => ({ where: { guildId } });
+const guildScoped = (guildId: string): FindManyOptions<ObjectLiteral> => ({
+  where: { guildId },
+});
 
 const EXPORT_ENTITIES: ExportEntity[] = [
   { name: 'botConfig', entity: BotConfig, buildFindOptions: guildScoped },
-  { name: 'baitChannelConfig', entity: BaitChannelConfig, buildFindOptions: guildScoped },
-  { name: 'baitChannelLogs', entity: BaitChannelLog, buildFindOptions: guildScoped },
+  {
+    name: 'baitChannelConfig',
+    entity: BaitChannelConfig,
+    buildFindOptions: guildScoped,
+  },
+  {
+    name: 'baitChannelLogs',
+    entity: BaitChannelLog,
+    buildFindOptions: guildScoped,
+  },
   { name: 'savedRoles', entity: StaffRole, buildFindOptions: guildScoped },
-  { name: 'announcementConfig', entity: AnnouncementConfig, buildFindOptions: guildScoped },
+  {
+    name: 'announcementConfig',
+    entity: AnnouncementConfig,
+    buildFindOptions: guildScoped,
+  },
   { name: 'applications', entity: Application, buildFindOptions: guildScoped },
-  { name: 'applicationConfig', entity: ApplicationConfig, buildFindOptions: guildScoped },
+  {
+    name: 'applicationConfig',
+    entity: ApplicationConfig,
+    buildFindOptions: guildScoped,
+  },
   { name: 'positions', entity: Position, buildFindOptions: guildScoped },
-  { name: 'archivedApplications', entity: ArchivedApplication, buildFindOptions: guildScoped },
-  { name: 'archivedApplicationConfig', entity: ArchivedApplicationConfig, buildFindOptions: guildScoped },
+  {
+    name: 'archivedApplications',
+    entity: ArchivedApplication,
+    buildFindOptions: guildScoped,
+  },
+  {
+    name: 'archivedApplicationConfig',
+    entity: ArchivedApplicationConfig,
+    buildFindOptions: guildScoped,
+  },
   { name: 'tickets', entity: Ticket, buildFindOptions: guildScoped },
   { name: 'ticketConfig', entity: TicketConfig, buildFindOptions: guildScoped },
-  { name: 'archivedTickets', entity: ArchivedTicket, buildFindOptions: guildScoped },
-  { name: 'archivedTicketConfig', entity: ArchivedTicketConfig, buildFindOptions: guildScoped },
-  { name: 'customTicketTypes', entity: CustomTicketType, buildFindOptions: guildScoped },
-  { name: 'userTicketRestrictions', entity: UserTicketRestriction, buildFindOptions: guildScoped },
+  {
+    name: 'archivedTickets',
+    entity: ArchivedTicket,
+    buildFindOptions: guildScoped,
+  },
+  {
+    name: 'archivedTicketConfig',
+    entity: ArchivedTicketConfig,
+    buildFindOptions: guildScoped,
+  },
+  {
+    name: 'customTicketTypes',
+    entity: CustomTicketType,
+    buildFindOptions: guildScoped,
+  },
+  {
+    name: 'userTicketRestrictions',
+    entity: UserTicketRestriction,
+    buildFindOptions: guildScoped,
+  },
   { name: 'rulesConfig', entity: RulesConfig, buildFindOptions: guildScoped },
   {
     name: 'reactionRoleMenus',
     entity: ReactionRoleMenu,
-    buildFindOptions: guildId => ({ where: { guildId }, relations: ['options'] }),
+    buildFindOptions: guildId => ({
+      where: { guildId },
+      relations: ['options'],
+    }),
   },
-  { name: 'pendingBans', entity: PendingBan, buildFindOptions: guildScoped },
-  { name: 'announcementLogs', entity: AnnouncementLog, buildFindOptions: guildScoped },
-  { name: 'announcementTemplates', entity: AnnouncementTemplate, buildFindOptions: guildScoped },
+  {
+    name: 'pendingActions',
+    entity: PendingAction,
+    buildFindOptions: guildScoped,
+  },
+  {
+    name: 'announcementLogs',
+    entity: AnnouncementLog,
+    buildFindOptions: guildScoped,
+  },
+  {
+    name: 'announcementTemplates',
+    entity: AnnouncementTemplate,
+    buildFindOptions: guildScoped,
+  },
   { name: 'memoryConfig', entity: MemoryConfig, buildFindOptions: guildScoped },
   { name: 'memoryItems', entity: MemoryItem, buildFindOptions: guildScoped },
   { name: 'memoryTags', entity: MemoryTag, buildFindOptions: guildScoped },
@@ -116,18 +173,54 @@ const EXPORT_ENTITIES: ExportEntity[] = [
       },
     }),
   },
-  { name: 'starboardConfig', entity: StarboardConfig, buildFindOptions: guildScoped },
-  { name: 'starboardEntries', entity: StarboardEntry, buildFindOptions: guildScoped },
+  {
+    name: 'starboardConfig',
+    entity: StarboardConfig,
+    buildFindOptions: guildScoped,
+  },
+  {
+    name: 'starboardEntries',
+    entity: StarboardEntry,
+    buildFindOptions: guildScoped,
+  },
   { name: 'xpConfig', entity: XPConfig, buildFindOptions: guildScoped },
   { name: 'xpUsers', entity: XPUser, buildFindOptions: guildScoped },
-  { name: 'xpRoleRewards', entity: XPRoleReward, buildFindOptions: guildScoped },
+  {
+    name: 'xpRoleRewards',
+    entity: XPRoleReward,
+    buildFindOptions: guildScoped,
+  },
   { name: 'eventConfig', entity: EventConfig, buildFindOptions: guildScoped },
-  { name: 'eventTemplates', entity: EventTemplate, buildFindOptions: guildScoped },
-  { name: 'eventReminders', entity: EventReminder, buildFindOptions: guildScoped },
-  { name: 'analyticsConfig', entity: AnalyticsConfig, buildFindOptions: guildScoped },
-  { name: 'analyticsSnapshots', entity: AnalyticsSnapshot, buildFindOptions: guildScoped },
-  { name: 'onboardingConfig', entity: OnboardingConfig, buildFindOptions: guildScoped },
-  { name: 'onboardingCompletions', entity: OnboardingCompletion, buildFindOptions: guildScoped },
+  {
+    name: 'eventTemplates',
+    entity: EventTemplate,
+    buildFindOptions: guildScoped,
+  },
+  {
+    name: 'eventReminders',
+    entity: EventReminder,
+    buildFindOptions: guildScoped,
+  },
+  {
+    name: 'analyticsConfig',
+    entity: AnalyticsConfig,
+    buildFindOptions: guildScoped,
+  },
+  {
+    name: 'analyticsSnapshots',
+    entity: AnalyticsSnapshot,
+    buildFindOptions: guildScoped,
+  },
+  {
+    name: 'onboardingConfig',
+    entity: OnboardingConfig,
+    buildFindOptions: guildScoped,
+  },
+  {
+    name: 'onboardingCompletions',
+    entity: OnboardingCompletion,
+    buildFindOptions: guildScoped,
+  },
 ];
 
 async function fetchAllExportData(guildId: string): Promise<Record<string, unknown[]>> {
