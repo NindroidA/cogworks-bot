@@ -26,8 +26,9 @@ export function buildAuditReason(parts: AuditReasonParts): string {
 
   if (parts.channelName) {
     // Channel name may contain non-ASCII or whitespace — keep it tagged but
-    // strip the leading #/whitespace so the reason stays parseable.
-    const cleanName = parts.channelName.replace(/^#+/, '').trim();
+    // strip the leading #/whitespace so the reason stays parseable. Trim
+    // first so leading whitespace doesn't hide an existing # prefix.
+    const cleanName = parts.channelName.trim().replace(/^#+/, '').trim();
     if (cleanName) tokens.push(`ch=#${cleanName}`);
   }
 
