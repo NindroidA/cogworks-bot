@@ -79,6 +79,14 @@ export function requireBoolean(body: Body, field: string): boolean {
   return v;
 }
 
+/** Extract an optional boolean field. Returns undefined if absent/null. */
+export function optionalBoolean(body: Body, field: string): boolean | undefined {
+  const v = body[field];
+  if (v === undefined || v === null) return undefined;
+  if (typeof v !== 'boolean') throw ApiError.badRequest(`${field} must be a boolean`);
+  return v;
+}
+
 /** Extract an optional string array field. Returns undefined if absent/null. */
 export function optionalStringArray(body: Body, field: string): string[] | undefined {
   const v = body[field];
