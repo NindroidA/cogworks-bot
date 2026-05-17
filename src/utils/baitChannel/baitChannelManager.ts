@@ -26,6 +26,7 @@ import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { buildAuditReason, flagsTriggered } from './auditReason';
 import { type BanExecutorAction, type BanExecutorResult, executeBanAction } from './banExecutor';
+import { getContentBurstDetector } from './contentBurstDetector';
 import type { JoinVelocityTracker } from './joinVelocityTracker';
 import { getRaidModeManager } from './raidModeManager';
 import { getRetryQueue } from './retryQueue';
@@ -96,6 +97,7 @@ interface SuspicionAnalysis {
     phishingUrl: boolean;
     attachmentOnly: boolean;
     joinBurst: boolean;
+    crossChannelBurst?: boolean;
   };
   reasons: string[];
 }
@@ -283,6 +285,29 @@ export class BaitChannelManager {
 
       // Perform suspicion analysis
       const analysis = await this.analyzeSuspicion(message, config);
+
+      // v3.2.0 — cross-channel content-burst boost. If this user has posted
+      // the same content in N+ distinct channels within the burst window,
+      // bump the score by 30 and flip the dedicated flag. Forces escalation
+      // even from borderline single-message scores, and signals
+      // raidModeManager that the trigger pool is heating up.
+      const burstDetector = getContentBurstDetector();
+      if (burstDetector) {
+        const burst = burstDetector.recordMessage(
+          member.id,
+          message.channelId,
+          message.content,
+          config.crossChannelBurstWindowSeconds ?? 30,
+          config.crossChannelBurstThreshold ?? 3,
+        );
+        if (burst.bursting) {
+          analysis.score = Math.min(100, analysis.score + 30);
+          analysis.flags.crossChannelBurst = true;
+          analysis.reasons.push(
+            `Same content in ${burst.distinctChannels} channels within ${config.crossChannelBurstWindowSeconds ?? 30}s`,
+          );
+        }
+      }
 
       // Log the attempt
       enhancedLogger.info(

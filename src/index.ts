@@ -62,6 +62,7 @@ import { startSnapshotJob, stopSnapshotJob } from './utils/analytics/snapshotJob
 import { internalApiServer } from './utils/api/internalApiServer';
 import { APIConnector } from './utils/apiConnector';
 import { BaitChannelManager } from './utils/baitChannel/baitChannelManager';
+import { initContentBurstDetector, stopContentBurstDetector } from './utils/baitChannel/contentBurstDetector';
 import { JoinVelocityTracker } from './utils/baitChannel/joinVelocityTracker';
 import { initRaidModeManager } from './utils/baitChannel/raidModeManager';
 import { initRetryQueue, stopRetryQueue } from './utils/baitChannel/retryQueue';
@@ -306,6 +307,9 @@ client.once('clientReady', async () => {
     logRepo: AppDataSource.getRepository(BaitChannelLog),
   });
 
+  // content-burst detector — same content posted in N channels in M seconds
+  initContentBurstDetector();
+
   // initialize join velocity tracker for burst detection
   const joinVelocityTracker = new JoinVelocityTracker();
   joinVelocityTracker.startCleanupInterval();
@@ -459,6 +463,9 @@ async function gracefulShutdown(signal: string) {
 
   // stop the bait retry queue (pending rows resume on next boot)
   stopRetryQueue();
+
+  // stop the content burst detector
+  stopContentBurstDetector();
 
   // destroy join velocity tracker (clear interval + free memory)
   if (extClient.joinVelocityTracker) {
