@@ -63,6 +63,7 @@ import { internalApiServer } from './utils/api/internalApiServer';
 import { APIConnector } from './utils/apiConnector';
 import { BaitChannelManager } from './utils/baitChannel/baitChannelManager';
 import { JoinVelocityTracker } from './utils/baitChannel/joinVelocityTracker';
+import { initRaidModeManager } from './utils/baitChannel/raidModeManager';
 import { initRetryQueue, stopRetryQueue } from './utils/baitChannel/retryQueue';
 import { checkAndSendWeeklySummaries } from './utils/baitChannel/weeklySummary';
 import { startLogCleanup, stopLogCleanup } from './utils/database/logCleanup';
@@ -298,6 +299,12 @@ client.once('clientReady', async () => {
     idempotencyRepo: AppDataSource.getRepository(IdempotencyKey),
   });
   retryQueue.start();
+
+  // raid mode manager — guild-wide lockdown when bait actions stack rapidly
+  initRaidModeManager({
+    configRepo: AppDataSource.getRepository(BaitChannelConfig),
+    logRepo: AppDataSource.getRepository(BaitChannelLog),
+  });
 
   // initialize join velocity tracker for burst detection
   const joinVelocityTracker = new JoinVelocityTracker();

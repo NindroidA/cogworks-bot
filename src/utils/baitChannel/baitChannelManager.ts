@@ -27,6 +27,7 @@ import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { buildAuditReason, flagsTriggered } from './auditReason';
 import { type BanExecutorAction, type BanExecutorResult, executeBanAction } from './banExecutor';
 import type { JoinVelocityTracker } from './joinVelocityTracker';
+import { getRaidModeManager } from './raidModeManager';
 import { getRetryQueue } from './retryQueue';
 import { analyzeUrls } from './urlAnalyzer';
 import { analyzeUsername } from './usernameAnalyzer';
@@ -1108,6 +1109,16 @@ export class BaitChannelManager {
       // ban API isn't involved so we do it ourselves. Skipped in test mode.
       if (!isTestMode && (apiAction === 'timeout' || apiAction === 'kick') && message.guild) {
         purgeResult = await this.purgeUserMessages(message.guild, member.id, []);
+      }
+
+      // Raid mode signal: real (non-test, non-log-only) action just landed.
+      // Records into the per-guild sliding window; entering raid mode is
+      // handled inside `recordTrigger` and produces its own logs/alerts.
+      if (!isTestMode && apiAction !== 'log-only' && message.guild) {
+        const raidMgr = getRaidModeManager();
+        if (raidMgr) {
+          await raidMgr.recordTrigger(message.guild, member.id, config);
+        }
       }
     }
 

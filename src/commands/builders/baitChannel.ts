@@ -254,4 +254,29 @@ export const baitChannelCommand = new SlashCommandBuilder()
           .setDescription(tl.override.descrp)
           .addUserOption(option => option.setName('user').setDescription(tl.override.user).setRequired(true)),
       ),
+  )
+
+  // ── raid group (v3.2.0) ──────────────────────────────────────────────
+  .addSubcommandGroup(group =>
+    group
+      .setName('raid')
+      .setDescription('Raid mode — sticky guild lockdown when bait actions stack rapidly')
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('status')
+          .setDescription('Show current raid mode status (active / threshold / recent triggers)'),
+      )
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('enter')
+          .setDescription('Manually enter raid mode (sticky until released or 4h cap elapses)')
+          .addStringOption(option =>
+            option.setName('reason').setDescription('Optional context shown in the mod-alert embed').setMaxLength(200),
+          ),
+      )
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('release')
+          .setDescription('Release raid mode and restore @everyone send permissions on non-staff channels'),
+      ),
   );

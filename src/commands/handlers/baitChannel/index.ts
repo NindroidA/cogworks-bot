@@ -5,6 +5,7 @@ import { dmNotifyHandler } from './dmNotify';
 import { escalationHandler } from './escalation';
 import { handleKeywords } from './keywords';
 import { overrideHandler } from './override';
+import { raidHandler } from './raid';
 import { settingsHandler } from './settings';
 import { handleBaitChannelAddChannel, handleBaitChannelRemoveChannel, setupHandler } from './setup';
 import { statsHandler } from './stats';
@@ -84,6 +85,10 @@ export async function baitChannelHandler(client: Client, interaction: ChatInputC
 
       case 'dm':
         await dmNotifyHandler(client, interaction);
+        break;
+
+      case 'raid':
+        await raidHandler(client, interaction);
         break;
 
       case 'stats':
