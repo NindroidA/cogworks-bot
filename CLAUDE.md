@@ -5,7 +5,7 @@
 - **Runtime**: Bun
 - **Deployment**: Docker containers
 - **Branches**: `main` (production)
-- **Version**: 3.1.41
+- **Version**: 3.2.0
 
 ## Critical Rules
 
@@ -256,7 +256,7 @@ src/typeorm/entities/
 ├── analytics/            # AnalyticsConfig, AnalyticsSnapshot
 ├── announcement/         # AnnouncementConfig, AnnouncementLog, AnnouncementTemplate
 ├── application/          # ApplicationConfig, ArchivedApplicationConfig, Position, Application, ArchivedApplication
-├── bait/                 # BaitChannelConfig, BaitChannelLog, BaitKeyword, JoinEvent, PendingBan
+├── bait/                 # BaitChannelConfig, BaitChannelLog, BaitKeyword, JoinEvent, PendingAction, IdempotencyKey
 ├── event/                # EventConfig, EventTemplate, EventReminder
 ├── import/               # ImportLog
 ├── memory/               # MemoryConfig, MemoryItem, MemoryTag
@@ -298,6 +298,7 @@ await runner.runAll(guildIds);
 - `DEV_GUILD_ID` — Skips API webhooks and join velocity for this guild
 - `COGWORKS_INTERNAL_API_TOKEN` — Bearer token for internal API
 - `BOT_INTERNAL_PORT` — Internal API port (default: 3002)
+- `APPEAL_HMAC_SECRET` — 32+ byte random secret (v3.2.0). Required only when any guild has `BaitChannelConfig.enableAppealLink=true`; signed appeal URLs are silently omitted from DMs when missing.
 
 ### Build & Run
 ```bash
@@ -431,6 +432,42 @@ Automatic config cleanup when Discord objects are deleted:
 - `roleDelete` — clears role references in 9 entities (BotConfig, RulesConfig, ReactionRoleOption, XPRoleReward, etc.)
 - `threadDelete` — deletes orphaned MemoryItems
 
+### Bait Channel Subsystem (v3.2.0)
+Honeypot moderation engine. Per-message flow:
+
+```
+messageCreate
+  → BaitChannelManager.handleMessage
+  → analyzeSuspicion (15-flag scoring, 0-100)
+  → contentBurstDetector.recordMessage  (cross-channel; +30 if bursting)
+  → grace period setTimeout OR executeAction immediately
+  → executeBanAction(opts, idempotencyRepo)
+      ↳ INSERT IGNORE into idempotency_keys (dedup)
+      ↳ guild.bans.create(userId, {deleteMessageSeconds, reason})  [REST]
+      ↳ retryQueue.enqueue on 'queued'  /  dead-letter after 3 attempts
+  → raidModeManager.recordTrigger (sticky lockdown if N actions in M sec)
+  → sendDmNotification (5s race; DmResult.failureReason)
+  → logToChannel (owner-DM fallback on failure)
+  → logAction (persist BaitChannelLog row with audit columns)
+
+GuildAuditLogEntryCreate event (separate)
+  → confirmSelfAction: patch BaitChannelLog.discordAuditLogId + actionConfirmedAt
+  → handleModSupersedes: cancel pending_actions + write idempotency key + mark log 'superseded-by-mod'
+  → handleUnban: patch BaitChannelLog.unbannedAt / unbannedBy
+```
+
+Module map (`src/utils/baitChannel/`):
+- `baitChannelManager.ts` — orchestrator; per-guild config cache; grace timers
+- `banExecutor.ts` — REST executor + idempotency claim (use this, never `member.ban()` directly)
+- `auditReason.ts` — structured `cogworks:bait score=N ch=#X flags=[…]` reason
+- `retryQueue.ts` — 5s/30s/5min backoff + dead-letter; orphaned grace row sweep
+- `raidModeManager.ts` — sticky lockdown; `enterRaidMode` / `releaseRaidMode` / `getStatus`
+- `contentBurstDetector.ts` — same-content-in-N-channels in M sec
+- `appealToken.ts` — HMAC-SHA256 signed appeal URLs (requires `APPEAL_HMAC_SECRET`)
+- `joinVelocityTracker.ts`, `urlAnalyzer.ts`, `usernameAnalyzer.ts` — pre-v3.2.0 helpers
+
+Required intent: `GatewayIntentBits.GuildModeration` for `auditLogEntryCreate`.
+
 ### Forum Tag System
 Forum tags should **accumulate**, not replace:
 ```typescript
@@ -468,6 +505,8 @@ const triggeredBy = optionalString(body, 'triggeredBy');   // for audit logs
 - Write manual `requireAdmin` + `rateLimiter.check` boilerplate (use `guardAdminRateLimit` from `utils/interactions`)
 - Swallow errors silently with `catch {}` (at minimum log with `enhancedLogger`)
 - Use deprecated `fetchReply: true` (use `withResponse: true`)
+- Use `member.ban()` / `member.kick()` directly in bait paths (use `executeBanAction()` from `utils/baitChannel/banExecutor.ts` — REST-based, idempotent, leave-tolerant. v3.2.0+)
+- Add new bait actions outside `executeAction` / `executeBanAction` (bypasses idempotency key + retry queue, breaks audit-log correlation)
 
 ### Do
 - Use `archiveAndCloseTicket()` from `utils/ticket/closeWorkflow` for ticket close logic
