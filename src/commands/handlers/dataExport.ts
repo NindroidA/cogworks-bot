@@ -27,6 +27,7 @@ import { BotConfig } from '../../typeorm/entities/BotConfig';
 import { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelConfig';
 import { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
 import { BaitKeyword } from '../../typeorm/entities/bait/BaitKeyword';
+import { IdempotencyKey } from '../../typeorm/entities/bait/IdempotencyKey';
 import { JoinEvent } from '../../typeorm/entities/bait/JoinEvent';
 import { PendingAction } from '../../typeorm/entities/bait/PendingAction';
 import { EventConfig } from '../../typeorm/entities/event/EventConfig';
@@ -141,6 +142,11 @@ const EXPORT_ENTITIES: ExportEntity[] = [
   {
     name: 'pendingActions',
     entity: PendingAction,
+    buildFindOptions: guildScoped,
+  },
+  {
+    name: 'idempotencyKeys',
+    entity: IdempotencyKey,
     buildFindOptions: guildScoped,
   },
   {

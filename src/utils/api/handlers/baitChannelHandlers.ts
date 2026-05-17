@@ -11,7 +11,14 @@ import { getRaidModeManager } from '../../baitChannel/raidModeManager';
 import { MAX } from '../../constants';
 import { lazyRepo } from '../../database/lazyRepo';
 import { ApiError } from '../apiError';
-import { optionalBoolean, optionalNumber, optionalString, requireString } from '../helpers';
+import {
+  isValidSnowflake,
+  optionalBoolean,
+  optionalNullableString,
+  optionalNumber,
+  optionalString,
+  requireString,
+} from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
@@ -312,18 +319,14 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
       patched.push('logRetentionDays');
     }
 
-    // Strings (nullable on entity — pass through directly)
-    const stringFields: (keyof BaitChannelConfig)[] = [
-      'banReason',
-      'warningMessage',
-      'actionType',
-      'appealInfo',
-      'logChannelId',
-      'summaryChannelId',
-      'raidModeAlertRoleId',
-      'appealLinkBaseUrl',
-    ];
-    for (const field of stringFields) {
+    // Strings split into:
+    //   - non-nullable: NOT NULL columns — never accept null
+    //   - nullable:     entity column is nullable — accept null/"" to clear
+    // The split avoids the prior bug where `optionalString` collapsed null
+    // and undefined to the same thing, making it impossible to clear a
+    // nullable field via the API.
+    const nonNullableStringFields: (keyof BaitChannelConfig)[] = ['banReason', 'warningMessage', 'actionType'];
+    for (const field of nonNullableStringFields) {
       const v = optionalString(body, field as string);
       if (v !== undefined) {
         (config as unknown as Record<string, unknown>)[field as string] = v;
@@ -331,10 +334,30 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
       }
     }
 
-    // Appeal-link safety: refuse to enable if base URL is HTTP. The bot
-    // also returns null URLs from buildAppealUrl in that case but stopping
-    // at the API boundary gives a clearer error to the dashboard.
-    if (config.enableAppealLink && config.appealLinkBaseUrl) {
+    const nullableStringFields: (keyof BaitChannelConfig)[] = [
+      'appealInfo',
+      'logChannelId',
+      'summaryChannelId',
+      'raidModeAlertRoleId',
+      'appealLinkBaseUrl',
+    ];
+    for (const field of nullableStringFields) {
+      const v = optionalNullableString(body, field as string);
+      if (v !== undefined) {
+        (config as unknown as Record<string, unknown>)[field as string] = v;
+        patched.push(field as string);
+      }
+    }
+
+    // Appeal-link safety. Two gates:
+    //   1. Refuse to enable if base URL is HTTP (or unset).
+    //   2. Refuse to enable if APPEAL_HMAC_SECRET is unset/too short —
+    //      otherwise the signing call at runtime would throw and the
+    //      whole DM path would degrade silently.
+    if (config.enableAppealLink) {
+      if (!config.appealLinkBaseUrl) {
+        throw ApiError.badRequest('appealLinkBaseUrl must be set when enableAppealLink=true');
+      }
       try {
         const url = new URL(config.appealLinkBaseUrl);
         if (url.protocol !== 'https:') {
@@ -343,6 +366,12 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
       } catch (error) {
         if (error instanceof ApiError) throw error;
         throw ApiError.badRequest('appealLinkBaseUrl is not a valid URL');
+      }
+      const secret = process.env.APPEAL_HMAC_SECRET;
+      if (!secret || secret.length < 16) {
+        throw ApiError.badRequest(
+          'APPEAL_HMAC_SECRET env is missing or too short; cannot enable appeal links until the deployment is configured',
+        );
       }
     }
 
@@ -410,11 +439,15 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
   routes.set('GET /bait-channel/pending-actions', async (guildId, _body, url) => {
     const urlObj = new URL(url, 'http://localhost');
     const status = urlObj.searchParams.get('status') ?? 'active';
+    if (!['active', 'dead', 'all'].includes(status)) {
+      throw ApiError.badRequest('status must be one of: active, dead, all');
+    }
     const limit = Math.min(Math.max(Number(urlObj.searchParams.get('limit')) || 50, 1), 200);
 
     const where: Record<string, unknown> = { guildId };
     if (status === 'active') where.deadAt = IsNull();
     else if (status === 'dead') where.deadAt = Not(IsNull());
+    // status === 'all' → no deadAt filter
 
     const rows = await pendingActionRepo.find({
       where,
@@ -450,6 +483,10 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
     const actionFilter = urlObj.searchParams.get('action');
     const userIdFilter = urlObj.searchParams.get('userId');
     const overriddenFilter = urlObj.searchParams.get('overridden');
+
+    if (userIdFilter && !isValidSnowflake(userIdFilter)) {
+      throw ApiError.badRequest('userId must be a valid Discord snowflake');
+    }
 
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 

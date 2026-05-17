@@ -435,7 +435,7 @@ Automatic config cleanup when Discord objects are deleted:
 ### Bait Channel Subsystem (v3.2.0)
 Honeypot moderation engine. Per-message flow:
 
-```
+```text
 messageCreate
   → BaitChannelManager.handleMessage
   → analyzeSuspicion (15-flag scoring, 0-100)

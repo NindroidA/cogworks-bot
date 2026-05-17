@@ -103,7 +103,11 @@ async function claimIdempotencyKey(
   action: BanExecutorAction,
   executorId: string | null | undefined,
   testMode: boolean,
-): Promise<{ claimed: boolean; existing?: IdempotencyKey | null }> {
+): Promise<
+  | { claimed: true }
+  | { claimed: false; reason: 'duplicate'; existing: IdempotencyKey }
+  | { claimed: false; reason: 'db_error' }
+> {
   const dayBucket = todayUtc();
   const expiresAt = new Date(Date.now() + IDEMPOTENCY_TTL_MS);
 
@@ -120,25 +124,38 @@ async function claimIdempotencyKey(
     await repo.save(entity);
     return { claimed: true };
   } catch (error) {
-    // MySQL duplicate-key error number is 1062. TypeORM exposes it via
-    // `error.driverError.errno` in node-mysql2. We don't introspect — any
-    // failure on this insert means we can't claim, which is the safe
-    // default. Look up the existing row for context.
-    const existing = await repo.findOne({
-      where: { guildId, userId, action, dayBucket },
-    });
-    if (existing) {
-      return { claimed: false, existing };
+    // Distinguish duplicate from transient DB failure. The save failed —
+    // either the UNIQUE constraint fired (someone else claimed first), or
+    // the DB is unavailable. We can tell the two apart by re-reading: if
+    // a row exists for our key, it was a duplicate; if the second query
+    // also fails or returns null, treat as a real DB error and let the
+    // caller queue for retry rather than silently skip enforcement.
+    let existing: IdempotencyKey | null = null;
+    try {
+      existing = await repo.findOne({
+        where: { guildId, userId, action, dayBucket },
+      });
+    } catch (lookupError) {
+      logError({
+        category: ErrorCategory.DATABASE,
+        severity: ErrorSeverity.HIGH,
+        message: 'Idempotency lookup after save failure also failed — DB likely down',
+        error: lookupError,
+        context: { guildId, userId, action },
+      });
+      return { claimed: false, reason: 'db_error' };
     }
-    // Genuine DB error (not a dup) — log and treat as unclaimed.
+    if (existing) {
+      return { claimed: false, reason: 'duplicate', existing };
+    }
     logError({
       category: ErrorCategory.DATABASE,
-      severity: ErrorSeverity.MEDIUM,
-      message: 'Failed to claim idempotency key',
+      severity: ErrorSeverity.HIGH,
+      message: 'Failed to claim idempotency key (transient DB error)',
       error,
       context: { guildId, userId, action },
     });
-    return { claimed: false };
+    return { claimed: false, reason: 'db_error' };
   }
 }
 
@@ -177,16 +194,28 @@ export async function executeBanAction(
   const testMode = opts.testMode === true;
   const softbanDelayMs = opts.softbanDelayMs ?? DEFAULT_SOFTBAN_DELAY_MS;
 
-  // Step 1: Claim the idempotency slot. If someone already claimed it,
-  // skip — they already did the work.
+  // Step 1: Claim the idempotency slot. Distinguish three outcomes:
+  //   - claimed:    we own this action, proceed to Discord API
+  //   - duplicate:  someone else already did this — skip, return duplicate
+  //   - db_error:   transient DB failure — queue for retry instead of
+  //                 silently skipping (the bug was to treat this as duplicate)
   const claim = await claimIdempotencyKey(idempotencyRepo, guild.id, userId, action, executorId, testMode);
   if (!claim.claimed) {
-    enhancedLogger.debug(
-      `Skipping ${action} on ${userId} — idempotency key already claimed${claim.existing?.executorId ? ` by ${claim.existing.executorId}` : ''}`,
-      LogCategory.SECURITY,
-      { guildId: guild.id, userId, action },
-    );
-    return { status: 'duplicate', action };
+    if (claim.reason === 'duplicate') {
+      enhancedLogger.debug(
+        `Skipping ${action} on ${userId} — idempotency key already claimed${claim.existing.executorId ? ` by ${claim.existing.executorId}` : ''}`,
+        LogCategory.SECURITY,
+        { guildId: guild.id, userId, action },
+      );
+      return { status: 'duplicate', action };
+    }
+    // db_error — queue for retry. Caller (manager or leave-drain) forwards
+    // to retryQueue.enqueue which will re-attempt the claim on a later tick.
+    return {
+      status: 'queued',
+      action,
+      failureReason: 'idempotency claim failed (DB unavailable)',
+    };
   }
 
   // Step 2: Test mode dry-run — bail before Discord API.

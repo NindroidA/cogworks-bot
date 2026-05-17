@@ -18,6 +18,7 @@ import { PendingAction } from '../typeorm/entities/bait/PendingAction';
 import { enhancedLogger, LogCategory } from '../utils';
 import { activityTracker } from '../utils/analytics/activityTracker';
 import { executeBanAction } from '../utils/baitChannel/banExecutor';
+import { getRetryQueue } from '../utils/baitChannel/retryQueue';
 
 export default {
   name: 'guildMemberRemove',
@@ -69,9 +70,12 @@ async function drainPendingBaitActions(member: GuildMember | PartialGuildMember)
   };
   extClient.baitChannelManager?.cancelGraceForUser(member.guild.id, member.id);
 
-  const rows = await pendingRepo
-    .find({ where: { guildId: member.guild.id, userId: member.id } })
-    .catch(() => [] as PendingAction[]);
+  // Let DB failures propagate to the outer try/catch — we'd rather log
+  // the error than silently skip the leave-drain. The outer guildMemberRemove
+  // handler already wraps everything in try/catch and logs to enhancedLogger.
+  const rows = await pendingRepo.find({
+    where: { guildId: member.guild.id, userId: member.id },
+  });
 
   if (rows.length === 0) return;
 
@@ -110,12 +114,41 @@ async function drainPendingBaitActions(member: GuildMember | PartialGuildMember)
       },
     );
 
-    // Remove the row regardless of executor outcome:
-    //   - executed/duplicate: row served its purpose
-    //   - queued: the executor already enqueued via the retry queue's
-    //     own row mechanics (and Phase 3's `enqueue` handles upsert)
-    //   - failed: terminal Discord error (user already banned, etc.);
-    //     nothing more to retry on a non-member
-    await pendingRepo.remove(row).catch(() => {});
+    if (result.status === 'queued') {
+      // Discord 429 / 5xx / network — the row stays alive so the retry
+      // queue can pick it up. The executor does NOT auto-enqueue, so we
+      // forward it explicitly (matches the manager's queued-path
+      // contract). The enqueue helper upserts on (guildId, userId,
+      // messageId), so reusing the existing row is fine.
+      const queue = getRetryQueue();
+      if (queue) {
+        await queue.enqueue({
+          guildId: row.guildId,
+          userId: row.userId,
+          messageId: row.messageId,
+          channelId: row.channelId,
+          action,
+          suspicionScore: row.suspicionScore,
+          lastError: result.failureReason,
+        });
+      } else {
+        // No retry queue (boot race) — leave the row in place; the queue's
+        // orphan sweep will pick it up next tick.
+        enhancedLogger.warn(
+          'Retry queue unavailable during leave-drain; row left for orphan sweep',
+          LogCategory.SECURITY,
+          {
+            guildId: row.guildId,
+            userId: row.userId,
+            messageId: row.messageId,
+          },
+        );
+      }
+      continue;
+    }
+
+    // executed / duplicate / failed — row served its purpose, remove it.
+    // Errors propagate to the outer handler instead of being silently swallowed.
+    await pendingRepo.remove(row);
   }
 }

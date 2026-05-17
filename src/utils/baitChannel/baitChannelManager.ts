@@ -660,12 +660,26 @@ export class BaitChannelManager {
 
       // Race the DM against a 5s timeout — Discord can stall this call
       // indefinitely when the user's privacy settings have blocked us, and
-      // we don't want the action path to wait forever.
-      await Promise.race([
-        member.send({ embeds: [embed] }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('dm_timeout')), 5_000)),
-      ]);
-      return { sent: true };
+      // we don't want the action path to wait forever. The send promise is
+      // held in a local so its eventual rejection (after the timeout wins)
+      // doesn't become an unhandled rejection — we attach a swallow-catch
+      // for any post-race outcome we no longer care about.
+      const sendPromise = member.send({ embeds: [embed] });
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('dm_timeout')), 5_000);
+      });
+      try {
+        await Promise.race([sendPromise, timeoutPromise]);
+        if (timer) clearTimeout(timer);
+        return { sent: true };
+      } catch (raceError) {
+        // If the timeout won, the underlying send may still settle later —
+        // attach a swallow handler so Node doesn't log an unhandled rejection.
+        sendPromise.catch(() => {});
+        if (timer) clearTimeout(timer);
+        throw raceError;
+      }
     } catch (error) {
       const failureReason = classifyDmFailure(error);
       enhancedLogger.debug(
@@ -1550,8 +1564,6 @@ export class BaitChannelManager {
         });
       }
 
-      embed;
-
       await logChannel.send({ embeds: [embed] });
       return true;
     } catch (error) {
@@ -1666,8 +1678,6 @@ export class BaitChannelManager {
           value: `${message.attachments.size} attachment(s)`,
         });
       }
-
-      embed;
 
       await logChannel.send({ embeds: [embed] });
     } catch (error) {

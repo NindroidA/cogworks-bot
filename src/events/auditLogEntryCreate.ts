@@ -208,10 +208,15 @@ async function handleModSupersedes(
   // would 10026 "Unknown Ban" and dead-letter).
   const cancelled = await pendingRepo.delete({ guildId, userId });
 
-  // Step 3: log the superseded event. If there's a recent BaitChannelLog
-  // row that hasn't been actioned yet (grace period in progress, or queued
-  // for retry), update it. Otherwise, write a new row with minimal
-  // metadata — better to record the mod ban than silently drop it.
+  // Step 3: log the superseded event. Three cases:
+  //   (a) Existing log row in 'queued' / 'failed' / 'logged' state →
+  //       update it in place to 'superseded-by-mod'.
+  //   (b) Existing log row already actioned (e.g., we executed before
+  //       the mod's action wins the audit race) → leave it alone.
+  //   (c) No recent log row (typical grace-period scenario where we
+  //       haven't yet written the BaitChannelLog) → insert a new row
+  //       so the dashboard can see the mod-supersedes event. Better to
+  //       record minimal metadata than silently drop attribution.
   const since = new Date(Date.now() - RECENT_LOG_WINDOW_MS);
   const existingLog = await logRepo.findOne({
     where: {
@@ -222,14 +227,39 @@ async function handleModSupersedes(
     order: { createdAt: 'DESC' },
   });
 
-  if (existingLog && (existingLog.actionTaken === 'queued' || existingLog.actionTaken === 'failed')) {
-    // Pending bait action superseded — update the row in place.
+  const UPDATABLE_ACTION_STATES = new Set(['queued', 'failed', 'logged']);
+  if (existingLog && UPDATABLE_ACTION_STATES.has(existingLog.actionTaken)) {
+    // (a) update in place
     existingLog.actionTaken = 'superseded-by-mod';
     existingLog.executorId = executorId;
     existingLog.discordAuditLogId = auditLogId;
     existingLog.actionConfirmedAt = new Date();
     await logRepo.save(existingLog);
+  } else if (!existingLog) {
+    // (c) no row yet — insert a minimal-metadata row so this event isn't
+    // lost. Score/flags/content are unknown (the bot never got to write
+    // the row), but guildId+userId+executor+action+auditLog ID is enough
+    // for the dashboard to correlate.
+    await logRepo.save(
+      logRepo.create({
+        guildId,
+        userId,
+        username: 'unknown', // we don't have a member ref here
+        channelId: '0',
+        messageContent: '',
+        messageId: '0',
+        actionTaken: 'superseded-by-mod',
+        accountAgeDays: 0,
+        membershipMinutes: 0,
+        executorId,
+        discordAuditLogId: auditLogId,
+        actionConfirmedAt: new Date(),
+      }),
+    );
   }
+  // case (b): already-executed row left as-is — duplicate attribution from
+  // a slightly delayed mod action would overwrite our own audit-confirmed
+  // log, which is incorrect.
 
   enhancedLogger.info(
     `Mod ${executorId} superseded bait ${action} against ${userId} in ${guildId} (cancelled ${cancelled.affected ?? 0} pending row(s))`,
