@@ -23,7 +23,7 @@
 import { Buffer } from 'node:buffer';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-const TOKEN_ISSUER = 'cogworks';
+const ISSUER_NAME = 'cogworks';
 const DEFAULT_EXP_HOURS = 7 * 24; // 7 days — long enough for most ban-appeal workflows
 
 export interface AppealTokenPayload {
@@ -94,7 +94,7 @@ export function signAppealToken(input: SignAppealTokenInput): string {
     banReason: input.banReason,
     iat: now,
     exp,
-    iss: TOKEN_ISSUER,
+    iss: ISSUER_NAME,
   };
   const payloadStr = b64urlEncode(JSON.stringify(payload));
   const sig = createHmac('sha256', getSecret()).update(payloadStr).digest();
@@ -129,7 +129,7 @@ export function verifyAppealToken(token: string): VerifyResult {
     return { valid: false, error: 'invalid_format' };
   }
 
-  if (payload.iss !== TOKEN_ISSUER) return { valid: false, error: 'wrong_issuer' };
+  if (payload.iss !== ISSUER_NAME) return { valid: false, error: 'wrong_issuer' };
   if (typeof payload.exp !== 'number') return { valid: false, error: 'invalid_format' };
   if (payload.exp * 1000 < Date.now()) return { valid: false, error: 'expired' };
 
