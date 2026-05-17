@@ -24,6 +24,7 @@ import { Colors } from '../colors';
 import { CACHE_TTL, INTERVALS } from '../constants';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+import { buildAppealUrl } from './appealToken';
 import { buildAuditReason, flagsTriggered } from './auditReason';
 import { type BanExecutorAction, type BanExecutorResult, executeBanAction } from './banExecutor';
 import { getContentBurstDetector } from './contentBurstDetector';
@@ -611,6 +612,25 @@ export class BaitChannelManager {
         embed.addFields({
           name: 'Appeal Information',
           value: config.appealInfo,
+        });
+      }
+
+      // v3.2.0 — signed appeal link (issued when enableAppealLink + baseUrl
+      // are configured + APPEAL_HMAC_SECRET env is set). Webapp consumer
+      // (v3.2.1) verifies the token and auto-opens a banAppeal ticket. The
+      // helper returns null silently for any missing prerequisite — falls
+      // back to the static appealInfo above.
+      const appealUrl = buildAppealUrl({
+        guildId: member.guild.id,
+        userId: member.id,
+        action: action as 'ban' | 'softban' | 'kick' | 'timeout',
+        banReason: config.banReason,
+        baseUrl: config.enableAppealLink ? config.appealLinkBaseUrl : null,
+      });
+      if (appealUrl) {
+        embed.addFields({
+          name: 'Appeal this action',
+          value: `[Open appeal form](${appealUrl})\n*Link is single-use and expires in 7 days.*`,
         });
       }
 
