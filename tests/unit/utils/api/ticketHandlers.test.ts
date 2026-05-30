@@ -32,12 +32,13 @@ import type { Client } from "discord.js";
 // Mocks for non-repo deps
 // ---------------------------------------------------------------------------
 
+// Injected into registerTicketHandlers (3rd arg) — NOT mock.module'd. Mocking
+// the shared ticket/closeWorkflow module here would leak process-globally and
+// make closeWorkflow's own test suite import this fake instead of the real SUT
+// (bun's mock.module is process-shared and not undone by mock.restore).
 const fakeArchiveAndClose = jest.fn(async () => ({
   success: true,
   archived: true,
-}));
-mock.module("../../../../src/utils/ticket/closeWorkflow", () => ({
-  archiveAndCloseTicket: fakeArchiveAndClose,
 }));
 
 const fakeWriteAuditLog = jest.fn(async () => undefined);
@@ -140,7 +141,7 @@ beforeEach(() => {
   } as any;
 
   routes = new Map();
-  registerTicketHandlers(fakeClient, routes);
+  registerTicketHandlers(fakeClient, routes, fakeArchiveAndClose);
 });
 
 afterEach(() => {
