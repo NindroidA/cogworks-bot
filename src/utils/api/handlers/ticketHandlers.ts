@@ -2,7 +2,7 @@ import type { Client, GuildTextBasedChannel } from 'discord.js';
 import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { lazyRepo } from '../../database/lazyRepo';
-import { archiveAndCloseTicket } from '../../ticket/closeWorkflow';
+import { archiveAndCloseTicket as defaultArchiveAndCloseTicket } from '../../ticket/closeWorkflow';
 import { ApiError } from '../apiError';
 import { isValidSnowflake, optionalString, requireId, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
@@ -11,7 +11,18 @@ import { writeAuditLog } from './auditHelper';
 const ticketRepo = lazyRepo(Ticket);
 const archivedTicketConfigRepo = lazyRepo(ArchivedTicketConfig);
 
-export function registerTicketHandlers(client: Client, routes: Map<string, RouteHandler>): void {
+/**
+ * @param archiveAndCloseTicket Injectable for tests — defaults to the real
+ * close workflow. Passing a fake here lets the handler test avoid
+ * `mock.module()` on the shared closeWorkflow module, which would otherwise
+ * leak process-globally and poison closeWorkflow's own test suite (bun's
+ * mock.module is process-shared and not undone by mock.restore).
+ */
+export function registerTicketHandlers(
+  client: Client,
+  routes: Map<string, RouteHandler>,
+  archiveAndCloseTicket: typeof defaultArchiveAndCloseTicket = defaultArchiveAndCloseTicket,
+): void {
   // POST /internal/guilds/:guildId/tickets/:id/close
   routes.set('POST /tickets/:id/close', async (guildId, body, url) => {
     const ticketId = requireId(url, 'tickets');
@@ -19,7 +30,9 @@ export function registerTicketHandlers(client: Client, routes: Map<string, Route
     if (!ticket) throw ApiError.notFound('Ticket not found');
     if (ticket.status === 'closed') throw ApiError.conflict('Ticket already closed');
 
-    const archivedConfig = await archivedTicketConfigRepo.findOneBy({ guildId });
+    const archivedConfig = await archivedTicketConfigRepo.findOneBy({
+      guildId,
+    });
     if (!archivedConfig) throw ApiError.notFound('Archive config not found');
 
     // Mark closed immediately
@@ -40,7 +53,9 @@ export function registerTicketHandlers(client: Client, routes: Map<string, Route
     );
 
     const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'ticket.close', triggeredBy, { ticketId: ticket.id });
+    await writeAuditLog(guildId, 'ticket.close', triggeredBy, {
+      ticketId: ticket.id,
+    });
     return { success: true, ticketId: ticket.id, archived: result.archived };
   });
 
@@ -69,7 +84,10 @@ export function registerTicketHandlers(client: Client, routes: Map<string, Route
     }
 
     const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'ticket.assign', triggeredBy, { ticketId, userId });
+    await writeAuditLog(guildId, 'ticket.assign', triggeredBy, {
+      ticketId,
+      userId,
+    });
     return { success: true };
   });
 }
