@@ -66,6 +66,54 @@ function buildBuiltinTicketModal(typeId: string, modal: ModalBuilder): ModalBuil
   }
 }
 
+/**
+ * Build a ticket modal from a CustomTicketType row's customFields.
+ *
+ * Used by both the select-menu and button entry points so they show the
+ * exact same field set the submit handler will read back via
+ * `resolveTicketType()` → `customType.customFields`. Without this, the
+ * 5 builtin typeIds (which `ensureDefaultTicketTypes` seeds as custom
+ * rows on every guild) would be shown the hardcoded builtin modal whose
+ * field IDs don't match the seeded customFields — producing tickets with
+ * just a heading and no body. (Prod incident 2026-05-05, ticket #112.)
+ */
+function buildCustomTicketModal(ticketType: CustomTicketType): ModalBuilder {
+  const modal = new ModalBuilder()
+    .setCustomId(`ticket_modal_${ticketType.typeId}`)
+    .setTitle(`${ticketType.emoji || '🎫'} ${ticketType.displayName}`);
+
+  if (ticketType.customFields && ticketType.customFields.length > 0) {
+    // Discord caps modals at 5 components — same cap honored by the prior inline path
+    const fieldsToAdd = ticketType.customFields.slice(0, 5);
+
+    for (const field of fieldsToAdd) {
+      const input = new TextInputBuilder()
+        .setCustomId(field.id)
+        .setLabel(field.label)
+        .setStyle(field.style === 'short' ? TextInputStyle.Short : TextInputStyle.Paragraph)
+        .setRequired(field.required);
+
+      if (field.placeholder) input.setPlaceholder(field.placeholder);
+      if (field.minLength) input.setMinLength(field.minLength);
+      if (field.maxLength) input.setMaxLength(field.maxLength);
+
+      modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
+    }
+  } else {
+    const descriptionInput = new TextInputBuilder()
+      .setCustomId('ticket_description')
+      .setLabel('Please describe your issue')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder(ticketType.description || 'Provide details about your ticket...')
+      .setRequired(true)
+      .setMaxLength(2000);
+
+    modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput));
+  }
+
+  return modal;
+}
+
 /** Build builtin ticket description from modal submit fields. */
 function buildBuiltinTicketDescription(typeId: string, fields: ModalSubmitFields): string {
   switch (typeId) {
@@ -164,8 +212,34 @@ export const selectTicketType = async (_client: Client, interaction: StringSelec
     return;
   }
 
+  // Custom-type-first lookup: covers the 5 builtin IDs that
+  // `ensureDefaultTicketTypes` seeds as CustomTicketType rows on every
+  // guild. Falling back to the hardcoded builtin modal when no custom row
+  // exists keeps cold-start guilds (predating the seeder) working.
+  const ticketType = await customTypeRepo.findOne({
+    where: { guildId, typeId: selectedTypeId },
+  });
+
+  if (ticketType) {
+    enhancedLogger.debug('Opening custom-type modal', LogCategory.COMMAND_EXECUTION, {
+      userId: interaction.user.id,
+      guildId,
+      ticketType: selectedTypeId,
+    });
+    await interaction.showModal(buildCustomTicketModal(ticketType));
+
+    setTimeout(async () => {
+      try {
+        await interaction.message.delete();
+      } catch {
+        // Silently fail - message might already be gone
+      }
+    }, 500);
+    return;
+  }
+
   if (isBuiltinTicketType(selectedTypeId)) {
-    enhancedLogger.debug(`Opening builtin modal for type: ${selectedTypeId}`, LogCategory.COMMAND_EXECUTION, {
+    enhancedLogger.debug('Opening builtin modal (no custom-type row found)', LogCategory.COMMAND_EXECUTION, {
       userId: interaction.user.id,
       guildId,
       ticketType: selectedTypeId,
@@ -182,61 +256,10 @@ export const selectTicketType = async (_client: Client, interaction: StringSelec
     return;
   }
 
-  const ticketType = await customTypeRepo.findOne({
-    where: { guildId, typeId: selectedTypeId },
+  await interaction.reply({
+    content: '❌ Selected ticket type not found!',
+    flags: [MessageFlags.Ephemeral],
   });
-
-  if (!ticketType) {
-    await interaction.reply({
-      content: '❌ Selected ticket type not found!',
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
-
-  const modal = new ModalBuilder()
-    .setCustomId(`ticket_modal_${ticketType.typeId}`)
-    .setTitle(`${ticketType.emoji || '🎫'} ${ticketType.displayName}`);
-
-  if (ticketType.customFields && ticketType.customFields.length > 0) {
-    const fieldsToAdd = ticketType.customFields.slice(0, 5);
-
-    for (const field of fieldsToAdd) {
-      const input = new TextInputBuilder()
-        .setCustomId(field.id)
-        .setLabel(field.label)
-        .setStyle(field.style === 'short' ? TextInputStyle.Short : TextInputStyle.Paragraph)
-        .setRequired(field.required);
-
-      if (field.placeholder) input.setPlaceholder(field.placeholder);
-      if (field.minLength) input.setMinLength(field.minLength);
-      if (field.maxLength) input.setMaxLength(field.maxLength);
-
-      const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(input);
-      modal.addComponents(actionRow);
-    }
-  } else {
-    const descriptionInput = new TextInputBuilder()
-      .setCustomId('ticket_description')
-      .setLabel('Please describe your issue')
-      .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder(ticketType.description || 'Provide details about your ticket...')
-      .setRequired(true)
-      .setMaxLength(2000);
-
-    const actionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput);
-    modal.addComponents(actionRow);
-  }
-
-  await interaction.showModal(modal);
-
-  setTimeout(async () => {
-    try {
-      await interaction.message.delete();
-    } catch {
-      // Silently fail - message might already be gone
-    }
-  }, 500);
 };
 
 export const builtinTicketTypeButton = async (_client: Client, interaction: ButtonInteraction) => {
@@ -250,6 +273,20 @@ export const builtinTicketTypeButton = async (_client: Client, interaction: Butt
     guildId: interaction.guildId,
     ticketType,
   });
+
+  // Mirror selectTicketType: prefer the seeded CustomTicketType row over the
+  // hardcoded builtin modal so the modal fields match what submitTicketModal
+  // (via resolveTicketType) expects to read back. (Prod 2026-05-05.)
+  const guildId = interaction.guildId;
+  if (guildId) {
+    const customType = await customTypeRepo.findOne({
+      where: { guildId, typeId: ticketType },
+    });
+    if (customType) {
+      await interaction.showModal(buildCustomTicketModal(customType));
+      return;
+    }
+  }
 
   const modal = buildBuiltinTicketModal(
     ticketType,
@@ -339,8 +376,22 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
           try {
             const value = fields.getTextInputValue(field.id);
             fieldResponses.push(`**${field.label}:** ${escapeDiscordMarkdown(value)}`);
-          } catch {
-            // Field may not be present in the modal submission — skip silently
+          } catch (error) {
+            // Field id missing from submission. With the modal-show path
+            // fixed (custom-type-first), this should be unreachable; if it
+            // fires we want to know loudly instead of producing a heading-
+            // only ticket. (Prod 2026-05-05 ticket #112.)
+            enhancedLogger.warn(
+              `Custom field '${field.id}' missing from modal submission for type '${ticketType}'`,
+              LogCategory.COMMAND_EXECUTION,
+              {
+                userId: interaction.user.id,
+                guildId,
+                ticketType,
+                fieldId: field.id,
+                error: error instanceof Error ? error.message : String(error),
+              },
+            );
           }
         }
 

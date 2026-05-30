@@ -542,8 +542,9 @@ describe("handleTicketInteraction", () => {
       ).toBe("guild123");
     });
 
-    test("should show a builtin modal for a builtin type without an extra custom-type DB lookup", async () => {
-      findOneSpy.mockResolvedValue(null as never); // no restriction
+    test("should fall back to a builtin modal for a builtin type when no CustomTicketType row exists (cold-start)", async () => {
+      // Restriction: null. CustomTicketType: null (cold-start guild predates ensureDefaultTicketTypes seed).
+      findOneSpy.mockResolvedValue(null as never);
       const interaction = makeSelectMenuInteraction("ticket_type_select", [
         "ban_appeal",
       ]);
@@ -551,18 +552,55 @@ describe("handleTicketInteraction", () => {
       await handleTicketInteraction(mockClient, interaction as never);
 
       expect(interaction.showModal).toHaveBeenCalled();
-      // The only findOne call should be the UserTicketRestriction check (has userId).
-      // There must NOT be a second findOne that targets the CustomTicketType entity
-      // (which would have guildId + typeId but no userId in its where clause).
+      // Custom-type lookup IS expected now — we always check before falling back to the builtin modal.
       const customTypeRepoLookup = findOneSpy.mock.calls.find(
         (call: unknown[]) => {
           const where =
             (call[0] as { where?: Record<string, unknown> })?.where ?? {};
-          // CustomTicketType queries have guildId and typeId but NOT userId
           return where.typeId !== undefined && where.userId === undefined;
         },
       );
-      expect(customTypeRepoLookup).toBeUndefined();
+      expect(customTypeRepoLookup).toBeDefined();
+    });
+
+    test("should use CustomTicketType modal for a builtin type when a seeded row exists (regression — prod 2026-05-05)", async () => {
+      // 18_verify is a builtin id but ensureDefaultTicketTypes seeds a
+      // CustomTicketType row whose field IDs (`age_confirmation`,
+      // `verification_method`) do NOT match the hardcoded ageVerifyModal's
+      // `dob_input`. Pre-fix the builtin modal was shown and submit then
+      // failed to read any fields (silent catch), producing a heading-only
+      // ticket. Post-fix the modal must come from the custom row.
+      findOneSpy.mockResolvedValueOnce(null as never).mockResolvedValueOnce({
+        typeId: "18_verify",
+        displayName: "18+ Verification",
+        emoji: "🔞",
+        customFields: [
+          {
+            id: "age_confirmation",
+            label: "Confirm 18+",
+            style: "short",
+            required: true,
+          },
+          {
+            id: "verification_method",
+            label: "Method",
+            style: "paragraph",
+            required: true,
+          },
+        ],
+        description: null,
+      } as never);
+      const interaction = makeSelectMenuInteraction("ticket_type_select", [
+        "18_verify",
+      ]);
+
+      await handleTicketInteraction(mockClient, interaction as never);
+
+      expect(interaction.showModal).toHaveBeenCalled();
+      const modal = (interaction.showModal as ReturnType<typeof jest.fn>).mock
+        .calls[0][0] as { components: unknown[] };
+      // 2 components (one per custom field) — builtin ageVerifyModal would emit only 1
+      expect(modal.components).toHaveLength(2);
     });
 
     test("should reply with an error message when the custom ticket type is not in the database", async () => {
@@ -1041,6 +1079,39 @@ describe("handleTicketInteraction", () => {
         expect(interaction.showModal).toHaveBeenCalled();
       });
     }
+
+    test("should use CustomTicketType modal for a builtin button when a seeded row exists (regression — prod 2026-05-05)", async () => {
+      // Same regression as the select-menu path, mirrored for the button entry point.
+      findOneSpy.mockResolvedValueOnce({
+        typeId: "18_verify",
+        displayName: "18+ Verification",
+        emoji: "🔞",
+        customFields: [
+          {
+            id: "age_confirmation",
+            label: "Confirm 18+",
+            style: "short",
+            required: true,
+          },
+          {
+            id: "verification_method",
+            label: "Method",
+            style: "paragraph",
+            required: true,
+          },
+        ],
+        description: null,
+      } as never);
+      const interaction = makeButtonInteraction("ticket_18_verify");
+
+      await handleTicketInteraction(mockClient, interaction as never);
+
+      expect(interaction.showModal).toHaveBeenCalled();
+      const modal = (interaction.showModal as ReturnType<typeof jest.fn>).mock
+        .calls[0][0] as { components: unknown[] };
+      // 2 components from custom fields — builtin ageVerifyModal would emit only 1
+      expect(modal.components).toHaveLength(2);
+    });
 
     test("should silently ignore unrecognised ticket_ buttons such as ticket_skip", async () => {
       const interaction = makeButtonInteraction("ticket_skip");
