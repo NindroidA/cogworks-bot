@@ -26,7 +26,7 @@
  *     / `'raid-mode-released'` and `userId='SYSTEM'` track history.
  */
 
-import { type ColorResolvable, EmbedBuilder, type Guild, type TextChannel } from 'discord.js';
+import { type ColorResolvable, EmbedBuilder, type Guild, PermissionFlagsBits, type TextChannel } from 'discord.js';
 import type { Repository } from 'typeorm';
 import type { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelConfig';
 import type { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
@@ -50,6 +50,17 @@ export interface RaidModeManagerDeps {
 export class RaidModeManager {
   /** Per-guild sliding window of recent trigger timestamps (in-memory). */
   private triggers: Map<string, TriggerRecord[]> = new Map();
+
+  /**
+   * Per-guild snapshot of each locked channel's prior `@everyone SendMessages`
+   * tri-state (true=explicit allow / false=explicit deny / null=inherit),
+   * captured at lockdown so release restores EXACTLY what was there instead of
+   * blindly clearing to inherit (which would wipe a pre-existing explicit
+   * allow — common in deny-by-default servers). In-memory only: if the bot
+   * restarts mid-raid the snapshot is lost and release falls back to `null` +
+   * a warning (see applyChannelLockdown).
+   */
+  private lockdownSnapshots: Map<string, Map<string, boolean | null>> = new Map();
 
   constructor(private deps: RaidModeManagerDeps) {}
 
@@ -255,10 +266,17 @@ export class RaidModeManager {
 
   /**
    * Apply or remove the @everyone SendMessages overwrite on non-log
-   * text channels. When `lockdown=true` we explicitly deny; when
-   * `lockdown=false` we set to `null` (inherit from parent / role
-   * permissions). Never overwrites guild-scoped role permissions —
-   * only the channel-level @everyone overwrite.
+   * text channels.
+   *
+   * On `lockdown=true` we snapshot each channel's PRIOR @everyone
+   * SendMessages tri-state (allow / deny / inherit) and then explicitly
+   * deny. On `lockdown=false` we RESTORE that snapshot exactly — so a
+   * channel that had an explicit `@everyone SendMessages: true` before the
+   * raid keeps it, instead of being flattened to `inherit` (which in a
+   * deny-by-default server would leave it silently locked after release).
+   * If no snapshot exists (bot restarted mid-raid) we fall back to `null`
+   * (inherit) and warn. Only ever touches the channel-level @everyone
+   * overwrite — never guild-scoped role permissions.
    *
    * Best-effort: per-channel failures are logged but don't abort the
    * sweep. Mods can manually fix stragglers if needed.
@@ -275,17 +293,42 @@ export class RaidModeManager {
       ch => ch.isTextBased() && 'permissionOverwrites' in ch && !exemptChannelIds.has(ch.id),
     );
 
+    // Lockdown: build a fresh snapshot. Release: read the one we stored.
+    const snapshot = lockdown ? new Map<string, boolean | null>() : this.lockdownSnapshots.get(guild.id);
+
     let updated = 0;
     let failed = 0;
+    let restoredFromSnapshot = 0;
 
     for (const channel of channels.values()) {
       if (!('permissionOverwrites' in channel)) continue;
       const channelId = (channel as { id: string }).id;
       const channelName = (channel as { name?: string }).name ?? channelId;
       try {
-        await channel.permissionOverwrites.edit(everyone, {
-          SendMessages: lockdown ? false : null,
-        });
+        if (lockdown) {
+          // Capture prior @everyone SendMessages tri-state, then deny.
+          const ow = channel.permissionOverwrites.cache.get(everyone.id);
+          const prior: boolean | null = ow?.allow.has(PermissionFlagsBits.SendMessages)
+            ? true
+            : ow?.deny.has(PermissionFlagsBits.SendMessages)
+              ? false
+              : null;
+          snapshot?.set(channelId, prior);
+          // Already explicitly denied → nothing to change (snapshot preserves it).
+          if (prior !== false) {
+            await channel.permissionOverwrites.edit(everyone, {
+              SendMessages: false,
+            });
+          }
+        } else {
+          // Restore the recorded tri-state; fall back to inherit if missing.
+          const hasSnap = snapshot?.has(channelId) ?? false;
+          if (hasSnap) restoredFromSnapshot++;
+          const restore: boolean | null = hasSnap ? (snapshot?.get(channelId) ?? null) : null;
+          await channel.permissionOverwrites.edit(everyone, {
+            SendMessages: restore,
+          });
+        }
         updated++;
       } catch (error) {
         failed++;
@@ -295,6 +338,19 @@ export class RaidModeManager {
           error: (error as Error).message,
         });
       }
+    }
+
+    if (lockdown) {
+      this.lockdownSnapshots.set(guild.id, snapshot ?? new Map());
+    } else {
+      if (channels.size > 0 && restoredFromSnapshot === 0) {
+        enhancedLogger.warn(
+          `Raid-mode release for ${guild.id}: no channel-permission snapshot (bot likely restarted mid-raid) — reset @everyone SendMessages to inherit on ${updated} channels. Verify any channel that needed an explicit allow.`,
+          LogCategory.SECURITY,
+          { guildId: guild.id },
+        );
+      }
+      this.lockdownSnapshots.delete(guild.id);
     }
 
     enhancedLogger.info(

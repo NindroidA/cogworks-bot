@@ -319,6 +319,7 @@ export class BaitChannelManager {
       const burstDetector = getContentBurstDetector();
       if (burstDetector) {
         const burst = burstDetector.recordMessage(
+          message.guild.id,
           member.id,
           message.channelId,
           message.content,

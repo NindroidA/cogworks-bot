@@ -16,11 +16,14 @@
  * window means a guild with 1000 active users has ~50,000 records at
  * steady state — well within Node's heap.
  *
- * The detector is consulted from `baitChannelManager.handleMessage` for
- * every message in a guild that has bait channels configured — even
- * non-bait channels. A cross-channel burst signal raises suspicion score
- * by 30 (forces escalation into the bait path even from non-bait posts)
- * and feeds the `raidModeManager` for collective response.
+ * The detector is consulted from `baitChannelManager.handleMessage` only
+ * for non-whitelisted messages posted IN a configured bait/honeypot channel.
+ * A cross-channel burst signal raises the suspicion score by 30 and feeds the
+ * `raidModeManager` for collective response.
+ *
+ * The sliding window is keyed per `(guildId, userId)` so the same user posting
+ * identical content in two different guilds the bot serves does NOT merge into
+ * one window — honoring the multi-server data-isolation rule (CLAUDE.md).
  */
 
 import { createHash } from 'node:crypto';
@@ -80,6 +83,7 @@ export class ContentBurstDetector {
    * detector itself stays config-free so per-guild tuning is honored.
    */
   recordMessage(
+    guildId: string,
     userId: string,
     channelId: string,
     content: string,
@@ -90,7 +94,10 @@ export class ContentBurstDetector {
     const cutoff = now - windowSeconds * 1000;
     const contentHash = hashContent(content);
 
-    const userEntries = this.byUser.get(userId) ?? [];
+    // Per-(guild, user) window — guild-scoped so cross-guild posts of the same
+    // content by the same user don't merge (multi-server isolation).
+    const key = `${guildId}:${userId}`;
+    const userEntries = this.byUser.get(key) ?? [];
 
     // Prune old entries before appending — keeps the per-user array small.
     let writeIdx = 0;
@@ -108,7 +115,7 @@ export class ContentBurstDetector {
       userEntries.splice(0, userEntries.length - MAX_ENTRIES_PER_USER);
     }
 
-    this.byUser.set(userId, userEntries);
+    this.byUser.set(key, userEntries);
 
     // Count distinct channels for THIS hash in the window.
     const distinctChannels = new Set<string>();
