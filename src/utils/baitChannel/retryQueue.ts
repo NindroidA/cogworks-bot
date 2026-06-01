@@ -45,6 +45,13 @@ export interface RetryQueueDeps {
   client: Client;
   pendingActionRepo: Repository<PendingAction>;
   idempotencyRepo: Repository<IdempotencyKey>;
+  /**
+   * Injectable for tests — defaults to the real REST executor. Passing a fake
+   * here lets the retry-lifecycle tests drive executed/queued/failed outcomes
+   * without `mock.module()` (which is process-shared on bun and would poison
+   * the sibling banExecutor suite).
+   */
+  executeBanAction?: typeof executeBanAction;
 }
 
 export class RetryQueue {
@@ -263,7 +270,8 @@ export class RetryQueue {
       action = 'softban';
     }
 
-    return executeBanAction(
+    const exec = this.deps.executeBanAction ?? executeBanAction;
+    return exec(
       {
         guild,
         userId: row.userId,
