@@ -109,6 +109,24 @@ lockdown).
 - Schema entity rename `PendingBan` → `PendingAction` across 6
   importers (manager, index, dataExport, devSuiteScaffold,
   guildQueries, tests).
+## [3.1.42] - 2026-05-31
+
+### Fixed
+
+- **Ticket/application archives could pull the wrong user's thread.** Ticket
+  archives are grouped per user — by `createdBy` for normal tickets, by
+  `emailSender` for email-import tickets. But an email-import ticket's
+  `createdBy` is the importing admin, not the player, so a normal ticket the
+  admin opened could match (and append into) an email-import archive that shared
+  their `createdBy`. `findExistingArchive` now scopes each lookup to its own
+  namespace via the `isEmailTicket` discriminator, so email-import and normal
+  archives can never cross-contaminate. (`src/utils/ticket/closeWorkflow.ts`)
+- **Archived transcripts no longer ping anyone.** Every forum post in the ticket
+  and application archive paths now sends with `allowedMentions: { parse: [] }`,
+  and message content is captured via `cleanContent` (mentions render as
+  readable `@name`/`#name` text, not raw `<@id>` mention syntax). Historical
+  transcript content can never notify users/roles or fire `@everyone`/`@here`.
+  (`closeWorkflow.ts` × 2, `fetchAllMessages.ts`)
 
 ## [3.1.41] - 2026-05-05
 
