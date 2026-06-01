@@ -264,10 +264,13 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
     return { config: config ?? null };
   });
 
-  // PATCH /internal/guilds/:guildId/bait-channel/config
+  // POST /internal/guilds/:guildId/bait-channel/config/update
   // Accepts any subset of writable fields. Validates types; rejects unknown
   // fields silently (forward-compat for webapp that may post stale shape).
-  routes.set('PATCH /bait-channel/config', async (guildId, body) => {
+  // (Was 'PATCH /bait-channel/config' — unreachable, since the internal API's
+  // method gate only allows GET/POST/DELETE. ninsys-api writes bait config via
+  // direct DB, so nothing called the old PATCH route.)
+  routes.set('POST /bait-channel/config/update', async (guildId, body) => {
     const config = await configRepo.findOne({ where: { guildId } });
     if (!config) throw ApiError.notFound('Bait channel is not configured for this guild');
 
