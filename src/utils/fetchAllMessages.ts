@@ -50,7 +50,11 @@ function toTranscriptMessage(m: Message, byId: Map<string, Message>, botClientId
       id: m.author.id,
       bot: m.author.bot,
     },
-    content: m.content ?? '',
+    // cleanContent resolves <@id>/<@&id>/<#id> mentions to readable @name/#name
+    // text (no raw mention syntax) so the archived transcript shows names, not
+    // pings. Combined with allowedMentions:{parse:[]} on the forum send, the
+    // archive can never notify anyone.
+    content: m.cleanContent ?? m.content ?? '',
     timestamp: m.createdAt,
     attachments: Array.from(m.attachments.values()).map(a => ({
       name: a.name,
@@ -65,7 +69,7 @@ function toTranscriptMessage(m: Message, byId: Map<string, Message>, botClientId
     replyTo: replyTarget
       ? {
           author: replyTarget.author.username,
-          content: replyTarget.content ?? '',
+          content: replyTarget.cleanContent ?? replyTarget.content ?? '',
         }
       : undefined,
     isSystem: m.system === true,

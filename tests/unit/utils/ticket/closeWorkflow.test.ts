@@ -2,10 +2,12 @@
  * Close Workflow Behavioral Tests
  *
  * Exercises archiveAndCloseTicket end-to-end with faked Discord client,
- * channel, and TypeORM repo. Mocks the seam dependencies (lazyRepo,
- * verifiedChannelDelete, fetchMessagesAsTranscript, forumTagManager,
- * builtinTypes) at module-resolution time via Bun's mock.module() so the
- * real transcriptBuilder still runs.
+ * channel, and TypeORM repo. The seam dependencies (verifiedChannelDelete,
+ * fetchMessagesAsTranscript, forumTagManager, builtinTypes/resolveTicketType)
+ * are INJECTED via the function's `deps` argument — not mock.module() — so the
+ * real transcriptBuilder still runs and import order can't affect binding. The
+ * repository seam is the one exception: it stays on the AppDataSource
+ * .getRepository runtime patch (lazyRepo resolves it lazily at call-time).
  *
  * Coverage targets the four failure modes the handoff called out plus
  * the happy path variants and re-close behavior:
@@ -25,12 +27,20 @@ import {
   describe,
   expect,
   jest,
-  mock,
   test,
 } from "bun:test";
+// SUT imported statically: ALL deps (incl. the repo) are injected via the
+// `deps` argument below, so there is no mock.module() and no getRepository
+// patch — import order and cross-file module state are irrelevant.
+import {
+  archiveAndCloseTicket,
+  type ArchiveTicketResult,
+  type CloseWorkflowDeps,
+} from "../../../../src/utils/ticket/closeWorkflow";
 
 // ---------------------------------------------------------------------------
-// Module mocks — must run before importing the SUT
+// Fakes — injected into the SUT via `deps` (built below), except the repo
+// which is bound through the AppDataSource.getRepository patch in beforeAll.
 // ---------------------------------------------------------------------------
 
 interface FakeRepoState {
@@ -67,21 +77,11 @@ const fakeVerifiedChannelDelete = jest.fn(async () => ({
   success: true,
   alreadyGone: false,
 }));
-mock.module("../../../../src/utils/discord/verifiedDelete", () => ({
-  verifiedChannelDelete: fakeVerifiedChannelDelete,
-}));
 
 const fakeFetchMessages = jest.fn(async () => [] as any[]);
-mock.module("../../../../src/utils/fetchAllMessages", () => ({
-  fetchMessagesAsTranscript: fakeFetchMessages,
-}));
 
 const fakeEnsureForumTag = jest.fn(async () => "tag-123");
 const fakeApplyForumTags = jest.fn(async () => undefined);
-mock.module("../../../../src/utils/forumTagManager", () => ({
-  ensureForumTag: fakeEnsureForumTag,
-  applyForumTags: fakeApplyForumTags,
-}));
 
 const fakeResolveTicketType = jest.fn();
 // Default implementation = real `builtinTypeInfo` shape so other test files
@@ -119,52 +119,26 @@ const BUILTIN_TYPE_BY_ID = Object.fromEntries(
 );
 const realIsBuiltinTicketType = (id: string) =>
   (BUILTIN_TICKET_TYPE_IDS as readonly string[]).includes(id);
-mock.module("../../../../src/utils/ticket/builtinTypes", () => ({
-  // Faked — overridden per-test via .mockReturnValue:
+
+// EVERY seam dependency is INJECTED directly via archiveAndCloseTicket's `deps`
+// parameter — including the archived-ticket repo. We deliberately use neither
+// mock.module() nor a shared AppDataSource.getRepository monkey-patch: bun
+// applies both inconsistently across a full-suite run on Linux (mock.module
+// could leave the SUT bound to the real forum/transcript functions, and the
+// shared getRepository patch could be stomped by a sibling test file), so the
+// SUT's repo threw and the archive catch silently set archived:false (flaky CI
+// 2026-05-30 — green on macOS + on the PR check, failed on the push to main).
+// Passing every dependency through the function argument is the only fully
+// deterministic, zero-shared-global-state approach, identical on every platform.
+const deps = {
+  fetchMessagesAsTranscript: fakeFetchMessages,
+  ensureForumTag: fakeEnsureForumTag,
+  applyForumTags: fakeApplyForumTags,
+  verifiedChannelDelete: fakeVerifiedChannelDelete,
   resolveTicketType: fakeResolveTicketType,
   builtinTypeInfo: fakeBuiltinTypeInfo,
-  // Real-data passthroughs so cross-suite imports still get correct values:
-  BUILTIN_TICKET_TYPE_IDS,
-  BUILTIN_TYPES,
-  isBuiltinTicketType: realIsBuiltinTicketType,
-  resolveBuiltinPingColumn: (id: string) =>
-    realIsBuiltinTicketType(id)
-      ? `pingStaffOn${id === "18_verify" ? "18Verify" : id.replace(/(?:^|_)(.)/g, (_, c) => c.toUpperCase())}`
-      : null,
-}));
-
-// ---------------------------------------------------------------------------
-// SUT — dynamically imported in beforeAll so mock.module() takes effect
-// before closeWorkflow.ts captures `lazyRepo(ArchivedTicket)` at module load.
-// ---------------------------------------------------------------------------
-
-type ArchiveTicketResult =
-  import("../../../../src/utils/ticket/closeWorkflow").ArchiveTicketResult;
-let archiveAndCloseTicket: typeof import("../../../../src/utils/ticket/closeWorkflow").archiveAndCloseTicket;
-let originalGetRepository: ((entity: any) => unknown) | undefined;
-
-beforeAll(async () => {
-  const { AppDataSource } = await import("../../../../src/typeorm");
-  // Capture so afterAll can restore. Bun runs test files in a single process;
-  // leaving the patch installed leaks into every file that runs after this one.
-  originalGetRepository = (
-    AppDataSource as unknown as { getRepository: (e: any) => unknown }
-  ).getRepository;
-  // Patch getRepository so lazyRepo's Proxy.get returns our fake.
-  (AppDataSource as unknown as { getRepository: () => unknown }).getRepository =
-    () => fakeRepo;
-  const sut = await import("../../../../src/utils/ticket/closeWorkflow");
-  archiveAndCloseTicket = sut.archiveAndCloseTicket;
-});
-
-afterAll(async () => {
-  if (originalGetRepository) {
-    const { AppDataSource } = await import("../../../../src/typeorm");
-    (
-      AppDataSource as unknown as { getRepository: (e: any) => unknown }
-    ).getRepository = originalGetRepository;
-  }
-});
+  archivedTicketRepo: fakeRepo,
+} as unknown as CloseWorkflowDeps;
 
 // ---------------------------------------------------------------------------
 // Fake-builder helpers
@@ -317,6 +291,7 @@ describe("archiveAndCloseTicket", () => {
       "guild-1",
       channel,
       "forum-archive-1",
+      deps,
     );
 
     expect(result).toEqual({ success: true, archived: true });
@@ -367,6 +342,7 @@ describe("archiveAndCloseTicket", () => {
       "guild-1",
       channel,
       "forum-archive-1",
+      deps,
     );
 
     expect(result).toEqual({ success: true, archived: true });
@@ -400,19 +376,56 @@ describe("archiveAndCloseTicket", () => {
       "guild-1",
       channel,
       "forum-archive-1",
+      deps,
     );
 
     expect(result).toEqual({ success: true, archived: true });
-    // Email ticket lookup uses emailSender, not createdBy
+    // Email ticket lookup is scoped to the EMAIL archive namespace
+    // (isEmailTicket:true + emailSender) — never the createdBy namespace.
     expect(fakeRepo.findOneBy).toHaveBeenCalledWith({
-      emailSender: "alice@example.com",
       guildId: "guild-1",
+      isEmailTicket: true,
+      emailSender: "alice@example.com",
     });
     expect(fakeRepoState.createCalls[0]).toMatchObject({
       isEmailTicket: true,
       emailSender: "alice@example.com",
       emailSenderName: "Alice",
       emailSubject: "Help needed with X",
+    });
+  });
+
+  test("regression: a normal ticket queries the createdBy namespace with isEmailTicket:false (never an email-import archive)", async () => {
+    // The reported prod bug: an email-import archive's createdBy is the
+    // importing admin. A normal ticket the admin opens must NOT match it —
+    // the lookup is scoped to isEmailTicket:false so the two archive
+    // namespaces can never cross-contaminate.
+    fakeBuiltinTypeInfo.mockReturnValue({
+      typeId: "general",
+      displayName: "General",
+      emoji: null,
+    });
+    const client = makeFakeClient(forumChannel, () => ({ username: "admin" }));
+    const channel = makeFakeChannel();
+    const ticket = makeTicket({
+      type: "general",
+      createdBy: "admin-id",
+      isEmailTicket: false,
+    });
+
+    await archiveAndCloseTicket(
+      client,
+      ticket,
+      "guild-1",
+      channel,
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(fakeRepo.findOneBy).toHaveBeenCalledWith({
+      guildId: "guild-1",
+      isEmailTicket: false,
+      createdBy: "admin-id",
     });
   });
 
@@ -438,6 +451,7 @@ describe("archiveAndCloseTicket", () => {
       "guild-1",
       channel,
       "forum-archive-1",
+      deps,
     );
 
     expect(result).toEqual({ success: true, archived: true });
@@ -478,6 +492,7 @@ describe("archiveAndCloseTicket", () => {
       "guild-1",
       channel,
       "forum-archive-1",
+      deps,
     );
 
     expect(result).toEqual({ success: true, archived: true });
@@ -507,6 +522,7 @@ describe("archiveAndCloseTicket", () => {
       "guild-1",
       channel,
       "forum-archive-1",
+      deps,
     );
 
     expect(result).toEqual({
@@ -543,6 +559,7 @@ describe("archiveAndCloseTicket", () => {
       "guild-1",
       channel,
       "forum-archive-1",
+      deps,
     );
 
     // Honest archived flag (the v3.1.9 contract-fidelity fix)
@@ -575,6 +592,7 @@ describe("archiveAndCloseTicket", () => {
       "guild-1",
       channel,
       "forum-archive-1",
+      deps,
     );
 
     expect(result).toEqual({ success: true, archived: true });
@@ -604,6 +622,7 @@ describe("archiveAndCloseTicket", () => {
       "guild-1",
       channel,
       "forum-archive-1",
+      deps,
     );
 
     // Workflow returns success: true regardless — channel delete failure is logged,
@@ -630,6 +649,7 @@ describe("archiveAndCloseTicket", () => {
       "guild-1",
       channel,
       "forum-archive-1",
+      deps,
     );
 
     expect(result).toEqual({ success: true, archived: true });
@@ -665,6 +685,7 @@ describe("archiveAndCloseTicket", () => {
       "guild-1",
       channel,
       "forum-archive-1",
+      deps,
     );
 
     expect(result).toEqual({ success: true, archived: true });

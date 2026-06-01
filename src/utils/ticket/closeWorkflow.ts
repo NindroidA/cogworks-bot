@@ -30,6 +30,35 @@ export interface ArchiveTicketResult {
   error?: string;
 }
 
+/**
+ * Injectable seam dependencies for {@link archiveAndCloseTicket}.
+ *
+ * Production callers omit this — the defaults bind the real module functions.
+ * Tests pass fakes directly instead of relying on `mock.module()`, which bun
+ * applies inconsistently across a full-suite run on Linux (the SUT could bind
+ * the real forum/transcript functions and silently produce archived:false —
+ * flaky CI, 2026-05-30). Direct injection is deterministic on every platform.
+ */
+export interface CloseWorkflowDeps {
+  fetchMessagesAsTranscript: typeof fetchMessagesAsTranscript;
+  ensureForumTag: typeof ensureForumTag;
+  applyForumTags: typeof applyForumTags;
+  verifiedChannelDelete: typeof verifiedChannelDelete;
+  resolveTicketType: typeof resolveTicketType;
+  builtinTypeInfo: typeof builtinTypeInfo;
+  archivedTicketRepo: typeof archivedTicketRepo;
+}
+
+const defaultDeps: CloseWorkflowDeps = {
+  fetchMessagesAsTranscript,
+  ensureForumTag,
+  applyForumTags,
+  verifiedChannelDelete,
+  resolveTicketType,
+  builtinTypeInfo,
+  archivedTicketRepo,
+};
+
 interface TicketTypeInfo {
   typeId: string;
   displayName: string;
@@ -43,9 +72,13 @@ interface TicketTypeInfo {
  * returns null rather than falling back to the `type` column, matching the
  * original branching behavior.
  */
-async function resolveTicketTypeInfo(ticket: Ticket, guildId: string): Promise<TicketTypeInfo | null> {
+async function resolveTicketTypeInfo(
+  ticket: Ticket,
+  guildId: string,
+  deps: CloseWorkflowDeps,
+): Promise<TicketTypeInfo | null> {
   if (ticket.customTypeId) {
-    const resolved = await resolveTicketType(guildId, ticket.customTypeId);
+    const resolved = await deps.resolveTicketType(guildId, ticket.customTypeId);
     if (resolved && !resolved.isBuiltin) {
       return {
         typeId: resolved.typeId,
@@ -56,7 +89,7 @@ async function resolveTicketTypeInfo(ticket: Ticket, guildId: string): Promise<T
     return null;
   }
   if (ticket.type) {
-    const builtin = builtinTypeInfo(ticket.type);
+    const builtin = deps.builtinTypeInfo(ticket.type);
     if (builtin) {
       return {
         typeId: builtin.typeId,
@@ -68,14 +101,29 @@ async function resolveTicketTypeInfo(ticket: Ticket, guildId: string): Promise<T
   return null;
 }
 
-async function findExistingArchive(ticket: Ticket, guildId: string): Promise<ArchivedTicket | null> {
+async function findExistingArchive(
+  ticket: Ticket,
+  guildId: string,
+  repo: CloseWorkflowDeps['archivedTicketRepo'],
+): Promise<ArchivedTicket | null> {
+  // Email-import tickets and normal tickets live in SEPARATE archive
+  // namespaces and must never share a thread. An email-import ticket's
+  // `createdBy` is the importing admin, NOT the player it represents — so
+  // without the `isEmailTicket` discriminator a normal ticket the admin opens
+  // would match (and get appended into) an email-import archive that happens
+  // to share their `createdBy`. Scope each lookup to its own kind.
   if (ticket.isEmailTicket && ticket.emailSender) {
-    return archivedTicketRepo.findOneBy({
-      emailSender: ticket.emailSender,
+    return repo.findOneBy({
       guildId,
+      isEmailTicket: true,
+      emailSender: ticket.emailSender,
     });
   }
-  return archivedTicketRepo.findOneBy({ createdBy: ticket.createdBy, guildId });
+  return repo.findOneBy({
+    guildId,
+    isEmailTicket: false,
+    createdBy: ticket.createdBy,
+  });
 }
 
 async function resolveArchiveThreadName(client: Client, ticket: Ticket): Promise<string> {
@@ -98,13 +146,14 @@ export async function archiveAndCloseTicket(
   guildId: string,
   channel: GuildTextBasedChannel,
   archiveForumChannelId: string,
+  deps: CloseWorkflowDeps = defaultDeps,
 ): Promise<ArchiveTicketResult> {
   const channelId = ticket.channelId || '';
 
   // Fetch the conversation as TranscriptMessage[] for the builder.
   let transcriptMessages: TranscriptMessage[];
   try {
-    transcriptMessages = await fetchMessagesAsTranscript(channel, client.user?.id ?? '');
+    transcriptMessages = await deps.fetchMessagesAsTranscript(channel, client.user?.id ?? '');
   } catch (error) {
     enhancedLogger.error('Failed to fetch ticket messages for transcript', error as Error, LogCategory.SYSTEM, {
       guildId,
@@ -120,7 +169,7 @@ export async function archiveAndCloseTicket(
 
   // Build header + chunks. Ticket metadata is resolved locally — type info
   // falls back to the ticket's stored type name when the custom row is gone.
-  const typeInfo = await resolveTicketTypeInfo(ticket, guildId);
+  const typeInfo = await resolveTicketTypeInfo(ticket, guildId, deps);
   const creatorUser = await client.users.fetch(ticket.createdBy).catch(() => null);
   const assignedUser = ticket.assignedTo ? await client.users.fetch(ticket.assignedTo).catch(() => null) : null;
 
@@ -146,11 +195,11 @@ export async function archiveAndCloseTicket(
 
     const forumTagIds: string[] = [];
     if (typeInfo) {
-      const tagId = await ensureForumTag(forumChannel, typeInfo.typeId, typeInfo.displayName, typeInfo.emoji);
+      const tagId = await deps.ensureForumTag(forumChannel, typeInfo.typeId, typeInfo.displayName, typeInfo.emoji);
       if (tagId) forumTagIds.push(tagId);
     }
 
-    const existingArchive = await findExistingArchive(ticket, guildId);
+    const existingArchive = await findExistingArchive(ticket, guildId, deps.archivedTicketRepo);
 
     if (!existingArchive) {
       // First-time close: create a new forum thread with the header as
@@ -158,19 +207,21 @@ export async function archiveAndCloseTicket(
       const threadName = await resolveArchiveThreadName(client, ticket);
       const newPost = await forumChannel.threads.create({
         name: threadName,
-        message: { content: transcript.header },
+        // allowedMentions parse:[] — the transcript is historical content; it
+        // must never ping anyone (@everyone/@here/user/role) when re-posted.
+        message: { content: transcript.header, allowedMentions: { parse: [] } },
       });
 
       if (forumTagIds.length > 0) {
-        await applyForumTags(forumChannel, newPost.id, forumTagIds);
+        await deps.applyForumTags(forumChannel, newPost.id, forumTagIds);
       }
 
       for (const chunk of transcript.chunks) {
-        await newPost.send({ content: chunk });
+        await newPost.send({ content: chunk, allowedMentions: { parse: [] } });
       }
 
-      await archivedTicketRepo.save(
-        archivedTicketRepo.create({
+      await deps.archivedTicketRepo.save(
+        deps.archivedTicketRepo.create({
           guildId,
           createdBy: ticket.createdBy,
           messageId: newPost.id,
@@ -190,9 +241,12 @@ export async function archiveAndCloseTicket(
       const post = (await forumChannel.threads.fetch(existingArchive.messageId)) as ForumThreadChannel;
 
       const separator = '\n━━━━━━━━━━━━━━━━━━━━━━━━\n';
-      await post.send({ content: separator + transcript.header });
+      await post.send({
+        content: separator + transcript.header,
+        allowedMentions: { parse: [] },
+      });
       for (const chunk of transcript.chunks) {
-        await post.send({ content: chunk });
+        await post.send({ content: chunk, allowedMentions: { parse: [] } });
       }
 
       if (forumTagIds.length > 0) {
@@ -200,9 +254,9 @@ export async function archiveAndCloseTicket(
         const newTagId = forumTagIds[0];
         if (!existingTags.includes(newTagId)) {
           const mergedTags = [...existingTags, newTagId];
-          await applyForumTags(forumChannel, existingArchive.messageId, mergedTags);
+          await deps.applyForumTags(forumChannel, existingArchive.messageId, mergedTags);
           existingArchive.forumTagIds = mergedTags;
-          await archivedTicketRepo.save(existingArchive);
+          await deps.archivedTicketRepo.save(existingArchive);
         }
       }
     }
@@ -230,7 +284,7 @@ export async function archiveAndCloseTicket(
   }
 
   // Delete ticket channel (verified — Discord first, then DB)
-  const deleteResult = await verifiedChannelDelete(channel, {
+  const deleteResult = await deps.verifiedChannelDelete(channel, {
     guildId,
     label: 'ticket channel',
   });

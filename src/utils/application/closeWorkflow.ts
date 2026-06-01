@@ -77,11 +77,12 @@ export async function archiveAndCloseApplication(
     if (!existingArchive) {
       const newPost = await forumChannel.threads.create({
         name: creatorUser?.username || 'Unknown',
-        message: { content: transcript.header },
+        // allowedMentions parse:[] — historical transcript, never ping anyone.
+        message: { content: transcript.header, allowedMentions: { parse: [] } },
       });
 
       for (const chunk of transcript.chunks) {
-        await newPost.send({ content: chunk });
+        await newPost.send({ content: chunk, allowedMentions: { parse: [] } });
       }
 
       await archivedAppRepo.save(
@@ -94,9 +95,12 @@ export async function archiveAndCloseApplication(
     } else if (existingArchive.messageId) {
       const post = (await forumChannel.threads.fetch(existingArchive.messageId)) as ForumThreadChannel;
       const separator = '\n━━━━━━━━━━━━━━━━━━━━━━━━\n';
-      await post.send({ content: separator + transcript.header });
+      await post.send({
+        content: separator + transcript.header,
+        allowedMentions: { parse: [] },
+      });
       for (const chunk of transcript.chunks) {
-        await post.send({ content: chunk });
+        await post.send({ content: chunk, allowedMentions: { parse: [] } });
       }
     }
   } catch (error) {
