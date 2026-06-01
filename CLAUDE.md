@@ -5,7 +5,7 @@
 - **Runtime**: Bun
 - **Deployment**: Docker containers
 - **Branches**: `main` (production)
-- **Version**: 3.1.41
+- **Version**: 3.1.42
 
 ## Critical Rules
 
