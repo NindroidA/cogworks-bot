@@ -380,16 +380,52 @@ describe("archiveAndCloseTicket", () => {
     );
 
     expect(result).toEqual({ success: true, archived: true });
-    // Email ticket lookup uses emailSender, not createdBy
+    // Email ticket lookup is scoped to the EMAIL archive namespace
+    // (isEmailTicket:true + emailSender) — never the createdBy namespace.
     expect(fakeRepo.findOneBy).toHaveBeenCalledWith({
-      emailSender: "alice@example.com",
       guildId: "guild-1",
+      isEmailTicket: true,
+      emailSender: "alice@example.com",
     });
     expect(fakeRepoState.createCalls[0]).toMatchObject({
       isEmailTicket: true,
       emailSender: "alice@example.com",
       emailSenderName: "Alice",
       emailSubject: "Help needed with X",
+    });
+  });
+
+  test("regression: a normal ticket queries the createdBy namespace with isEmailTicket:false (never an email-import archive)", async () => {
+    // The reported prod bug: an email-import archive's createdBy is the
+    // importing admin. A normal ticket the admin opens must NOT match it —
+    // the lookup is scoped to isEmailTicket:false so the two archive
+    // namespaces can never cross-contaminate.
+    fakeBuiltinTypeInfo.mockReturnValue({
+      typeId: "general",
+      displayName: "General",
+      emoji: null,
+    });
+    const client = makeFakeClient(forumChannel, () => ({ username: "admin" }));
+    const channel = makeFakeChannel();
+    const ticket = makeTicket({
+      type: "general",
+      createdBy: "admin-id",
+      isEmailTicket: false,
+    });
+
+    await archiveAndCloseTicket(
+      client,
+      ticket,
+      "guild-1",
+      channel,
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(fakeRepo.findOneBy).toHaveBeenCalledWith({
+      guildId: "guild-1",
+      isEmailTicket: false,
+      createdBy: "admin-id",
     });
   });
 
