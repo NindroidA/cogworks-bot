@@ -4,9 +4,9 @@ import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { lazyRepo } from '../../database/lazyRepo';
 import { archiveAndCloseTicket as defaultArchiveAndCloseTicket } from '../../ticket/closeWorkflow';
 import { ApiError } from '../apiError';
-import { isValidSnowflake, optionalString, requireId, requireString } from '../helpers';
+import { isValidSnowflake, requireId, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
-import { writeAuditLog } from './auditHelper';
+import { writeAuditAction } from './auditHelper';
 
 const ticketRepo = lazyRepo(Ticket);
 const archivedTicketConfigRepo = lazyRepo(ArchivedTicketConfig);
@@ -72,8 +72,7 @@ export function registerTicketHandlers(
       return { success: false, ticketId: ticket.id, archived: false };
     }
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'ticket.close', triggeredBy, {
+    await writeAuditAction(guildId, body, 'ticket.close', {
       ticketId: ticket.id,
     });
     return { success: true, ticketId: ticket.id, archived: true };
@@ -108,8 +107,7 @@ export function registerTicketHandlers(
     // written, so the dashboard and close transcript showed it unassigned.
     await ticketRepo.update({ id: ticket.id, guildId }, { assignedTo: userId, assignedAt: new Date() });
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'ticket.assign', triggeredBy, {
+    await writeAuditAction(guildId, body, 'ticket.assign', {
       ticketId,
       userId,
     });

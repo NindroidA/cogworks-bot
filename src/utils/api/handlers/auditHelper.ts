@@ -1,6 +1,7 @@
 import { AuditLog } from '../../../typeorm/entities/AuditLog';
 import { lazyRepo } from '../../database/lazyRepo';
 import { enhancedLogger, LogCategory } from '../../monitoring/enhancedLogger';
+import { optionalString } from '../helpers';
 
 const auditLogRepo = lazyRepo(AuditLog);
 
@@ -55,4 +56,19 @@ export async function writeAuditLog(
       action,
     });
   }
+}
+
+/**
+ * Convenience wrapper over {@link writeAuditLog} for the common dashboard-API
+ * pattern: extract `triggeredBy` from the request body, then write the audit row.
+ * Use this when the only purpose of reading `triggeredBy` is the audit call.
+ */
+export async function writeAuditAction(
+  guildId: string,
+  body: Record<string, unknown>,
+  action: string,
+  details?: Record<string, unknown>,
+  source: AuditSource = 'dashboard',
+): Promise<void> {
+  await writeAuditLog(guildId, action, optionalString(body, 'triggeredBy'), details, source);
 }

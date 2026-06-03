@@ -2,9 +2,9 @@ import type { Client } from 'discord.js';
 import type { BaitChannelManager } from '../../baitChannel/baitChannelManager';
 import { invalidateGuildMenuCache } from '../../reactionRole/menuCache';
 import { invalidateRulesCache } from '../../rules/rulesCache';
-import { optionalString, requireString } from '../helpers';
+import { requireString } from '../helpers';
 import type { RouteHandler } from '../router';
-import { writeAuditLog } from './auditHelper';
+import { writeAuditAction } from './auditHelper';
 
 type ClientWithBaitManager = Client & {
   baitChannelManager?: BaitChannelManager;
@@ -32,8 +32,7 @@ export function registerConfigHandlers(client: Client, routes: Map<string, Route
         break;
     }
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'config.refresh', triggeredBy, {
+    await writeAuditAction(guildId, body, 'config.refresh', {
       configType,
     });
 

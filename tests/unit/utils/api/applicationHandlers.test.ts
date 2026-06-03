@@ -37,8 +37,10 @@ const fakeArchiveAndCloseApp = jest.fn(async () => ({
 }));
 
 const fakeWriteAuditLog = jest.fn(async () => undefined);
+const fakeWriteAuditAction = jest.fn(async () => undefined);
 mock.module("../../../../src/utils/api/handlers/auditHelper", () => ({
   writeAuditLog: fakeWriteAuditLog,
+  writeAuditAction: fakeWriteAuditAction,
 }));
 
 interface RepoState {
@@ -127,6 +129,7 @@ beforeEach(() => {
     archived: true,
   }));
   fakeWriteAuditLog.mockClear();
+  fakeWriteAuditAction.mockClear();
 
   fakeChannelSend = jest.fn(async () => ({ id: "msg-1" }));
   fakeClient = {
@@ -346,10 +349,10 @@ describe("POST /applications/:id/archive", () => {
     });
     expect(fakeArchiveAndCloseApp).toHaveBeenCalledTimes(1);
     expect(fakeArchiveAndCloseApp.mock.calls[0][4]).toBe("archive-forum-1");
-    expect(fakeWriteAuditLog).toHaveBeenCalledWith(
+    expect(fakeWriteAuditAction).toHaveBeenCalledWith(
       "guild-1",
+      { triggeredBy: "reviewer-99" },
       "application.archive",
-      "reviewer-99",
       { applicationId: 7 },
     );
   });
@@ -492,6 +495,6 @@ describe("POST /applications/:id/archive", () => {
     expect(applicationRepoState.updateCalls[1].partial).toEqual({
       status: "pending",
     });
-    expect(fakeWriteAuditLog).not.toHaveBeenCalled();
+    expect(fakeWriteAuditAction).not.toHaveBeenCalled();
   });
 });

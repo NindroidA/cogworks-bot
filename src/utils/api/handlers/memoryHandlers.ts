@@ -4,7 +4,7 @@ import { lazyRepo } from '../../database/lazyRepo';
 import { ApiError } from '../apiError';
 import { optionalNumber, optionalString, requireNumber, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
-import { writeAuditLog } from './auditHelper';
+import { writeAuditAction } from './auditHelper';
 
 const memoryConfigRepo = lazyRepo(MemoryConfig);
 const memoryItemRepo = lazyRepo(MemoryItem);
@@ -69,8 +69,7 @@ export function registerMemoryHandlers(client: Client, routes: Map<string, Route
     });
     await memoryItemRepo.save(memoryItem);
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'memory.create', triggeredBy, {
+    await writeAuditAction(guildId, body, 'memory.create', {
       threadId: thread.id,
       itemId: memoryItem.id,
     });

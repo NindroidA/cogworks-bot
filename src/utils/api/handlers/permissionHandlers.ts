@@ -25,9 +25,9 @@ import {
   LEVELS,
 } from '../../validation/featurePermission';
 import { ApiError } from '../apiError';
-import { isValidSnowflake, optionalString, requireId, requireString } from '../helpers';
+import { isValidSnowflake, requireId, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
-import { writeAuditLog } from './auditHelper';
+import { writeAuditAction } from './auditHelper';
 
 const permissionRepo = lazyRepo(GuildPermission);
 
@@ -57,7 +57,10 @@ export function registerPermissionHandlers(client: Client, routes: Map<string, R
   // Returns the guild's permission grants plus the feature/level catalog so
   // the webapp dropdowns stay in sync with the bot's source of truth.
   routes.set('GET /permissions', async guildId => {
-    const rows = await permissionRepo.find({ where: { guildId }, order: { feature: 'ASC', level: 'DESC' } });
+    const rows = await permissionRepo.find({
+      where: { guildId },
+      order: { feature: 'ASC', level: 'DESC' },
+    });
     return {
       permissions: rows.map(row => serialize(client, guildId, row)),
       features: [...FEATURES],
@@ -96,8 +99,7 @@ export function registerPermissionHandlers(client: Client, routes: Map<string, R
 
     invalidateFeaturePermissionsCache(guildId);
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'permission.upsert', triggeredBy, {
+    await writeAuditAction(guildId, body, 'permission.upsert', {
       id: row.id,
       feature,
       roleId,
@@ -123,8 +125,7 @@ export function registerPermissionHandlers(client: Client, routes: Map<string, R
       invalidateFeaturePermissionsCache(guildId);
     }
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'permission.delete', triggeredBy, {
+    await writeAuditAction(guildId, body, 'permission.delete', {
       id,
       existed: Boolean(row),
     });
