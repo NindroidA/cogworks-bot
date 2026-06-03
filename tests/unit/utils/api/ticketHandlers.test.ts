@@ -42,8 +42,10 @@ const fakeArchiveAndClose = jest.fn(async () => ({
 }));
 
 const fakeWriteAuditLog = jest.fn(async () => undefined);
+const fakeWriteAuditAction = jest.fn(async () => undefined);
 mock.module("../../../../src/utils/api/handlers/auditHelper", () => ({
   writeAuditLog: fakeWriteAuditLog,
+  writeAuditAction: fakeWriteAuditAction,
 }));
 
 // ---------------------------------------------------------------------------
@@ -133,6 +135,7 @@ beforeEach(() => {
     archived: true,
   }));
   fakeWriteAuditLog.mockClear();
+  fakeWriteAuditAction.mockClear();
 
   fakeChannel = { id: "ticket-channel-1", isTextBased: () => true };
   fakeAssignChannel = {
@@ -203,11 +206,11 @@ describe("POST /tickets/:id/close", () => {
     expect(fakeArchiveAndClose).toHaveBeenCalledTimes(1);
     expect(fakeArchiveAndClose.mock.calls[0][2]).toBe("guild-1");
     expect(fakeArchiveAndClose.mock.calls[0][4]).toBe("archive-forum-1");
-    // Audit log includes triggeredBy
-    expect(fakeWriteAuditLog).toHaveBeenCalledWith(
+    // Audit log includes triggeredBy (extracted from the request body)
+    expect(fakeWriteAuditAction).toHaveBeenCalledWith(
       "guild-1",
+      { triggeredBy: "user-99" },
       "ticket.close",
-      "user-99",
       { ticketId: 42 },
     );
   });
@@ -284,7 +287,7 @@ describe("POST /tickets/:id/close", () => {
     });
     expect(fakeArchiveAndClose).not.toHaveBeenCalled();
     // Audit log NOT written on the channel-not-found early return (matches current handler behavior)
-    expect(fakeWriteAuditLog).not.toHaveBeenCalled();
+    expect(fakeWriteAuditAction).not.toHaveBeenCalled();
   });
 
   test("transient channel-fetch failure (non-10003): reverts status, returns failure (retryable)", async () => {
@@ -360,7 +363,7 @@ describe("POST /tickets/:id/close", () => {
     });
     expect(ticketRepoState.updateCalls[1].partial).toEqual({ status: "open" });
     // A failed close is not an audit-worthy "ticket.close".
-    expect(fakeWriteAuditLog).not.toHaveBeenCalled();
+    expect(fakeWriteAuditAction).not.toHaveBeenCalled();
   });
 });
 
@@ -399,10 +402,10 @@ describe("POST /tickets/:id/assign", () => {
       ASSIGNEE,
       expect.objectContaining({ ViewChannel: true, SendMessages: true }),
     );
-    expect(fakeWriteAuditLog).toHaveBeenCalledWith(
+    expect(fakeWriteAuditAction).toHaveBeenCalledWith(
       "guild-1",
+      { userId: ASSIGNEE, triggeredBy: "admin-1" },
       "ticket.assign",
-      "admin-1",
       {
         ticketId: 42,
         userId: ASSIGNEE,

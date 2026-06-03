@@ -53,7 +53,14 @@ import {
 import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { enhancedLogger, LogCategory, lang, showAndAwaitModal } from '../../../utils';
+import {
+  enhancedLogger,
+  extractModalBoolean,
+  extractModalField,
+  LogCategory,
+  lang,
+  showAndAwaitModal,
+} from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { channelSelect, checkbox, labelWrap, radioGroup, rawModal, roleSelect } from '../../../utils/modalComponents';
 import { type CreatedChannels, createSystemChannels, type SystemType } from '../../../utils/setup/channelCreator';
@@ -130,8 +137,10 @@ async function configureStaffRole(
       states: setupState.systemStates ?? DEFAULT_SYSTEM_STATES,
     };
 
-  const roleId = getModalFieldValue(submit.fields, 'setup_staff_role');
-  const enabled = getModalFieldValue(submit.fields, 'setup_staff_enable') ?? true;
+  const roleId = extractModalField(submit.fields, 'setup_staff_role');
+  // Checkbox → boolean. extractModalField would stringify, making an unchecked
+  // box the truthy "false" and ignoring the user disabling the staff role.
+  const enabled = extractModalBoolean(submit.fields, 'setup_staff_enable', true);
 
   if (roleId && enabled) {
     const repo = AppDataSource.getRepository(BotConfig);
@@ -325,9 +334,9 @@ async function configureForumSystem(
       states: setupState.systemStates ?? DEFAULT_SYSTEM_STATES,
     };
 
-  const channelId = getModalFieldValue(submit.fields, cfg.channelFieldId) || partial?.channelId;
-  const archiveId = getModalFieldValue(submit.fields, cfg.archiveFieldId) || partial?.archiveId;
-  const categoryId = getModalFieldValue(submit.fields, cfg.categoryFieldId) || partial?.categoryId;
+  const channelId = extractModalField(submit.fields, cfg.channelFieldId) || partial?.channelId;
+  const archiveId = extractModalField(submit.fields, cfg.archiveFieldId) || partial?.archiveId;
+  const categoryId = extractModalField(submit.fields, cfg.categoryFieldId) || partial?.categoryId;
 
   const data: Partial<ForumSystemData> = { channelId, archiveId, categoryId };
 
@@ -652,8 +661,8 @@ const announcementConfig: SimpleSystemConfig<AnnouncementData, 'announcement'> =
       ),
     ]),
   fromModal: submit => {
-    const roleId = getModalFieldValue(submit.fields, 'setup_ann_role');
-    const channelId = getModalFieldValue(submit.fields, 'setup_ann_ch');
+    const roleId = extractModalField(submit.fields, 'setup_ann_role');
+    const channelId = extractModalField(submit.fields, 'setup_ann_ch');
     if (roleId && channelId) return { kind: 'complete', data: { roleId, channelId } };
     // Preserves prior behavior: always saves a partial entry on the manual path,
     // even if both fields are absent (resume-later state remains visible).
@@ -732,11 +741,11 @@ const baitConfig: SimpleSystemConfig<BaitData, 'baitchannel'> = {
       ),
     ]),
   fromModal: submit => {
-    const channelId = getModalFieldValue(submit.fields, 'setup_bait_ch');
+    const channelId = extractModalField(submit.fields, 'setup_bait_ch');
     if (!channelId) return { kind: 'insufficient' };
-    const rawAction = getModalFieldValue(submit.fields, 'setup_bait_action') || 'ban';
+    const rawAction = extractModalField(submit.fields, 'setup_bait_action') || 'ban';
     const actionType = VALID_BAIT_ACTIONS.includes(rawAction as BaitActionType) ? (rawAction as BaitActionType) : 'ban';
-    const logChannelId = getModalFieldValue(submit.fields, 'setup_bait_log') || undefined;
+    const logChannelId = extractModalField(submit.fields, 'setup_bait_log') || undefined;
     return {
       kind: 'complete',
       data: { channelId, actionType, logChannelId, testMode: false },
@@ -811,7 +820,7 @@ const memoryConfig: SimpleSystemConfig<MemoryData, 'memory'> = {
       ),
     ]),
   fromModal: submit => {
-    const forumChannelId = getModalFieldValue(submit.fields, 'setup_memory_forum');
+    const forumChannelId = extractModalField(submit.fields, 'setup_memory_forum');
     if (!forumChannelId) return { kind: 'insufficient' };
     return { kind: 'complete', data: { forumChannelId } };
   },
@@ -947,8 +956,8 @@ const rulesConfig: SimpleSystemConfig<RulesData, 'rules'> = {
       labelWrap('Verified Role', roleSelect('setup_rules_role'), 'Role to give when user accepts rules'),
     ]),
   fromModal: submit => {
-    const channelId = getModalFieldValue(submit.fields, 'setup_rules_ch');
-    const roleId = getModalFieldValue(submit.fields, 'setup_rules_role');
+    const channelId = extractModalField(submit.fields, 'setup_rules_ch');
+    const roleId = extractModalField(submit.fields, 'setup_rules_role');
     if (!channelId || !roleId) return { kind: 'insufficient' };
     // Both fields present, but rules still needs /rules-setup — save as partial.
     return { kind: 'partial', data: { channelId, roleId, emoji: '✅' } };
@@ -975,26 +984,6 @@ const SIMPLE_SYSTEM_CONFIGS: {
   memory: memoryConfig,
   rules: rulesConfig,
 };
-
-// --- Field Value Extraction ---
-
-/**
- * Extract a field value from a modal submit.
- * Handles both old TextInput (.value) and new Components v2 (.value or .values[0]).
- */
-function getModalFieldValue(fields: any, customId: string): string | undefined {
-  try {
-    const field = fields.getField(customId);
-    if (!field) return undefined;
-    // TextInput, RadioGroup, Checkbox return .value
-    if (field.value !== undefined && field.value !== null) return String(field.value);
-    // ChannelSelect, RoleSelect may return .values array
-    if (Array.isArray(field.values) && field.values.length > 0) return field.values[0];
-    return undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 // --- Helpers ---
 

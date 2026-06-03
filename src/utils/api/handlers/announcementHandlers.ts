@@ -10,7 +10,7 @@ import { sanitizeUserInput } from '../../validation/inputSanitizer';
 import { ApiError } from '../apiError';
 import { isValidSnowflake, optionalString, requireString, validateHexColor } from '../helpers';
 import type { RouteHandler } from '../router';
-import { writeAuditLog } from './auditHelper';
+import { writeAuditAction } from './auditHelper';
 
 const announcementLogRepo = lazyRepo(AnnouncementLog);
 const templateRepo = lazyRepo(AnnouncementTemplate);
@@ -68,8 +68,7 @@ export function registerAnnouncementHandlers(client: Client, routes: Map<string,
         }),
       );
 
-      const triggeredBy = optionalString(body, 'triggeredBy');
-      await writeAuditLog(guildId, 'announcement.send', triggeredBy, {
+      await writeAuditAction(guildId, body, 'announcement.send', {
         channelId,
         messageId: sentMessage.id,
         template: templateName,
@@ -110,8 +109,7 @@ export function registerAnnouncementHandlers(client: Client, routes: Map<string,
       }),
     );
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'announcement.send', triggeredBy, {
+    await writeAuditAction(guildId, body, 'announcement.send', {
       channelId,
       messageId: sentMessage.id,
     });
@@ -171,8 +169,7 @@ export function registerAnnouncementHandlers(client: Client, routes: Map<string,
 
     await templateRepo.save(template);
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'announcement.template.create', triggeredBy, {
+    await writeAuditAction(guildId, body, 'announcement.template.create', {
       templateName: name,
     });
     return { success: true, template };
@@ -188,8 +185,7 @@ export function registerAnnouncementHandlers(client: Client, routes: Map<string,
 
     await templateRepo.remove(template);
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'announcement.template.delete', triggeredBy, {
+    await writeAuditAction(guildId, body, 'announcement.template.delete', {
       templateName: name,
     });
     return { success: true };

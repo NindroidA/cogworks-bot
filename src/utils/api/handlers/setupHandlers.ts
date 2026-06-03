@@ -9,9 +9,9 @@ import type { Client } from 'discord.js';
 import { SetupState } from '../../../typeorm/entities/SetupState';
 import { lazyRepo } from '../../database/lazyRepo';
 import { detectSystemStates } from '../../setup/systemStates';
-import { optionalString, optionalStringArray, requireBoolean, requireString } from '../helpers';
+import { optionalStringArray, requireBoolean, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
-import { writeAuditLog } from './auditHelper';
+import { writeAuditAction } from './auditHelper';
 
 const setupStateRepo = lazyRepo(SetupState);
 
@@ -60,8 +60,7 @@ export function registerSetupHandlers(_client: Client, routes: Map<string, Route
 
     await setupStateRepo.save(state);
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'setup.systems', triggeredBy, {
+    await writeAuditAction(guildId, body, 'setup.systems', {
       enabledSystems,
     });
 
@@ -116,8 +115,7 @@ export function registerSetupHandlers(_client: Client, routes: Map<string, Route
     state.selectedSystems = currentEnabled.size === allSystemIds.length ? null : [...currentEnabled];
     await setupStateRepo.save(state);
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'setup.toggle', triggeredBy, {
+    await writeAuditAction(guildId, body, 'setup.toggle', {
       systemId,
       enabled,
     });

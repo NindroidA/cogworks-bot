@@ -6,7 +6,7 @@ import { lazyRepo } from '../../database/lazyRepo';
 import { ApiError } from '../apiError';
 import { optionalString, requireId, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
-import { writeAuditLog } from './auditHelper';
+import { writeAuditAction, writeAuditLog } from './auditHelper';
 
 const applicationRepo = lazyRepo(Application);
 const archivedAppConfigRepo = lazyRepo(ArchivedApplicationConfig);
@@ -115,8 +115,7 @@ export function registerApplicationHandlers(
       return { success: false, archived: false };
     }
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'application.archive', triggeredBy, {
+    await writeAuditAction(guildId, body, 'application.archive', {
       applicationId: app.id,
     });
     return { success: true, archived: true };

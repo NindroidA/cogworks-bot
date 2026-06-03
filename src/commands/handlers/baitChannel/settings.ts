@@ -3,6 +3,8 @@ import { type BaitActionType, BaitChannelConfig } from '../../../typeorm/entitie
 import type { ExtendedClient } from '../../../types/ExtendedClient';
 import {
   enhancedLogger,
+  extractModalBoolean,
+  extractModalField,
   guardFeatureRateLimit,
   handleInteractionError,
   LogCategory,
@@ -101,11 +103,11 @@ export async function settingsHandler(client: Client, interaction: ChatInputComm
     if (!modalSubmit) return;
 
     // Extract and validate values
-    const rawActionType = (modalSubmit.fields as any).getField('bait_action_type')?.value;
-    const testMode = (modalSubmit.fields as any).getField('bait_test_mode')?.value as boolean;
-    const dmBefore = (modalSubmit.fields as any).getField('bait_dm_before')?.value as boolean;
-    const deleteMsgs = (modalSubmit.fields as any).getField('bait_delete_msgs')?.value as boolean;
-    const escalation = (modalSubmit.fields as any).getField('bait_escalation')?.value as boolean;
+    const rawActionType = extractModalField(modalSubmit.fields, 'bait_action_type');
+    const testMode = extractModalBoolean(modalSubmit.fields, 'bait_test_mode');
+    const dmBefore = extractModalBoolean(modalSubmit.fields, 'bait_dm_before');
+    const deleteMsgs = extractModalBoolean(modalSubmit.fields, 'bait_delete_msgs');
+    const escalation = extractModalBoolean(modalSubmit.fields, 'bait_escalation');
 
     // Validate actionType against allowlist (prevents arbitrary string injection)
     if (rawActionType && VALID_ACTION_TYPES.includes(rawActionType as BaitActionType)) {

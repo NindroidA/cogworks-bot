@@ -27,8 +27,10 @@ import {
 import type { Client } from "discord.js";
 
 const fakeWriteAuditLog = jest.fn(async () => undefined);
+const fakeWriteAuditAction = jest.fn(async () => undefined);
 mock.module("../../../../src/utils/api/handlers/auditHelper", () => ({
   writeAuditLog: fakeWriteAuditLog,
+  writeAuditAction: fakeWriteAuditAction,
 }));
 
 interface SetupRepoState {
@@ -114,6 +116,7 @@ beforeEach(() => {
   nullRepo.findOneBy.mockClear();
   nullRepo.count.mockClear();
   fakeWriteAuditLog.mockClear();
+  fakeWriteAuditAction.mockClear();
 
   routes = new Map();
   registerSetupHandlers(fakeClient, routes);
@@ -170,10 +173,10 @@ describe("POST /setup/toggle", () => {
     expect(setupStateRepoState.saved[0].selectedSystems).toEqual(
       ALL_SYSTEMS.filter((s) => s !== "baitchannel"),
     );
-    expect(fakeWriteAuditLog).toHaveBeenCalledWith(
+    expect(fakeWriteAuditAction).toHaveBeenCalledWith(
       "guild-1",
+      { systemId: "baitchannel", enabled: false, triggeredBy: "admin-1" },
       "setup.toggle",
-      "admin-1",
       {
         systemId: "baitchannel",
         enabled: false,
@@ -299,10 +302,10 @@ describe("POST /setup/systems", () => {
       "ticket",
       "application",
     ]);
-    expect(fakeWriteAuditLog).toHaveBeenCalledWith(
+    expect(fakeWriteAuditAction).toHaveBeenCalledWith(
       "guild-1",
+      { enabledSystems: ["ticket", "application"], triggeredBy: "admin-1" },
       "setup.systems",
-      "admin-1",
       {
         enabledSystems: ["ticket", "application"],
       },

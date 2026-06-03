@@ -5,7 +5,7 @@ import { invalidateRulesCache } from '../../rules/rulesCache';
 import { ApiError } from '../apiError';
 import { isValidSnowflake, optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
-import { writeAuditLog } from './auditHelper';
+import { writeAuditAction } from './auditHelper';
 
 const rulesConfigRepo = lazyRepo(RulesConfig);
 
@@ -55,8 +55,7 @@ export function registerRulesHandlers(client: Client, routes: Map<string, RouteH
     // Invalidate cache
     invalidateRulesCache(guildId);
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'rules.setup', triggeredBy, {
+    await writeAuditAction(guildId, body, 'rules.setup', {
       messageId: rulesMessage.id,
     });
     return { success: true, messageId: rulesMessage.id };

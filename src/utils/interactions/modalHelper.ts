@@ -11,6 +11,7 @@ import type {
   ContextMenuCommandInteraction,
   MessageComponentInteraction,
   ModalBuilder,
+  ModalSubmitFields,
   ModalSubmitInteraction,
   StringSelectMenuInteraction,
 } from 'discord.js';
@@ -83,4 +84,46 @@ function extractCustomId(modal: ModalBuilder | RawModalObject): string {
   // accessor across the legacy/new modal shapes yet.
   const m = modal as { data?: { custom_id?: string }; custom_id?: string };
   return m.data?.custom_id ?? m.custom_id ?? '';
+}
+
+/**
+ * Read a single STRING value from a submitted modal's fields, tolerant of field
+ * type. Text/radio inputs expose `.value`; select components expose `.values[]`.
+ * Returns the first available value as a string, or undefined. Prefer this over
+ * `fields.getField(id)?.value`, which silently misses selects.
+ *
+ * NOTE: for checkbox components use {@link extractModalBoolean} — a checkbox's
+ * `.value` is a boolean, and stringifying it here would turn an unchecked box
+ * into the truthy string `"false"`.
+ */
+export function extractModalField(fields: ModalSubmitFields, customId: string): string | undefined {
+  try {
+    const field = fields.getField(customId) as {
+      value?: unknown;
+      values?: unknown[];
+    } | null;
+    if (!field) return undefined;
+    if (typeof field.value === 'boolean') return undefined; // use extractModalBoolean
+    if (field.value !== undefined && field.value !== null) return String(field.value);
+    if (Array.isArray(field.values) && field.values.length > 0) return String(field.values[0]);
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Read a checkbox value from a submitted modal's fields. A checkbox component's
+ * `.value` is a boolean; this coerces it safely and returns `defaultValue` when
+ * the field is absent. Use this instead of `extractModalField` for checkboxes
+ * (which stringifies, making an unchecked box the truthy `"false"`).
+ */
+export function extractModalBoolean(fields: ModalSubmitFields, customId: string, defaultValue = false): boolean {
+  try {
+    const field = fields.getField(customId) as { value?: unknown } | null;
+    if (!field || field.value === undefined || field.value === null) return defaultValue;
+    return Boolean(field.value);
+  } catch {
+    return defaultValue;
+  }
 }

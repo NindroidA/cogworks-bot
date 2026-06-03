@@ -7,7 +7,7 @@ import { invalidateGuildMenuCache } from '../../reactionRole/menuCache';
 import { ApiError } from '../apiError';
 import { isValidSnowflake, optionalString, requireId, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
-import { writeAuditLog } from './auditHelper';
+import { writeAuditAction } from './auditHelper';
 
 const menuRepo = lazyRepo(ReactionRoleMenu);
 const optionRepo = lazyRepo(ReactionRoleOption);
@@ -76,8 +76,7 @@ export function registerReactionRoleHandlers(client: Client, routes: Map<string,
 
     invalidateGuildMenuCache(guildId);
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'reactionRole.create', triggeredBy, {
+    await writeAuditAction(guildId, body, 'reactionRole.create', {
       menuId: menu.id,
     });
     return { success: true, menuId: menu.id, messageId: sentMessage.id };
@@ -100,8 +99,7 @@ export function registerReactionRoleHandlers(client: Client, routes: Map<string,
 
     invalidateGuildMenuCache(guildId);
 
-    const triggeredBy = optionalString(body, 'triggeredBy');
-    await writeAuditLog(guildId, 'reactionRole.rebuild', triggeredBy, {
+    await writeAuditAction(guildId, body, 'reactionRole.rebuild', {
       menuId,
     });
     return { success: true };
