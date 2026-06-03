@@ -3,6 +3,7 @@ import { type BaitActionType, BaitChannelConfig } from '../../../typeorm/entitie
 import type { ExtendedClient } from '../../../types/ExtendedClient';
 import {
   enhancedLogger,
+  extractModalField,
   guardFeatureRateLimit,
   handleInteractionError,
   LogCategory,
@@ -101,7 +102,7 @@ export async function settingsHandler(client: Client, interaction: ChatInputComm
     if (!modalSubmit) return;
 
     // Extract and validate values
-    const rawActionType = (modalSubmit.fields as any).getField('bait_action_type')?.value;
+    const rawActionType = extractModalField(modalSubmit.fields, 'bait_action_type');
     const testMode = (modalSubmit.fields as any).getField('bait_test_mode')?.value as boolean;
     const dmBefore = (modalSubmit.fields as any).getField('bait_dm_before')?.value as boolean;
     const deleteMsgs = (modalSubmit.fields as any).getField('bait_delete_msgs')?.value as boolean;

@@ -9,6 +9,7 @@ import {
 import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
 import {
   enhancedLogger,
+  extractModalField,
   guardFeatureRateLimit,
   handleInteractionError,
   LogCategory,
@@ -57,8 +58,8 @@ export async function announcementSetupHandler(_client: Client, interaction: Cha
     const modalSubmit = await showAndAwaitModal(interaction, modal);
     if (!modalSubmit) return;
 
-    const roleId = (modalSubmit.fields as any).getField('ann_role')?.value;
-    const channelId = (modalSubmit.fields as any).getField('ann_channel')?.value;
+    const roleId = extractModalField(modalSubmit.fields, 'ann_role');
+    const channelId = extractModalField(modalSubmit.fields, 'ann_channel');
 
     if (!roleId || !channelId) {
       await modalSubmit.reply({

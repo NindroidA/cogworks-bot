@@ -11,6 +11,7 @@ import type {
   ContextMenuCommandInteraction,
   MessageComponentInteraction,
   ModalBuilder,
+  ModalSubmitFields,
   ModalSubmitInteraction,
   StringSelectMenuInteraction,
 } from 'discord.js';
@@ -83,4 +84,25 @@ function extractCustomId(modal: ModalBuilder | RawModalObject): string {
   // accessor across the legacy/new modal shapes yet.
   const m = modal as { data?: { custom_id?: string }; custom_id?: string };
   return m.data?.custom_id ?? m.custom_id ?? '';
+}
+
+/**
+ * Read a single value from a submitted modal's fields, tolerant of field type.
+ * Text/radio/checkbox inputs expose `.value`; select components expose
+ * `.values[]`. Returns the first available value as a string, or undefined.
+ * Prefer this over `fields.getField(id)?.value`, which silently misses selects.
+ */
+export function extractModalField(fields: ModalSubmitFields, customId: string): string | undefined {
+  try {
+    const field = fields.getField(customId) as {
+      value?: unknown;
+      values?: unknown[];
+    } | null;
+    if (!field) return undefined;
+    if (field.value !== undefined && field.value !== null) return String(field.value);
+    if (Array.isArray(field.values) && field.values.length > 0) return String(field.values[0]);
+    return undefined;
+  } catch {
+    return undefined;
+  }
 }

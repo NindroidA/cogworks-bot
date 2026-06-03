@@ -15,6 +15,7 @@ import {
   createButtonCollector,
   createErrorEmbed,
   enhancedLogger,
+  extractModalField,
   guardAdminRateLimit,
   LogCategory,
   RateLimits,
@@ -361,7 +362,7 @@ async function collectDashboardInteractions(
       const modalSubmit = await showAndAwaitModal(btn, modal);
       if (!modalSubmit) return;
 
-      const chosen: string | undefined = (modalSubmit.fields as any).getField('setup_locale')?.values?.[0];
+      const chosen = extractModalField(modalSubmit.fields, 'setup_locale');
       const nextLocale = isSupportedLocale(chosen) ? chosen : DEFAULT_LOCALE;
 
       try {

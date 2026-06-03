@@ -1,6 +1,6 @@
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
 import type { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { lang, sanitizeUserInput } from '../../../utils';
+import { extractModalField, lang, sanitizeUserInput } from '../../../utils';
 import {
   checkbox,
   labelWrap,
@@ -23,10 +23,31 @@ export function buildTypeEditModal(type: CustomTicketType): RawModal {
   return rawModal(`ticket-type-edit-modal:${type.typeId}`, tl.modalTitle, [
     labelWrap(
       ta.displayNameLabel,
-      textInput({ customId: 'displayName', value: type.displayName, required: true, maxLength: 100 }),
+      textInput({
+        customId: 'displayName',
+        value: type.displayName,
+        required: true,
+        maxLength: 100,
+      }),
     ),
-    labelWrap(ta.emojiLabel, textInput({ customId: 'emoji', value: type.emoji ?? '', required: false, maxLength: 10 })),
-    labelWrap(ta.colorLabel, textInput({ customId: 'color', value: type.embedColor, required: false, maxLength: 7 })),
+    labelWrap(
+      ta.emojiLabel,
+      textInput({
+        customId: 'emoji',
+        value: type.emoji ?? '',
+        required: false,
+        maxLength: 10,
+      }),
+    ),
+    labelWrap(
+      ta.colorLabel,
+      textInput({
+        customId: 'color',
+        value: type.embedColor,
+        required: false,
+        maxLength: 7,
+      }),
+    ),
     labelWrap(
       ta.descriptionLabel,
       paragraphInput({
@@ -58,10 +79,10 @@ export interface TypeEditFields {
  */
 export function parseTypeEditSubmit(submit: ModalSubmitInteraction): { fields: TypeEditFields } | { error: string } {
   const fields = submit.fields as any;
-  const rawDisplayName = (fields.getField('displayName')?.value as string | undefined) ?? '';
-  const rawEmoji = ((fields.getField('emoji')?.value as string | undefined) ?? '').trim();
-  const rawColor = ((fields.getField('color')?.value as string | undefined) ?? '').trim();
-  const rawDescription = (fields.getField('description')?.value as string | undefined) ?? '';
+  const rawDisplayName = extractModalField(submit.fields, 'displayName') ?? '';
+  const rawEmoji = (extractModalField(submit.fields, 'emoji') ?? '').trim();
+  const rawColor = (extractModalField(submit.fields, 'color') ?? '').trim();
+  const rawDescription = extractModalField(submit.fields, 'description') ?? '';
   const pingStaffOnCreate = Boolean(fields.getField('pingStaffOnCreate')?.value);
 
   const displayName = sanitizeUserInput(rawDisplayName);
