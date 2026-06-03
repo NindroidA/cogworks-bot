@@ -1,6 +1,6 @@
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
 import type { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
-import { extractModalField, lang, sanitizeUserInput } from '../../../utils';
+import { extractModalBoolean, extractModalField, lang, sanitizeUserInput } from '../../../utils';
 import {
   checkbox,
   labelWrap,
@@ -83,7 +83,7 @@ export function parseTypeEditSubmit(submit: ModalSubmitInteraction): { fields: T
   const rawEmoji = (extractModalField(submit.fields, 'emoji') ?? '').trim();
   const rawColor = (extractModalField(submit.fields, 'color') ?? '').trim();
   const rawDescription = extractModalField(submit.fields, 'description') ?? '';
-  const pingStaffOnCreate = Boolean(fields.getField('pingStaffOnCreate')?.value);
+  const pingStaffOnCreate = extractModalBoolean(fields, 'pingStaffOnCreate');
 
   const displayName = sanitizeUserInput(rawDisplayName);
   const embedColor = rawColor || '#0099ff';

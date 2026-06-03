@@ -1,7 +1,6 @@
 import { AuditLog } from '../../../typeorm/entities/AuditLog';
 import { lazyRepo } from '../../database/lazyRepo';
 import { enhancedLogger, LogCategory } from '../../monitoring/enhancedLogger';
-import { optionalString } from '../helpers';
 
 const auditLogRepo = lazyRepo(AuditLog);
 
@@ -62,6 +61,11 @@ export async function writeAuditLog(
  * Convenience wrapper over {@link writeAuditLog} for the common dashboard-API
  * pattern: extract `triggeredBy` from the request body, then write the audit row.
  * Use this when the only purpose of reading `triggeredBy` is the audit call.
+ *
+ * `triggeredBy` is extracted TOLERANTLY (not via `optionalString`, which throws
+ * a 400 on a non-string value). Audit logging is best-effort and these calls run
+ * AFTER the action's side effects — a malformed `triggeredBy` must not abort an
+ * already-completed request. A non-string value is treated as absent.
  */
 export async function writeAuditAction(
   guildId: string,
@@ -70,5 +74,7 @@ export async function writeAuditAction(
   details?: Record<string, unknown>,
   source: AuditSource = 'dashboard',
 ): Promise<void> {
-  await writeAuditLog(guildId, action, optionalString(body, 'triggeredBy'), details, source);
+  const raw = body?.triggeredBy;
+  const triggeredBy = typeof raw === 'string' && raw.trim() ? raw.trim() : undefined;
+  await writeAuditLog(guildId, action, triggeredBy, details, source);
 }

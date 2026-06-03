@@ -53,7 +53,14 @@ import {
 import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { enhancedLogger, extractModalField, LogCategory, lang, showAndAwaitModal } from '../../../utils';
+import {
+  enhancedLogger,
+  extractModalBoolean,
+  extractModalField,
+  LogCategory,
+  lang,
+  showAndAwaitModal,
+} from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { channelSelect, checkbox, labelWrap, radioGroup, rawModal, roleSelect } from '../../../utils/modalComponents';
 import { type CreatedChannels, createSystemChannels, type SystemType } from '../../../utils/setup/channelCreator';
@@ -131,7 +138,9 @@ async function configureStaffRole(
     };
 
   const roleId = extractModalField(submit.fields, 'setup_staff_role');
-  const enabled = extractModalField(submit.fields, 'setup_staff_enable') ?? true;
+  // Checkbox → boolean. extractModalField would stringify, making an unchecked
+  // box the truthy "false" and ignoring the user disabling the staff role.
+  const enabled = extractModalBoolean(submit.fields, 'setup_staff_enable', true);
 
   if (roleId && enabled) {
     const repo = AppDataSource.getRepository(BotConfig);

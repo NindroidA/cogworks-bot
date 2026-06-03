@@ -11,6 +11,7 @@ import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import {
   DEFAULT_TICKET_STATUSES,
   enhancedLogger,
+  extractModalBoolean,
   guardFeatureAccess,
   handleInteractionError,
   LogCategory,
@@ -55,8 +56,8 @@ export async function workflowSettingsHandler(interaction: ChatInputCommandInter
     const modalSubmit = await showAndAwaitModal(interaction, modal);
     if (!modalSubmit) return;
 
-    const enableWorkflow = (modalSubmit.fields as any).getField('wf_enable')?.value as boolean;
-    const enableAutoClose = (modalSubmit.fields as any).getField('wf_autoclose')?.value as boolean;
+    const enableWorkflow = extractModalBoolean(modalSubmit.fields, 'wf_enable');
+    const enableAutoClose = extractModalBoolean(modalSubmit.fields, 'wf_autoclose');
 
     // Apply workflow changes
     if (enableWorkflow !== undefined) {

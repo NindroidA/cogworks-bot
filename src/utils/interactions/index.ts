@@ -11,4 +11,8 @@ export {
   guardFeatureRateLimit,
   guardOwner,
 } from './guardHelper';
-export { extractModalField, showAndAwaitModal } from './modalHelper';
+export {
+  extractModalBoolean,
+  extractModalField,
+  showAndAwaitModal,
+} from './modalHelper';
