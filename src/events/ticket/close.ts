@@ -49,19 +49,32 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
 
   const result = await archiveAndCloseTicket(client, ticket, guildId, channel, archivedConfig.channelId);
 
-  if (result.transcriptFailed && !interaction.replied && !interaction.deferred) {
-    await interaction.reply({
-      content: tl.transcriptCreate.error,
-      flags: [MessageFlags.Ephemeral],
-    });
-  } else if (result.success && !result.archived) {
-    // Ticket closed cleanly but forum archive post failed — ticket is gone,
-    // channel is deleted. Log for operators; the user-facing close already happened.
-    enhancedLogger.warn('Ticket closed but archive post failed', LogCategory.SYSTEM, {
-      guildId,
-      channelId,
-      ticketId: ticket.id,
-    });
+  if (!result.archived) {
+    // Close did not complete (transcript fetch or forum post failed). The
+    // workflow deliberately preserved the channel, so revert the status —
+    // otherwise the ticket is stranded 'closed' with a live channel and the
+    // dup-close guard blocks any retry.
+    await ticketRepo.update({ id: ticket.id, guildId }, { status: ticket.status });
+    enhancedLogger.warn(
+      'Ticket close reverted — archive failed, channel + ticket preserved for retry',
+      LogCategory.SYSTEM,
+      {
+        guildId,
+        channelId,
+        ticketId: ticket.id,
+        transcriptFailed: result.transcriptFailed ?? false,
+      },
+    );
+    if (interaction.replied || interaction.deferred) {
+      await interaction.editReply({ content: tl.transcriptCreate.error }).catch(() => {});
+    } else {
+      await interaction
+        .reply({
+          content: tl.transcriptCreate.error,
+          flags: [MessageFlags.Ephemeral],
+        })
+        .catch(() => {});
+    }
   }
 };
 

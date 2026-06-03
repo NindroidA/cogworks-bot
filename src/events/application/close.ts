@@ -22,7 +22,9 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
   const guildId = interaction.guildId;
   const channel = interaction.channel as GuildTextBasedChannel;
   const channelId = interaction.channelId || '';
-  const archivedConfig = await archivedApplicationConfigRepo.findOneBy({ guildId });
+  const archivedConfig = await archivedApplicationConfigRepo.findOneBy({
+    guildId,
+  });
   const application = await applicationRepo.findOneBy({ guildId, channelId });
 
   if (!archivedConfig) {
@@ -48,17 +50,31 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
 
   const result = await archiveAndCloseApplication(client, application, guildId, channel, archivedConfig.channelId);
 
-  if (result.transcriptFailed && !interaction.replied && !interaction.deferred) {
-    await interaction.reply({
-      content: tl.transcriptCreate.error,
-      flags: [MessageFlags.Ephemeral],
-    });
-  } else if (result.success && !result.archived) {
-    enhancedLogger.warn('Application closed but archive post failed', LogCategory.SYSTEM, {
-      guildId,
-      channelId,
-      applicationId: application.id,
-    });
+  if (!result.archived) {
+    // Close did not complete (transcript fetch or forum post failed). The
+    // workflow preserved the channel; revert the status so the close can be
+    // retried instead of stranding a 'closed' application with a live channel.
+    await applicationRepo.update({ id: application.id, guildId }, { status: application.status });
+    enhancedLogger.warn(
+      'Application close reverted — archive failed, channel + application preserved for retry',
+      LogCategory.SYSTEM,
+      {
+        guildId,
+        channelId,
+        applicationId: application.id,
+        transcriptFailed: result.transcriptFailed ?? false,
+      },
+    );
+    if (interaction.replied || interaction.deferred) {
+      await interaction.editReply({ content: tl.transcriptCreate.error }).catch(() => {});
+    } else {
+      await interaction
+        .reply({
+          content: tl.transcriptCreate.error,
+          flags: [MessageFlags.Ephemeral],
+        })
+        .catch(() => {});
+    }
   }
 };
 

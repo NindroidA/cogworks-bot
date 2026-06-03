@@ -149,11 +149,15 @@ interface FakeThreadState {
   sentMessages: string[];
 }
 
-function makeFakeThread(id = "new-thread-1"): FakeThreadState & { send: any } {
+function makeFakeThread(
+  id = "new-thread-1",
+  sendError?: Error,
+): FakeThreadState & { send: any } {
   const state: FakeThreadState = { id, sentMessages: [] };
   return {
     ...state,
     send: jest.fn(async ({ content }: { content: string }) => {
+      if (sendError) throw sendError;
       state.sentMessages.push(content);
       return { id: `${id}-msg-${state.sentMessages.length}` };
     }),
@@ -165,6 +169,7 @@ interface FakeForumState {
   threadsFetched: Map<string, any>;
   createShouldThrow?: Error;
   fetchShouldThrow?: Error;
+  threadSendShouldThrow?: Error;
 }
 
 function makeFakeForumChannel(state: FakeForumState) {
@@ -172,7 +177,10 @@ function makeFakeForumChannel(state: FakeForumState) {
     threads: {
       create: jest.fn(async ({ name }: { name: string }) => {
         if (state.createShouldThrow) throw state.createShouldThrow;
-        const thread = makeFakeThread(`thread-for-${name}`);
+        const thread = makeFakeThread(
+          `thread-for-${name}`,
+          state.threadSendShouldThrow,
+        );
         state.threadsCreated.push(thread);
         return thread;
       }),
@@ -455,10 +463,11 @@ describe("archiveAndCloseTicket", () => {
     );
 
     expect(result).toEqual({ success: true, archived: true });
-    // No NEW thread created — existing one fetched
+    // No NEW thread created — existing one fetched (force:true bypasses cache)
     expect(forumChannel.threads.create).not.toHaveBeenCalled();
     expect(forumChannel.threads.fetch).toHaveBeenCalledWith(
       "existing-thread-9",
+      { force: true },
     );
     const existingThread = forumState.threadsFetched.get("existing-thread-9");
     expect(existingThread.sentMessages.length).toBeGreaterThan(0);
@@ -538,7 +547,7 @@ describe("archiveAndCloseTicket", () => {
     expect(fakeVerifiedChannelDelete).not.toHaveBeenCalled();
   });
 
-  test("forum post failure: ticket still closes (archived: false but success: true)", async () => {
+  test("forum post failure: archive fails, channel PRESERVED for retry (v3.2.1 — no data loss)", async () => {
     fakeBuiltinTypeInfo.mockReturnValue({
       typeId: "general",
       displayName: "General",
@@ -562,12 +571,140 @@ describe("archiveAndCloseTicket", () => {
       deps,
     );
 
-    // Honest archived flag (the v3.1.9 contract-fidelity fix)
-    expect(result).toEqual({ success: true, archived: false });
-    // Channel still deleted despite archive failure
-    expect(fakeVerifiedChannelDelete).toHaveBeenCalledTimes(1);
-    // No archive row saved (creation never reached the save call)
+    // Archive failed → honest failure; the caller reverts the ticket status.
+    expect(result).toEqual({ success: false, archived: false });
+    // CRITICAL: the source channel is NOT deleted — it's the only remaining
+    // copy of the conversation. Deleting it on archive failure was the data-loss
+    // amplifier this fix removes.
+    expect(fakeVerifiedChannelDelete).not.toHaveBeenCalled();
+    // No archive row saved (creation never reached the save call).
     expect(fakeRepoState.saveCalls).toHaveLength(0);
+  });
+
+  test("first-close chunk-send failure: archive row was already SAVED (retry appends, no orphan/duplicate)", async () => {
+    fakeBuiltinTypeInfo.mockReturnValue({
+      typeId: "general",
+      displayName: "General",
+      emoji: null,
+    });
+    // The thread is created, but a follow-up chunk send throws.
+    fakeFetchMessages.mockResolvedValue([
+      {
+        author: { username: "u", id: "1", bot: false },
+        content: "x",
+        timestamp: new Date(),
+        attachments: [],
+        embeds: [],
+        stickers: [],
+        poll: null,
+        isSystem: false,
+        hasOnlyComponents: false,
+      },
+    ]);
+    forumState.threadSendShouldThrow = new Error(
+      "Discord 500 — chunk send failed",
+    );
+    const client = makeFakeClient(forumChannel, () => ({
+      username: "creator",
+    }));
+    const channel = makeFakeChannel();
+    const ticket = makeTicket({ type: "general" });
+
+    const result = await archiveAndCloseTicket(
+      client,
+      ticket,
+      "guild-1",
+      channel,
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(result).toEqual({ success: false, archived: false });
+    // The thread was created AND the archive row was persisted BEFORE the chunk
+    // send failed — so a retry finds the row and appends instead of orphaning
+    // this thread and creating a duplicate.
+    expect(forumState.threadsCreated).toHaveLength(1);
+    expect(fakeRepoState.saveCalls).toHaveLength(1);
+    expect(fakeRepoState.saveCalls[0].messageId).toBe(
+      forumState.threadsCreated[0].id,
+    );
+    // Channel preserved (archive failed).
+    expect(fakeVerifiedChannelDelete).not.toHaveBeenCalled();
+  });
+
+  test("re-close into a DELETED thread (10003): recreates it, repoints messageId, channel deleted", async () => {
+    fakeBuiltinTypeInfo.mockReturnValue({
+      typeId: "general",
+      displayName: "General",
+      emoji: null,
+    });
+    fakeRepoState.findOneByResult = {
+      messageId: "deleted-thread-1",
+      forumTagIds: ["tag-old"],
+    };
+    forumState.fetchShouldThrow = Object.assign(new Error("Unknown Channel"), {
+      code: 10003,
+    });
+    const client = makeFakeClient(forumChannel, () => ({
+      username: "creator",
+    }));
+    const channel = makeFakeChannel();
+    const ticket = makeTicket({ type: "general" });
+
+    const result = await archiveAndCloseTicket(
+      client,
+      ticket,
+      "guild-1",
+      channel,
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(result).toEqual({ success: true, archived: true });
+    // A replacement thread was created (the deleted one is unrecoverable).
+    expect(forumChannel.threads.create).toHaveBeenCalledTimes(1);
+    // Archive row repointed to the new thread + accumulated tags, then saved.
+    expect(fakeRepoState.saveCalls).toHaveLength(1);
+    const saved = fakeRepoState.saveCalls[0];
+    expect(saved.messageId).toBe(forumState.threadsCreated[0].id);
+    expect(saved.forumTagIds).toEqual(["tag-old", "tag-123"]);
+    // Recovery succeeded → channel deleted as normal.
+    expect(fakeVerifiedChannelDelete).toHaveBeenCalledTimes(1);
+  });
+
+  test("re-close where thread fetch fails NON-10003: bubbles, archive fails, channel preserved", async () => {
+    fakeBuiltinTypeInfo.mockReturnValue({
+      typeId: "general",
+      displayName: "General",
+      emoji: null,
+    });
+    fakeRepoState.findOneByResult = {
+      messageId: "existing-thread-9",
+      forumTagIds: [],
+    };
+    forumState.fetchShouldThrow = Object.assign(new Error("Missing Access"), {
+      code: 50001,
+    });
+    const client = makeFakeClient(forumChannel, () => ({
+      username: "creator",
+    }));
+    const channel = makeFakeChannel();
+    const ticket = makeTicket({ type: "general" });
+
+    const result = await archiveAndCloseTicket(
+      client,
+      ticket,
+      "guild-1",
+      channel,
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(result).toEqual({ success: false, archived: false });
+    // We must NOT recreate — a non-10003 error doesn't prove the thread is gone,
+    // and recreating would orphan the real thread + duplicate the archive.
+    expect(forumChannel.threads.create).not.toHaveBeenCalled();
+    expect(fakeVerifiedChannelDelete).not.toHaveBeenCalled();
   });
 
   test("channel delete: already-gone counts as success (Discord 10003)", async () => {

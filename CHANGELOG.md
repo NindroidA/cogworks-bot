@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.1] - 2026-06-03
+
+Archive carbon-copy fidelity + close-workflow robustness. Archived ticket and
+application transcripts are now an exact copy of the conversation — the prior
+builder silently truncated any message over 500 characters.
+
+### Fixed
+
+- **Transcripts no longer truncate (data loss).** `transcriptBuilder` removed
+  the 500-char per-message truncation; a message larger than a single Discord
+  post is now SPLIT across chunks on line boundaries (with code-fence balancing),
+  and every emitted chunk is guaranteed `<= 2000` chars. Fixes both ticket and
+  application archives (shared builder).
+- **Archive failure no longer deletes the conversation.** When a forum post
+  fails, the source channel is now PRESERVED instead of deleted, and the close
+  is reverted (ticket/application status restored) so it can be retried — the
+  previous behavior deleted the only remaining copy of the conversation.
+- **Re-close into a deleted archive thread recovers.** Re-closing when the
+  archive thread was deleted (Discord `10003`) now recreates the thread and
+  repoints the archive record instead of silently failing; non-`10003` errors
+  still surface (and preserve the channel).
+- **Ticket assignment is now persisted.** `POST /tickets/:id/assign` writes
+  `assignedTo` + `assignedAt` — previously it only set a channel permission
+  overwrite, so the dashboard and close transcript showed the ticket unassigned.
+
+### Added
+
+- Transcripts now capture **stickers, polls** (question + per-answer vote
+  counts), and **embed media** (image/thumbnail/footer/author/linked title) —
+  sticker-only and poll-only messages are no longer dropped.
+- Per-chunk failure logging on transcript posts (a partial-archive failure is
+  now attributable to its chunk index).
+
 ## [3.2.0] - 2026-05-17
 
 Major refinement of the bait channel (honeypot) subsystem. Closes ~22

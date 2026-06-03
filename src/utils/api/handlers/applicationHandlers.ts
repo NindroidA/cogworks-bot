@@ -1,7 +1,7 @@
 import type { Client, GuildTextBasedChannel } from 'discord.js';
 import { Application } from '../../../typeorm/entities/application/Application';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
-import { archiveAndCloseApplication } from '../../application/closeWorkflow';
+import { archiveAndCloseApplication as defaultArchiveAndCloseApplication } from '../../application/closeWorkflow';
 import { lazyRepo } from '../../database/lazyRepo';
 import { ApiError } from '../apiError';
 import { optionalString, requireId, requireString } from '../helpers';
@@ -11,7 +11,18 @@ import { writeAuditLog } from './auditHelper';
 const applicationRepo = lazyRepo(Application);
 const archivedAppConfigRepo = lazyRepo(ArchivedApplicationConfig);
 
-export function registerApplicationHandlers(client: Client, routes: Map<string, RouteHandler>): void {
+/**
+ * @param archiveAndCloseApplication Injectable for tests — defaults to the real
+ * close workflow. Passing a fake here lets the handler test avoid
+ * `mock.module()` on the shared closeWorkflow module, which would otherwise leak
+ * process-globally and poison closeWorkflow's own test suite (bun's mock.module
+ * is process-shared and not undone by mock.restore).
+ */
+export function registerApplicationHandlers(
+  client: Client,
+  routes: Map<string, RouteHandler>,
+  archiveAndCloseApplication: typeof defaultArchiveAndCloseApplication = defaultArchiveAndCloseApplication,
+): void {
   // POST /internal/guilds/:guildId/applications/:id/approve
   routes.set('POST /applications/:id/approve', async (guildId, body, url) => {
     const appId = requireId(url, 'applications');
@@ -84,10 +95,17 @@ export function registerApplicationHandlers(client: Client, routes: Map<string, 
       archivedConfig.channelId,
     );
 
+    if (!result.archived) {
+      // Archive failed — the workflow preserved the channel; revert the status
+      // so the archive can be retried instead of stranding it 'closed'.
+      await applicationRepo.update({ id: app.id, guildId }, { status: app.status });
+      return { success: false, archived: false };
+    }
+
     const triggeredBy = optionalString(body, 'triggeredBy');
     await writeAuditLog(guildId, 'application.archive', triggeredBy, {
       applicationId: app.id,
     });
-    return { success: result.success, archived: result.archived };
+    return { success: true, archived: true };
   });
 }

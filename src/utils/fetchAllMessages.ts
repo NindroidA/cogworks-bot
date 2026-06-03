@@ -64,8 +64,27 @@ function toTranscriptMessage(m: Message, byId: Map<string, Message>, botClientId
     embeds: m.embeds.map(e => ({
       title: e.title ?? undefined,
       description: e.description ?? undefined,
+      url: e.url ?? undefined,
+      author: e.author?.name ?? undefined,
+      footer: e.footer?.text ?? undefined,
+      imageUrl: e.image?.url ?? undefined,
+      thumbnailUrl: e.thumbnail?.url ?? undefined,
+      color: e.color ?? undefined,
       fields: e.fields?.map(f => ({ name: f.name, value: f.value })),
     })),
+    stickers: Array.from(m.stickers.values()).map(s => ({
+      name: s.name,
+      url: s.url,
+    })),
+    poll: m.poll
+      ? {
+          question: m.poll.question.text ?? '',
+          answers: Array.from(m.poll.answers.values()).map(a => ({
+            text: a.text ?? '',
+            voteCount: a.voteCount,
+          })),
+        }
+      : null,
     replyTo: replyTarget
       ? {
           author: replyTarget.author.username,
