@@ -25,12 +25,15 @@ import {
 } from "bun:test";
 import type { Client } from "discord.js";
 
+// Injected into registerApplicationHandlers (3rd arg) — NOT mock.module'd.
+// Mocking the shared application/closeWorkflow module here would leak
+// process-globally and make closeWorkflow's own test suite import this fake
+// instead of the real SUT (bun's mock.module is process-shared and not undone
+// by mock.restore). The handler accepts the archive fn as a parameter for
+// exactly this reason — mirrors registerTicketHandlers.
 const fakeArchiveAndCloseApp = jest.fn(async () => ({
   success: true,
   archived: true,
-}));
-mock.module("../../../../src/utils/application/closeWorkflow", () => ({
-  archiveAndCloseApplication: fakeArchiveAndCloseApp,
 }));
 
 const fakeWriteAuditLog = jest.fn(async () => undefined);
@@ -137,7 +140,7 @@ beforeEach(() => {
   } as any;
 
   routes = new Map();
-  registerApplicationHandlers(fakeClient, routes);
+  registerApplicationHandlers(fakeClient, routes, fakeArchiveAndCloseApp);
 });
 
 afterEach(() => {
@@ -401,7 +404,64 @@ describe("POST /applications/:id/archive", () => {
     expect(fakeArchiveAndCloseApp).not.toHaveBeenCalled();
   });
 
-  test("archiveAndCloseApplication returns archived: false — handler propagates honest flag", async () => {
+  test("transient channel-fetch failure (non-10003): reverts status, returns failure (retryable)", async () => {
+    applicationRepoState.findOneByResult = {
+      id: 7,
+      guildId: "guild-1",
+      status: "pending",
+      channelId: "c-1",
+    };
+    archivedAppConfigRepoState.findOneByResult = {
+      guildId: "guild-1",
+      channelId: "archive-forum-1",
+    };
+    (fakeClient.channels.fetch as any).mockRejectedValue(
+      Object.assign(new Error("Service Unavailable"), { code: 0 }),
+    );
+
+    const result = await getRoute("POST /applications/:id/archive")(
+      "guild-1",
+      {},
+      "/applications/7/archive",
+    );
+
+    expect(result).toEqual({ success: false, archived: false });
+    expect(applicationRepoState.updateCalls[0].partial).toEqual({
+      status: "closed",
+    });
+    expect(applicationRepoState.updateCalls[1].partial).toEqual({
+      status: "pending",
+    });
+    expect(fakeArchiveAndCloseApp).not.toHaveBeenCalled();
+  });
+
+  test("genuinely-gone channel (10003): terminal close, archived:false, no revert", async () => {
+    applicationRepoState.findOneByResult = {
+      id: 7,
+      guildId: "guild-1",
+      status: "pending",
+      channelId: "c-1",
+    };
+    archivedAppConfigRepoState.findOneByResult = {
+      guildId: "guild-1",
+      channelId: "archive-forum-1",
+    };
+    (fakeClient.channels.fetch as any).mockRejectedValue(
+      Object.assign(new Error("Unknown Channel"), { code: 10003 }),
+    );
+
+    const result = await getRoute("POST /applications/:id/archive")(
+      "guild-1",
+      {},
+      "/applications/7/archive",
+    );
+
+    expect(result).toEqual({ success: true, archived: false });
+    expect(applicationRepoState.updateCalls).toHaveLength(1); // close flip only, no revert
+    expect(fakeArchiveAndCloseApp).not.toHaveBeenCalled();
+  });
+
+  test("archiveAndCloseApplication returns archived: false — reverts status for retry, no audit log", async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
       guildId: "guild-1",
@@ -413,7 +473,7 @@ describe("POST /applications/:id/archive", () => {
       channelId: "archive-forum-1",
     };
     fakeArchiveAndCloseApp.mockResolvedValue({
-      success: true,
+      success: false,
       archived: false,
     });
 
@@ -423,7 +483,15 @@ describe("POST /applications/:id/archive", () => {
       "/applications/7/archive",
     );
 
-    expect(result).toEqual({ success: true, archived: false });
-    expect(fakeWriteAuditLog).toHaveBeenCalledTimes(1);
+    // Honest failure; channel preserved by the workflow.
+    expect(result).toEqual({ success: false, archived: false });
+    // Status flipped to closed, then reverted to its prior value for retry.
+    expect(applicationRepoState.updateCalls[0].partial).toEqual({
+      status: "closed",
+    });
+    expect(applicationRepoState.updateCalls[1].partial).toEqual({
+      status: "pending",
+    });
+    expect(fakeWriteAuditLog).not.toHaveBeenCalled();
   });
 });

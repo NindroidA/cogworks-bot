@@ -28,6 +28,51 @@ export interface ArchiveApplicationResult {
 }
 
 /**
+ * Injectable seam dependencies for {@link archiveAndCloseApplication}.
+ *
+ * Mirrors the ticket close workflow's pattern. Production callers omit this;
+ * tests pass fakes directly instead of `mock.module()` (which bun applies
+ * inconsistently across a full-suite run on Linux — see the ticket workflow's
+ * flaky-CI note, 2026-05-30). Direct injection is deterministic on every platform.
+ */
+export interface CloseApplicationWorkflowDeps {
+  fetchMessagesAsTranscript: typeof fetchMessagesAsTranscript;
+  verifiedChannelDelete: typeof verifiedChannelDelete;
+  archivedAppRepo: typeof archivedAppRepo;
+}
+
+const defaultDeps: CloseApplicationWorkflowDeps = {
+  fetchMessagesAsTranscript,
+  verifiedChannelDelete,
+  archivedAppRepo,
+};
+
+/**
+ * Post each transcript chunk to the thread. Never pings (historical content),
+ * and attributes a failed send to its chunk index. Rethrows so the caller marks
+ * the archive failed.
+ */
+async function sendTranscriptChunks(
+  thread: ForumThreadChannel,
+  chunks: string[],
+  ctx: { guildId: string; channelId: string },
+): Promise<void> {
+  for (let i = 0; i < chunks.length; i++) {
+    try {
+      await thread.send({ content: chunks[i], allowedMentions: { parse: [] } });
+    } catch (error) {
+      enhancedLogger.error(
+        `Application transcript chunk ${i + 1}/${chunks.length} failed to post`,
+        error as Error,
+        LogCategory.SYSTEM,
+        ctx,
+      );
+      throw error;
+    }
+  }
+}
+
+/**
  * Archive an application to the forum channel and clean up.
  *
  * Does NOT mark the application as closed — callers must do that before calling
@@ -40,12 +85,13 @@ export async function archiveAndCloseApplication(
   guildId: string,
   channel: GuildTextBasedChannel,
   archiveForumChannelId: string,
+  deps: CloseApplicationWorkflowDeps = defaultDeps,
 ): Promise<ArchiveApplicationResult> {
   const channelId = application.channelId || channel.id;
 
   let transcriptMessages: TranscriptMessage[];
   try {
-    transcriptMessages = await fetchMessagesAsTranscript(channel, client.user?.id ?? '');
+    transcriptMessages = await deps.fetchMessagesAsTranscript(channel, client.user?.id ?? '');
   } catch (error) {
     enhancedLogger.error('Failed to fetch application messages for transcript', error as Error, LogCategory.SYSTEM, {
       guildId,
@@ -55,10 +101,11 @@ export async function archiveAndCloseApplication(
   }
 
   const creatorUser = await client.users.fetch(application.createdBy).catch(() => null);
+  const threadName = creatorUser?.username || 'Unknown';
   const metadata: TicketMetadata = {
-    title: `Application: ${creatorUser?.username || 'Unknown'}`,
+    title: `Application: ${threadName}`,
     type: 'Application',
-    createdByUsername: creatorUser?.username || 'Unknown',
+    createdByUsername: threadName,
     openedAt: 'createdAt' in channel && channel.createdAt instanceof Date ? channel.createdAt : new Date(),
     closedAt: new Date(),
     assignedToUsername: null,
@@ -69,38 +116,58 @@ export async function archiveAndCloseApplication(
   let archived = true;
   try {
     const forumChannel = (await client.channels.fetch(archiveForumChannelId)) as ForumChannel;
-    const existingArchive = await archivedAppRepo.findOneBy({
+    const existingArchive = await deps.archivedAppRepo.findOneBy({
       createdBy: application.createdBy,
       guildId,
     });
 
     if (!existingArchive) {
       const newPost = await forumChannel.threads.create({
-        name: creatorUser?.username || 'Unknown',
+        name: threadName,
         // allowedMentions parse:[] — historical transcript, never ping anyone.
         message: { content: transcript.header, allowedMentions: { parse: [] } },
       });
 
-      for (const chunk of transcript.chunks) {
-        await newPost.send({ content: chunk, allowedMentions: { parse: [] } });
-      }
-
-      await archivedAppRepo.save(
-        archivedAppRepo.create({
+      // Persist the archive row BEFORE posting chunks: a chunk failure then
+      // leaves the row pointing at this thread, so the retry appends instead of
+      // orphaning it and creating a duplicate.
+      await deps.archivedAppRepo.save(
+        deps.archivedAppRepo.create({
           guildId,
           createdBy: application.createdBy,
           messageId: newPost.id,
         }),
       );
+
+      await sendTranscriptChunks(newPost, transcript.chunks, { guildId, channelId });
     } else if (existingArchive.messageId) {
-      const post = (await forumChannel.threads.fetch(existingArchive.messageId)) as ForumThreadChannel;
-      const separator = '\n━━━━━━━━━━━━━━━━━━━━━━━━\n';
-      await post.send({
-        content: separator + transcript.header,
-        allowedMentions: { parse: [] },
-      });
-      for (const chunk of transcript.chunks) {
-        await post.send({ content: chunk, allowedMentions: { parse: [] } });
+      // Re-close: reuse the archive thread, but it may have been deleted out
+      // from under us. force:true bypasses the cache; catch ONLY 10003 (Unknown
+      // Channel) and recreate so the transcript is never lost — let other errors
+      // bubble to the outer catch (marks archived:false, preserves the channel).
+      const post = (await forumChannel.threads
+        .fetch(existingArchive.messageId, { force: true })
+        .catch((err: unknown) => {
+          if ((err as { code?: number })?.code === 10003) return null;
+          throw err;
+        })) as ForumThreadChannel | null;
+
+      if (!post) {
+        const newPost = await forumChannel.threads.create({
+          name: threadName,
+          message: { content: transcript.header, allowedMentions: { parse: [] } },
+        });
+        // Repoint + persist BEFORE chunks so a chunk failure can't orphan it.
+        existingArchive.messageId = newPost.id;
+        await deps.archivedAppRepo.save(existingArchive);
+        await sendTranscriptChunks(newPost, transcript.chunks, { guildId, channelId });
+      } else {
+        const separator = '\n━━━━━━━━━━━━━━━━━━━━━━━━\n';
+        await post.send({
+          content: separator + transcript.header,
+          allowedMentions: { parse: [] },
+        });
+        await sendTranscriptChunks(post, transcript.chunks, { guildId, channelId });
       }
     }
   } catch (error) {
@@ -111,21 +178,25 @@ export async function archiveAndCloseApplication(
     archived = false;
   }
 
-  if (archived) {
-    enhancedLogger.info('Application transcript archived successfully', LogCategory.SYSTEM, {
-      guildId,
-      channelId,
-      messageCount: transcript.messageCount,
-      attachmentCount: transcript.attachmentCount,
-    });
-  } else {
-    enhancedLogger.warn('Application closing despite archive failure', LogCategory.SYSTEM, {
+  if (!archived) {
+    // Archive failed. DO NOT delete the source channel — preserve it so the
+    // conversation isn't lost and the close can be retried. The caller reverts
+    // the application status so the retry isn't blocked by the dup-close guard.
+    enhancedLogger.warn('Application archive failed — preserving channel for retry', LogCategory.SYSTEM, {
       guildId,
       channelId,
     });
+    return { success: false, archived: false };
   }
 
-  const deleteResult = await verifiedChannelDelete(channel, {
+  enhancedLogger.info('Application transcript archived successfully', LogCategory.SYSTEM, {
+    guildId,
+    channelId,
+    messageCount: transcript.messageCount,
+    attachmentCount: transcript.attachmentCount,
+  });
+
+  const deleteResult = await deps.verifiedChannelDelete(channel, {
     guildId,
     label: 'application channel',
   });
@@ -142,5 +213,5 @@ export async function archiveAndCloseApplication(
     );
   }
 
-  return { success: true, archived };
+  return { success: true, archived: true };
 }

@@ -135,6 +135,40 @@ async function resolveArchiveThreadName(client: Client, ticket: Ticket): Promise
 }
 
 /**
+ * Post each transcript chunk to the thread. Never pings (historical content),
+ * and attributes a failed send to its chunk index so a partial-archive failure
+ * is diagnosable. Rethrows so the caller marks the archive failed.
+ */
+async function sendTranscriptChunks(
+  thread: ForumThreadChannel,
+  chunks: string[],
+  ctx: { guildId: string; channelId: string },
+): Promise<void> {
+  for (let i = 0; i < chunks.length; i++) {
+    try {
+      await thread.send({ content: chunks[i], allowedMentions: { parse: [] } });
+    } catch (error) {
+      enhancedLogger.error(
+        `Transcript chunk ${i + 1}/${chunks.length} failed to post`,
+        error as Error,
+        LogCategory.SYSTEM,
+        ctx,
+      );
+      throw error;
+    }
+  }
+}
+
+/** Union of existing + incoming forum tag ids, order-preserving, deduped. */
+function mergeForumTags(existing: string[] | null | undefined, incoming: string[]): string[] {
+  const merged = [...(existing ?? [])];
+  for (const tag of incoming) {
+    if (!merged.includes(tag)) merged.push(tag);
+  }
+  return merged;
+}
+
+/**
  * Archive a ticket to the forum channel and clean up.
  *
  * This is the shared core that both the event handler and API handler call.
@@ -216,10 +250,10 @@ export async function archiveAndCloseTicket(
         await deps.applyForumTags(forumChannel, newPost.id, forumTagIds);
       }
 
-      for (const chunk of transcript.chunks) {
-        await newPost.send({ content: chunk, allowedMentions: { parse: [] } });
-      }
-
+      // Persist the archive row BEFORE posting chunks. If a chunk send fails
+      // mid-archive, the row already points at this thread, so the B2 retry
+      // appends to it (via the re-close branch) instead of orphaning it and
+      // creating a duplicate thread.
       await deps.archivedTicketRepo.save(
         deps.archivedTicketRepo.create({
           guildId,
@@ -234,29 +268,74 @@ export async function archiveAndCloseTicket(
           emailSubject: ticket.emailSubject,
         }),
       );
-    } else if (existingArchive.messageId) {
-      // Re-close for the same user: append a separator + header + chunks
-      // to the existing thread. Tags still accumulate — "Forum Tag System"
-      // per CLAUDE.md.
-      const post = (await forumChannel.threads.fetch(existingArchive.messageId)) as ForumThreadChannel;
 
-      const separator = '\n━━━━━━━━━━━━━━━━━━━━━━━━\n';
-      await post.send({
-        content: separator + transcript.header,
-        allowedMentions: { parse: [] },
+      await sendTranscriptChunks(newPost, transcript.chunks, {
+        guildId,
+        channelId,
       });
-      for (const chunk of transcript.chunks) {
-        await post.send({ content: chunk, allowedMentions: { parse: [] } });
-      }
+    } else if (existingArchive.messageId) {
+      // Re-close for the same user. The archive thread is reused — but it may
+      // have been deleted out from under us (manual delete, /archive cleanup).
+      // Catch ONLY 10003 (Unknown Channel) and recreate so the transcript is
+      // never lost; let permission/transient errors bubble to the outer catch
+      // (which marks archived:false and preserves the source channel for retry).
+      // force:true bypasses the channel cache so a thread deleted while the bot
+      // was offline (missed THREAD_DELETE) still surfaces as gone (10003 or a
+      // null fetch) and engages the recreate path, instead of returning a stale
+      // cached object we'd post into the void.
+      const post = (await forumChannel.threads
+        .fetch(existingArchive.messageId, { force: true })
+        .catch((err: unknown) => {
+          if ((err as { code?: number })?.code === 10003) return null;
+          throw err;
+        })) as ForumThreadChannel | null;
 
-      if (forumTagIds.length > 0) {
-        const existingTags = existingArchive.forumTagIds || [];
-        const newTagId = forumTagIds[0];
-        if (!existingTags.includes(newTagId)) {
-          const mergedTags = [...existingTags, newTagId];
-          await deps.applyForumTags(forumChannel, existingArchive.messageId, mergedTags);
-          existingArchive.forumTagIds = mergedTags;
-          await deps.archivedTicketRepo.save(existingArchive);
+      if (!post) {
+        // Thread gone: recreate it (header as the initial message), re-apply
+        // the accumulated tags, repoint the archive row, and post the chunks.
+        const threadName = await resolveArchiveThreadName(client, ticket);
+        const newPost = await forumChannel.threads.create({
+          name: threadName,
+          message: {
+            content: transcript.header,
+            allowedMentions: { parse: [] },
+          },
+        });
+        const mergedTags = mergeForumTags(existingArchive.forumTagIds, forumTagIds);
+        if (mergedTags.length > 0) {
+          await deps.applyForumTags(forumChannel, newPost.id, mergedTags);
+        }
+        // Repoint + persist BEFORE chunks so a chunk failure can't orphan the
+        // new thread — a retry finds this row and appends to it.
+        existingArchive.messageId = newPost.id;
+        existingArchive.forumTagIds = mergedTags;
+        await deps.archivedTicketRepo.save(existingArchive);
+        await sendTranscriptChunks(newPost, transcript.chunks, {
+          guildId,
+          channelId,
+        });
+      } else {
+        // Normal append: separator + header + chunks into the existing thread.
+        // Tags still accumulate — "Forum Tag System" per CLAUDE.md.
+        const separator = '\n━━━━━━━━━━━━━━━━━━━━━━━━\n';
+        await post.send({
+          content: separator + transcript.header,
+          allowedMentions: { parse: [] },
+        });
+        await sendTranscriptChunks(post, transcript.chunks, {
+          guildId,
+          channelId,
+        });
+
+        if (forumTagIds.length > 0) {
+          const existingTags = existingArchive.forumTagIds || [];
+          const newTagId = forumTagIds[0];
+          if (!existingTags.includes(newTagId)) {
+            const mergedTags = [...existingTags, newTagId];
+            await deps.applyForumTags(forumChannel, existingArchive.messageId, mergedTags);
+            existingArchive.forumTagIds = mergedTags;
+            await deps.archivedTicketRepo.save(existingArchive);
+          }
         }
       }
     }
@@ -265,23 +344,27 @@ export async function archiveAndCloseTicket(
       guildId,
       channelId,
     });
-    // Archive failed but ticket is still closed — proceed to channel delete.
     archived = false;
   }
 
-  if (archived) {
-    enhancedLogger.info('Ticket transcript archived successfully', LogCategory.SYSTEM, {
-      guildId,
-      channelId,
-      messageCount: transcript.messageCount,
-      attachmentCount: transcript.attachmentCount,
-    });
-  } else {
-    enhancedLogger.warn('Ticket closing despite archive failure', LogCategory.SYSTEM, {
+  if (!archived) {
+    // Archive failed. DO NOT delete the source channel — that would destroy the
+    // only remaining copy of the conversation. Preserve it so the close can be
+    // retried; the caller reverts the ticket status so the retry isn't blocked
+    // by the duplicate-close guard.
+    enhancedLogger.warn('Ticket archive failed — preserving channel + ticket for retry', LogCategory.SYSTEM, {
       guildId,
       channelId,
     });
+    return { success: false, archived: false };
   }
+
+  enhancedLogger.info('Ticket transcript archived successfully', LogCategory.SYSTEM, {
+    guildId,
+    channelId,
+    messageCount: transcript.messageCount,
+    attachmentCount: transcript.attachmentCount,
+  });
 
   // Delete ticket channel (verified — Discord first, then DB)
   const deleteResult = await deps.verifiedChannelDelete(channel, {
@@ -301,5 +384,5 @@ export async function archiveAndCloseTicket(
     );
   }
 
-  return { success: true, archived };
+  return { success: true, archived: true };
 }

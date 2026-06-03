@@ -38,8 +38,21 @@ export function registerTicketHandlers(
     // Mark closed immediately
     await ticketRepo.update({ id: ticket.id, guildId }, { status: 'closed' });
 
-    // Get channel
-    const channel = ticket.channelId ? await client.channels.fetch(ticket.channelId).catch(() => null) : null;
+    // Get channel. Distinguish a genuinely-gone channel (Discord 10003 →
+    // nothing to archive, terminal close) from a transient/permission fetch
+    // failure (→ revert so a retry can still archive, rather than stranding a
+    // live ticket as 'closed').
+    let channelFetchFailed = false;
+    const channel = ticket.channelId
+      ? await client.channels.fetch(ticket.channelId).catch((err: unknown) => {
+          if ((err as { code?: number })?.code !== 10003) channelFetchFailed = true;
+          return null;
+        })
+      : null;
+    if (channelFetchFailed) {
+      await ticketRepo.update({ id: ticket.id, guildId }, { status: ticket.status });
+      return { success: false, ticketId: ticket.id, archived: false };
+    }
     if (!channel || !channel.isTextBased()) {
       return { success: true, ticketId: ticket.id, archived: false };
     }
@@ -52,11 +65,18 @@ export function registerTicketHandlers(
       archivedConfig.channelId,
     );
 
+    if (!result.archived) {
+      // Archive failed — the workflow preserved the channel; revert the status
+      // so the close can be retried instead of stranding it 'closed'.
+      await ticketRepo.update({ id: ticket.id, guildId }, { status: ticket.status });
+      return { success: false, ticketId: ticket.id, archived: false };
+    }
+
     const triggeredBy = optionalString(body, 'triggeredBy');
     await writeAuditLog(guildId, 'ticket.close', triggeredBy, {
       ticketId: ticket.id,
     });
-    return { success: true, ticketId: ticket.id, archived: result.archived };
+    return { success: true, ticketId: ticket.id, archived: true };
   });
 
   // POST /internal/guilds/:guildId/tickets/:id/assign
@@ -82,6 +102,11 @@ export function registerTicketHandlers(
         ReadMessageHistory: true,
       });
     }
+
+    // Persist the assignment. The permission overwrite alone left the DB
+    // unaware of who owns the ticket — assignedTo/assignedAt were never
+    // written, so the dashboard and close transcript showed it unassigned.
+    await ticketRepo.update({ id: ticket.id, guildId }, { assignedTo: userId, assignedAt: new Date() });
 
     const triggeredBy = optionalString(body, 'triggeredBy');
     await writeAuditLog(guildId, 'ticket.assign', triggeredBy, {
