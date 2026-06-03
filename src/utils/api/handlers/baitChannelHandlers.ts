@@ -1,14 +1,24 @@
 import type { Client } from 'discord.js';
-import { MoreThanOrEqual } from 'typeorm';
+import { IsNull, MoreThanOrEqual, Not } from 'typeorm';
+import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import { BaitChannelLog } from '../../../typeorm/entities/bait/BaitChannelLog';
 import { BaitKeyword } from '../../../typeorm/entities/bait/BaitKeyword';
 import { JoinEvent } from '../../../typeorm/entities/bait/JoinEvent';
+import { PendingAction } from '../../../typeorm/entities/bait/PendingAction';
 import type { BaitChannelManager } from '../../baitChannel/baitChannelManager';
 import { DEFAULT_KEYWORDS } from '../../baitChannel/defaultKeywords';
+import { getRaidModeManager } from '../../baitChannel/raidModeManager';
 import { MAX } from '../../constants';
 import { lazyRepo } from '../../database/lazyRepo';
 import { ApiError } from '../apiError';
-import { optionalNumber, optionalString, requireString } from '../helpers';
+import {
+  isValidSnowflake,
+  optionalBoolean,
+  optionalNullableString,
+  optionalNumber,
+  optionalString,
+  requireString,
+} from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
@@ -19,6 +29,8 @@ type ClientWithBaitManager = Client & {
 const keywordRepo = lazyRepo(BaitKeyword);
 const logRepo = lazyRepo(BaitChannelLog);
 const joinEventRepo = lazyRepo(JoinEvent);
+const configRepo = lazyRepo(BaitChannelConfig);
+const pendingActionRepo = lazyRepo(PendingAction);
 
 export function registerBaitChannelHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // GET /internal/guilds/:guildId/bait-channel/keywords
@@ -240,5 +252,261 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
     });
 
     return { joinEvents: events, count: events.length };
+  });
+
+  // ════════════════════════════════════════════════════════════════════
+  // v3.2.0 endpoints — config CRUD, raid mode, pending actions, logs
+  // ════════════════════════════════════════════════════════════════════
+
+  // GET /internal/guilds/:guildId/bait-channel/config
+  routes.set('GET /bait-channel/config', async guildId => {
+    const config = await configRepo.findOne({ where: { guildId } });
+    return { config: config ?? null };
+  });
+
+  // POST /internal/guilds/:guildId/bait-channel/config/update
+  // Accepts any subset of writable fields. Validates types; rejects unknown
+  // fields silently (forward-compat for webapp that may post stale shape).
+  // (Was 'PATCH /bait-channel/config' — unreachable, since the internal API's
+  // method gate only allows GET/POST/DELETE. ninsys-api writes bait config via
+  // direct DB, so nothing called the old PATCH route.)
+  routes.set('POST /bait-channel/config/update', async (guildId, body) => {
+    const config = await configRepo.findOne({ where: { guildId } });
+    if (!config) throw ApiError.notFound('Bait channel is not configured for this guild');
+
+    const triggeredBy = optionalString(body, 'triggeredBy');
+    const patched: string[] = [];
+    const apply = <K extends keyof BaitChannelConfig>(field: K, value: BaitChannelConfig[K] | undefined): void => {
+      if (value === undefined) return;
+      config[field] = value;
+      patched.push(field as string);
+    };
+
+    // Booleans
+    apply('enabled', optionalBoolean(body, 'enabled'));
+    apply('enableSmartDetection', optionalBoolean(body, 'enableSmartDetection'));
+    apply('requireVerification', optionalBoolean(body, 'requireVerification'));
+    apply('disableAdminWhitelist', optionalBoolean(body, 'disableAdminWhitelist'));
+    apply('deleteUserMessages', optionalBoolean(body, 'deleteUserMessages'));
+    apply('enableEscalation', optionalBoolean(body, 'enableEscalation'));
+    apply('dmBeforeAction', optionalBoolean(body, 'dmBeforeAction'));
+    apply('testMode', optionalBoolean(body, 'testMode'));
+    apply('enableWeeklySummary', optionalBoolean(body, 'enableWeeklySummary'));
+    apply('enableRaidMode', optionalBoolean(body, 'enableRaidMode'));
+    apply('enableAppealLink', optionalBoolean(body, 'enableAppealLink'));
+
+    // Numbers
+    apply('gracePeriodSeconds', optionalNumber(body, 'gracePeriodSeconds'));
+    apply('instantActionThreshold', optionalNumber(body, 'instantActionThreshold'));
+    apply('minAccountAgeDays', optionalNumber(body, 'minAccountAgeDays'));
+    apply('minMembershipMinutes', optionalNumber(body, 'minMembershipMinutes'));
+    apply('minMessageCount', optionalNumber(body, 'minMessageCount'));
+    apply('deleteMessageHours', optionalNumber(body, 'deleteMessageHours'));
+    apply('timeoutDurationMinutes', optionalNumber(body, 'timeoutDurationMinutes'));
+    apply('escalationLogThreshold', optionalNumber(body, 'escalationLogThreshold'));
+    apply('escalationTimeoutThreshold', optionalNumber(body, 'escalationTimeoutThreshold'));
+    apply('escalationKickThreshold', optionalNumber(body, 'escalationKickThreshold'));
+    apply('escalationBanThreshold', optionalNumber(body, 'escalationBanThreshold'));
+    apply('joinVelocityThreshold', optionalNumber(body, 'joinVelocityThreshold'));
+    apply('joinVelocityWindowMinutes', optionalNumber(body, 'joinVelocityWindowMinutes'));
+    apply('raidModeThreshold', optionalNumber(body, 'raidModeThreshold'));
+    apply('raidModeWindowSeconds', optionalNumber(body, 'raidModeWindowSeconds'));
+    apply('crossChannelBurstThreshold', optionalNumber(body, 'crossChannelBurstThreshold'));
+    apply('crossChannelBurstWindowSeconds', optionalNumber(body, 'crossChannelBurstWindowSeconds'));
+    const retentionDays = optionalNumber(body, 'logRetentionDays');
+    if (retentionDays !== undefined) {
+      if (retentionDays < 30 || retentionDays > 365) {
+        throw ApiError.badRequest('logRetentionDays must be 30-365');
+      }
+      config.logRetentionDays = retentionDays;
+      patched.push('logRetentionDays');
+    }
+
+    // Strings split into:
+    //   - non-nullable: NOT NULL columns — never accept null
+    //   - nullable:     entity column is nullable — accept null/"" to clear
+    // The split avoids the prior bug where `optionalString` collapsed null
+    // and undefined to the same thing, making it impossible to clear a
+    // nullable field via the API.
+    const nonNullableStringFields: (keyof BaitChannelConfig)[] = ['banReason', 'warningMessage', 'actionType'];
+    for (const field of nonNullableStringFields) {
+      const v = optionalString(body, field as string);
+      if (v !== undefined) {
+        (config as unknown as Record<string, unknown>)[field as string] = v;
+        patched.push(field as string);
+      }
+    }
+
+    const nullableStringFields: (keyof BaitChannelConfig)[] = [
+      'appealInfo',
+      'logChannelId',
+      'summaryChannelId',
+      'raidModeAlertRoleId',
+      'appealLinkBaseUrl',
+    ];
+    for (const field of nullableStringFields) {
+      const v = optionalNullableString(body, field as string);
+      if (v !== undefined) {
+        (config as unknown as Record<string, unknown>)[field as string] = v;
+        patched.push(field as string);
+      }
+    }
+
+    // Appeal-link safety. Two gates:
+    //   1. Refuse to enable if base URL is HTTP (or unset).
+    //   2. Refuse to enable if APPEAL_HMAC_SECRET is unset/too short —
+    //      otherwise the signing call at runtime would throw and the
+    //      whole DM path would degrade silently.
+    if (config.enableAppealLink) {
+      if (!config.appealLinkBaseUrl) {
+        throw ApiError.badRequest('appealLinkBaseUrl must be set when enableAppealLink=true');
+      }
+      try {
+        const url = new URL(config.appealLinkBaseUrl);
+        if (url.protocol !== 'https:') {
+          throw ApiError.badRequest('appealLinkBaseUrl must be https');
+        }
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        throw ApiError.badRequest('appealLinkBaseUrl is not a valid URL');
+      }
+      const secret = process.env.APPEAL_HMAC_SECRET;
+      if (!secret || secret.length < 16) {
+        throw ApiError.badRequest(
+          'APPEAL_HMAC_SECRET env is missing or too short; cannot enable appeal links until the deployment is configured',
+        );
+      }
+    }
+
+    await configRepo.save(config);
+
+    // Invalidate the in-process cache so the next bait-message picks up the
+    // new config.
+    const baitManager = (client as ClientWithBaitManager).baitChannelManager;
+    baitManager?.clearConfigCache(guildId);
+
+    await writeAuditLog(guildId, 'bait.configUpdate', triggeredBy, { patched });
+
+    return { success: true, patched };
+  });
+
+  // GET /internal/guilds/:guildId/bait-channel/raid-mode/status
+  routes.set('GET /bait-channel/raid-mode/status', async guildId => {
+    const mgr = getRaidModeManager();
+    if (!mgr)
+      return {
+        active: false,
+        until: null,
+        triggerCount: 0,
+        recentOffenderIds: [],
+      };
+    return mgr.getStatus(guildId);
+  });
+
+  // POST /internal/guilds/:guildId/bait-channel/raid-mode/enter
+  routes.set('POST /bait-channel/raid-mode/enter', async (guildId, body) => {
+    const triggeredBy = optionalString(body, 'triggeredBy') ?? 'dashboard';
+    const reason = optionalString(body, 'reason');
+    const mgr = getRaidModeManager();
+    if (!mgr) throw ApiError.conflict('Raid mode manager is not initialized');
+    const guild = await client.guilds.fetch(guildId).catch(() => null);
+    if (!guild) throw ApiError.notFound('Guild not accessible to the bot');
+    const config = await configRepo.findOne({ where: { guildId } });
+    if (!config) throw ApiError.notFound('Bait channel is not configured for this guild');
+    if (config.currentRaidModeUntil && config.currentRaidModeUntil.getTime() > Date.now()) {
+      throw ApiError.conflict('Raid mode is already active');
+    }
+    await mgr.enterRaidMode(guild, config);
+    await writeAuditLog(guildId, 'bait.raidModeEnter', triggeredBy, { reason });
+    return { success: true, enteredAt: new Date().toISOString() };
+  });
+
+  // POST /internal/guilds/:guildId/bait-channel/raid-mode/release
+  routes.set('POST /bait-channel/raid-mode/release', async (guildId, body) => {
+    const triggeredBy = optionalString(body, 'triggeredBy') ?? 'dashboard';
+    const reason = optionalString(body, 'reason');
+    const mgr = getRaidModeManager();
+    if (!mgr) throw ApiError.conflict('Raid mode manager is not initialized');
+    const guild = await client.guilds.fetch(guildId).catch(() => null);
+    if (!guild) throw ApiError.notFound('Guild not accessible to the bot');
+    const released = await mgr.releaseRaidMode(guild, triggeredBy, reason);
+    if (released) {
+      await writeAuditLog(guildId, 'bait.raidModeRelease', triggeredBy, {
+        reason,
+      });
+    }
+    return { success: true, released };
+  });
+
+  // GET /internal/guilds/:guildId/bait-channel/pending-actions?status=active|dead|all
+  routes.set('GET /bait-channel/pending-actions', async (guildId, _body, url) => {
+    const urlObj = new URL(url, 'http://localhost');
+    const status = urlObj.searchParams.get('status') ?? 'active';
+    if (!['active', 'dead', 'all'].includes(status)) {
+      throw ApiError.badRequest('status must be one of: active, dead, all');
+    }
+    const limit = Math.min(Math.max(Number(urlObj.searchParams.get('limit')) || 50, 1), 200);
+
+    const where: Record<string, unknown> = { guildId };
+    if (status === 'active') where.deadAt = IsNull();
+    else if (status === 'dead') where.deadAt = Not(IsNull());
+    // status === 'all' → no deadAt filter
+
+    const rows = await pendingActionRepo.find({
+      where,
+      order: { createdAt: 'DESC' },
+      take: limit,
+    });
+    return { pendingActions: rows, count: rows.length };
+  });
+
+  // POST /internal/guilds/:guildId/bait-channel/pending-actions/cancel
+  // body: { id: number, reason?: string }
+  routes.set('POST /bait-channel/pending-actions/cancel', async (guildId, body) => {
+    const triggeredBy = optionalString(body, 'triggeredBy') ?? 'dashboard';
+    const id = optionalNumber(body, 'id');
+    if (id === undefined) throw ApiError.badRequest('id is required');
+    const row = await pendingActionRepo.findOne({ where: { guildId, id } });
+    if (!row) throw ApiError.notFound('Pending action not found');
+    await pendingActionRepo.remove(row);
+    await writeAuditLog(guildId, 'bait.pendingActionCancel', triggeredBy, {
+      pendingActionId: id,
+      userId: row.userId,
+      action: row.action,
+    });
+    return { success: true };
+  });
+
+  // GET /internal/guilds/:guildId/bait-channel/logs
+  // ?days=N&action=X&userId=Y&overridden=true|false&limit=N
+  routes.set('GET /bait-channel/logs', async (guildId, _body, url) => {
+    const urlObj = new URL(url, 'http://localhost');
+    const days = Math.min(Math.max(Number(urlObj.searchParams.get('days')) || 30, 1), 365);
+    const limit = Math.min(Math.max(Number(urlObj.searchParams.get('limit')) || 100, 1), 500);
+    const actionFilter = urlObj.searchParams.get('action');
+    const userIdFilter = urlObj.searchParams.get('userId');
+    const overriddenFilter = urlObj.searchParams.get('overridden');
+
+    if (userIdFilter && !isValidSnowflake(userIdFilter)) {
+      throw ApiError.badRequest('userId must be a valid Discord snowflake');
+    }
+
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const where: Record<string, unknown> = {
+      guildId,
+      createdAt: MoreThanOrEqual(since),
+    };
+    if (actionFilter) where.actionTaken = actionFilter;
+    if (userIdFilter) where.userId = userIdFilter;
+    if (overriddenFilter === 'true') where.overridden = true;
+    else if (overriddenFilter === 'false') where.overridden = false;
+
+    const rows = await logRepo.find({
+      where,
+      order: { createdAt: 'DESC' },
+      take: limit,
+    });
+    return { logs: rows, count: rows.length };
   });
 }

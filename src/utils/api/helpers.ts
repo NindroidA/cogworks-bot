@@ -79,6 +79,37 @@ export function requireBoolean(body: Body, field: string): boolean {
   return v;
 }
 
+/** Extract an optional boolean field. Returns undefined if absent/null. */
+export function optionalBoolean(body: Body, field: string): boolean | undefined {
+  const v = body[field];
+  if (v === undefined || v === null) return undefined;
+  if (typeof v !== 'boolean') throw ApiError.badRequest(`${field} must be a boolean`);
+  return v;
+}
+
+/**
+ * Like `optionalString` but distinguishes "absent" (undefined) from
+ * "explicitly clear this nullable field" (null or empty string).
+ *
+ * Use for PATCH endpoints on entities where the column is nullable and
+ * the API client needs a way to clear it. `optionalString` collapses null
+ * + empty + missing all to `undefined` so the patcher can never null-out
+ * a value once set.
+ *
+ * Returns:
+ *   - `undefined` — field absent in request, leave existing value alone
+ *   - `null`      — field set to null/empty, set the column to NULL
+ *   - `string`    — non-empty trimmed string
+ */
+export function optionalNullableString(body: Body, field: string): string | null | undefined {
+  if (!(field in body)) return undefined;
+  const v = body[field];
+  if (v === null || v === '') return null;
+  if (typeof v !== 'string') throw ApiError.badRequest(`${field} must be a string or null`);
+  const trimmed = v.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
 /** Extract an optional string array field. Returns undefined if absent/null. */
 export function optionalStringArray(body: Body, field: string): string[] | undefined {
   const v = body[field];

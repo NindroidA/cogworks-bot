@@ -6,6 +6,7 @@ import { handleSlashCommand } from './commands/commands';
 import { startFieldSessionCleanup, stopFieldSessionCleanup } from './commands/handlers/application/applicationFields';
 import { handleContextMenuCommand } from './commands/handlers/contextMenus';
 import { startFieldDraftCleanup, stopFieldDraftCleanup } from './commands/handlers/shared/fieldManagerCore';
+import { registerAuditLogEntryCreateHandler } from './events/auditLogEntryCreate';
 import { handleAutocomplete } from './events/autocomplete';
 import channelDeleteEvent from './events/channelDelete';
 import guildCreateEvent from './events/guildCreate';
@@ -40,7 +41,8 @@ import { BotConfig } from './typeorm/entities/BotConfig';
 import { BaitChannelConfig } from './typeorm/entities/bait/BaitChannelConfig';
 import { BaitChannelLog } from './typeorm/entities/bait/BaitChannelLog';
 import { BaitKeyword } from './typeorm/entities/bait/BaitKeyword';
-import { PendingBan } from './typeorm/entities/bait/PendingBan';
+import { IdempotencyKey } from './typeorm/entities/bait/IdempotencyKey';
+import { PendingAction } from './typeorm/entities/bait/PendingAction';
 import { UserActivity } from './typeorm/entities/UserActivity';
 import type { ExtendedClient } from './types/ExtendedClient';
 import {
@@ -60,7 +62,10 @@ import { startSnapshotJob, stopSnapshotJob } from './utils/analytics/snapshotJob
 import { internalApiServer } from './utils/api/internalApiServer';
 import { APIConnector } from './utils/apiConnector';
 import { BaitChannelManager } from './utils/baitChannel/baitChannelManager';
+import { initContentBurstDetector, stopContentBurstDetector } from './utils/baitChannel/contentBurstDetector';
 import { JoinVelocityTracker } from './utils/baitChannel/joinVelocityTracker';
+import { initRaidModeManager } from './utils/baitChannel/raidModeManager';
+import { initRetryQueue, stopRetryQueue } from './utils/baitChannel/retryQueue';
 import { checkAndSendWeeklySummaries } from './utils/baitChannel/weeklySummary';
 import { startLogCleanup, stopLogCleanup } from './utils/database/logCleanup';
 import { baitChannelIdsBackfill } from './utils/database/migrations/baitChannelIdsBackfill';
@@ -141,6 +146,10 @@ const client = new Client({
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildScheduledEvents,
+    // GuildModeration (v3.2.0) — required for the auditLogEntryCreate
+    // listener (Phase 4) that attributes ban/kick/timeout actions to
+    // bot-self vs mod and dedups the mod-supersedes-us race.
+    GatewayIntentBits.GuildModeration,
   ],
   partials: [Partials.Message, Partials.Reaction, Partials.User],
   makeCache: Options.cacheWithLimits({
@@ -221,6 +230,9 @@ client.on(threadDeleteEvent.name, thread => threadDeleteEvent.execute(thread));
 client.on(guildMemberAddEvent.name, member => guildMemberAddEvent.execute(member, extClient));
 client.on(guildMemberRemoveEvent.name, member => guildMemberRemoveEvent.execute(member));
 
+// v3.2.0 — real-time audit-log attribution for bait actions
+registerAuditLogEntryCreateHandler(client);
+
 // register onboarding join event (sends DM onboarding flow to new members)
 client.on(onboardingJoinEvent.name, member => onboardingJoinEvent.execute(member, extClient));
 
@@ -273,11 +285,35 @@ client.once('clientReady', async () => {
     AppDataSource.getRepository(BaitChannelConfig),
     AppDataSource.getRepository(BaitChannelLog),
     AppDataSource.getRepository(UserActivity),
-    AppDataSource.getRepository(PendingBan),
+    AppDataSource.getRepository(PendingAction),
     AppDataSource.getRepository(BaitKeyword),
+    AppDataSource.getRepository(IdempotencyKey),
   );
   await baitChannelManager.initialize();
   baitChannelManager.startActivityFlush();
+
+  // retry queue picks up actions that returned 'queued' from the executor
+  // (Discord 429/5xx, network) and orphaned grace rows after a bot restart
+  const retryQueue = initRetryQueue({
+    client,
+    pendingActionRepo: AppDataSource.getRepository(PendingAction),
+    idempotencyRepo: AppDataSource.getRepository(IdempotencyKey),
+  });
+  retryQueue.start();
+
+  // raid mode manager — guild-wide lockdown when bait actions stack rapidly
+  const raidMgr = initRaidModeManager({
+    configRepo: AppDataSource.getRepository(BaitChannelConfig),
+    logRepo: AppDataSource.getRepository(BaitChannelLog),
+  });
+  raidMgr.setGuildFetcher(async (id: string) => client.guilds.fetch(id).catch(() => null));
+  // Boot-time recovery for raid lockdowns the bot was running before
+  // shutdown. Re-applies permission overwrites — idempotent on the
+  // Discord side, so doubly-locked channels are a no-op.
+  await raidMgr.restoreActiveLockdowns();
+
+  // content-burst detector — same content posted in N channels in M seconds
+  initContentBurstDetector();
 
   // initialize join velocity tracker for burst detection
   const joinVelocityTracker = new JoinVelocityTracker();
@@ -429,6 +465,12 @@ async function gracefulShutdown(signal: string) {
     extClient.baitChannelManager.stopActivityFlush();
     await extClient.baitChannelManager.flushActivityBuffer();
   }
+
+  // stop the bait retry queue (pending rows resume on next boot)
+  stopRetryQueue();
+
+  // stop the content burst detector
+  stopContentBurstDetector();
 
   // destroy join velocity tracker (clear interval + free memory)
   if (extClient.joinVelocityTracker) {

@@ -13,8 +13,9 @@ import { Position } from '../../../typeorm/entities/application/Position';
 import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import { BaitChannelLog } from '../../../typeorm/entities/bait/BaitChannelLog';
 import { BaitKeyword } from '../../../typeorm/entities/bait/BaitKeyword';
+import { IdempotencyKey } from '../../../typeorm/entities/bait/IdempotencyKey';
 import { JoinEvent } from '../../../typeorm/entities/bait/JoinEvent';
-import { PendingBan } from '../../../typeorm/entities/bait/PendingBan';
+import { PendingAction } from '../../../typeorm/entities/bait/PendingAction';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
 import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
@@ -1013,13 +1014,14 @@ async function teardownBaitChannel(
   const keywordResult = await AppDataSource.getRepository(BaitKeyword).delete({
     guildId,
   });
-  const pendingBanResult = await AppDataSource.getRepository(PendingBan).delete({ guildId });
+  const pendingActionResult = await AppDataSource.getRepository(PendingAction).delete({ guildId });
+  const idempotencyResult = await AppDataSource.getRepository(IdempotencyKey).delete({ guildId });
   const joinEventResult = await AppDataSource.getRepository(JoinEvent).delete({
     guildId,
   });
   const channelsDeleted = await deleteDevChannels(interaction, 'dev-bait');
 
-  return `Bait channel torn down: ${configResult.affected || 0} config, ${logResult.affected || 0} logs, ${keywordResult.affected || 0} keywords, ${pendingBanResult.affected || 0} pending bans, ${joinEventResult.affected || 0} join events, ${channelsDeleted} channels deleted.`;
+  return `Bait channel torn down: ${configResult.affected || 0} config, ${logResult.affected || 0} logs, ${keywordResult.affected || 0} keywords, ${pendingActionResult.affected || 0} pending actions, ${idempotencyResult.affected || 0} idempotency keys, ${joinEventResult.affected || 0} join events, ${channelsDeleted} channels deleted.`;
 }
 
 async function teardownRules(

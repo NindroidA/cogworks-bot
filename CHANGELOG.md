@@ -5,6 +5,110 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-05-17
+
+Major refinement of the bait channel (honeypot) subsystem. Closes ~22
+edge-case gaps audited against the prior implementation, replaces the
+`member.ban()` / `member.kick()` path with REST-based + idempotent
+execution, and ships industry-standard moderation patterns
+(`auditLogEntryCreate` attribution, REST ban-by-id, HMAC-signed
+appeal links, cross-channel content-burst detection, sticky raid-mode
+lockdown).
+
+### BREAKING
+
+- **New env var `APPEAL_HMAC_SECRET`** — required only when any guild
+  has `BaitChannelConfig.enableAppealLink=true`. Generate via
+  `node -e 'console.log(require("crypto").randomBytes(32).toString("base64url"))'`.
+  Bot still starts without it; signed appeal URLs are silently
+  omitted from DMs (static `appealInfo` text still shows).
+
+### Added
+
+- **REST ban executor** (`utils/baitChannel/banExecutor.ts`): every
+  moderation action (ban / softban / kick / timeout / log-only) goes
+  through `executeBanAction(opts, idempotencyRepo)`. Three guarantees
+  the old path couldn't provide:
+  - Leave-tolerant: `guild.bans.create(userId)` works after the user
+    has left and `GuildMember` partial is gone.
+  - Idempotent: `(guildId, userId, action, dayBucket)` UNIQUE row
+    prevents double-execution across mod-vs-bot race + retry queue.
+  - Audit-reason-aware: structured `cogworks:bait score=N ch=#X
+    flags=[…] msgId=…` reason in Discord audit log.
+- **RetryQueue** (`utils/baitChannel/retryQueue.ts`): re-uses
+  `pending_actions` table. Backoff 5s → 30s → 5min → dead-letter (3
+  attempts). Tick interval 15s. Also sweeps orphaned grace-period rows
+  after bot restart.
+- **`auditLogEntryCreate` listener** (`events/auditLogEntryCreate.ts`):
+  real-time attribution via Discord's audit-log gateway event. Bot-self
+  confirms BaitChannelLog rows with `discordAuditLogId` +
+  `actionConfirmedAt`; mod-supersedes-us cancels pending actions and
+  writes idempotency keys. Required new intent
+  `GatewayIntentBits.GuildModeration`.
+- **Leave-tolerant lifecycle**: `guildMemberRemove` drains pending
+  bait actions for the leaving user via REST executor. `timeout` rows
+  demote to `softban` when the member is gone.
+- **Raid Mode** (`utils/baitChannel/raidModeManager.ts`): sticky
+  guild-wide lockdown when N bait actions stack within M seconds.
+  Channel-level `@everyone SendMessages: false` on non-staff channels,
+  mod-alert embed with up to 10 offender mentions + alert role ping.
+  4h auto-release cap + manual `/baitchannel raid release`.
+- **New slash subcommand group `/baitchannel raid`**: `status`,
+  `enter [reason]`, `release`. Admin-only for destructive subcommands.
+- **Cross-channel content-burst detector**
+  (`utils/baitChannel/contentBurstDetector.ts`): catches same content
+  posted in N distinct channels within M seconds. +30 score boost +
+  `crossChannelBurst` flag in detection flags JSON. Normalizes mentions
+  / case / whitespace before hashing.
+- **HMAC-signed appeal tokens** (`utils/baitChannel/appealToken.ts`):
+  pre-ban DMs can embed a one-shot signed appeal link. Webapp consumer
+  in v3.2.1 verifies the token and auto-opens a `banAppeal` ticket.
+- **DM proof-of-delivery**: `sendDmNotification` returns `DmResult` with
+  `failureReason` (closed / no_shared_guild / timeout / unknown). 5s
+  timeout race prevents the action path from hanging on doomed DMs.
+- **Log channel fallback**: when the configured log channel is gone or
+  unreachable, owner-DM fallback ensures the action doesn't go
+  silently unrecorded. `BaitChannelLog.logDeliveryFailed` flagged.
+- **Retention**: daily cleanup tick now sweeps `idempotency_keys`
+  (expiresAt) and dead-lettered `pending_actions` (30d after deadAt).
+  Per-guild `BaitChannelConfig.logRetentionDays` (default 90, 30-365).
+- **Internal API endpoints**:
+  - `GET/PATCH /bait-channel/config` (closes the config CRUD gap).
+  - `GET /bait-channel/raid-mode/status`, `POST /raid-mode/{enter,release}`.
+  - `GET /bait-channel/pending-actions?status=…`, `POST .../cancel`.
+  - `GET /bait-channel/logs?days=&action=&userId=&overridden=`.
+  - New `optionalBoolean` API helper.
+
+### Schema
+
+- Migration `1774000011000-BaitChannelV3Schema`:
+  - Rename `pending_bans` → `pending_actions` + new columns
+    (`action`, `attempts`, `lastError`, `deadAt`).
+  - New table `idempotency_keys` (UNIQUE(guildId, userId, action,
+    dayBucket), TTL via expiresAt).
+  - `bait_channel_logs` + 8 new columns: `discordAuditLogId`,
+    `executorId`, `actionConfirmedAt`, `unbannedAt`, `unbannedBy`,
+    `dmSent`, `dmFailureReason`, `logDeliveryFailed`.
+  - `bait_channel_configs` + 10 new columns: raid mode (5),
+    cross-channel burst (2), appeal link (2), `logRetentionDays`.
+
+### Tests
+
+- +32 unit tests (1171 → 1203) across 4 new files: auditReason,
+  appealToken, contentBurstDetector, banExecutor.
+
+### Internal
+
+- `BaitChannelManager.executeAction` switch block (~140 LOC of
+  `member.X()` branches) collapsed into a single `executeBanAction`
+  call + result-mapping block. Telemetry / per-action log lines
+  preserved.
+- `BaitChannelLog.actionTaken` gains new values: `'superseded'`,
+  `'queued'`, `'superseded-by-mod'`, `'raid-mode-entered'`,
+  `'raid-mode-released'`. Existing values unchanged.
+- Schema entity rename `PendingBan` → `PendingAction` across 6
+  importers (manager, index, dataExport, devSuiteScaffold,
+  guildQueries, tests).
 ## [3.1.42] - 2026-05-31
 
 ### Fixed

@@ -15,8 +15,9 @@ import { BotConfig } from './entities/BotConfig';
 import { BaitChannelConfig } from './entities/bait/BaitChannelConfig';
 import { BaitChannelLog } from './entities/bait/BaitChannelLog';
 import { BaitKeyword } from './entities/bait/BaitKeyword';
+import { IdempotencyKey } from './entities/bait/IdempotencyKey';
 import { JoinEvent } from './entities/bait/JoinEvent';
-import { PendingBan } from './entities/bait/PendingBan';
+import { PendingAction } from './entities/bait/PendingAction';
 import { EventConfig } from './entities/event/EventConfig';
 import { EventReminder } from './entities/event/EventReminder';
 import { EventTemplate } from './entities/event/EventTemplate';
@@ -83,7 +84,8 @@ export const AppDataSource = new DataSource({
     AnnouncementTemplate,
     BaitChannelConfig,
     BaitChannelLog,
-    PendingBan,
+    PendingAction,
+    IdempotencyKey,
     UserActivity,
     MemoryConfig,
     MemoryTag,

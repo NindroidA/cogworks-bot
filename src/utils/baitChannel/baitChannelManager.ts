@@ -16,16 +16,53 @@ import { AppDataSource } from '../../typeorm';
 import type { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelConfig';
 import type { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
 import type { BaitKeyword } from '../../typeorm/entities/bait/BaitKeyword';
+import type { IdempotencyKey as IdempotencyKeyEntity } from '../../typeorm/entities/bait/IdempotencyKey';
 import { JoinEvent } from '../../typeorm/entities/bait/JoinEvent';
-import type { PendingBan as PendingBanEntity } from '../../typeorm/entities/bait/PendingBan';
+import type { PendingAction as PendingActionEntity } from '../../typeorm/entities/bait/PendingAction';
 import type { UserActivity } from '../../typeorm/entities/UserActivity';
 import { Colors } from '../colors';
 import { CACHE_TTL, INTERVALS } from '../constants';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+import { buildAppealUrl } from './appealToken';
+import { buildAuditReason, flagsTriggered } from './auditReason';
+import { type BanExecutorAction, type BanExecutorResult, executeBanAction } from './banExecutor';
+import { getContentBurstDetector } from './contentBurstDetector';
 import type { JoinVelocityTracker } from './joinVelocityTracker';
+import { getRaidModeManager } from './raidModeManager';
+import { getRetryQueue } from './retryQueue';
 import { analyzeUrls } from './urlAnalyzer';
 import { analyzeUsername } from './usernameAnalyzer';
+
+// Mirrors `BaitChannelLog.dmFailureReason` — kept in sync deliberately.
+type DmFailureReason = 'closed' | 'no_shared_guild' | 'timeout' | 'unknown';
+interface DmResult {
+  sent: boolean;
+  failureReason?: DmFailureReason;
+}
+
+/**
+ * Map a DM-send error to a structured failure reason. Discord error codes:
+ *   - 50007 = Cannot send messages to this user (DMs disabled, or no
+ *     shared guild)
+ *   - Custom `dm_timeout` → our own 5s race timeout
+ * Anything else is `unknown` (logged but not bucketed for stats).
+ */
+function classifyDmFailure(error: unknown): DmFailureReason {
+  if (error instanceof DiscordAPIError) {
+    if (error.code === 50007) {
+      // Discord doesn't distinguish "DMs closed" from "no shared guild" in
+      // the error code. We bucket both as "closed" — the practical outcome
+      // is the same (we can't reach them).
+      return 'closed';
+    }
+    return 'unknown';
+  }
+  if (error instanceof Error && error.message === 'dm_timeout') {
+    return 'timeout';
+  }
+  return 'unknown';
+}
 
 interface PurgeResult {
   totalDeleted: number;
@@ -61,6 +98,7 @@ interface SuspicionAnalysis {
     phishingUrl: boolean;
     attachmentOnly: boolean;
     joinBurst: boolean;
+    crossChannelBurst?: boolean;
   };
   reasons: string[];
 }
@@ -95,8 +133,9 @@ export class BaitChannelManager {
     private configRepo: Repository<BaitChannelConfig>,
     private logRepo: Repository<BaitChannelLog>,
     private activityRepo: Repository<UserActivity>,
-    private pendingBanRepo?: Repository<PendingBanEntity>,
+    private pendingActionRepo?: Repository<PendingActionEntity>,
     private keywordRepo?: Repository<BaitKeyword>,
+    private idempotencyRepo?: Repository<IdempotencyKeyEntity>,
   ) {}
 
   setJoinVelocityTracker(tracker: JoinVelocityTracker): void {
@@ -108,18 +147,18 @@ export class BaitChannelManager {
    * Call after construction once the bot is ready.
    */
   async initialize(): Promise<void> {
-    if (!this.pendingBanRepo) return;
+    if (!this.pendingActionRepo) return;
 
     try {
       // Clean up expired entries
-      await this.pendingBanRepo.delete({ expiresAt: LessThan(new Date()) });
+      await this.pendingActionRepo.delete({ expiresAt: LessThan(new Date()) });
 
       // Load unexpired pending bans and re-create timeouts
-      const activeBans = await this.pendingBanRepo.find();
+      const activeBans = await this.pendingActionRepo.find();
       for (const ban of activeBans) {
         const remainingMs = ban.expiresAt.getTime() - Date.now();
         if (remainingMs <= 0) {
-          await this.pendingBanRepo.remove(ban);
+          await this.pendingActionRepo.remove(ban);
           continue;
         }
 
@@ -155,9 +194,9 @@ export class BaitChannelManager {
   }
 
   private async savePendingBanToDb(guildId: string, pendingBan: PendingBan, gracePeriodSeconds: number): Promise<void> {
-    if (!this.pendingBanRepo) return;
+    if (!this.pendingActionRepo) return;
     try {
-      const entity = this.pendingBanRepo.create({
+      const entity = this.pendingActionRepo.create({
         guildId,
         userId: pendingBan.userId,
         messageId: pendingBan.messageId,
@@ -167,7 +206,7 @@ export class BaitChannelManager {
         createdAt: new Date(pendingBan.timestamp),
         expiresAt: new Date(pendingBan.timestamp + gracePeriodSeconds * 1000),
       });
-      await this.pendingBanRepo.save(entity);
+      await this.pendingActionRepo.save(entity);
     } catch (error) {
       logError({
         category: ErrorCategory.DATABASE,
@@ -180,11 +219,11 @@ export class BaitChannelManager {
   }
 
   private async removePendingBanFromDb(userId: string, messageId: string, guildId?: string): Promise<void> {
-    if (!this.pendingBanRepo) return;
+    if (!this.pendingActionRepo) return;
     try {
       const where: Record<string, string> = { userId, messageId };
       if (guildId) where.guildId = guildId;
-      await this.pendingBanRepo.delete(where);
+      await this.pendingActionRepo.delete(where);
     } catch (error) {
       logError({
         category: ErrorCategory.DATABASE,
@@ -193,6 +232,30 @@ export class BaitChannelManager {
         error,
         context: { userId, messageId, guildId },
       });
+    }
+  }
+
+  /**
+   * Clear any in-memory pending grace timers for a user. Called from
+   * `guildMemberRemove` before draining DB rows, so the setTimeout
+   * callback's `pendingBans.has(key)` guard short-circuits and we don't
+   * race with leave-drain's REST execution. The actual DB row is removed
+   * by the caller (leave-drain owns its own pending_actions.remove call).
+   */
+  cancelGraceForUser(guildId: string, userId: string): void {
+    for (const [key, ban] of this.pendingBans.entries()) {
+      if (ban.userId === userId) {
+        clearTimeout(ban.timeoutId);
+        this.pendingBans.delete(key);
+        enhancedLogger.debug(
+          `Cleared in-memory grace timer for ${userId} in ${guildId} (user left)`,
+          LogCategory.SECURITY,
+          {
+            guildId,
+            userId,
+          },
+        );
+      }
     }
   }
 
@@ -247,6 +310,30 @@ export class BaitChannelManager {
 
       // Perform suspicion analysis
       const analysis = await this.analyzeSuspicion(message, config);
+
+      // v3.2.0 — cross-channel content-burst boost. If this user has posted
+      // the same content in N+ distinct channels within the burst window,
+      // bump the score by 30 and flip the dedicated flag. Forces escalation
+      // even from borderline single-message scores, and signals
+      // raidModeManager that the trigger pool is heating up.
+      const burstDetector = getContentBurstDetector();
+      if (burstDetector) {
+        const burst = burstDetector.recordMessage(
+          message.guild.id,
+          member.id,
+          message.channelId,
+          message.content,
+          config.crossChannelBurstWindowSeconds ?? 30,
+          config.crossChannelBurstThreshold ?? 3,
+        );
+        if (burst.bursting) {
+          analysis.score = Math.min(100, analysis.score + 30);
+          analysis.flags.crossChannelBurst = true;
+          analysis.reasons.push(
+            `Same content in ${burst.distinctChannels} channels within ${config.crossChannelBurstWindowSeconds ?? 30}s`,
+          );
+        }
+      }
 
       // Log the attempt
       enhancedLogger.info(
@@ -522,9 +609,9 @@ export class BaitChannelManager {
     action: string,
     config: BaitChannelConfig,
     _analysis: SuspicionAnalysis,
-  ): Promise<boolean> {
-    if (!config.dmBeforeAction) return false;
-    if (action === 'log-only') return false;
+  ): Promise<DmResult> {
+    if (!config.dmBeforeAction) return { sent: false };
+    if (action === 'log-only') return { sent: false };
 
     const actionLabels: Record<string, string> = {
       ban: 'Ban',
@@ -553,11 +640,55 @@ export class BaitChannelManager {
         });
       }
 
-      await member.send({ embeds: [embed] });
-      return true;
-    } catch {
-      enhancedLogger.debug(`Failed to send DM notification to ${member.user.tag}`, LogCategory.SECURITY);
-      return false;
+      // v3.2.0 — signed appeal link (issued when enableAppealLink + baseUrl
+      // are configured + APPEAL_HMAC_SECRET env is set). Webapp consumer
+      // (v3.2.1) verifies the token and auto-opens a banAppeal ticket. The
+      // helper returns null silently for any missing prerequisite — falls
+      // back to the static appealInfo above.
+      const appealUrl = buildAppealUrl({
+        guildId: member.guild.id,
+        userId: member.id,
+        action: action as 'ban' | 'softban' | 'kick' | 'timeout',
+        banReason: config.banReason,
+        baseUrl: config.enableAppealLink ? config.appealLinkBaseUrl : null,
+      });
+      if (appealUrl) {
+        embed.addFields({
+          name: 'Appeal this action',
+          value: `[Open appeal form](${appealUrl})\n*Link is single-use and expires in 7 days.*`,
+        });
+      }
+
+      // Race the DM against a 5s timeout — Discord can stall this call
+      // indefinitely when the user's privacy settings have blocked us, and
+      // we don't want the action path to wait forever. The send promise is
+      // held in a local so its eventual rejection (after the timeout wins)
+      // doesn't become an unhandled rejection — we attach a swallow-catch
+      // for any post-race outcome we no longer care about.
+      const sendPromise = member.send({ embeds: [embed] });
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('dm_timeout')), 5_000);
+      });
+      try {
+        await Promise.race([sendPromise, timeoutPromise]);
+        if (timer) clearTimeout(timer);
+        return { sent: true };
+      } catch (raceError) {
+        // If the timeout won, the underlying send may still settle later —
+        // attach a swallow handler so Node doesn't log an unhandled rejection.
+        sendPromise.catch(() => {});
+        if (timer) clearTimeout(timer);
+        throw raceError;
+      }
+    } catch (error) {
+      const failureReason = classifyDmFailure(error);
+      enhancedLogger.debug(
+        `Failed to send DM notification to ${member.user.tag}: ${failureReason}`,
+        LogCategory.SECURITY,
+        { userId: member.id, guildId: member.guild.id, failureReason },
+      );
+      return { sent: false, failureReason };
     }
   }
 
@@ -923,156 +1054,155 @@ export class BaitChannelManager {
     const isTestMode = config.testMode === true;
     let purgeResult: PurgeResult | undefined;
 
-    // Step 2: Send DM notification BEFORE action (user must still be in server)
-    let dmSent = false;
+    // Step 2: Send DM notification BEFORE action (user must still be in server).
+    // The DM result is structured — we record whether it landed and (if not)
+    // why, so admins reviewing the bait log can distinguish DM-blocked from
+    // DM-attempted-and-failed cases.
+    let dmResult: DmResult = { sent: false };
     if (!isTestMode) {
-      dmSent = await this.sendDmNotification(member, resolvedAction, config, analysis);
+      dmResult = await this.sendDmNotification(member, resolvedAction, config, analysis);
+    }
+    const dmSent = dmResult.sent;
+
+    // Step 3: Execute the resolved action via REST executor (idempotent, leave-tolerant).
+    // 'kick' is mapped to 'softban' when we have BAN_MEMBERS so messages get
+    // deleted via the ban API (softban = ban + immediate unban). Without
+    // BAN_MEMBERS we fall back to a true kick + bot-side purge sweep.
+    const deleteHours = config.deleteMessageHours ?? 24;
+    const timeoutMs = (config.timeoutDurationMinutes ?? 60) * 60 * 1000;
+    const channelName =
+      'name' in message.channel && typeof message.channel.name === 'string' ? message.channel.name : message.channelId;
+    const auditReason = buildAuditReason({
+      score: analysis.score,
+      channelName,
+      flags: flagsTriggered(analysis.flags),
+      messageId: message.id,
+      extra: reason,
+    });
+
+    let apiAction: BanExecutorAction = resolvedAction as BanExecutorAction;
+    if (resolvedAction === 'kick') {
+      const hasBanPermission = message.guild!.members.me?.permissions.has(PermissionFlagsBits.BanMembers);
+      apiAction = hasBanPermission ? 'softban' : 'kick';
     }
 
-    // Step 3: Execute the resolved action (skip in test mode)
-    if (isTestMode) {
-      actionTaken = `test-${resolvedAction}`;
+    const executorResult: BanExecutorResult | null = this.idempotencyRepo
+      ? await executeBanAction(
+          {
+            guild: message.guild!,
+            userId: member.id,
+            action: apiAction,
+            reason: auditReason,
+            executorId: this.client.user?.id ?? null,
+            deleteMessageSeconds: apiAction === 'ban' || apiAction === 'softban' ? deleteHours * 3600 : undefined,
+            timeoutMs: apiAction === 'timeout' ? timeoutMs : undefined,
+            member,
+            testMode: isTestMode,
+          },
+          this.idempotencyRepo,
+        )
+      : null;
+
+    // Translate executor result into the BaitChannelLog `actionTaken` value
+    // the rest of this method expects. Preserve existing test-* / failed /
+    // logged naming so the channel embed + DB row stay backward-compatible.
+    if (executorResult === null) {
+      // No idempotency repo wired — boot path / test fixture. Defer to
+      // best-effort path so the manager still functions before Phase 2 is
+      // fully wired. (Removed once index.ts boot passes the repo.)
+      actionResult = 'failed';
+      actionTaken = 'failed';
+      failureReason = 'idempotency repo unavailable';
+    } else if (executorResult.status === 'duplicate') {
+      // Someone (mod, retry queue, prior call) already did this action today.
+      actionTaken = 'superseded';
       enhancedLogger.info(
-        `[TEST MODE] Would have executed ${resolvedAction} on ${member.user.tag} (Score: ${analysis.score})`,
+        `Bait action ${apiAction} for ${member.user.tag} skipped — idempotency dedup`,
+        LogCategory.SECURITY,
+        { userId: member.id, guildId: message.guild!.id, action: apiAction },
+      );
+    } else if (executorResult.status === 'queued') {
+      // Hand off to the retry queue. The action is recorded as 'queued' in
+      // the BaitChannelLog (admins can see it pending review); the retry
+      // queue will flip the action to its real value on success or
+      // dead-letter it after MAX_ATTEMPTS.
+      actionResult = 'failed';
+      actionTaken = 'queued';
+      failureReason = executorResult.failureReason;
+
+      const queue = getRetryQueue();
+      if (queue) {
+        await queue.enqueue({
+          guildId: message.guild!.id,
+          userId: member.id,
+          messageId: message.id,
+          channelId: message.channelId,
+          action: apiAction as 'ban' | 'softban' | 'kick' | 'timeout' | 'log-only',
+          suspicionScore: analysis.score,
+          lastError: executorResult.failureReason,
+        });
+      }
+
+      enhancedLogger.warn(
+        `Bait action ${apiAction} for ${member.user.tag} queued for retry: ${executorResult.failureReason ?? 'unknown'}`,
+        LogCategory.SECURITY,
+        { userId: member.id, guildId: message.guild!.id, action: apiAction },
+      );
+    } else if (executorResult.status === 'failed') {
+      actionResult = 'failed';
+      actionTaken = 'failed';
+      failureReason = executorResult.failureReason;
+      logError({
+        category: ErrorCategory.DISCORD_API,
+        severity: ErrorSeverity.HIGH,
+        message: `Bait action ${apiAction} failed terminally`,
+        error: new Error(executorResult.failureReason ?? 'unknown'),
+        context: {
+          userId: member.id,
+          guildId: message.guild!.id,
+          action: apiAction,
+          errorCode: executorResult.errorCode,
+        },
+      });
+    } else {
+      // executed — including test mode dry-run (the executor itself logs the [TEST MODE] line).
+      if (isTestMode) {
+        actionTaken = `test-${resolvedAction}`;
+      } else if (resolvedAction === 'log-only') {
+        actionTaken = 'logged';
+      } else {
+        actionTaken = resolvedAction;
+      }
+
+      enhancedLogger.info(
+        isTestMode
+          ? `[TEST MODE] Bait dry-run ${apiAction} for ${member.user.tag} (Score: ${analysis.score})`
+          : `Bait ${apiAction} executed for ${member.user.tag} (Score: ${analysis.score})`,
         LogCategory.SECURITY,
         {
           userId: member.id,
           score: analysis.score,
-          action: `test-${resolvedAction}`,
+          action: actionTaken,
+          deleteMessageHours: apiAction === 'ban' || apiAction === 'softban' ? deleteHours : undefined,
+          timeoutMinutes: apiAction === 'timeout' ? (config.timeoutDurationMinutes ?? 60) : undefined,
           guildId: message.guild!.id,
         },
       );
-    } else {
-      try {
-        switch (resolvedAction) {
-          case 'ban': {
-            const deleteHours = config.deleteMessageHours ?? 24;
-            await member.ban({
-              reason: `${config.banReason} (${reason})`,
-              deleteMessageSeconds: deleteHours * 3600,
-            });
-            enhancedLogger.info(`Banned user ${member.user.tag} (Score: ${analysis.score})`, LogCategory.SECURITY, {
-              userId: member.id,
-              score: analysis.score,
-              action: 'ban',
-              deleteMessageHours: deleteHours,
-              guildId: message.guild!.id,
-            });
-            break;
-          }
 
-          case 'kick': {
-            const deleteHoursKick = config.deleteMessageHours ?? 24;
-            const hasBanPermission = message.guild!.members.me?.permissions.has(PermissionFlagsBits.BanMembers);
-            if (hasBanPermission) {
-              // Softban: ban to delete messages, then immediately unban
-              await member.ban({
-                reason: `Softban — ${config.banReason} (${reason})`,
-                deleteMessageSeconds: deleteHoursKick * 3600,
-              });
-              await new Promise(r => setTimeout(r, 500));
-              await message.guild!.bans.remove(member.id, 'Softban complete — user may rejoin');
-              enhancedLogger.info(
-                `Softbanned (kick) user ${member.user.tag} (Score: ${analysis.score})`,
-                LogCategory.SECURITY,
-                {
-                  userId: member.id,
-                  score: analysis.score,
-                  action: 'kick-softban',
-                  deleteMessageHours: deleteHoursKick,
-                  guildId: message.guild!.id,
-                },
-              );
-            } else {
-              // Fallback: regular kick (no message deletion via Discord API)
-              await member.kick(`${config.banReason} (${reason})`);
-              // Run purge since we couldn't softban
-              if (message.guild) {
-                await this.purgeUserMessages(message.guild, member.id, []);
-              }
-              enhancedLogger.info(
-                `Kicked user ${member.user.tag} (Score: ${analysis.score}) — no ban perms, used fallback kick + purge`,
-                LogCategory.SECURITY,
-                {
-                  userId: member.id,
-                  score: analysis.score,
-                  action: 'kick-fallback',
-                  guildId: message.guild!.id,
-                },
-              );
-            }
-            break;
-          }
+      // Timeout + kick-fallback need a bot-side message purge — Discord's
+      // ban API isn't involved so we do it ourselves. Skipped in test mode.
+      if (!isTestMode && (apiAction === 'timeout' || apiAction === 'kick') && message.guild) {
+        purgeResult = await this.purgeUserMessages(message.guild, member.id, []);
+      }
 
-          case 'timeout': {
-            const timeoutMs = (config.timeoutDurationMinutes ?? 60) * 60 * 1000;
-            await member.timeout(timeoutMs, `${config.banReason} (${reason})`);
-            // Timeout can't use softban — purge messages bot-side
-            if (message.guild) {
-              purgeResult = await this.purgeUserMessages(message.guild, member.id, []);
-            }
-            enhancedLogger.info(
-              `Timed out user ${member.user.tag} for ${config.timeoutDurationMinutes ?? 60}min (Score: ${analysis.score})`,
-              LogCategory.SECURITY,
-              {
-                userId: member.id,
-                score: analysis.score,
-                action: 'timeout',
-                purgedMessages: purgeResult?.totalDeleted ?? 0,
-                guildId: message.guild!.id,
-              },
-            );
-            break;
-          }
-
-          case 'log-only':
-            enhancedLogger.info(
-              `Logged user ${member.user.tag} (Score: ${analysis.score}) - no action taken`,
-              LogCategory.SECURITY,
-              {
-                userId: member.id,
-                score: analysis.score,
-                action: 'log-only',
-                guildId: message.guild!.id,
-              },
-            );
-            actionTaken = 'logged';
-            break;
-
-          default:
-            enhancedLogger.warn(`Unknown action type: ${resolvedAction}`, LogCategory.ERROR, {
-              actionType: resolvedAction,
-              guildId: message.guild!.id,
-            });
+      // Raid mode signal: real (non-test, non-log-only) action just landed.
+      // Records into the per-guild sliding window; entering raid mode is
+      // handled inside `recordTrigger` and produces its own logs/alerts.
+      if (!isTestMode && apiAction !== 'log-only' && message.guild) {
+        const raidMgr = getRaidModeManager();
+        if (raidMgr) {
+          await raidMgr.recordTrigger(message.guild, member.id, config);
         }
-      } catch (error) {
-        const err = error as Error;
-        actionResult = 'failed';
-        failureReason = err.message;
-        actionTaken = 'failed';
-
-        enhancedLogger.error(
-          `Failed to execute action ${resolvedAction} for ${member.user.tag}`,
-          err,
-          LogCategory.ERROR,
-          {
-            userId: member.id,
-            action: resolvedAction,
-            guildId: message.guild!.id,
-          },
-        );
-
-        logError({
-          category: ErrorCategory.DISCORD_API,
-          severity: ErrorSeverity.HIGH,
-          message: `Failed to execute bait channel action: ${resolvedAction}`,
-          error,
-          context: {
-            userId: member.id,
-            guildId: message.guild!.id,
-            action: resolvedAction,
-          },
-        });
       }
     }
 
@@ -1102,8 +1232,10 @@ export class BaitChannelManager {
       repeatOffenderResult = await this.detectRepeatOffenders(member, message.guild!.id);
     }
 
-    // Step 5: Log to channel AFTER purge (with result)
-    await this.logToChannel(
+    // Step 5: Log to channel AFTER purge. The result determines whether the
+    // BaitChannelLog row gets `logDeliveryFailed=true` so admins can audit
+    // silent log-delivery failures from the dashboard.
+    const logDelivered = await this.logToChannel(
       member,
       message,
       config,
@@ -1117,8 +1249,12 @@ export class BaitChannelManager {
       repeatOffenderResult,
     );
 
-    // Step 6: Log to database
-    await this.logAction(message, member, actionTaken, config, analysis, failureReason);
+    // Step 6: Log to database with full v3.2.0 observability columns.
+    await this.logAction(message, member, actionTaken, config, analysis, failureReason, {
+      dmResult,
+      logDeliveryFailed: !logDelivered,
+      executorId: executorResult?.status === 'executed' ? (this.client.user?.id ?? null) : null,
+    });
   }
 
   /**
@@ -1177,6 +1313,11 @@ export class BaitChannelManager {
     _config: BaitChannelConfig,
     analysis?: SuspicionAnalysis,
     failureReason?: string,
+    extras?: {
+      dmResult?: DmResult;
+      logDeliveryFailed?: boolean;
+      executorId?: string | null;
+    },
   ): Promise<void> {
     // We accept `member` from the caller rather than re-deriving it from
     // `message.member`. Discord.js drops `message.member` to null once the
@@ -1210,6 +1351,14 @@ export class BaitChannelManager {
         ),
         suspicionScore: analysis?.score || 0,
         detectionFlags: analysis?.flags || undefined,
+        // v3.2.0 audit/observability columns. dmSent + dmFailureReason
+        // populated from the caller's DmResult; executorId tags self vs mod
+        // (Phase 4 fills it for the superseded-by-mod case);
+        // logDeliveryFailed mirrors whether the channel embed landed.
+        dmSent: extras?.dmResult?.sent ?? false,
+        dmFailureReason: extras?.dmResult?.failureReason ?? null,
+        executorId: extras?.executorId ?? null,
+        logDeliveryFailed: extras?.logDeliveryFailed ?? false,
       };
 
       await this.logRepo.save(this.logRepo.create(logEntry));
@@ -1240,14 +1389,17 @@ export class BaitChannelManager {
     purgeResult?: PurgeResult,
     dmSent?: boolean,
     repeatOffenderResult?: RepeatOffenderResult | null,
-  ): Promise<void> {
-    if (!config.logChannelId) return;
+  ): Promise<boolean> {
+    if (!config.logChannelId) return true; // not configured — not a failure
 
     try {
       const logChannel = (await message
         .guild!.channels.fetch(config.logChannelId)
         .catch(() => null)) as TextChannel | null;
-      if (!logChannel) return;
+      if (!logChannel) {
+        // Configured but inaccessible — try the owner-DM fallback.
+        return await this.fallbackLogDmOwner(message.guild!, resolvedAction, member.id, 'log channel not accessible');
+      }
 
       // Check if this is a test mode action
       const isTestMode = config.testMode === true;
@@ -1413,9 +1565,8 @@ export class BaitChannelManager {
         });
       }
 
-      embed;
-
       await logChannel.send({ embeds: [embed] });
+      return true;
     } catch (error) {
       logError({
         category: ErrorCategory.DISCORD_API,
@@ -1427,6 +1578,42 @@ export class BaitChannelManager {
           logChannelId: config.logChannelId,
         },
       });
+      // Last-ditch: DM the guild owner so the action doesn't go silently
+      // unrecorded. They can then re-create the log channel or pick a new one.
+      return await this.fallbackLogDmOwner(
+        message.guild!,
+        resolvedAction,
+        member.id,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  /**
+   * Last-resort log delivery when the configured `logChannelId` is gone or
+   * the bot can't send to it. Returns `true` if the owner DM landed,
+   * `false` if it also failed. A `false` return signals `logDeliveryFailed`
+   * on the BaitChannelLog row so admins can audit silent-failure cases.
+   */
+  private async fallbackLogDmOwner(guild: Guild, action: string, userId: string, reason: string): Promise<boolean> {
+    try {
+      const owner = await guild.fetchOwner().catch(() => null);
+      if (!owner) return false;
+      await owner.send({
+        content:
+          `⚠️ **Bait channel log delivery failed** in **${guild.name}**.\n` +
+          `Action \`${action}\` was taken against <@${userId}> but the configured ` +
+          `log channel is unreachable (\`${reason}\`).\n` +
+          `Please update the bait log channel via \`/baitchannel setup\` or the dashboard.`,
+      });
+      return true;
+    } catch (error) {
+      enhancedLogger.warn(
+        `Bait log owner-DM fallback also failed for guild ${guild.id}: ${error instanceof Error ? error.message : String(error)}`,
+        LogCategory.SECURITY,
+        { guildId: guild.id, userId, action },
+      );
+      return false;
     }
   }
 
@@ -1492,8 +1679,6 @@ export class BaitChannelManager {
           value: `${message.attachments.size} attachment(s)`,
         });
       }
-
-      embed;
 
       await logChannel.send({ embeds: [embed] });
     } catch (error) {

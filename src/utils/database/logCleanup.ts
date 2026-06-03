@@ -3,10 +3,15 @@ import { AppDataSource } from '../../typeorm';
 import { AuditLog } from '../../typeorm/entities/AuditLog';
 import { AnnouncementLog } from '../../typeorm/entities/announcement/AnnouncementLog';
 import { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
+import { IdempotencyKey } from '../../typeorm/entities/bait/IdempotencyKey';
 import { JoinEvent } from '../../typeorm/entities/bait/JoinEvent';
+import { PendingAction } from '../../typeorm/entities/bait/PendingAction';
 import { INTERVALS, RETENTION_DAYS } from '../constants';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+
+/** Dead-lettered pending actions kept for mod review for 30d before purge. */
+const DEAD_LETTER_RETENTION_DAYS = 30;
 
 let cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -102,6 +107,56 @@ async function runLogCleanup(): Promise<void> {
       category: ErrorCategory.DATABASE,
       severity: ErrorSeverity.LOW,
       message: 'Failed to clean up join events',
+      error,
+      context: {},
+    });
+  }
+
+  // v3.2.0 — idempotency keys carry their own per-row TTL (`expiresAt`).
+  try {
+    const idempotencyRepo = AppDataSource.getRepository(IdempotencyKey);
+    const idempotencyResult = await idempotencyRepo.delete({
+      expiresAt: LessThan(new Date()),
+    });
+    if (idempotencyResult.affected && idempotencyResult.affected > 0) {
+      enhancedLogger.info(
+        `Log cleanup: removed ${idempotencyResult.affected} expired idempotency keys`,
+        LogCategory.DATABASE,
+      );
+    }
+  } catch (error) {
+    logError({
+      category: ErrorCategory.DATABASE,
+      severity: ErrorSeverity.LOW,
+      message: 'Failed to clean up idempotency keys',
+      error,
+      context: {},
+    });
+  }
+
+  // v3.2.0 — dead-lettered pending actions retained 30d for mod review.
+  // Live pending actions (deadAt IS NULL) are owned by the retry queue.
+  try {
+    const deadLetterCutoff = new Date(Date.now() - DEAD_LETTER_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const pendingRepo = AppDataSource.getRepository(PendingAction);
+    const pendingResult = await pendingRepo
+      .createQueryBuilder()
+      .delete()
+      .where('deadAt IS NOT NULL AND deadAt < :cutoff', {
+        cutoff: deadLetterCutoff,
+      })
+      .execute();
+    if (pendingResult.affected && pendingResult.affected > 0) {
+      enhancedLogger.info(
+        `Log cleanup: removed ${pendingResult.affected} dead-lettered pending actions older than ${DEAD_LETTER_RETENTION_DAYS} days`,
+        LogCategory.DATABASE,
+      );
+    }
+  } catch (error) {
+    logError({
+      category: ErrorCategory.DATABASE,
+      severity: ErrorSeverity.LOW,
+      message: 'Failed to clean up dead-lettered pending actions',
       error,
       context: {},
     });
