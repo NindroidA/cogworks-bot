@@ -287,6 +287,55 @@ describe("POST /tickets/:id/close", () => {
     expect(fakeWriteAuditLog).not.toHaveBeenCalled();
   });
 
+  test("transient channel-fetch failure (non-10003): reverts status, returns failure (retryable)", async () => {
+    ticketRepoState.findOneByResult = {
+      id: 42,
+      guildId: "guild-1",
+      status: "open",
+      channelId: "ticket-channel-1",
+    };
+    archivedTicketConfigRepoState.findOneByResult = {
+      guildId: "guild-1",
+      channelId: "archive-forum-1",
+    };
+    (fakeClient.channels.fetch as any).mockRejectedValue(
+      Object.assign(new Error("Service Unavailable"), { code: 0 }),
+    );
+
+    const result = await getCloseHandler()("guild-1", {}, "/tickets/42/close");
+
+    // A transient fetch failure must NOT strand the ticket closed.
+    expect(result).toEqual({ success: false, ticketId: 42, archived: false });
+    expect(ticketRepoState.updateCalls[0].partial).toEqual({
+      status: "closed",
+    });
+    expect(ticketRepoState.updateCalls[1].partial).toEqual({ status: "open" });
+    expect(fakeArchiveAndClose).not.toHaveBeenCalled();
+  });
+
+  test("genuinely-gone channel (10003): terminal close, archived:false, no revert", async () => {
+    ticketRepoState.findOneByResult = {
+      id: 42,
+      guildId: "guild-1",
+      status: "open",
+      channelId: "ticket-channel-1",
+    };
+    archivedTicketConfigRepoState.findOneByResult = {
+      guildId: "guild-1",
+      channelId: "archive-forum-1",
+    };
+    (fakeClient.channels.fetch as any).mockRejectedValue(
+      Object.assign(new Error("Unknown Channel"), { code: 10003 }),
+    );
+
+    const result = await getCloseHandler()("guild-1", {}, "/tickets/42/close");
+
+    // Channel is genuinely gone — nothing to archive, so the close is terminal.
+    expect(result).toEqual({ success: true, ticketId: 42, archived: false });
+    expect(ticketRepoState.updateCalls).toHaveLength(1); // close flip only, no revert
+    expect(fakeArchiveAndClose).not.toHaveBeenCalled();
+  });
+
   test("archiveAndCloseTicket returns archived: false — reverts status for retry, writes NO audit log", async () => {
     ticketRepoState.findOneByResult = {
       id: 42,

@@ -65,16 +65,21 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
         transcriptFailed: result.transcriptFailed ?? false,
       },
     );
-    if (interaction.replied || interaction.deferred) {
-      await interaction.editReply({ content: tl.transcriptCreate.error }).catch(() => {});
-    } else {
-      await interaction
-        .reply({
-          content: tl.transcriptCreate.error,
-          flags: [MessageFlags.Ephemeral],
-        })
-        .catch(() => {});
-    }
+    const notify =
+      interaction.replied || interaction.deferred
+        ? interaction.editReply({ content: tl.transcriptCreate.error })
+        : interaction.reply({
+            content: tl.transcriptCreate.error,
+            flags: [MessageFlags.Ephemeral],
+          });
+    await notify.catch((err: unknown) => {
+      enhancedLogger.error(
+        'Failed to deliver ticket-close failure notice to the user',
+        err instanceof Error ? err : undefined,
+        LogCategory.SYSTEM,
+        { guildId, channelId, ticketId: ticket.id },
+      );
+    });
   }
 };
 

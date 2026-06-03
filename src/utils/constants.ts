@@ -239,4 +239,8 @@ export const TEXT_LIMITS = {
   ONBOARDING_WELCOME: 2000,
   /** Event template description max length */
   EVENT_DESCRIPTION: 1000,
+  /** Transcript chunk packing target (headroom under Discord's hard limit) */
+  TRANSCRIPT_CHUNK_SOFT: 1900,
+  /** Discord's hard per-message limit — no transcript chunk may exceed this */
+  TRANSCRIPT_CHUNK_HARD: 2000,
 } as const;

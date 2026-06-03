@@ -14,6 +14,8 @@
  * tail). Stickers, polls, and embed media are captured too.
  */
 
+import { TEXT_LIMITS } from '../constants';
+
 /** Per-message shape the fetcher hands to the builder. */
 export interface TranscriptMessage {
   author: { username: string; id: string; bot: boolean };
@@ -74,9 +76,9 @@ export interface TranscriptResult {
 }
 
 /** Soft cap — the packing target, with headroom under the hard limit. */
-const CHUNK_SOFT_LIMIT = 1900;
+const CHUNK_SOFT_LIMIT = TEXT_LIMITS.TRANSCRIPT_CHUNK_SOFT;
 /** Discord's hard per-message limit. No emitted chunk may exceed this. */
-const CHUNK_HARD_LIMIT = 2000;
+const CHUNK_HARD_LIMIT = TEXT_LIMITS.TRANSCRIPT_CHUNK_HARD;
 
 /** `<t:unix:f>` — Discord renders this in the viewer's local timezone. */
 function formatDiscordTimestamp(date: Date): string {

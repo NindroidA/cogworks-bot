@@ -65,16 +65,21 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
         transcriptFailed: result.transcriptFailed ?? false,
       },
     );
-    if (interaction.replied || interaction.deferred) {
-      await interaction.editReply({ content: tl.transcriptCreate.error }).catch(() => {});
-    } else {
-      await interaction
-        .reply({
-          content: tl.transcriptCreate.error,
-          flags: [MessageFlags.Ephemeral],
-        })
-        .catch(() => {});
-    }
+    const notify =
+      interaction.replied || interaction.deferred
+        ? interaction.editReply({ content: tl.transcriptCreate.error })
+        : interaction.reply({
+            content: tl.transcriptCreate.error,
+            flags: [MessageFlags.Ephemeral],
+          });
+    await notify.catch((err: unknown) => {
+      enhancedLogger.error(
+        'Failed to deliver application-close failure notice to the user',
+        err instanceof Error ? err : undefined,
+        LogCategory.SYSTEM,
+        { guildId, channelId, applicationId: application.id },
+      );
+    });
   }
 };
 

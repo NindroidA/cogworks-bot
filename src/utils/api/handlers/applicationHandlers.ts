@@ -82,7 +82,20 @@ export function registerApplicationHandlers(
     // Mark closed
     await applicationRepo.update({ id: app.id, guildId }, { status: 'closed' });
 
-    const channel = app.channelId ? await client.channels.fetch(app.channelId).catch(() => null) : null;
+    // Distinguish a genuinely-gone channel (10003 → nothing to archive, terminal
+    // close) from a transient/permission fetch failure (→ revert so a retry can
+    // still archive, rather than stranding a live application as 'closed').
+    let channelFetchFailed = false;
+    const channel = app.channelId
+      ? await client.channels.fetch(app.channelId).catch((err: unknown) => {
+          if ((err as { code?: number })?.code !== 10003) channelFetchFailed = true;
+          return null;
+        })
+      : null;
+    if (channelFetchFailed) {
+      await applicationRepo.update({ id: app.id, guildId }, { status: app.status });
+      return { success: false, archived: false };
+    }
     if (!channel || !channel.isTextBased()) {
       return { success: true, archived: false };
     }

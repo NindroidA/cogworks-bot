@@ -38,8 +38,21 @@ export function registerTicketHandlers(
     // Mark closed immediately
     await ticketRepo.update({ id: ticket.id, guildId }, { status: 'closed' });
 
-    // Get channel
-    const channel = ticket.channelId ? await client.channels.fetch(ticket.channelId).catch(() => null) : null;
+    // Get channel. Distinguish a genuinely-gone channel (Discord 10003 →
+    // nothing to archive, terminal close) from a transient/permission fetch
+    // failure (→ revert so a retry can still archive, rather than stranding a
+    // live ticket as 'closed').
+    let channelFetchFailed = false;
+    const channel = ticket.channelId
+      ? await client.channels.fetch(ticket.channelId).catch((err: unknown) => {
+          if ((err as { code?: number })?.code !== 10003) channelFetchFailed = true;
+          return null;
+        })
+      : null;
+    if (channelFetchFailed) {
+      await ticketRepo.update({ id: ticket.id, guildId }, { status: ticket.status });
+      return { success: false, ticketId: ticket.id, archived: false };
+    }
     if (!channel || !channel.isTextBased()) {
       return { success: true, ticketId: ticket.id, archived: false };
     }
