@@ -297,6 +297,42 @@ describe("chunkByMessageBoundary()", () => {
     }
   });
 
+  test("balances a fence nested inside a double blockquote (embed code block)", () => {
+    // Embed bodies are double-quoted (`> > `). A fence there must still toggle
+    // and rebalance at the right depth (Copilot review finding).
+    const codeLines = Array.from(
+      { length: 40 },
+      (_, i) => `> > const v${i} = ${"b".repeat(60)};`,
+    );
+    const message = [
+      "**author** ts",
+      "> > ```js",
+      ...codeLines,
+      "> > ```",
+    ].join("\n");
+    const chunks = chunkByMessageBoundary([message], 1900, 2000);
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      expect((chunk.split("```").length - 1) % 2).toBe(0); // balanced fences
+      expect(chunk.length).toBeLessThanOrEqual(2000);
+    }
+  });
+
+  test("hard-sliced long blockquoted line keeps its `> ` prefix on every continuation", () => {
+    // A 5000-char single blockquoted line (e.g. a long URL/base64). Each emitted
+    // segment must retain the `> ` prefix so continuations stay blockquoted, and
+    // nothing is dropped (Copilot review finding).
+    const longLine = `> ${"a".repeat(5000)}`;
+    const chunks = chunkByMessageBoundary([longLine], 1900, 2000);
+    const lines = chunks
+      .flatMap((c) => c.split("\n"))
+      .filter((l) => l.length > 0);
+    expect(lines.length).toBeGreaterThan(1);
+    for (const line of lines) expect(line.startsWith("> ")).toBe(true);
+    expect(chunks.join("").split("a").length - 1).toBe(5000);
+    for (const chunk of chunks) expect(chunk.length).toBeLessThanOrEqual(2000);
+  });
+
   test("never splits mid-message even when two back-to-back fit but a third does not", () => {
     const mid = "z".repeat(900);
     const chunks = chunkByMessageBoundary([mid, mid, mid], 1900);

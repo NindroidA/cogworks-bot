@@ -207,55 +207,73 @@ function hardSlice(text: string, limit: number): string[] {
   return out;
 }
 
+/** Leading run of `> ` blockquote markers (handles nesting, e.g. `> > `). */
+const QUOTE_PREFIX_RE = /^((?:> )+)/;
+
 /**
  * Split one formatted message that exceeds `limit` into ≤`limit` pieces on line
  * boundaries. When a split lands inside a fenced code block the open fence is
- * closed on the current piece and reopened on the next, so each resulting
- * Discord message renders as valid markdown. A single line longer than `limit`
- * is hard-sliced — content is never dropped.
+ * closed on the current piece and reopened on the next — at the SAME blockquote
+ * depth the fence was opened — so each resulting Discord message renders as
+ * valid markdown. A single line longer than `limit` is hard-sliced on its
+ * content while preserving its `> ` prefix on every segment, so continuation
+ * pieces stay blockquoted. Content is never dropped.
  */
 function splitFormattedMessage(message: string, limit: number): string[] {
   const pieces: string[] = [];
   let buf: string[] = [];
   let bufLen = 0;
   let inFence = false;
-  const FENCE = '> ```';
+  // The blockquote depth the active fence was opened at — close/reopen must
+  // match it (a fence inside an embed body is double-quoted: `> > ```).
+  let fencePrefix = '> ';
+  const fenceLine = () => `${fencePrefix}\`\`\``;
 
   const flush = (willContinue: boolean) => {
-    if (buf.length === 0) {
-      // Still need to seed a reopened fence even if nothing else buffered.
-      if (willContinue && inFence) {
-        buf = [FENCE];
-        bufLen = FENCE.length;
-      }
-      return;
+    if (buf.length > 0) {
+      let body = buf.join('\n');
+      if (inFence) body += `\n${fenceLine()}`; // close the open fence cleanly
+      pieces.push(body);
+      buf = [];
+      bufLen = 0;
     }
-    let body = buf.join('\n');
-    if (inFence) body += `\n${FENCE}`; // close the open fence cleanly
-    pieces.push(body);
-    buf = [];
-    bufLen = 0;
     if (willContinue && inFence) {
-      buf = [FENCE]; // reopen the fence on the next piece
-      bufLen = FENCE.length;
+      const fl = fenceLine(); // reopen the fence on the next piece
+      buf = [fl];
+      bufLen = fl.length;
     }
   };
 
-  for (const line of message.split('\n')) {
-    if (line.length > limit) {
-      // Pathological single line (e.g. a long URL / base64 blob with no
-      // newline). Flush what we have, then emit the line in ≤limit segments.
-      flush(false);
-      for (const seg of hardSlice(line, limit)) pieces.push(seg);
-      continue;
-    }
+  const addLine = (line: string) => {
     const addLen = (bufLen ? 1 : 0) + line.length;
     if (bufLen && bufLen + addLen > limit) flush(true);
     buf.push(line);
     bufLen += bufLen ? 1 + line.length : line.length;
+  };
 
-    const bare = line.startsWith('> ') ? line.slice(2) : line;
-    if (bare.trimStart().startsWith('```')) inFence = !inFence;
+  for (const line of message.split('\n')) {
+    const prefix = line.match(QUOTE_PREFIX_RE)?.[1] ?? '';
+    const content = line.slice(prefix.length);
+
+    if (line.length > limit) {
+      // Pathological single line (a long URL / base64 blob with no newline).
+      // Hard-slice the CONTENT and re-apply the quote prefix to every segment so
+      // continuation pieces stay blockquoted; reserve headroom for a fence
+      // close/reopen wrapper so every emitted piece stays ≤ limit. A fence
+      // marker is short and never lands here, so fence state is unaffected.
+      const reserve = fenceLine().length + 1;
+      const segLimit = Math.max(1, limit - prefix.length - reserve);
+      for (const seg of hardSlice(content, segLimit)) {
+        addLine(prefix + seg);
+      }
+      continue;
+    }
+
+    addLine(line);
+    if (content.trimStart().startsWith('```')) {
+      inFence = !inFence;
+      if (inFence) fencePrefix = prefix; // remember the depth for close/reopen
+    }
   }
   flush(false);
   return pieces;
