@@ -16,6 +16,7 @@ import {
   lang,
   logHandlerError,
   RateLimits,
+  replyEphemeralError,
   sanitizeUserInput,
   showAndAwaitModal,
 } from '../../../utils';
@@ -50,10 +51,7 @@ export async function memoryAddHandler(interaction: ChatInputCommandInteraction)
   });
 
   if (categoryTags.length === 0 || statusTags.length === 0) {
-    await interaction.reply({
-      content: `${E.error} ${tl.add.noTagsConfigured}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.add.noTagsConfigured);
     return;
   }
 
@@ -128,9 +126,7 @@ async function handleModalSubmit(
 
     const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
     if (!forum) {
-      await interaction.editReply({
-        content: `${E.error} ${tl.errors.forumNotFound}`,
-      });
+      await replyEphemeralError(interaction, tl.errors.forumNotFound);
       return;
     }
 
@@ -175,6 +171,6 @@ async function handleModalSubmit(
     });
   } catch (error) {
     logHandlerError('Memory add', error, { guildId });
-    await interaction.editReply({ content: `${E.error} ${tl.add.error}` });
+    await replyEphemeralError(interaction, tl.add.error);
   }
 }

@@ -1,7 +1,14 @@
 import type { ChatInputCommandInteraction, ForumChannel, MessageComponentInteraction, ThreadChannel } from 'discord.js';
-import { MessageFlags } from 'discord.js';
 import { MemoryConfig, MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
-import { E, guardFeatureRateLimit, healthMonitor, lang, logHandlerError, RateLimits } from '../../../utils';
+import {
+  E,
+  guardFeatureRateLimit,
+  healthMonitor,
+  lang,
+  logHandlerError,
+  RateLimits,
+  replyEphemeralError,
+} from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { createDefaultSelectionState, runTagSelectionCollector, type TagSelectionState } from './tagSelection';
 
@@ -26,10 +33,7 @@ export async function memoryUpdateTagsHandler(interaction: ChatInputCommandInter
   // Find memory item
   const memoryItem = await memoryItemRepo.findOneBy({ guildId, threadId });
   if (!memoryItem) {
-    await interaction.reply({
-      content: `${E.error} ${tl.quickUpdate.itemNotFound}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.quickUpdate.itemNotFound);
     return;
   }
 
@@ -39,10 +43,7 @@ export async function memoryUpdateTagsHandler(interaction: ChatInputCommandInter
     id: memoryItem.memoryConfigId,
   });
   if (!config) {
-    await interaction.reply({
-      content: `${E.error} ${tl.errors.notConfigured}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.errors.notConfigured);
     return;
   }
 
@@ -63,10 +64,7 @@ export async function memoryUpdateTagsHandler(interaction: ChatInputCommandInter
   });
 
   if (categoryTags.length === 0 || statusTags.length === 0) {
-    await interaction.reply({
-      content: `${E.error} ${tl.add.noTagsConfigured}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.add.noTagsConfigured);
     return;
   }
 
@@ -113,9 +111,7 @@ async function applyTagUpdate(
   try {
     const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
     if (!forum) {
-      await interaction.editReply({
-        content: `${E.error} ${tl.errors.forumNotFound}`,
-      });
+      await replyEphemeralError(interaction, tl.errors.forumNotFound);
       return;
     }
 
@@ -123,9 +119,7 @@ async function applyTagUpdate(
     try {
       thread = (await interaction.guild!.channels.fetch(threadId)) as ThreadChannel;
     } catch {
-      await interaction.editReply({
-        content: `${E.error} ${tl.quickUpdate.threadNotFound}`,
-      });
+      await replyEphemeralError(interaction, tl.quickUpdate.threadNotFound);
       return;
     }
 
@@ -169,9 +163,7 @@ async function applyTagUpdate(
     healthMonitor.recordCommand('memory update-tags', Date.now() - startTime, false);
   } catch (error) {
     logHandlerError('Memory update-tags', error, { guildId });
-    await interaction.editReply({
-      content: `${E.error} ${tl.quickUpdate.tagsError}`,
-    });
+    await replyEphemeralError(interaction, tl.quickUpdate.tagsError);
     healthMonitor.recordCommand('memory update-tags', Date.now() - startTime, true);
   }
 }

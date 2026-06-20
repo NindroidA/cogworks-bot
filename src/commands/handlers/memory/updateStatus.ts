@@ -11,6 +11,7 @@ import {
   lang,
   logHandlerError,
   RateLimits,
+  replyEphemeralError,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
@@ -36,10 +37,7 @@ export async function memoryUpdateStatusHandler(interaction: ChatInputCommandInt
   // Find memory item
   const memoryItem = await memoryItemRepo.findOneBy({ guildId, threadId });
   if (!memoryItem) {
-    await interaction.reply({
-      content: `${E.error} ${tl.quickUpdate.itemNotFound}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.quickUpdate.itemNotFound);
     return;
   }
 
@@ -49,10 +47,7 @@ export async function memoryUpdateStatusHandler(interaction: ChatInputCommandInt
     id: memoryItem.memoryConfigId,
   });
   if (!config) {
-    await interaction.reply({
-      content: `${E.error} ${tl.errors.notConfigured}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.errors.notConfigured);
     return;
   }
 
@@ -64,10 +59,7 @@ export async function memoryUpdateStatusHandler(interaction: ChatInputCommandInt
     tagType: 'status',
   });
   if (!newStatusTag) {
-    await interaction.reply({
-      content: `${E.error} ${tl.quickUpdate.itemNotFound}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.quickUpdate.itemNotFound);
     return;
   }
 
@@ -87,9 +79,7 @@ export async function memoryUpdateStatusHandler(interaction: ChatInputCommandInt
     // Update forum thread tags
     const forum = await interaction.guild!.channels.fetch(config.forumChannelId);
     if (!forum) {
-      await interaction.editReply({
-        content: `${E.error} ${tl.quickUpdate.threadNotFound}`,
-      });
+      await replyEphemeralError(interaction, tl.quickUpdate.threadNotFound);
       return;
     }
 
@@ -97,9 +87,7 @@ export async function memoryUpdateStatusHandler(interaction: ChatInputCommandInt
     try {
       thread = (await interaction.guild!.channels.fetch(threadId)) as ThreadChannel;
     } catch {
-      await interaction.editReply({
-        content: `${E.error} ${tl.quickUpdate.threadNotFound}`,
-      });
+      await replyEphemeralError(interaction, tl.quickUpdate.threadNotFound);
       return;
     }
 
@@ -147,9 +135,7 @@ export async function memoryUpdateStatusHandler(interaction: ChatInputCommandInt
     healthMonitor.recordCommand('memory update-status', Date.now() - startTime, false);
   } catch (error) {
     logHandlerError('Memory update-status', error, { guildId });
-    await interaction.editReply({
-      content: `${E.error} ${tl.quickUpdate.statusError}`,
-    });
+    await replyEphemeralError(interaction, tl.quickUpdate.statusError);
     healthMonitor.recordCommand('memory update-status', Date.now() - startTime, true);
   }
 }

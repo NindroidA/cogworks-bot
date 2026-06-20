@@ -15,7 +15,16 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { MemoryTag, type MemoryTagType } from '../../../typeorm/entities/memory';
-import { Colors, E, guardFeatureRateLimit, lang, logHandlerError, RateLimits, showAndAwaitModal } from '../../../utils';
+import {
+  Colors,
+  E,
+  guardFeatureRateLimit,
+  lang,
+  logHandlerError,
+  RateLimits,
+  replyEphemeralError,
+  showAndAwaitModal,
+} from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveMemoryConfig } from './channelPicker';
 
@@ -111,9 +120,7 @@ async function handleAddTagSubmit(
     const typeInput = interaction.fields.getTextInputValue('tag_type').toLowerCase();
 
     if (typeInput !== 'category' && typeInput !== 'status') {
-      await interaction.editReply({
-        content: `${E.error} ${tl.tags.add.typeInvalid}`,
-      });
+      await replyEphemeralError(interaction, tl.tags.add.typeInvalid);
       return;
     }
 
@@ -126,17 +133,13 @@ async function handleAddTagSubmit(
       name,
     });
     if (existing) {
-      await interaction.editReply({
-        content: `${E.error} ${tl.tags.add.duplicate}`,
-      });
+      await replyEphemeralError(interaction, tl.tags.add.duplicate);
       return;
     }
 
     const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
     if (!forum) {
-      await interaction.editReply({
-        content: `${E.error} ${tl.errors.forumNotFound}`,
-      });
+      await replyEphemeralError(interaction, tl.errors.forumNotFound);
       return;
     }
 
@@ -171,7 +174,7 @@ async function handleAddTagSubmit(
     });
   } catch (error) {
     logHandlerError('Memory tag add', error, { guildId });
-    await interaction.editReply({ content: `${E.error} ${tl.tags.add.error}` });
+    await replyEphemeralError(interaction, tl.tags.add.error);
   }
 }
 
@@ -184,10 +187,7 @@ async function handleEditTag(
   const tags = await memoryTagRepo.find({ where: { guildId, memoryConfigId } });
 
   if (tags.length === 0) {
-    await interaction.reply({
-      content: `${E.error} ${tl.tags.noTags}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.tags.noTags);
     return;
   }
 
@@ -246,10 +246,7 @@ async function showEditModal(interaction: StringSelectMenuInteraction, guildId: 
   const tag = await memoryTagRepo.findOneBy({ id: tagId, guildId });
 
   if (!tag) {
-    await interaction.reply({
-      content: `${E.error} ${tl.tags.edit.tagNotFound}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.tags.edit.tagNotFound);
     return;
   }
 
@@ -296,9 +293,7 @@ async function handleEditTagSubmit(
 
     const tag = await memoryTagRepo.findOneBy({ id: tagId, guildId });
     if (!tag) {
-      await interaction.editReply({
-        content: `${E.error} ${tl.tags.edit.tagNotFound}`,
-      });
+      await replyEphemeralError(interaction, tl.tags.edit.tagNotFound);
       return;
     }
 
@@ -326,9 +321,7 @@ async function handleEditTagSubmit(
     });
   } catch (error) {
     logHandlerError('Memory tag edit', error, { guildId });
-    await interaction.editReply({
-      content: `${E.error} ${tl.tags.edit.error}`,
-    });
+    await replyEphemeralError(interaction, tl.tags.edit.error);
   }
 }
 
@@ -405,10 +398,7 @@ async function confirmRemoveTag(interaction: StringSelectMenuInteraction, guildI
   const tag = await memoryTagRepo.findOneBy({ id: tagId, guildId });
 
   if (!tag) {
-    await interaction.reply({
-      content: `${E.error} ${tl.tags.edit.tagNotFound}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.tags.edit.tagNotFound);
     return;
   }
 

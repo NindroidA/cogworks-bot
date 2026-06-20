@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.1] - 2026-06-20
+
+Internal refactor (no behavior change) — first step of the codebase
+unification effort.
+
+### Changed
+
+- Added a `replyEphemeralError(interaction, message, opts?)` helper that
+  standardizes ephemeral error replies (auto-routing reply / editReply /
+  followUp by interaction state). Migrated the memory command handlers onto it
+  (64 sites, −112 lines, identical output). More features will follow
+  incrementally.
+
 ## [3.6.0] - 2026-06-20
 
 ### Added

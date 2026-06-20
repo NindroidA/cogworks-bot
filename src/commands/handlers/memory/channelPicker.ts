@@ -1,6 +1,6 @@
 import { ActionRowBuilder, type ChatInputCommandInteraction, MessageFlags, StringSelectMenuBuilder } from 'discord.js';
 import { MemoryConfig } from '../../../typeorm/entities/memory';
-import { E, lang } from '../../../utils';
+import { E, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.memory;
@@ -16,10 +16,7 @@ export async function resolveMemoryConfig(
   });
 
   if (configs.length === 0) {
-    await interaction.reply({
-      content: `${E.error} ${tl.errors.notConfigured}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.errors.notConfigured);
     return null;
   }
 

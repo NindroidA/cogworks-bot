@@ -15,6 +15,7 @@ import {
   lang,
   logHandlerError,
   RateLimits,
+  replyEphemeralError,
   verifiedThreadDelete,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -29,10 +30,7 @@ async function validateDeleteContext(interaction: ChatInputCommandInteraction) {
   const channel = interaction.channel;
 
   if (!channel || channel.type !== ChannelType.PublicThread) {
-    await interaction.reply({
-      content: `${E.error} ${tl.delete.notAThread}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.delete.notAThread);
     return null;
   }
 
@@ -40,18 +38,12 @@ async function validateDeleteContext(interaction: ChatInputCommandInteraction) {
 
   const config = await resolveConfigFromThread(guildId, threadChannel.parentId);
   if (!config) {
-    await interaction.reply({
-      content: `${E.error} ${tl.delete.notInForum}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.delete.notInForum);
     return null;
   }
 
   if (config.messageId && threadChannel.id === config.messageId) {
-    await interaction.reply({
-      content: `${E.error} ${tl.delete.cannotDeleteWelcome}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.delete.cannotDeleteWelcome);
     return null;
   }
 

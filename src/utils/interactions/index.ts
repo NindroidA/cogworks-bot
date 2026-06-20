@@ -16,3 +16,4 @@ export {
   extractModalField,
   showAndAwaitModal,
 } from './modalHelper';
+export { type EphemeralErrorOptions, replyEphemeralError } from './replyHelper';

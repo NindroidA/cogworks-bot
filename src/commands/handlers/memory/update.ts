@@ -20,6 +20,7 @@ import {
   lang,
   logHandlerError,
   RateLimits,
+  replyEphemeralError,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveConfigFromThread } from './channelPicker';
@@ -34,10 +35,7 @@ async function validateUpdateContext(interaction: ChatInputCommandInteraction) {
   const channel = interaction.channel;
 
   if (!channel || channel.type !== ChannelType.PublicThread) {
-    await interaction.reply({
-      content: `${E.error} ${tl.update.notAThread}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.update.notAThread);
     return null;
   }
 
@@ -45,10 +43,7 @@ async function validateUpdateContext(interaction: ChatInputCommandInteraction) {
 
   const config = await resolveConfigFromThread(guildId, threadChannel.parentId);
   if (!config) {
-    await interaction.reply({
-      content: `${E.error} ${tl.update.notInForum}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.update.notInForum);
     return null;
   }
 
@@ -57,10 +52,7 @@ async function validateUpdateContext(interaction: ChatInputCommandInteraction) {
     threadId: threadChannel.id,
   });
   if (!memoryItem) {
-    await interaction.reply({
-      content: `${E.error} ${tl.update.itemNotFound}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.update.itemNotFound);
     return null;
   }
 
@@ -69,10 +61,7 @@ async function validateUpdateContext(interaction: ChatInputCommandInteraction) {
   });
 
   if (statusTags.length === 0) {
-    await interaction.reply({
-      content: `${E.error} No status tags configured. Run /memory-setup first.`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, 'No status tags configured. Run /memory-setup first.');
     return null;
   }
 

@@ -19,6 +19,7 @@ import {
   lang,
   logHandlerError,
   RateLimits,
+  replyEphemeralError,
   sanitizeUserInput,
   showAndAwaitModal,
 } from '../../../utils';
@@ -70,10 +71,7 @@ async function resolveTargetMessage(
         };
       }
     } catch (error) {
-      await interaction.reply({
-        content: `${E.error} ${getDiscordFetchErrorMessage(error)}`,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, getDiscordFetchErrorMessage(error));
       return null;
     }
   } else if (MESSAGE_LINK_REGEX.test(messageInput)) {
@@ -81,10 +79,7 @@ async function resolveTargetMessage(
     const [, linkGuildId, channelId, messageId] = match;
 
     if (linkGuildId !== guildId) {
-      await interaction.reply({
-        content: `${E.error} ${tl.capture.messageWrongGuild}`,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.capture.messageWrongGuild);
       return null;
     }
 
@@ -95,24 +90,15 @@ async function resolveTargetMessage(
         return { message: msg, channelId, messageId };
       }
     } catch (error) {
-      await interaction.reply({
-        content: `${E.error} ${getDiscordFetchErrorMessage(error)}`,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, getDiscordFetchErrorMessage(error));
       return null;
     }
   } else {
-    await interaction.reply({
-      content: `${E.error} ${tl.capture.invalidInput}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.capture.invalidInput);
     return null;
   }
 
-  await interaction.reply({
-    content: `${E.error} ${tl.capture.messageNotFound}`,
-    flags: [MessageFlags.Ephemeral],
-  });
+  await replyEphemeralError(interaction, tl.capture.messageNotFound);
   return null;
 }
 
@@ -132,10 +118,7 @@ export async function memoryCaptureHandler(interaction: ChatInputCommandInteract
   if (!config) return;
 
   if (!messageInput) {
-    await interaction.reply({
-      content: `${E.error} ${tl.capture.noReplyOrLink}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.capture.noReplyOrLink);
     return;
   }
 
@@ -155,10 +138,7 @@ export async function memoryCaptureHandler(interaction: ChatInputCommandInteract
   });
 
   if (categoryTags.length === 0 || statusTags.length === 0) {
-    await interaction.reply({
-      content: `${E.error} ${tl.add.noTagsConfigured}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.add.noTagsConfigured);
     return;
   }
 
@@ -253,9 +233,7 @@ async function handleCaptureModalSubmit(
 
     const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
     if (!forum) {
-      await interaction.editReply({
-        content: `${E.error} ${tl.errors.forumNotFound}`,
-      });
+      await replyEphemeralError(interaction, tl.errors.forumNotFound);
       return;
     }
 
@@ -311,6 +289,6 @@ async function handleCaptureModalSubmit(
     });
   } catch (error) {
     logHandlerError('Memory capture', error, { guildId });
-    await interaction.editReply({ content: `${E.error} ${tl.capture.error}` });
+    await replyEphemeralError(interaction, tl.capture.error);
   }
 }

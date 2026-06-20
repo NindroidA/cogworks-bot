@@ -15,7 +15,16 @@ import {
   StringSelectMenuBuilder,
 } from 'discord.js';
 import { MemoryConfig, MemoryItem, MemoryTag, type MemoryTagType } from '../../typeorm/entities/memory';
-import { Colors, E, enhancedLogger, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../utils';
+import {
+  Colors,
+  E,
+  enhancedLogger,
+  guardAdminRateLimit,
+  LogCategory,
+  lang,
+  RateLimits,
+  replyEphemeralError,
+} from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
 
 const tl = lang.memory;
@@ -208,10 +217,7 @@ async function handleAddChannel(_client: Client, interaction: ChatInputCommandIn
   const existingConfigs = await memoryConfigRepo.find({ where: { guildId } });
 
   if (existingConfigs.length >= MAX.MEMORY_CHANNELS_PER_GUILD) {
-    await interaction.reply({
-      content: `${E.error} ${tl.setup.maxChannelsReached}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.setup.maxChannelsReached);
     return;
   }
 
@@ -220,10 +226,7 @@ async function handleAddChannel(_client: Client, interaction: ChatInputCommandIn
 
   const alreadyUsed = existingConfigs.some(c => c.forumChannelId === channel.id);
   if (alreadyUsed) {
-    await interaction.reply({
-      content: `${E.error} ${tl.setup.channelAlreadyUsed}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.setup.channelAlreadyUsed);
     return;
   }
 
@@ -257,7 +260,7 @@ async function handleAddChannel(_client: Client, interaction: ChatInputCommandIn
         guildId,
       },
     );
-    await interaction.editReply({ content: `${E.error} ${tl.setup.error}` });
+    await replyEphemeralError(interaction, tl.setup.error);
   }
 }
 
@@ -268,10 +271,7 @@ async function handleRemoveChannel(client: Client, interaction: ChatInputCommand
   });
 
   if (configs.length === 0) {
-    await interaction.reply({
-      content: `${E.error} ${tl.setup.viewNoChannels}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.setup.viewNoChannels);
     return;
   }
 
@@ -361,7 +361,7 @@ async function handleRemoveChannel(client: Client, interaction: ChatInputCommand
             guildId,
           },
         );
-        await confirmI.editReply({ content: `${E.error} ${tl.setup.error}` });
+        await replyEphemeralError(confirmI, tl.setup.error);
       }
     }
   } catch {
@@ -554,9 +554,7 @@ async function createMemoryForum(
         guildId,
       },
     );
-    await interaction.editReply({
-      content: `${E.error} ${tl.setup.error}`,
-    });
+    await replyEphemeralError(interaction, tl.setup.error);
     return null;
   }
 }

@@ -17,6 +17,7 @@ import {
   lang,
   logHandlerError,
   RateLimits,
+  replyEphemeralError,
 } from '../../../utils';
 import { MAX } from '../../../utils/constants';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -42,10 +43,7 @@ async function resolveConfigForTags(
   });
 
   if (configs.length === 0) {
-    await interaction.reply({
-      content: `${E.error} ${tl.errors.notConfigured}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.errors.notConfigured);
     return null;
   }
 
@@ -53,10 +51,7 @@ async function resolveConfigForTags(
   if (channelOption) {
     const config = configs.find(c => c.forumChannelId === channelOption.id);
     if (!config) {
-      await interaction.reply({
-        content: `${E.error} ${tl.errors.forumNotFound}`,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.errors.forumNotFound);
       return null;
     }
     return config;
@@ -68,10 +63,7 @@ async function resolveConfigForTags(
   }
 
   // Multiple channels and none specified — ask
-  await interaction.reply({
-    content: `${E.error} ${tl.manageTags.selectChannel}`,
-    flags: [MessageFlags.Ephemeral],
-  });
+  await replyEphemeralError(interaction, tl.manageTags.selectChannel);
   return null;
 }
 
@@ -90,10 +82,7 @@ async function handleTagAdd(interaction: ChatInputCommandInteraction, guildId: s
   // Sanitize tag name
   const name = sanitizeUserInput(rawName, { maxLength: MAX.MEMORY_TAG_NAME_LENGTH }) || '';
   if (!name) {
-    await interaction.reply({
-      content: `${E.error} Tag name is required.`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, 'Tag name is required.');
     return;
   }
 
@@ -107,9 +96,10 @@ async function handleTagAdd(interaction: ChatInputCommandInteraction, guildId: s
     });
 
     if (existingCount >= typeLimit) {
-      await interaction.editReply({
-        content: `${E.error} ${tl.manageTags.add.limitReached.replace('{0}', String(typeLimit)).replace('{1}', tagType)}`,
-      });
+      await replyEphemeralError(
+        interaction,
+        tl.manageTags.add.limitReached.replace('{0}', String(typeLimit)).replace('{1}', tagType),
+      );
       return;
     }
 
@@ -118,9 +108,7 @@ async function handleTagAdd(interaction: ChatInputCommandInteraction, guildId: s
       where: { guildId, memoryConfigId: config.id },
     });
     if (totalCount >= MAX.DISCORD_FORUM_TAGS) {
-      await interaction.editReply({
-        content: `${E.error} ${tl.manageTags.add.discordLimit}`,
-      });
+      await replyEphemeralError(interaction, tl.manageTags.add.discordLimit);
       return;
     }
 
@@ -130,18 +118,14 @@ async function handleTagAdd(interaction: ChatInputCommandInteraction, guildId: s
     });
     const duplicate = existingTags.find(t => t.name.toLowerCase() === name.toLowerCase());
     if (duplicate) {
-      await interaction.editReply({
-        content: `${E.error} ${tl.manageTags.add.duplicate.replace('{0}', tagType).replace('{1}', name)}`,
-      });
+      await replyEphemeralError(interaction, tl.manageTags.add.duplicate.replace('{0}', tagType).replace('{1}', name));
       return;
     }
 
     // Create Discord forum tag
     const forum = (await interaction.guild!.channels.fetch(config.forumChannelId)) as ForumChannel;
     if (!forum) {
-      await interaction.editReply({
-        content: `${E.error} ${tl.errors.forumNotFound}`,
-      });
+      await replyEphemeralError(interaction, tl.errors.forumNotFound);
       return;
     }
 
@@ -178,7 +162,7 @@ async function handleTagAdd(interaction: ChatInputCommandInteraction, guildId: s
     });
   } catch (error) {
     logHandlerError('Memory tag-add', error, { guildId });
-    await interaction.editReply({ content: `${E.error} ${tl.tags.add.error}` });
+    await replyEphemeralError(interaction, tl.tags.add.error);
   }
 }
 
@@ -202,16 +186,12 @@ async function handleTagRemove(interaction: ChatInputCommandInteraction, guildId
       memoryConfigId: config.id,
     });
     if (!tag) {
-      await interaction.editReply({
-        content: `${E.error} ${tl.manageTags.remove.notFound}`,
-      });
+      await replyEphemeralError(interaction, tl.manageTags.remove.notFound);
       return;
     }
 
     if (tag.isDefault) {
-      await interaction.editReply({
-        content: `${E.error} ${tl.manageTags.remove.isDefault}`,
-      });
+      await replyEphemeralError(interaction, tl.manageTags.remove.isDefault);
       return;
     }
 
@@ -232,9 +212,7 @@ async function handleTagRemove(interaction: ChatInputCommandInteraction, guildId
     });
   } catch (error) {
     logHandlerError('Memory tag-remove', error, { guildId });
-    await interaction.editReply({
-      content: `${E.error} ${tl.tags.remove.error}`,
-    });
+    await replyEphemeralError(interaction, tl.tags.remove.error);
   }
 }
 
@@ -252,10 +230,7 @@ async function handleTagEdit(interaction: ChatInputCommandInteraction, guildId: 
   const emoji = interaction.options.getString('emoji');
 
   if (!rawName && emoji === null) {
-    await interaction.reply({
-      content: `${E.error} ${tl.manageTags.edit.noChanges}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.manageTags.edit.noChanges);
     return;
   }
 
@@ -272,9 +247,7 @@ async function handleTagEdit(interaction: ChatInputCommandInteraction, guildId: 
       memoryConfigId: config.id,
     });
     if (!tag) {
-      await interaction.editReply({
-        content: `${E.error} ${tl.manageTags.edit.notFound}`,
-      });
+      await replyEphemeralError(interaction, tl.manageTags.edit.notFound);
       return;
     }
 
@@ -285,9 +258,10 @@ async function handleTagEdit(interaction: ChatInputCommandInteraction, guildId: 
       });
       const conflict = existingTags.find(t => t.id !== tag.id && t.name.toLowerCase() === newName.toLowerCase());
       if (conflict) {
-        await interaction.editReply({
-          content: `${E.error} ${tl.manageTags.add.duplicate.replace('{0}', tag.tagType).replace('{1}', newName)}`,
-        });
+        await replyEphemeralError(
+          interaction,
+          tl.manageTags.add.duplicate.replace('{0}', tag.tagType).replace('{1}', newName),
+        );
         return;
       }
     }
@@ -319,9 +293,7 @@ async function handleTagEdit(interaction: ChatInputCommandInteraction, guildId: 
     });
   } catch (error) {
     logHandlerError('Memory tag-edit', error, { guildId });
-    await interaction.editReply({
-      content: `${E.error} ${tl.tags.edit.error}`,
-    });
+    await replyEphemeralError(interaction, tl.tags.edit.error);
   }
 }
 
@@ -488,9 +460,7 @@ async function handleTagReset(interaction: ChatInputCommandInteraction, guildId:
     });
   } catch (error) {
     logHandlerError('Memory tag-reset', error, { guildId });
-    await result.interaction.editReply({
-      content: `${E.error} ${tl.setup.error}`,
-    });
+    await replyEphemeralError(result.interaction, tl.setup.error);
   }
 }
 
