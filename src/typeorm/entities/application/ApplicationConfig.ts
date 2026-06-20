@@ -1,4 +1,4 @@
-import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 export interface ApplicationWorkflowStatus {
   id: string;
@@ -8,7 +8,6 @@ export interface ApplicationWorkflowStatus {
 }
 
 @Entity({ name: 'application_configs' })
-@Index(['guildId'])
 export class ApplicationConfig {
   @PrimaryGeneratedColumn()
   id: number;

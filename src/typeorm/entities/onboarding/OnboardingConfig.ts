@@ -1,8 +1,7 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import type { OnboardingStepDef } from '../../../utils/onboarding/types';
 
 @Entity({ name: 'onboarding_configs' })
-@Index(['guildId'])
 export class OnboardingConfig {
   @PrimaryGeneratedColumn()
   id: number;

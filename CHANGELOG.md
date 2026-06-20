@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.1] - 2026-06-20
+
+Post-upgrade cleanups (no behavior change).
+
+### Fixed
+
+- **Removed redundant `@Index(['guildId'])`** from config entities that already
+  mark `guildId` unique — this was causing `migration:generate` to emit a no-op
+  index drop/re-add under TypeORM 1.0. `migration:generate` now reports no
+  changes.
+- **Memory `update-tags` now accumulates forum tags** instead of replacing them
+  — manually-added thread tags are preserved when re-tagging.
+- **Archive cleanup uses the verified thread-delete helper** so failures are
+  logged rather than silently swallowed.
+
+### Changed
+
+- Removed dead legacy announcement language strings left over after the
+  template consolidation (all locales).
+
 ## [3.5.0] - 2026-06-20
 
 Dependency modernization — major runtime and tooling upgrades, validated

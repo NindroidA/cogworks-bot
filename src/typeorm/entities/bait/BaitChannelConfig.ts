@@ -1,9 +1,8 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 export type BaitActionType = 'ban' | 'kick' | 'timeout' | 'log-only';
 
 @Entity('bait_channel_configs')
-@Index(['guildId'])
 export class BaitChannelConfig {
   @PrimaryGeneratedColumn()
   id: number;

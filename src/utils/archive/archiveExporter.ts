@@ -13,6 +13,7 @@ import { ArchivedApplication } from '../../typeorm/entities/application/Archived
 import { ArchivedApplicationConfig } from '../../typeorm/entities/application/ArchivedApplicationConfig';
 import { ArchivedTicket } from '../../typeorm/entities/ticket/ArchivedTicket';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
+import { verifiedThreadDelete } from '../discord/verifiedDelete';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
 export type ArchiveSystem = 'tickets' | 'applications' | 'all';
@@ -149,14 +150,20 @@ async function deleteForumThreads(client: Client, guildId: string, type: 'ticket
 
     for (const entry of entries) {
       if (!entry.messageId) continue;
-      try {
-        const thread = await forumChannel.threads.fetch(entry.messageId).catch(() => null);
-        if (thread) {
-          await thread.delete('Archive cleanup');
-          count++;
-        }
-      } catch {
-        // Thread may already be deleted
+      const thread = await forumChannel.threads.fetch(entry.messageId).catch(() => null);
+      if (!thread) continue;
+      // Use the verified helper so an "already gone" thread counts as success
+      // and a genuine deletion failure is logged instead of silently swallowed.
+      const result = await verifiedThreadDelete(thread, { guildId, label: 'archive thread' });
+      if (result.success) {
+        count++;
+      } else {
+        enhancedLogger.warn('Failed to delete an archive forum thread during cleanup', LogCategory.COMMAND_EXECUTION, {
+          guildId,
+          type,
+          threadId: entry.messageId,
+          error: result.error,
+        });
       }
     }
   } catch (error) {

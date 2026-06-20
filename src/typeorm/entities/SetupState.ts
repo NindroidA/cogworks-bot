@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 export type SystemStatus = 'not_started' | 'partial' | 'complete';
 
@@ -45,7 +45,6 @@ export const DEFAULT_SYSTEM_STATES: SystemStates = {
 };
 
 @Entity({ name: 'setup_states' })
-@Index(['guildId'])
 export class SetupState {
   @PrimaryGeneratedColumn()
   id: number;

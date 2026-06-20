@@ -142,13 +142,19 @@ async function applyTagUpdate(
         })
       : null;
 
-    // Build new tag list
-    const appliedTags: string[] = [];
+    // Accumulate, don't replace: preserve any tags on the thread that aren't
+    // bot-managed memory tags (e.g. manually-added forum tags), and swap out
+    // only the managed category/status tags for the newly-selected ones.
+    const managedTagIds = new Set(
+      (await memoryTagRepo.find({ where: { guildId } })).map(t => t.discordTagId).filter((id): id is string => !!id),
+    );
+    const preserved = (thread.appliedTags || []).filter(id => !managedTagIds.has(id));
+    const appliedTags = [...preserved];
     if (categoryTag?.discordTagId) appliedTags.push(categoryTag.discordTagId);
     if (statusTag?.discordTagId) appliedTags.push(statusTag.discordTagId);
 
-    // Update forum thread tags
-    await thread.edit({ appliedTags });
+    // Update forum thread tags (Discord caps appliedTags at 5)
+    await thread.edit({ appliedTags: appliedTags.slice(0, 5) });
 
     // Update database status
     if (statusTag) {

@@ -978,54 +978,6 @@ export interface LangAnnouncement {
     notConfigured: string;
     invalidChannel: string;
   };
-  maintenance: {
-    cmdDescrp: string;
-    duration: {
-      cmdDescrp: string;
-      short: {
-        name: string;
-        value: string;
-        msg: string;
-      };
-      long: {
-        name: string;
-        value: string;
-        msg: string;
-      };
-    };
-    scheduled: {
-      cmdDescrp: string;
-      short: string;
-      long: string;
-      version: {
-        cmdDescrp: string;
-      };
-      time: {
-        cmdDescrp: string;
-      };
-    };
-  };
-  'back-online': {
-    cmdDescrp: string;
-    success: string;
-  };
-  'update-scheduled': {
-    cmdDescrp: string;
-    version: {
-      cmdDescrp: string;
-    };
-    time: {
-      cmdDescrp: string;
-    };
-    msg: string;
-  };
-  'update-complete': {
-    cmdDescrp: string;
-    version: {
-      cmdDescrp: string;
-    };
-    msg: string;
-  };
   publish: {
     success: string;
     fail: string;
@@ -1068,28 +1020,7 @@ export interface LangAnnouncement {
     noTemplates: string;
   };
   templates: {
-    maintenanceTitle: string;
-    scheduledMaintenanceTitle: string;
-    backOnlineTitle: string;
-    updateScheduledTitle: string;
-    updateCompleteTitle: string;
-    durationShort: string;
-    durationLong: string;
-    scheduledDefaultMsg: string;
-    expectedDuration: string;
-    starting: string;
-    startingValue: string;
-    scheduledTime: string;
-    relativeTime: string;
-    status: string;
-    statusOnline: string;
-    downtimeComplete: string;
-    version: string;
-    newVersion: string;
-    updated: string;
-    timezoneFooter: string;
     sendButton: string;
-    cancelButton: string;
   };
 }
 
