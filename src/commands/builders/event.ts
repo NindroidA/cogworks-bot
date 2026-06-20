@@ -7,6 +7,7 @@ import {
 } from 'discord.js';
 
 import eventLang from '../../lang/en/event.json';
+import { createTextChannelOption } from './factories';
 
 const tl = eventLang.builder;
 
@@ -119,11 +120,7 @@ const setupGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('reminder-channel')
       .setDescription(tl.setup.reminderChannel)
       .addChannelOption(option =>
-        option
-          .setName('channel')
-          .setDescription(tl.setup.channelOption)
-          .setRequired(true)
-          .addChannelTypes(ChannelType.GuildText),
+        createTextChannelOption(option, { description: tl.setup.channelOption, required: true }),
       ),
   )
   .addSubcommand(sub =>
@@ -131,11 +128,7 @@ const setupGroup = new SlashCommandSubcommandGroupBuilder()
       .setName('summary-channel')
       .setDescription(tl.setup.summaryChannel)
       .addChannelOption(option =>
-        option
-          .setName('channel')
-          .setDescription(tl.setup.channelOption)
-          .setRequired(true)
-          .addChannelTypes(ChannelType.GuildText),
+        createTextChannelOption(option, { description: tl.setup.channelOption, required: true }),
       ),
   )
   .addSubcommand(sub =>

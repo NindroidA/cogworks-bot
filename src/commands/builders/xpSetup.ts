@@ -1,4 +1,5 @@
 import { ChannelType, PermissionsBitField, SlashCommandBuilder } from 'discord.js';
+import { createTextChannelOption } from './factories';
 
 /**
  * /xp-setup — Configure the XP & leveling system
@@ -41,11 +42,7 @@ export const xpSetup = new SlashCommandBuilder()
         option.setName('value').setDescription('The new value for the setting').setRequired(false),
       )
       .addChannelOption(option =>
-        option
-          .setName('channel')
-          .setDescription('Channel (for level-up-channel setting)')
-          .addChannelTypes(ChannelType.GuildText)
-          .setRequired(false),
+        createTextChannelOption(option, { description: 'Channel (for level-up-channel setting)', required: false }),
       ),
   )
   // role-reward add

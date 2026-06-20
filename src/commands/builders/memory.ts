@@ -1,5 +1,6 @@
 import { PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
+import { createActionOption } from './factories';
 
 const tl = lang.memory.builder;
 
@@ -42,16 +43,15 @@ const tags = new SlashCommandSubcommandBuilder()
   .setName('tags')
   .setDescription(tl.tags.descrp)
   .addStringOption(option =>
-    option
-      .setName('action')
-      .setDescription(tl.tags.action)
-      .setRequired(true)
-      .addChoices(
+    createActionOption(option, {
+      description: tl.tags.action,
+      choices: [
         { name: tl.tags.actionAdd, value: 'add' },
         { name: tl.tags.actionEdit, value: 'edit' },
         { name: tl.tags.actionRemove, value: 'remove' },
         { name: tl.tags.actionList, value: 'list' },
-      ),
+      ],
+    }),
   );
 
 /* main slash command */

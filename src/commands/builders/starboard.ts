@@ -1,5 +1,6 @@
-import { ChannelType, PermissionsBitField, SlashCommandBuilder } from 'discord.js';
+import { PermissionsBitField, SlashCommandBuilder } from 'discord.js';
 import { lang } from '../../lang';
+import { createTextChannelOption } from './factories';
 
 const tl = lang.starboard.builder;
 
@@ -11,13 +12,7 @@ export const starboard = new SlashCommandBuilder()
     sub
       .setName('setup')
       .setDescription(tl.setup.descrp)
-      .addChannelOption(option =>
-        option
-          .setName('channel')
-          .setDescription(tl.setup.channel)
-          .addChannelTypes(ChannelType.GuildText)
-          .setRequired(true),
-      )
+      .addChannelOption(option => createTextChannelOption(option, { description: tl.setup.channel, required: true }))
       .addStringOption(option => option.setName('emoji').setDescription(tl.setup.emoji).setRequired(false))
       .addIntegerOption(option =>
         option
@@ -51,24 +46,14 @@ export const starboard = new SlashCommandBuilder()
     sub
       .setName('ignore')
       .setDescription(tl.ignore.descrp)
-      .addChannelOption(option =>
-        option
-          .setName('channel')
-          .setDescription(tl.ignore.channel)
-          .addChannelTypes(ChannelType.GuildText)
-          .setRequired(true),
-      ),
+      .addChannelOption(option => createTextChannelOption(option, { description: tl.ignore.channel, required: true })),
   )
   .addSubcommand(sub =>
     sub
       .setName('unignore')
       .setDescription(tl.unignore.descrp)
       .addChannelOption(option =>
-        option
-          .setName('channel')
-          .setDescription(tl.unignore.channel)
-          .addChannelTypes(ChannelType.GuildText)
-          .setRequired(true),
+        createTextChannelOption(option, { description: tl.unignore.channel, required: true }),
       ),
   )
   .addSubcommand(sub => sub.setName('stats').setDescription(tl.stats.descrp))
