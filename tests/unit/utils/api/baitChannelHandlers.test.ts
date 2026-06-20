@@ -15,7 +15,7 @@
  * Automates smoke-test checklist §11.
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, jest, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, jest, mock, test } from 'bun:test';
 import { AuditLog } from '../../../../src/typeorm/entities/AuditLog';
 import { BaitChannelConfig } from '../../../../src/typeorm/entities/bait/BaitChannelConfig';
 import { BaitChannelLog } from '../../../../src/typeorm/entities/bait/BaitChannelLog';
@@ -24,6 +24,18 @@ import { registerBaitChannelHandlers } from '../../../../src/utils/api/handlers/
 import { AppDataSource } from '../../../../src/typeorm';
 
 type RouteHandler = (guildId: string, body: any, url: string) => Promise<any>;
+
+// auditHelper is mock.module'd (Bun hoists this above the SUT import) so this
+// test does not depend on suite-wide module-load order to get the real
+// writeAuditLog — matching the sibling api-handler tests (ticket/application/
+// setup), which all mock it. mock.module is process-shared, so we provide BOTH
+// auditHelper exports as fakes to avoid undefined unmocked exports elsewhere.
+const fakeWriteAuditLog = jest.fn(async () => undefined);
+const fakeWriteAuditAction = jest.fn(async () => undefined);
+mock.module('../../../../src/utils/api/handlers/auditHelper', () => ({
+  writeAuditLog: fakeWriteAuditLog,
+  writeAuditAction: fakeWriteAuditAction,
+}));
 
 const state: { config: any; pending: any[]; logs: any[] } = { config: null, pending: [], logs: [] };
 
@@ -71,6 +83,7 @@ beforeEach(() => {
   pendingRepo.find.mockClear();
   logRepo.find.mockClear();
   auditRepo.save.mockClear();
+  fakeWriteAuditLog.mockClear();
 });
 
 describe('bait internal API handlers', () => {
@@ -99,7 +112,7 @@ describe('bait internal API handlers', () => {
       expect(state.config.enabled).toBe(false);
       expect(state.config.raidModeThreshold).toBe(7);
       expect(configRepo.save).toHaveBeenCalledWith(state.config);
-      expect(auditRepo.save).toHaveBeenCalled(); // writeAuditLog
+      expect(fakeWriteAuditLog).toHaveBeenCalled(); // writeAuditLog (mocked, order-independent)
       expect(res.success).toBe(true);
       expect(res.patched).toEqual(expect.arrayContaining(['enabled', 'raidModeThreshold']));
     });

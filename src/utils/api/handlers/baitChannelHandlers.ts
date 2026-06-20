@@ -10,6 +10,7 @@ import { DEFAULT_KEYWORDS } from '../../baitChannel/defaultKeywords';
 import { getRaidModeManager } from '../../baitChannel/raidModeManager';
 import { MAX } from '../../constants';
 import { lazyRepo } from '../../database/lazyRepo';
+import { requestGuildCommandRefresh } from '../../setup/commandGating';
 import { ApiError } from '../apiError';
 import {
   isValidSnowflake,
@@ -386,13 +387,7 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
     baitManager?.clearConfigCache(guildId);
 
     // If the webapp toggled the module on/off, refresh the guild's commands.
-    // Imported lazily (not a top-level import) so this api-handler module's
-    // load graph stays identical to before command-gating existed — a static
-    // import here perturbed Bun's process-shared mock.module state in the
-    // api-handler test group (which mocks auditHelper). Fire-and-forget.
-    if (patched.includes('enabled')) {
-      void import('../../setup/commandGating').then(m => m.requestGuildCommandRefresh(guildId)).catch(() => {});
-    }
+    if (patched.includes('enabled')) requestGuildCommandRefresh(guildId);
 
     await writeAuditLog(guildId, 'bait.configUpdate', triggeredBy, { patched });
 
