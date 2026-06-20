@@ -3,9 +3,10 @@
  *
  * The factories are pure over a fresh option builder, so these drive them with
  * standalone option instances and assert on the exact `.toJSON()` shape. The
- * required-presence cases matter most: omitting `required` must leave the field
- * off the JSON (distinct from an explicit `required: false`), since that is what
- * keeps the generated command JSON identical to the hand-written option blocks.
+ * required-presence cases matter most: discord.js serialises an option that
+ * never called setRequired identically to one set to `required: false`, so the
+ * factory omitting `required` reproduces the original bare option blocks and
+ * keeps the generated command JSON unchanged.
  */
 
 import { describe, expect, test } from 'bun:test';
