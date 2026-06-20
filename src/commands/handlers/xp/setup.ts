@@ -2,13 +2,37 @@ import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFla
 import xpLang from '../../../lang/en/xp.json';
 import { XPConfig } from '../../../typeorm/entities/xp/XPConfig';
 import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
-import { enhancedLogger, handleInteractionError, LogCategory, replyEphemeralError } from '../../../utils';
+import {
+  createToggleHandler,
+  enhancedLogger,
+  handleInteractionError,
+  LogCategory,
+  replyEphemeralError,
+} from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { invalidateXPConfigCache } from '../../../utils/xp/configCache';
 
 const configRepo = lazyRepo(XPConfig);
 const rewardRepo = lazyRepo(XPRoleReward);
+
+const xpToggle = createToggleHandler({
+  repo: configRepo,
+  field: 'enabled',
+  messages: {
+    alreadyEnabled: xpLang.setup.alreadyEnabled,
+    alreadyDisabled: xpLang.setup.alreadyDisabled,
+    enabled: xpLang.setup.enabled,
+    disabled: xpLang.setup.disabled,
+  },
+  onToggled: (_interaction, guildId, enabled) => {
+    invalidateXPConfigCache(guildId);
+    enhancedLogger.info(
+      `XP system ${enabled ? 'enabled' : 'disabled'} for guild ${guildId}`,
+      LogCategory.COMMAND_EXECUTION,
+    );
+  },
+});
 
 export async function xpSetupHandler(_client: Client, interaction: ChatInputCommandInteraction) {
   try {
@@ -19,10 +43,10 @@ export async function xpSetupHandler(_client: Client, interaction: ChatInputComm
 
     switch (subcommand) {
       case 'enable':
-        await handleEnable(interaction, guildId);
+        await xpToggle.enable(interaction, guildId);
         break;
       case 'disable':
-        await handleDisable(interaction, guildId);
+        await xpToggle.disable(interaction, guildId);
         break;
       case 'config':
         await handleConfig(interaction, guildId);
@@ -63,40 +87,6 @@ async function getOrCreateConfig(guildId: string): Promise<XPConfig> {
     config = await configRepo.save(config);
   }
   return config;
-}
-
-async function handleEnable(interaction: ChatInputCommandInteraction, guildId: string) {
-  const config = await getOrCreateConfig(guildId);
-  if (config.enabled) {
-    await replyEphemeralError(interaction, xpLang.setup.alreadyEnabled);
-    return;
-  }
-  config.enabled = true;
-  await configRepo.save(config);
-  invalidateXPConfigCache(guildId);
-
-  enhancedLogger.info(`XP system enabled for guild ${guildId}`, LogCategory.COMMAND_EXECUTION);
-  await interaction.reply({
-    content: xpLang.setup.enabled,
-    flags: [MessageFlags.Ephemeral],
-  });
-}
-
-async function handleDisable(interaction: ChatInputCommandInteraction, guildId: string) {
-  const config = await configRepo.findOne({ where: { guildId } });
-  if (!config?.enabled) {
-    await replyEphemeralError(interaction, xpLang.setup.alreadyDisabled);
-    return;
-  }
-  config.enabled = false;
-  await configRepo.save(config);
-  invalidateXPConfigCache(guildId);
-
-  enhancedLogger.info(`XP system disabled for guild ${guildId}`, LogCategory.COMMAND_EXECUTION);
-  await interaction.reply({
-    content: xpLang.setup.disabled,
-    flags: [MessageFlags.Ephemeral],
-  });
 }
 
 async function handleConfig(interaction: ChatInputCommandInteraction, guildId: string) {
