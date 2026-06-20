@@ -7,7 +7,15 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import eventLang from '../../../lang/en/event.json';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
-import { enhancedLogger, formatLang, guardFeatureRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  guardFeatureRateLimit,
+  LogCategory,
+  lang,
+  RateLimits,
+  replyEphemeralError,
+} from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const eventConfigRepo = lazyRepo(EventConfig);
@@ -31,10 +39,7 @@ export async function eventSetupHandler(_client: Client, interaction: ChatInputC
     switch (subcommand) {
       case 'enable': {
         if (config?.enabled) {
-          await interaction.reply({
-            content: tl.alreadyEnabled,
-            flags: [MessageFlags.Ephemeral],
-          });
+          await replyEphemeralError(interaction, tl.alreadyEnabled);
           return;
         }
         if (!config) {
@@ -53,10 +58,7 @@ export async function eventSetupHandler(_client: Client, interaction: ChatInputC
 
       case 'disable': {
         if (!config?.enabled) {
-          await interaction.reply({
-            content: tl.alreadyDisabled,
-            flags: [MessageFlags.Ephemeral],
-          });
+          await replyEphemeralError(interaction, tl.alreadyDisabled);
           return;
         }
         config.enabled = false;
@@ -71,10 +73,7 @@ export async function eventSetupHandler(_client: Client, interaction: ChatInputC
 
       case 'reminder-channel': {
         if (!config) {
-          await interaction.reply({
-            content: tl.notConfigured,
-            flags: [MessageFlags.Ephemeral],
-          });
+          await replyEphemeralError(interaction, tl.notConfigured);
           return;
         }
         const channel = interaction.options.getChannel('channel', true);
@@ -90,10 +89,7 @@ export async function eventSetupHandler(_client: Client, interaction: ChatInputC
 
       case 'summary-channel': {
         if (!config) {
-          await interaction.reply({
-            content: tl.notConfigured,
-            flags: [MessageFlags.Ephemeral],
-          });
+          await replyEphemeralError(interaction, tl.notConfigured);
           return;
         }
         const channel = interaction.options.getChannel('channel', true);
@@ -110,10 +106,7 @@ export async function eventSetupHandler(_client: Client, interaction: ChatInputC
 
       case 'default-reminder': {
         if (!config) {
-          await interaction.reply({
-            content: tl.notConfigured,
-            flags: [MessageFlags.Ephemeral],
-          });
+          await replyEphemeralError(interaction, tl.notConfigured);
           return;
         }
         const minutes = interaction.options.getInteger('minutes', true);
@@ -128,19 +121,13 @@ export async function eventSetupHandler(_client: Client, interaction: ChatInputC
       }
 
       default: {
-        await interaction.reply({
-          content: lang.errors.unknownSubcommand,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, lang.errors.unknownSubcommand);
       }
     }
   } catch (error) {
     enhancedLogger.error('Event setup failed', error as Error, LogCategory.COMMAND_EXECUTION, {
       guildId,
     });
-    await interaction.reply({
-      content: tl.error,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.error);
   }
 }

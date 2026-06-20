@@ -1,10 +1,4 @@
-import {
-  ButtonStyle,
-  type CacheType,
-  type ChatInputCommandInteraction,
-  MessageFlags,
-  type TextChannel,
-} from 'discord.js';
+import { ButtonStyle, type CacheType, type ChatInputCommandInteraction, type TextChannel } from 'discord.js';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import {
   awaitConfirmation,
@@ -15,6 +9,7 @@ import {
   invalidateMenuCache,
   LogCategory,
   lang,
+  replyEphemeralError,
   verifiedMessageDelete,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -36,10 +31,7 @@ export async function reactionRoleDeleteHandler(interaction: ChatInputCommandInt
   try {
     const menu = await menuRepo.findOne({ where: { id: menuId, guildId } });
     if (!menu) {
-      await interaction.reply({
-        content: tl.errors.menuNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.errors.menuNotFound);
       return;
     }
 

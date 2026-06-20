@@ -1,7 +1,7 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import onboardingLang from '../../../lang/en/onboarding.json';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
-import { enhancedLogger, formatLang } from '../../../utils';
+import { enhancedLogger, formatLang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const configRepo = lazyRepo(OnboardingConfig);
@@ -21,18 +21,12 @@ export async function enableHandler(_client: Client, interaction: ChatInputComma
 
   // Cannot enable if no steps are configured
   if (!config.steps || config.steps.length === 0) {
-    await interaction.reply({
-      content: tl.setup.noSteps,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.setup.noSteps);
     return;
   }
 
   if (config.enabled) {
-    await interaction.reply({
-      content: tl.setup.alreadyEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.setup.alreadyEnabled);
     return;
   }
 
@@ -56,10 +50,7 @@ export async function disableHandler(_client: Client, interaction: ChatInputComm
   const config = await configRepo.findOneBy({ guildId });
 
   if (!config?.enabled) {
-    await interaction.reply({
-      content: tl.setup.alreadyDisabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.setup.alreadyDisabled);
     return;
   }
 

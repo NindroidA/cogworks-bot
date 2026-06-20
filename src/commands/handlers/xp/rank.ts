@@ -3,7 +3,7 @@ import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'dis
 import xpLang from '../../../lang/en/xp.json';
 import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
-import { handleInteractionError } from '../../../utils';
+import { handleInteractionError, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { getXPConfig } from '../../../utils/xp/configCache';
 import { buildRankEmbed } from '../../../utils/xp/rankCard';
@@ -18,10 +18,7 @@ export async function rankHandler(_client: Client, interaction: ChatInputCommand
 
     const config = await getXPConfig(guildId);
     if (!config?.enabled) {
-      await interaction.reply({
-        content: xpLang.errors.notConfigured,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, xpLang.errors.notConfigured);
       return;
     }
 

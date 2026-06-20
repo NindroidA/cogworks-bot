@@ -7,7 +7,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
-import { enhancedLogger, formatLang, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, formatLang, LogCategory, lang, replyEphemeralError } from '../../../utils';
 import type { CsvImporter } from '../../../utils/import/csvImporter';
 import { importManager } from '../../../utils/import/importManager';
 
@@ -21,19 +21,13 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
 
   // Validate attachment
   if (!attachment.name.endsWith('.csv')) {
-    await interaction.reply({
-      content: tl.csvRequired,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.csvRequired);
     return;
   }
 
   // Check if an import is already running
   if (importManager.isRunning(guildId)) {
-    await interaction.reply({
-      content: tl.importAlreadyRunning,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.importAlreadyRunning);
     return;
   }
 
@@ -56,9 +50,7 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
   try {
     const response = await fetch(attachment.url);
     if (!response.ok) {
-      await interaction.editReply({
-        content: formatLang(tl.importFailed, 'Failed to download CSV file.'),
-      });
+      await replyEphemeralError(interaction, formatLang(tl.importFailed, 'Failed to download CSV file.'));
       return;
     }
     csvContent = await response.text();
@@ -69,9 +61,7 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
       LogCategory.COMMAND_EXECUTION,
       { guildId },
     );
-    await interaction.editReply({
-      content: formatLang(tl.importFailed, 'Failed to download CSV file.'),
-    });
+    await replyEphemeralError(interaction, formatLang(tl.importFailed, 'Failed to download CSV file.'));
     return;
   }
 
@@ -136,8 +126,6 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
     await interaction.editReply({ content: '', embeds: [embed] });
   } else {
     const errorMsg = result.errors.length > 0 ? result.errors[0] : 'Unknown error';
-    await interaction.editReply({
-      content: formatLang(tl.importFailed, errorMsg),
-    });
+    await replyEphemeralError(interaction, formatLang(tl.importFailed, errorMsg));
   }
 }

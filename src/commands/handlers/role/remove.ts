@@ -1,6 +1,13 @@
 import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { StaffRole } from '../../../typeorm/entities/StaffRole';
-import { enhancedLogger, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
+import {
+  enhancedLogger,
+  guardAdminRateLimit,
+  LogCategory,
+  lang,
+  RateLimits,
+  replyEphemeralError,
+} from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.removeRole;
@@ -23,19 +30,13 @@ export async function roleRemoveHandler(interaction: ChatInputCommandInteraction
 
   // check to see if the discord server has any saved roles
   if (!guildFinder) {
-    await interaction.reply({
-      content: tl.noType,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.noType);
     return;
   }
 
   // check to see if the role exists
   if (!roleFinder) {
-    await interaction.reply({
-      content: tl.dne,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.dne);
     return;
   }
 
@@ -46,10 +47,7 @@ export async function roleRemoveHandler(interaction: ChatInputCommandInteraction
     });
 
     if (!typeFinder) {
-      await interaction.reply({
-        content: tl.noType,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.noType);
       return;
     }
 
@@ -72,9 +70,6 @@ export async function roleRemoveHandler(interaction: ChatInputCommandInteraction
       guildId,
       role,
     });
-    await interaction.reply({
-      content: tl.fail,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.fail);
   }
 }

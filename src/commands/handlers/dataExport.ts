@@ -55,7 +55,15 @@ import { UserActivity } from '../../typeorm/entities/UserActivity';
 import { XPConfig } from '../../typeorm/entities/xp/XPConfig';
 import { XPRoleReward } from '../../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../../typeorm/entities/xp/XPUser';
-import { enhancedLogger, formatLang, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  guardAdminRateLimit,
+  LogCategory,
+  lang,
+  RateLimits,
+  replyEphemeralError,
+} from '../../utils';
 
 interface ExportEntity {
   /** Output key in the exported JSON's `data` object. */
@@ -258,10 +266,7 @@ export async function dataExportHandler(
     const tl = lang.dataExport;
     const guildId = interaction.guildId;
     if (!guildId) {
-      await interaction.reply({
-        content: tl.guildOnly,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.guildOnly);
       return;
     }
 
@@ -363,9 +368,7 @@ export async function dataExportHandler(
       );
 
       // Fallback: offer file in channel
-      await interaction.editReply({
-        content: tl.dmFailed,
-      });
+      await replyEphemeralError(interaction, tl.dmFailed);
     }
   } catch (error) {
     enhancedLogger.error(`Error in data export: ${(error as Error).message}`, undefined, LogCategory.COMMAND_EXECUTION);

@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFla
 import xpLang from '../../../lang/en/xp.json';
 import { XPConfig } from '../../../typeorm/entities/xp/XPConfig';
 import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
-import { enhancedLogger, handleInteractionError, LogCategory } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LogCategory, replyEphemeralError } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { invalidateXPConfigCache } from '../../../utils/xp/configCache';
@@ -49,10 +49,7 @@ export async function xpSetupHandler(_client: Client, interaction: ChatInputComm
         await handleMultiplierRemove(interaction, guildId);
         break;
       default:
-        await interaction.reply({
-          content: 'Unknown subcommand.',
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, 'Unknown subcommand.');
     }
   } catch (error) {
     await handleInteractionError(interaction, error, 'Failed to execute XP setup command');
@@ -71,10 +68,7 @@ async function getOrCreateConfig(guildId: string): Promise<XPConfig> {
 async function handleEnable(interaction: ChatInputCommandInteraction, guildId: string) {
   const config = await getOrCreateConfig(guildId);
   if (config.enabled) {
-    await interaction.reply({
-      content: xpLang.setup.alreadyEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, xpLang.setup.alreadyEnabled);
     return;
   }
   config.enabled = true;
@@ -91,10 +85,7 @@ async function handleEnable(interaction: ChatInputCommandInteraction, guildId: s
 async function handleDisable(interaction: ChatInputCommandInteraction, guildId: string) {
   const config = await configRepo.findOne({ where: { guildId } });
   if (!config?.enabled) {
-    await interaction.reply({
-      content: xpLang.setup.alreadyDisabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, xpLang.setup.alreadyDisabled);
     return;
   }
   config.enabled = false;
@@ -126,18 +117,12 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
       }
       const parts = value.split('-').map(Number);
       if (parts.length !== 2 || Number.isNaN(parts[0]) || Number.isNaN(parts[1])) {
-        await interaction.reply({
-          content: 'Format: `min-max` (e.g. `15-25`)',
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, 'Format: `min-max` (e.g. `15-25`)');
         return;
       }
       const [min, max] = parts;
       if (min < 1 || max > 1000 || min > max) {
-        await interaction.reply({
-          content: xpLang.errors.invalidXpRange,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, xpLang.errors.invalidXpRange);
         return;
       }
       config.xpPerMessageMin = min;
@@ -154,10 +139,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
       }
       const cooldown = Number(value);
       if (Number.isNaN(cooldown) || cooldown < 0 || cooldown > 3600) {
-        await interaction.reply({
-          content: xpLang.errors.invalidCooldown,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, xpLang.errors.invalidCooldown);
         return;
       }
       config.xpCooldownSeconds = cooldown;
@@ -173,10 +155,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
       }
       const voiceXp = Number(value);
       if (Number.isNaN(voiceXp) || voiceXp < 0 || voiceXp > 100) {
-        await interaction.reply({
-          content: 'Voice XP must be between 0 and 100.',
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, 'Voice XP must be between 0 and 100.');
         return;
       }
       config.xpPerVoiceMinute = voiceXp;
@@ -230,10 +209,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
       break;
     }
     default:
-      await interaction.reply({
-        content: 'Unknown setting.',
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, 'Unknown setting.');
       return;
   }
 
@@ -253,10 +229,7 @@ async function handleRoleRewardAdd(interaction: ChatInputCommandInteraction, gui
   // Check max rewards (25)
   const count = await rewardRepo.count({ where: { guildId } });
   if (count >= 25) {
-    await interaction.reply({
-      content: xpLang.errors.maxRoleRewards,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, xpLang.errors.maxRoleRewards);
     return;
   }
 

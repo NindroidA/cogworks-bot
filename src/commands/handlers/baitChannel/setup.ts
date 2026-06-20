@@ -9,7 +9,15 @@ import {
 import { AppDataSource } from '../../../typeorm';
 import { type BaitActionType, BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { enhancedLogger, formatLang, handleInteractionError, LogCategory, lang, safeDbOperation } from '../../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  handleInteractionError,
+  LogCategory,
+  lang,
+  replyEphemeralError,
+  safeDbOperation,
+} from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
@@ -155,10 +163,7 @@ export async function handleBaitChannelAddChannel(client: Client, interaction: C
 
     // Validate text channel
     if (channel.type !== ChannelType.GuildText) {
-      await interaction.reply({
-        content: 'Please select a text channel.',
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, 'Please select a text channel.');
       return;
     }
 
@@ -169,10 +174,7 @@ export async function handleBaitChannelAddChannel(client: Client, interaction: C
     );
 
     if (!config) {
-      await interaction.reply({
-        content: tl.setupFirst,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.setupFirst);
       return;
     }
 
@@ -185,19 +187,13 @@ export async function handleBaitChannelAddChannel(client: Client, interaction: C
 
     // Validate max 3 channels
     if (currentChannels.length >= 3) {
-      await interaction.reply({
-        content: tl.multiChannel.maxReached,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.multiChannel.maxReached);
       return;
     }
 
     // Check for duplicate
     if (currentChannels.includes(channel.id)) {
-      await interaction.reply({
-        content: formatLang(tl.multiChannel.alreadyAdded, channel.id),
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, formatLang(tl.multiChannel.alreadyAdded, channel.id));
       return;
     }
 
@@ -245,10 +241,7 @@ export async function handleBaitChannelRemoveChannel(client: Client, interaction
     );
 
     if (!config) {
-      await interaction.reply({
-        content: tl.setupFirst,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.setupFirst);
       return;
     }
 
@@ -261,19 +254,13 @@ export async function handleBaitChannelRemoveChannel(client: Client, interaction
 
     // Must keep at least 1 channel
     if (currentChannels.length <= 1) {
-      await interaction.reply({
-        content: tl.multiChannel.mustKeepOne,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.multiChannel.mustKeepOne);
       return;
     }
 
     // Check channel is in the list
     if (!currentChannels.includes(channel.id)) {
-      await interaction.reply({
-        content: formatLang(tl.multiChannel.notInList, channel.id),
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, formatLang(tl.multiChannel.notInList, channel.id));
       return;
     }
 

@@ -9,7 +9,7 @@ import {
 } from 'discord.js';
 import { Application } from '../../typeorm/entities/application/Application';
 import { ArchivedApplicationConfig } from '../../typeorm/entities/application/ArchivedApplicationConfig';
-import { enhancedLogger, LogCategory, lang } from '../../utils';
+import { enhancedLogger, LogCategory, lang, replyEphemeralError } from '../../utils';
 import { archiveAndCloseApplication } from '../../utils/application/closeWorkflow';
 import { lazyRepo } from '../../utils/database/lazyRepo';
 
@@ -67,11 +67,8 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
     );
     const notify =
       interaction.replied || interaction.deferred
-        ? interaction.editReply({ content: tl.transcriptCreate.error })
-        : interaction.reply({
-            content: tl.transcriptCreate.error,
-            flags: [MessageFlags.Ephemeral],
-          });
+        ? replyEphemeralError(interaction, tl.transcriptCreate.error)
+        : replyEphemeralError(interaction, tl.transcriptCreate.error);
     await notify.catch((err: unknown) => {
       enhancedLogger.error(
         'Failed to deliver application-close failure notice to the user',

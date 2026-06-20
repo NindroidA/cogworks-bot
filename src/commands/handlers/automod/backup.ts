@@ -18,7 +18,14 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
-import { enhancedLogger, formatLang, handleInteractionError, LogCategory, lang } from '../../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  handleInteractionError,
+  LogCategory,
+  lang,
+  replyEphemeralError,
+} from '../../../utils';
 import {
   createAutoModRule,
   deserializeRules,
@@ -53,7 +60,7 @@ async function handleBackup(interaction: ChatInputCommandInteraction): Promise<v
     const rules = await fetchAutoModRules(guild);
 
     if (rules.size === 0) {
-      await interaction.editReply({ content: tl.backup.empty });
+      await replyEphemeralError(interaction, tl.backup.empty);
       return;
     }
 
@@ -80,7 +87,7 @@ async function handleBackup(interaction: ChatInputCommandInteraction): Promise<v
 
       await interaction.editReply({ content: tl.backup.success });
     } catch {
-      await interaction.editReply({ content: tl.backup.dmFailed });
+      await replyEphemeralError(interaction, tl.backup.dmFailed);
     }
   } catch (error) {
     await handleInteractionError(interaction, error, tl.backup.error);
@@ -94,10 +101,7 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
   const attachment = interaction.options.getAttachment('file', true);
 
   if (!attachment.name.endsWith('.json')) {
-    await interaction.reply({
-      content: tl.restore.invalidJson,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.restore.invalidJson);
     return;
   }
 
@@ -110,12 +114,12 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
 
     const backup = deserializeRules(text);
     if (!backup) {
-      await interaction.editReply({ content: tl.restore.invalidFormat });
+      await replyEphemeralError(interaction, tl.restore.invalidFormat);
       return;
     }
 
     if (backup.rules.length === 0) {
-      await interaction.editReply({ content: tl.restore.invalidFormat });
+      await replyEphemeralError(interaction, tl.restore.invalidFormat);
       return;
     }
 

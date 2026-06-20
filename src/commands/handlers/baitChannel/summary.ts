@@ -7,7 +7,7 @@
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
-import { handleInteractionError, lang } from '../../../utils';
+import { handleInteractionError, lang, replyEphemeralError } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
@@ -22,10 +22,7 @@ export async function summaryHandler(_client: Client, interaction: ChatInputComm
     const config = await configRepo.findOneBy({ guildId });
 
     if (!config) {
-      await interaction.reply({
-        content: tl.notConfigured,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.notConfigured);
       return;
     }
 

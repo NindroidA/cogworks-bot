@@ -7,7 +7,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
-import { enhancedLogger, formatLang, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, formatLang, LogCategory, lang, replyEphemeralError } from '../../../utils';
 import { importManager } from '../../../utils/import/importManager';
 
 const tl = lang.import.commands;
@@ -19,10 +19,7 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
 
   // Check if an import is already running
   if (importManager.isRunning(guildId)) {
-    await interaction.reply({
-      content: tl.importAlreadyRunning,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.importAlreadyRunning);
     return;
   }
 
@@ -93,8 +90,6 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
     await interaction.editReply({ content: '', embeds: [embed] });
   } else {
     const errorMsg = result.errors.length > 0 ? result.errors[0] : 'Unknown error';
-    await interaction.editReply({
-      content: formatLang(tl.importFailed, errorMsg),
-    });
+    await replyEphemeralError(interaction, formatLang(tl.importFailed, errorMsg));
   }
 }

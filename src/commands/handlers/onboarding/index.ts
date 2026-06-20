@@ -14,6 +14,7 @@ import {
   handleInteractionError,
   lang,
   RateLimits,
+  replyEphemeralError,
 } from '../../../utils';
 import { sendOnboardingFlow } from '../../../utils/onboarding/onboardingEngine';
 import { completionRoleHandler, disableHandler, enableHandler, welcomeMessageHandler } from './setup';
@@ -81,10 +82,7 @@ export async function onboardingHandler(client: Client, interaction: ChatInputCo
         break;
 
       default:
-        await interaction.reply({
-          content: lang.errors.unknownSubcommand,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, lang.errors.unknownSubcommand);
     }
   } catch (error) {
     await handleInteractionError(interaction, error, tl.errors.general);
@@ -101,10 +99,7 @@ const previewHandler = async (_client: Client, interaction: ChatInputCommandInte
   const config = await configRepo.findOneBy({ guildId });
 
   if (!config?.steps || config.steps.length === 0) {
-    await interaction.reply({
-      content: tl.preview.noSteps,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.preview.noSteps);
     return;
   }
 
@@ -120,7 +115,7 @@ const previewHandler = async (_client: Client, interaction: ChatInputCommandInte
   if (sent) {
     await interaction.editReply({ content: tl.preview.sent });
   } else {
-    await interaction.editReply({ content: tl.preview.failed });
+    await replyEphemeralError(interaction, tl.preview.failed);
   }
 };
 
@@ -135,10 +130,7 @@ const resendHandler = async (_client: Client, interaction: ChatInputCommandInter
   const config = await configRepo.findOneBy({ guildId });
 
   if (!config?.steps || config.steps.length === 0) {
-    await interaction.reply({
-      content: tl.resend.noSteps,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.resend.noSteps);
     return;
   }
 

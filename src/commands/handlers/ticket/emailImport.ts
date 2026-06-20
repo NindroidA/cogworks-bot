@@ -28,6 +28,7 @@ import {
   lang,
   maskEmail,
   RateLimits,
+  replyEphemeralError,
   validateSafeUrl,
 } from '../../../utils';
 
@@ -122,28 +123,19 @@ async function parseAttachmentUrls(
     .filter(u => u);
 
   if (urls.length > 10) {
-    await interaction.reply({
-      content: formatLang(tl.tooManyUrls, '10'),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.tooManyUrls, '10'));
     return null;
   }
 
   for (const url of urls) {
     if (url.length > 500) {
-      await interaction.reply({
-        content: formatLang(tl.urlTooLong, '500'),
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, formatLang(tl.urlTooLong, '500'));
       return null;
     }
 
     const urlCheck = validateSafeUrl(url);
     if (!urlCheck.valid) {
-      await interaction.reply({
-        content: formatLang(tl.invalidUrl, url),
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, formatLang(tl.invalidUrl, url));
       return null;
     }
   }
@@ -296,18 +288,12 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
         LogCategory.COMMAND_EXECUTION,
         { userId, guildId },
       );
-      await interaction.reply({
-        content: tl.invalidEmail,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.invalidEmail);
       return;
     }
 
     if (body.length > 4000) {
-      await interaction.reply({
-        content: formatLang(tl.bodyTooLong, '4000'),
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, formatLang(tl.bodyTooLong, '4000'));
       return;
     }
 
@@ -321,19 +307,13 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
 
     const botConfig = await botConfigRepo.findOneBy({ guildId });
     if (!botConfig) {
-      await interaction.reply({
-        content: lang.botConfig.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, lang.botConfig.notFound);
       return;
     }
 
     const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
     if (!ticketConfig?.categoryId) {
-      await interaction.reply({
-        content: lang.ticket.ticketConfigNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
       return;
     }
 
@@ -343,10 +323,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
     // Validate ticket category
     const category = await interaction.guild!.channels.fetch(ticketConfig.categoryId);
     if (!category || category.type !== ChannelType.GuildCategory) {
-      await interaction.reply({
-        content: lang.ticket.ticketCategoryNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, lang.ticket.ticketCategoryNotFound);
       return;
     }
 
@@ -425,10 +402,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
             guildId,
             errorCode: error.code,
           });
-          await interaction.reply({
-            content: tl.permissionError,
-            flags: [MessageFlags.Ephemeral],
-          });
+          await replyEphemeralError(interaction, tl.permissionError);
           return;
         }
 
@@ -437,10 +411,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
           guildId,
           errorCode: error.code,
         });
-        await interaction.reply({
-          content: formatLang(tl.apiError, error.message),
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, formatLang(tl.apiError, error.message));
         return;
       }
       throw error;

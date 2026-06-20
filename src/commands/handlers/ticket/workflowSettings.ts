@@ -16,6 +16,7 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
+  replyEphemeralError,
   showAndAwaitModal,
 } from '../../../utils';
 import { Colors } from '../../../utils/colors';
@@ -33,10 +34,7 @@ export async function workflowSettingsHandler(interaction: ChatInputCommandInter
     const config = await ticketConfigRepo.findOneBy({ guildId });
 
     if (!config) {
-      await interaction.reply({
-        content: lang.ticket.ticketConfigNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
       return;
     }
 

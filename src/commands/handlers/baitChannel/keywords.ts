@@ -8,7 +8,13 @@ import {
 } from 'discord.js';
 import { BaitKeyword } from '../../../typeorm/entities/bait/BaitKeyword';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { awaitConfirmation, handleInteractionError, lang, stripZeroWidthChars } from '../../../utils';
+import {
+  awaitConfirmation,
+  handleInteractionError,
+  lang,
+  replyEphemeralError,
+  stripZeroWidthChars,
+} from '../../../utils';
 import { DEFAULT_KEYWORDS } from '../../../utils/baitChannel/defaultKeywords';
 import { MAX } from '../../../utils/constants';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -61,10 +67,7 @@ export async function handleKeywords(client: Client, interaction: ChatInputComma
         await handleReset(client, interaction, guildId);
         break;
       default:
-        await interaction.reply({
-          content: lang.errors.unknownSubcommand,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, lang.errors.unknownSubcommand);
     }
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.keywords);
@@ -74,19 +77,13 @@ export async function handleKeywords(client: Client, interaction: ChatInputComma
 async function handleAdd(client: Client, interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const rawKeyword = interaction.options.getString('keyword');
   if (!rawKeyword) {
-    await interaction.reply({
-      content: tl.keywords.add.missingKeyword,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.keywords.add.missingKeyword);
     return;
   }
 
   const keyword = stripZeroWidthChars(rawKeyword.toLowerCase().trim());
   if (keyword.length < 1 || keyword.length > 100) {
-    await interaction.reply({
-      content: tl.keywords.add.invalidLength,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.keywords.add.invalidLength);
     return;
   }
 
@@ -95,20 +92,14 @@ async function handleAdd(client: Client, interaction: ChatInputCommandInteractio
   // Check guild keyword limit
   const count = await keywordRepo.count({ where: { guildId } });
   if (count >= MAX.BAIT_KEYWORDS_PER_GUILD) {
-    await interaction.reply({
-      content: tl.keywords.add.limitReached,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.keywords.add.limitReached);
     return;
   }
 
   // Check for duplicate
   const existing = await keywordRepo.findOne({ where: { guildId, keyword } });
   if (existing) {
-    await interaction.reply({
-      content: tl.keywords.add.duplicate.replace('{keyword}', keyword),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.keywords.add.duplicate.replace('{keyword}', keyword));
     return;
   }
 
@@ -140,10 +131,7 @@ async function handleAdd(client: Client, interaction: ChatInputCommandInteractio
 async function handleRemove(client: Client, interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const keyword = interaction.options.getString('keyword');
   if (!keyword) {
-    await interaction.reply({
-      content: tl.keywords.remove.missingKeyword,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.keywords.remove.missingKeyword);
     return;
   }
 
@@ -152,10 +140,7 @@ async function handleRemove(client: Client, interaction: ChatInputCommandInterac
     keyword: keyword.toLowerCase().trim(),
   });
   if (!result.affected) {
-    await interaction.reply({
-      content: tl.keywords.remove.notFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.keywords.remove.notFound);
     return;
   }
 
@@ -175,10 +160,7 @@ async function handleList(interaction: ChatInputCommandInteraction, guildId: str
   });
 
   if (keywords.length === 0) {
-    await interaction.reply({
-      content: tl.keywords.list.empty,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.keywords.list.empty);
     return;
   }
 

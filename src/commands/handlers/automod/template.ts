@@ -5,7 +5,14 @@
  */
 
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
-import { enhancedLogger, formatLang, handleInteractionError, LogCategory, lang } from '../../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  handleInteractionError,
+  LogCategory,
+  lang,
+  replyEphemeralError,
+} from '../../../utils';
 import { createAutoModRule, fetchAutoModRules, MAX_AUTOMOD_RULES } from '../../../utils/automod/helpers';
 import { AUTOMOD_TEMPLATES } from '../../../utils/automod/templates';
 
@@ -19,10 +26,7 @@ export async function templateHandler(_client: Client, interaction: ChatInputCom
   const template = AUTOMOD_TEMPLATES[templateId];
 
   if (!template) {
-    await interaction.reply({
-      content: tl.template.notFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.template.notFound);
     return;
   }
 

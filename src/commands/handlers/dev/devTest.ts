@@ -17,7 +17,7 @@ import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import { XPConfig } from '../../../typeorm/entities/xp/XPConfig';
 import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
-import { enhancedLogger, guardOwner, LogCategory } from '../../../utils';
+import { enhancedLogger, guardOwner, LogCategory, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { checkAndSendReminders } from '../../../utils/event/reminderChecker';
 import { sendOnboardingFlow } from '../../../utils/onboarding/onboardingEngine';
@@ -93,12 +93,7 @@ export async function devTestHandler(client: Client, interaction: ChatInputComma
     }
   } catch (error) {
     enhancedLogger.error('Dev test command error', error as Error, LogCategory.COMMAND_EXECUTION);
-    await interaction
-      .reply({
-        content: `❌ Error: ${(error as Error).message}`,
-        flags: [MessageFlags.Ephemeral],
-      })
-      .catch(() => {});
+    await replyEphemeralError(interaction, `Error: ${(error as Error).message}`).catch(() => {});
   }
 }
 
@@ -325,10 +320,7 @@ async function handleSlaBackdateTicket(interaction: ChatInputCommandInteraction,
 
   const ticket = await ticketRepo.findOneBy({ guildId, id: ticketId });
   if (!ticket) {
-    await interaction.reply({
-      content: `❌ Ticket #${ticketId} not found.`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, `Ticket #${ticketId} not found.`);
     return;
   }
 

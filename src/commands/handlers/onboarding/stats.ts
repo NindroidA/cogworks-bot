@@ -3,7 +3,7 @@ import { MoreThan } from 'typeorm';
 import onboardingLang from '../../../lang/en/onboarding.json';
 import { OnboardingCompletion } from '../../../typeorm/entities/onboarding/OnboardingCompletion';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
-import { formatLang } from '../../../utils';
+import { formatLang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const completionRepo = lazyRepo(OnboardingCompletion);
@@ -21,10 +21,7 @@ export async function onboardingStatsHandler(_client: Client, interaction: ChatI
 
   const config = await configRepo.findOneBy({ guildId });
   if (!config) {
-    await interaction.reply({
-      content: tl.errors.notConfigured,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.errors.notConfigured);
     return;
   }
 

@@ -16,6 +16,7 @@ import {
   LogCategory,
   lang,
   RateLimits,
+  replyEphemeralError,
   truncateWithNotice,
   validateEmoji,
 } from '../../utils';
@@ -63,9 +64,7 @@ async function handleSetup(_client: Client, interaction: ChatInputCommandInterac
   // Validate emoji format
   const emojiCheck = validateEmoji(emoji);
   if (!emojiCheck.valid) {
-    await interaction.editReply({
-      content: tl.setup.invalidEmoji,
-    });
+    await replyEphemeralError(interaction, tl.setup.invalidEmoji);
     return;
   }
 
@@ -74,26 +73,20 @@ async function handleSetup(_client: Client, interaction: ChatInputCommandInterac
 
   // Validate role is not @everyone
   if (role.id === guild.id) {
-    await interaction.editReply({
-      content: tl.setup.cannotUseEveryone,
-    });
+    await replyEphemeralError(interaction, tl.setup.cannotUseEveryone);
     return;
   }
 
   // Validate role is not managed (bot role, integration role)
   if (role.managed) {
-    await interaction.editReply({
-      content: tl.setup.cannotUseManagedRole,
-    });
+    await replyEphemeralError(interaction, tl.setup.cannotUseManagedRole);
     return;
   }
 
   // Validate bot can assign the role (role position check)
   const botMember = await guild.members.fetchMe();
   if (role.position >= botMember.roles.highest.position) {
-    await interaction.editReply({
-      content: tl.setup.roleTooHigh,
-    });
+    await replyEphemeralError(interaction, tl.setup.roleTooHigh);
     return;
   }
 
@@ -153,9 +146,7 @@ async function handleSetup(_client: Client, interaction: ChatInputCommandInterac
     enhancedLogger.error('Failed to configure rules acknowledgment', error as Error, LogCategory.COMMAND_EXECUTION, {
       guildId,
     });
-    await interaction.editReply({
-      content: tl.setup.error,
-    });
+    await replyEphemeralError(interaction, tl.setup.error);
   }
 }
 
@@ -168,10 +159,7 @@ async function handleView(interaction: ChatInputCommandInteraction<CacheType>) {
 
   const config = await rulesConfigRepo.findOneBy({ guildId });
   if (!config) {
-    await interaction.reply({
-      content: tl.view.notConfigured,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.view.notConfigured);
     return;
   }
 
@@ -203,10 +191,7 @@ async function handleRemove(_client: Client, interaction: ChatInputCommandIntera
 
   const config = await rulesConfigRepo.findOneBy({ guildId });
   if (!config) {
-    await interaction.reply({
-      content: tl.remove.notConfigured,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.remove.notConfigured);
     return;
   }
 
@@ -231,9 +216,6 @@ async function handleRemove(_client: Client, interaction: ChatInputCommandIntera
     });
   } catch (error) {
     enhancedLogger.error('Failed to remove rules config', error as Error, LogCategory.COMMAND_EXECUTION, { guildId });
-    await interaction.reply({
-      content: tl.remove.error,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.remove.error);
   }
 }

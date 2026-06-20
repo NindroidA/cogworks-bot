@@ -31,6 +31,7 @@ import {
   PermissionSets,
   RateLimits,
   rateLimiter,
+  replyEphemeralError,
 } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
 import { isBuiltinTicketType, resolveBuiltinPingColumn, resolveTicketType } from '../../utils/ticket/builtinTypes';
@@ -316,18 +317,12 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
   });
 
   if (!guild) {
-    await interaction.reply({
-      content: lang.general.cmdGuildNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.general.cmdGuildNotFound);
     return;
   }
 
   if (!category) {
-    await interaction.reply({
-      content: lang.ticket.ticketCategoryNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketCategoryNotFound);
     return;
   }
 
@@ -336,10 +331,8 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
   const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.TICKET_CREATE);
 
   if (!rateCheck.allowed) {
-    await interaction.reply({
-      content: rateCheck.message,
-      flags: [MessageFlags.Ephemeral],
-    });
+    // rateCheck.message is string | undefined — kept inline (replyEphemeralError takes a string)
+    await interaction.reply({ content: rateCheck.message, flags: [MessageFlags.Ephemeral] });
     enhancedLogger.warn(`User hit ticket creation rate limit`, LogCategory.SECURITY, {
       userId: interaction.user.id,
       guildId,
@@ -529,9 +522,9 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
     // the real failure (the old behavior). Follow up instead, and never let
     // the error notification itself bubble.
     if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: lang.ticket.error, flags: [MessageFlags.Ephemeral] }).catch(() => {});
+      await replyEphemeralError(interaction, lang.ticket.error).catch(() => {});
     } else {
-      await interaction.reply({ content: lang.ticket.error, flags: [MessageFlags.Ephemeral] }).catch(() => {});
+      await replyEphemeralError(interaction, lang.ticket.error).catch(() => {});
     }
   }
 };

@@ -1,7 +1,7 @@
 import type { CacheType, ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import { StarboardConfig } from '../../../typeorm/entities/starboard';
-import { formatLang, guardFeatureAccess, handleInteractionError, lang } from '../../../utils';
+import { formatLang, guardFeatureAccess, handleInteractionError, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const configRepo = lazyRepo(StarboardConfig);
@@ -60,10 +60,7 @@ export async function starboardConfigHandler(interaction: ChatInputCommandIntera
     const config = await configRepo.findOneBy({ guildId });
 
     if (!config) {
-      await interaction.reply({
-        content: tl.setup.notConfigured,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.setup.notConfigured);
       return;
     }
 
@@ -77,10 +74,7 @@ export async function starboardConfigHandler(interaction: ChatInputCommandIntera
       case 'threshold': {
         const num = Number.parseInt(value, 10);
         if (Number.isNaN(num) || num < 1 || num > 25) {
-          await interaction.reply({
-            content: tl.setup.thresholdRange,
-            flags: [MessageFlags.Ephemeral],
-          });
+          await replyEphemeralError(interaction, tl.setup.thresholdRange);
           return;
         }
         config.threshold = num;
@@ -120,10 +114,7 @@ export async function starboardToggleHandler(interaction: ChatInputCommandIntera
     const config = await configRepo.findOneBy({ guildId });
 
     if (!config) {
-      await interaction.reply({
-        content: tl.setup.notConfigured,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.setup.notConfigured);
       return;
     }
 

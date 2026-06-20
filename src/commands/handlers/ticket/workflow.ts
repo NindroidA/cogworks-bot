@@ -25,6 +25,7 @@ import {
   lang,
   MAX,
   REQUIRED_WORKFLOW_STATUSES,
+  replyEphemeralError,
   sanitizeUserInput,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -90,20 +91,14 @@ export async function ticketStatusHandler(interaction: ChatInputCommandInteracti
   // Check workflow enabled
   const { config, statuses } = await getWorkflowConfig(guildId);
   if (!config?.enableWorkflow) {
-    await interaction.reply({
-      content: tl.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 
   // Find ticket by channel
   const ticket = await getTicketByChannel(guildId, channelId);
   if (!ticket) {
-    await interaction.reply({
-      content: tl.notInTicket,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notInTicket);
     return;
   }
 
@@ -114,19 +109,13 @@ export async function ticketStatusHandler(interaction: ChatInputCommandInteracti
   const statusDef = findStatusById(statuses, newStatusId);
   if (!statusDef) {
     const validIds = statuses.map(s => `\`${s.id}\``).join(', ');
-    await interaction.reply({
-      content: formatLang(tl.invalidStatus, newStatusId, validIds),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.invalidStatus, newStatusId, validIds));
     return;
   }
 
   // Check if same
   if (currentStatus === newStatusId) {
-    await interaction.reply({
-      content: formatLang(tl.sameStatus, statusDef.label),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.sameStatus, statusDef.label));
     return;
   }
 
@@ -173,19 +162,13 @@ export async function ticketAssignHandler(interaction: ChatInputCommandInteracti
 
   const { config } = await getWorkflowConfig(guildId);
   if (!config?.enableWorkflow) {
-    await interaction.reply({
-      content: tl.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 
   const ticket = await getTicketByChannel(guildId, channelId);
   if (!ticket) {
-    await interaction.reply({
-      content: tl.notInTicket,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notInTicket);
     return;
   }
 
@@ -225,27 +208,18 @@ export async function ticketUnassignHandler(interaction: ChatInputCommandInterac
 
   const { config } = await getWorkflowConfig(guildId);
   if (!config?.enableWorkflow) {
-    await interaction.reply({
-      content: tl.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 
   const ticket = await getTicketByChannel(guildId, channelId);
   if (!ticket) {
-    await interaction.reply({
-      content: tl.notInTicket,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notInTicket);
     return;
   }
 
   if (!ticket.assignedTo) {
-    await interaction.reply({
-      content: tl.noAssignment,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.noAssignment);
     return;
   }
 
@@ -291,10 +265,7 @@ export async function ticketInfoHandler(interaction: ChatInputCommandInteraction
     .getOne();
 
   if (!ticket) {
-    await interaction.reply({
-      content: tl.notInTicket,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notInTicket);
     return;
   }
 
@@ -365,18 +336,12 @@ export async function workflowEnableHandler(interaction: ChatInputCommandInterac
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
   if (config.enableWorkflow) {
-    await interaction.reply({
-      content: tl.alreadyEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.alreadyEnabled);
     return;
   }
 
@@ -406,18 +371,12 @@ export async function workflowDisableHandler(interaction: ChatInputCommandIntera
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
   if (!config.enableWorkflow) {
-    await interaction.reply({
-      content: tl.alreadyDisabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.alreadyDisabled);
     return;
   }
 
@@ -447,18 +406,12 @@ export async function workflowAddStatusHandler(interaction: ChatInputCommandInte
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
   if (!config.enableWorkflow) {
-    await interaction.reply({
-      content: tl.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 
@@ -468,10 +421,7 @@ export async function workflowAddStatusHandler(interaction: ChatInputCommandInte
 
   // Validate ID format
   if (!STATUS_ID_REGEX.test(statusId)) {
-    await interaction.reply({
-      content: tl.invalidStatusId,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.invalidStatusId);
     return;
   }
 
@@ -479,19 +429,13 @@ export async function workflowAddStatusHandler(interaction: ChatInputCommandInte
 
   // Check max
   if (statuses.length >= MAX.TICKET_WORKFLOW_STATUSES) {
-    await interaction.reply({
-      content: formatLang(tl.maxStatuses, MAX.TICKET_WORKFLOW_STATUSES),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.maxStatuses, MAX.TICKET_WORKFLOW_STATUSES));
     return;
   }
 
   // Check duplicate
   if (statuses.some(s => s.id === statusId)) {
-    await interaction.reply({
-      content: formatLang(tl.statusExists, statusId),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.statusExists, statusId));
     return;
   }
 
@@ -537,18 +481,12 @@ export async function workflowRemoveStatusHandler(interaction: ChatInputCommandI
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
   if (!config.enableWorkflow) {
-    await interaction.reply({
-      content: tl.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 
@@ -556,10 +494,7 @@ export async function workflowRemoveStatusHandler(interaction: ChatInputCommandI
 
   // Check if required
   if (REQUIRED_WORKFLOW_STATUSES.includes(statusId)) {
-    await interaction.reply({
-      content: formatLang(tl.cannotRemoveRequired, statusId),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.cannotRemoveRequired, statusId));
     return;
   }
 
@@ -609,18 +544,12 @@ export async function autoCloseEnableHandler(interaction: ChatInputCommandIntera
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
   if (!config.enableWorkflow) {
-    await interaction.reply({
-      content: tl.autoCloseRequiresWorkflow,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.autoCloseRequiresWorkflow);
     return;
   }
 
@@ -659,10 +588,7 @@ export async function autoCloseDisableHandler(interaction: ChatInputCommandInter
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 

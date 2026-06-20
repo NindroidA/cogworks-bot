@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
-import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
+import { handleInteractionError, lang, replyEphemeralError, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
@@ -14,10 +14,7 @@ export async function statusHandler(_client: Client, interaction: ChatInputComma
     );
 
     if (!config) {
-      await interaction.reply({
-        content: tl.notConfigured,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.notConfigured);
       return;
     }
 

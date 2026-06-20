@@ -1,5 +1,5 @@
-import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import { guardFeatureRateLimit, handleInteractionError, lang, RateLimits } from '../../../utils';
+import type { ChatInputCommandInteraction, Client } from 'discord.js';
+import { guardFeatureRateLimit, handleInteractionError, lang, RateLimits, replyEphemeralError } from '../../../utils';
 import { detectionHandler } from './detection';
 import { dmNotifyHandler } from './dmNotify';
 import { escalationHandler } from './escalation';
@@ -47,10 +47,7 @@ export async function baitChannelHandler(client: Client, interaction: ChatInputC
             await statusHandler(client, interaction);
             break;
           default:
-            await interaction.reply({
-              content: lang.errors.unknownSubcommand,
-              flags: [MessageFlags.Ephemeral],
-            });
+            await replyEphemeralError(interaction, lang.errors.unknownSubcommand);
         }
         break;
 
@@ -72,10 +69,7 @@ export async function baitChannelHandler(client: Client, interaction: ChatInputC
             await testModeHandler(client, interaction);
             break;
           default:
-            await interaction.reply({
-              content: lang.errors.unknownSubcommand,
-              flags: [MessageFlags.Ephemeral],
-            });
+            await replyEphemeralError(interaction, lang.errors.unknownSubcommand);
         }
         break;
 
@@ -103,18 +97,12 @@ export async function baitChannelHandler(client: Client, interaction: ChatInputC
             await overrideHandler(client, interaction);
             break;
           default:
-            await interaction.reply({
-              content: lang.errors.unknownSubcommand,
-              flags: [MessageFlags.Ephemeral],
-            });
+            await replyEphemeralError(interaction, lang.errors.unknownSubcommand);
         }
         break;
 
       default:
-        await interaction.reply({
-          content: lang.errors.unknownSubcommand,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, lang.errors.unknownSubcommand);
     }
   } catch (error) {
     await handleInteractionError(interaction, error, 'Failed to execute bait channel command');

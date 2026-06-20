@@ -1,7 +1,7 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import onboardingLang from '../../../lang/en/onboarding.json';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
-import { enhancedLogger, formatLang } from '../../../utils';
+import { enhancedLogger, formatLang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import type { OnboardingStepDef, OnboardingStepType } from '../../../utils/onboarding/types';
 
@@ -40,10 +40,7 @@ export async function stepAddHandler(_client: Client, interaction: ChatInputComm
   const steps = config.steps || [];
 
   if (steps.length >= MAX_STEPS) {
-    await interaction.reply({
-      content: tl.step.maxReached,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.step.maxReached);
     return;
   }
 
@@ -51,10 +48,7 @@ export async function stepAddHandler(_client: Client, interaction: ChatInputComm
 
   // Check for duplicate ID
   if (steps.some(s => s.id === stepId)) {
-    await interaction.reply({
-      content: tl.step.duplicateId,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.step.duplicateId);
     return;
   }
 
@@ -87,19 +81,13 @@ export async function stepRemoveHandler(_client: Client, interaction: ChatInputC
 
   const config = await configRepo.findOneBy({ guildId });
   if (!config?.steps || config.steps.length === 0) {
-    await interaction.reply({
-      content: tl.step.notFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.step.notFound);
     return;
   }
 
   const index = config.steps.findIndex(s => s.id === stepId);
   if (index === -1) {
-    await interaction.reply({
-      content: tl.step.notFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.step.notFound);
     return;
   }
 

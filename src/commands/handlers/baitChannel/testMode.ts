@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFla
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
+import { handleInteractionError, lang, replyEphemeralError, safeDbOperation } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
@@ -18,10 +18,7 @@ export async function testModeHandler(client: Client, interaction: ChatInputComm
     );
 
     if (!config) {
-      await interaction.reply({
-        content: tl.setupFirst,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.setupFirst);
       return;
     }
 

@@ -1,6 +1,6 @@
-import { type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
+import type { ChatInputCommandInteraction } from 'discord.js';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { guardFeatureAccess, handleInteractionError, lang } from '../../../utils';
+import { guardFeatureAccess, handleInteractionError, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { createFieldHandlers, type FieldManagerConfig } from '../shared/fieldManagerCore';
 
@@ -118,10 +118,7 @@ export async function applicationFieldsHandler(interaction: ChatInputCommandInte
     });
 
     if (!position) {
-      await interaction.reply({
-        content: pl.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, pl.notFound);
       return;
     }
 

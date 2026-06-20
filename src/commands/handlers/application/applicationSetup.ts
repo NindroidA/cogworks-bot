@@ -18,6 +18,7 @@ import {
   LogCategory,
   lang,
   RateLimits,
+  replyEphemeralError,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import type { ConfigItem } from '../../../utils/setup/configStatusEmbed';
@@ -208,9 +209,6 @@ export async function applicationSetupHandler(_client: Client, interaction: Chat
     });
   } catch (error) {
     enhancedLogger.error('Application setup failed', error as Error, LogCategory.COMMAND_EXECUTION, { guildId });
-    await interaction.reply({
-      content: tl.fail,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.fail);
   }
 }

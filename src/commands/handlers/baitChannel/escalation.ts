@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFla
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
+import { handleInteractionError, lang, replyEphemeralError, safeDbOperation } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
@@ -18,10 +18,7 @@ export async function escalationHandler(client: Client, interaction: ChatInputCo
     );
 
     if (!config) {
-      await interaction.reply({
-        content: tl.notConfigured,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.notConfigured);
       return;
     }
 
@@ -78,10 +75,10 @@ export async function escalationHandler(client: Client, interaction: ChatInputCo
 
         // Validate strictly ascending
         if (!(newLog < newTimeout && newTimeout < newKick && newKick < newBan)) {
-          await interaction.reply({
-            content: `${tl.escalation.invalidThresholds}\nCurrent values: log=${newLog}, timeout=${newTimeout}, kick=${newKick}, ban=${newBan}`,
-            flags: [MessageFlags.Ephemeral],
-          });
+          await replyEphemeralError(
+            interaction,
+            `${tl.escalation.invalidThresholds}\nCurrent values: log=${newLog}, timeout=${newTimeout}, kick=${newKick}, ban=${newBan}`,
+          );
           return;
         }
 
@@ -120,10 +117,7 @@ export async function escalationHandler(client: Client, interaction: ChatInputCo
       }
 
       default:
-        await interaction.reply({
-          content: lang.errors.unknownSubcommand,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, lang.errors.unknownSubcommand);
     }
   } catch (error) {
     await handleInteractionError(interaction, error, 'Failed to update escalation settings');

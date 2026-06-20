@@ -2,7 +2,16 @@ import { type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'di
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { Colors, E, enhancedLogger, formatLang, guardFeatureAccess, LogCategory, lang } from '../../../utils';
+import {
+  Colors,
+  E,
+  enhancedLogger,
+  formatLang,
+  guardFeatureAccess,
+  LogCategory,
+  lang,
+  replyEphemeralError,
+} from '../../../utils';
 import { builtinTypeInfo, isBuiltinTicketType, resolveBuiltinPingColumn } from '../../../utils/ticket/builtinTypes';
 
 const tl = lang.ticket.settings;
@@ -18,10 +27,7 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
     enhancedLogger.warn('Settings handler: guild not found', LogCategory.COMMAND_EXECUTION, {
       userId: interaction.user.id,
     });
-    await interaction.reply({
-      content: lang.general.cmdGuildNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.general.cmdGuildNotFound);
     return;
   }
 
@@ -49,10 +55,7 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
       userId: interaction.user.id,
       guildId,
     });
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
@@ -84,10 +87,7 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
         userId: interaction.user.id,
         guildId,
       });
-      await interaction.reply({
-        content: tl.typeRequired,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.typeRequired);
       return;
     }
 
@@ -113,10 +113,7 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
           guildId,
           typeId,
         });
-        await interaction.reply({
-          content: formatLang(tl.typeNotFound, typeId),
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, formatLang(tl.typeNotFound, typeId));
         return;
       }
 

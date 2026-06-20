@@ -5,7 +5,14 @@
  */
 
 import { AutoModerationRuleTriggerType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import { enhancedLogger, formatLang, handleInteractionError, LogCategory, lang } from '../../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  handleInteractionError,
+  LogCategory,
+  lang,
+  replyEphemeralError,
+} from '../../../utils';
 import {
   fetchAutoModRules,
   MAX_KEYWORDS_PER_RULE,
@@ -66,36 +73,24 @@ async function handleKeywordAdd(interaction: ChatInputCommandInteraction): Promi
     const rule = rules.get(ruleId);
 
     if (!rule) {
-      await interaction.reply({
-        content: tl.error.ruleNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.error.ruleNotFound);
       return;
     }
 
     if (rule.triggerType !== AutoModerationRuleTriggerType.Keyword) {
-      await interaction.reply({
-        content: tl.keyword.add.ruleNotKeyword,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.keyword.add.ruleNotKeyword);
       return;
     }
 
     const existingKeywords = rule.triggerMetadata.keywordFilter ?? [];
 
     if (existingKeywords.length >= MAX_KEYWORDS_PER_RULE) {
-      await interaction.reply({
-        content: tl.keyword.add.limitReached,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.keyword.add.limitReached);
       return;
     }
 
     if (existingKeywords.includes(keyword)) {
-      await interaction.reply({
-        content: formatLang(tl.keyword.add.alreadyExists, keyword),
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, formatLang(tl.keyword.add.alreadyExists, keyword));
       return;
     }
 
@@ -133,18 +128,12 @@ async function handleKeywordRemove(interaction: ChatInputCommandInteraction): Pr
     const rule = rules.get(ruleId);
 
     if (!rule) {
-      await interaction.reply({
-        content: tl.error.ruleNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.error.ruleNotFound);
       return;
     }
 
     if (rule.triggerType !== AutoModerationRuleTriggerType.Keyword) {
-      await interaction.reply({
-        content: tl.keyword.remove.ruleNotKeyword,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.keyword.remove.ruleNotKeyword);
       return;
     }
 
@@ -152,10 +141,7 @@ async function handleKeywordRemove(interaction: ChatInputCommandInteraction): Pr
     const index = existingKeywords.indexOf(keyword);
 
     if (index === -1) {
-      await interaction.reply({
-        content: formatLang(tl.keyword.remove.notFound, keyword),
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, formatLang(tl.keyword.remove.notFound, keyword));
       return;
     }
 
@@ -199,26 +185,17 @@ async function handleRegexAdd(interaction: ChatInputCommandInteraction): Promise
     const rule = rules.get(ruleId);
 
     if (!rule) {
-      await interaction.reply({
-        content: tl.error.ruleNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.error.ruleNotFound);
       return;
     }
 
     if (rule.triggerType !== AutoModerationRuleTriggerType.Keyword) {
-      await interaction.reply({
-        content: tl.regex.add.ruleNotKeyword,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.regex.add.ruleNotKeyword);
       return;
     }
 
     if (pattern.length > MAX_REGEX_LENGTH) {
-      await interaction.reply({
-        content: formatLang(tl.regex.add.tooLong, pattern.length),
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, formatLang(tl.regex.add.tooLong, pattern.length));
       return;
     }
 
@@ -226,28 +203,19 @@ async function handleRegexAdd(interaction: ChatInputCommandInteraction): Promise
     // Safe: pattern is length-bounded so ReDoS complexity is bounded
     const isValidRegex = validateRegexSyntax(pattern);
     if (!isValidRegex) {
-      await interaction.reply({
-        content: tl.regex.add.invalid,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.regex.add.invalid);
       return;
     }
 
     const existingPatterns = rule.triggerMetadata.regexPatterns ?? [];
 
     if (existingPatterns.length >= MAX_REGEX_PER_RULE) {
-      await interaction.reply({
-        content: tl.regex.add.limitReached,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.regex.add.limitReached);
       return;
     }
 
     if (existingPatterns.includes(pattern)) {
-      await interaction.reply({
-        content: tl.regex.add.alreadyExists,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.regex.add.alreadyExists);
       return;
     }
 
@@ -285,28 +253,19 @@ async function handleRegexRemove(interaction: ChatInputCommandInteraction): Prom
     const rule = rules.get(ruleId);
 
     if (!rule) {
-      await interaction.reply({
-        content: tl.error.ruleNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.error.ruleNotFound);
       return;
     }
 
     if (rule.triggerType !== AutoModerationRuleTriggerType.Keyword) {
-      await interaction.reply({
-        content: tl.regex.remove.ruleNotKeyword,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.regex.remove.ruleNotKeyword);
       return;
     }
 
     const existingPatterns = rule.triggerMetadata.regexPatterns ?? [];
 
     if (!existingPatterns.includes(pattern)) {
-      await interaction.reply({
-        content: tl.regex.remove.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.regex.remove.notFound);
       return;
     }
 
@@ -345,10 +304,7 @@ async function handleExemptAdd(interaction: ChatInputCommandInteraction): Promis
   const channel = interaction.options.getChannel('channel');
 
   if (!role && !channel) {
-    await interaction.reply({
-      content: tl.exempt.add.specifyRoleOrChannel,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.exempt.add.specifyRoleOrChannel);
     return;
   }
 
@@ -357,10 +313,7 @@ async function handleExemptAdd(interaction: ChatInputCommandInteraction): Promis
     const rule = rules.get(ruleId);
 
     if (!rule) {
-      await interaction.reply({
-        content: tl.error.ruleNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.error.ruleNotFound);
       return;
     }
 
@@ -369,10 +322,7 @@ async function handleExemptAdd(interaction: ChatInputCommandInteraction): Promis
 
     if (role) {
       if (exemptRoles.includes(role.id)) {
-        await interaction.reply({
-          content: tl.exempt.add.alreadyExempt,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, tl.exempt.add.alreadyExempt);
         return;
       }
       exemptRoles.push(role.id);
@@ -380,10 +330,7 @@ async function handleExemptAdd(interaction: ChatInputCommandInteraction): Promis
 
     if (channel) {
       if (exemptChannels.includes(channel.id)) {
-        await interaction.reply({
-          content: tl.exempt.add.alreadyExempt,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, tl.exempt.add.alreadyExempt);
         return;
       }
       exemptChannels.push(channel.id);
@@ -417,10 +364,7 @@ async function handleExemptRemove(interaction: ChatInputCommandInteraction): Pro
   const channel = interaction.options.getChannel('channel');
 
   if (!role && !channel) {
-    await interaction.reply({
-      content: tl.exempt.remove.specifyRoleOrChannel,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.exempt.remove.specifyRoleOrChannel);
     return;
   }
 
@@ -429,10 +373,7 @@ async function handleExemptRemove(interaction: ChatInputCommandInteraction): Pro
     const rule = rules.get(ruleId);
 
     if (!rule) {
-      await interaction.reply({
-        content: tl.error.ruleNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.error.ruleNotFound);
       return;
     }
 
@@ -441,10 +382,7 @@ async function handleExemptRemove(interaction: ChatInputCommandInteraction): Pro
 
     if (role) {
       if (!exemptRoles.includes(role.id)) {
-        await interaction.reply({
-          content: tl.exempt.remove.notExempt,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, tl.exempt.remove.notExempt);
         return;
       }
       exemptRoles = exemptRoles.filter(id => id !== role.id);
@@ -452,10 +390,7 @@ async function handleExemptRemove(interaction: ChatInputCommandInteraction): Pro
 
     if (channel) {
       if (!exemptChannels.includes(channel.id)) {
-        await interaction.reply({
-          content: tl.exempt.remove.notExempt,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, tl.exempt.remove.notExempt);
         return;
       }
       exemptChannels = exemptChannels.filter(id => id !== channel.id);

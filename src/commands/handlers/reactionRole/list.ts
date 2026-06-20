@@ -1,6 +1,6 @@
 import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
-import { Colors, enhancedLogger, guardFeatureAccess, LogCategory, lang } from '../../../utils';
+import { Colors, enhancedLogger, guardFeatureAccess, LogCategory, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.reactionRole;
@@ -55,9 +55,6 @@ export async function reactionRoleListHandler(interaction: ChatInputCommandInter
     enhancedLogger.error('Failed to list reaction role menus', error as Error, LogCategory.COMMAND_EXECUTION, {
       guildId,
     });
-    await interaction.reply({
-      content: tl.list.error,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.list.error);
   }
 }

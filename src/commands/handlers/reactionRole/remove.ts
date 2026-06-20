@@ -7,6 +7,7 @@ import {
   LogCategory,
   lang,
   RateLimits,
+  replyEphemeralError,
   updateMenuMessage,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -37,20 +38,14 @@ export async function reactionRoleRemoveHandler(interaction: ChatInputCommandInt
       relations: { options: true },
     });
     if (!menu) {
-      await interaction.reply({
-        content: tl.errors.menuNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.errors.menuNotFound);
       return;
     }
 
     // Find the option by emoji
     const option = menu.options.find(o => o.emoji === emoji);
     if (!option) {
-      await interaction.reply({
-        content: tl.remove.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.remove.notFound);
       return;
     }
 
@@ -84,9 +79,6 @@ export async function reactionRoleRemoveHandler(interaction: ChatInputCommandInt
     enhancedLogger.error('Failed to remove reaction role option', error as Error, LogCategory.COMMAND_EXECUTION, {
       guildId,
     });
-    await interaction.reply({
-      content: tl.remove.error,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.remove.error);
   }
 }

@@ -9,7 +9,7 @@ import {
 } from 'discord.js';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
-import { enhancedLogger, LogCategory, lang } from '../../utils';
+import { enhancedLogger, LogCategory, lang, replyEphemeralError } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
 import { archiveAndCloseTicket } from '../../utils/ticket/closeWorkflow';
 
@@ -67,11 +67,8 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
     );
     const notify =
       interaction.replied || interaction.deferred
-        ? interaction.editReply({ content: tl.transcriptCreate.error })
-        : interaction.reply({
-            content: tl.transcriptCreate.error,
-            flags: [MessageFlags.Ephemeral],
-          });
+        ? replyEphemeralError(interaction, tl.transcriptCreate.error)
+        : replyEphemeralError(interaction, tl.transcriptCreate.error);
     await notify.catch((err: unknown) => {
       enhancedLogger.error(
         'Failed to deliver ticket-close failure notice to the user',

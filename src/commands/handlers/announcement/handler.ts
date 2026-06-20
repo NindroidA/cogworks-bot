@@ -11,7 +11,6 @@ import {
   type CacheType,
   type ChatInputCommandInteraction,
   type Client,
-  MessageFlags,
   ModalBuilder,
   type ModalSubmitInteraction,
   NewsChannel,
@@ -30,6 +29,7 @@ import {
   lang,
   parseTimeInput,
   RateLimits,
+  replyEphemeralError,
   showAndAwaitModal,
 } from '../../../utils';
 import {
@@ -66,10 +66,7 @@ export async function announcementHandler(client: Client, interaction: ChatInput
     // Config check
     const config = await announcementConfigRepo.findOneBy({ guildId });
     if (!config) {
-      await interaction.reply({
-        content: tl.setup.notConfigured,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.setup.notConfigured);
       return;
     }
 
@@ -81,17 +78,11 @@ export async function announcementHandler(client: Client, interaction: ChatInput
       return;
     }
 
-    await interaction.reply({
-      content: tlErr.unknownSubcommand,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tlErr.unknownSubcommand);
   } catch (error) {
     enhancedLogger.error(tl.error + error, undefined, LogCategory.COMMAND_EXECUTION);
     if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({
-        content: tl.fail,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.fail);
     }
   }
 }
@@ -115,10 +106,7 @@ async function handleTemplateSend(
     name: templateName,
   });
   if (!template) {
-    await interaction.reply({
-      content: tl.send.templateNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.send.templateNotFound);
     return;
   }
 
@@ -177,7 +165,7 @@ async function handleTemplateSend(
           if (!Number.isNaN(unix)) {
             params.time = unix;
           } else {
-            await modalInteraction.reply({ content: tl.invalidTime, flags: [MessageFlags.Ephemeral] });
+            await replyEphemeralError(modalInteraction, tl.invalidTime);
             return;
           }
         }
@@ -207,10 +195,7 @@ async function resolveTargetChannel(
     : await client.channels.fetch(config.defaultChannelId);
 
   if (!targetChannel || !(targetChannel instanceof TextChannel || targetChannel instanceof NewsChannel)) {
-    await interaction.reply({
-      content: tl.setup.invalidChannel,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.setup.invalidChannel);
     return null;
   }
 

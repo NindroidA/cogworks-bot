@@ -24,6 +24,7 @@ import {
   guardFeatureAccess,
   LogCategory,
   lang,
+  replyEphemeralError,
   sanitizeUserInput,
   showAndAwaitModal,
 } from '../../../utils';
@@ -65,10 +66,7 @@ export async function eventTemplateHandler(
       await handleList(interaction, guildId);
       break;
     default:
-      await interaction.reply({
-        content: lang.errors.unknownSubcommand,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, lang.errors.unknownSubcommand);
   }
 }
 
@@ -79,10 +77,7 @@ export async function eventTemplateHandler(
 async function handleCreate(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
   const count = await templateRepo.count({ where: { guildId } });
   if (count >= MAX_EVENT_TEMPLATES) {
-    await interaction.reply({
-      content: tl.create.limitReached,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.create.limitReached);
     return;
   }
 
@@ -148,10 +143,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction<CacheType>,
 
   // Validate name
   if (!TEMPLATE_NAME_RE.test(name)) {
-    await modalInteraction.reply({
-      content: tl.create.invalidName,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(modalInteraction, tl.create.invalidName);
     return;
   }
 
@@ -166,10 +158,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction<CacheType>,
   // Check duplicate
   const existing = await templateRepo.findOneBy({ guildId, name });
   if (existing) {
-    await modalInteraction.reply({
-      content: tl.create.duplicate,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(modalInteraction, tl.create.duplicate);
     return;
   }
 
@@ -196,10 +185,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction<CacheType>,
     enhancedLogger.error('Event template create failed', error as Error, LogCategory.COMMAND_EXECUTION, {
       guildId,
     });
-    await modalInteraction.reply({
-      content: tl.create.error,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(modalInteraction, tl.create.error);
   }
 }
 
@@ -215,10 +201,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction<CacheType>, g
   });
 
   if (!template) {
-    await interaction.reply({
-      content: tl.edit.notFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.edit.notFound);
     return;
   }
 
@@ -309,10 +292,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction<CacheType>, g
     enhancedLogger.error('Event template edit failed', error as Error, LogCategory.COMMAND_EXECUTION, {
       guildId,
     });
-    await modalInteraction.reply({
-      content: tl.edit.error,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(modalInteraction, tl.edit.error);
   }
 }
 
@@ -328,10 +308,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction<CacheType>,
   });
 
   if (!template) {
-    await interaction.reply({
-      content: tl.delete.notFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.delete.notFound);
     return;
   }
 

@@ -1,6 +1,13 @@
 import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { StaffRole } from '../../../typeorm/entities/StaffRole';
-import { enhancedLogger, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
+import {
+  enhancedLogger,
+  guardAdminRateLimit,
+  LogCategory,
+  lang,
+  RateLimits,
+  replyEphemeralError,
+} from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.getRoles;
@@ -21,10 +28,7 @@ export async function roleListHandler(interaction: ChatInputCommandInteraction<C
 
   // check to see if the discord server has any saved roles
   if (!guildFinder) {
-    await interaction.reply({
-      content: tl.noGuild,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.noGuild);
     return;
   }
 
@@ -84,9 +88,6 @@ export async function roleListHandler(interaction: ChatInputCommandInteraction<C
     enhancedLogger.error('Failed to list roles', error as Error, LogCategory.COMMAND_EXECUTION, {
       guildId,
     });
-    await interaction.reply({
-      content: tl.fail,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.fail);
   }
 }

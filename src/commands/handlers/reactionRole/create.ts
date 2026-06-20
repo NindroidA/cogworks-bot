@@ -8,6 +8,7 @@ import {
   lang,
   MAX,
   RateLimits,
+  replyEphemeralError,
   sanitizeUserInput,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -29,10 +30,7 @@ export async function reactionRoleCreateHandler(interaction: ChatInputCommandInt
   // Check max menus per guild (25)
   const menuCount = await menuRepo.count({ where: { guildId } });
   if (menuCount >= MAX.REACTION_ROLE_MENUS) {
-    await interaction.reply({
-      content: tl.create.maxMenus,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.create.maxMenus);
     return;
   }
 
@@ -78,9 +76,6 @@ export async function reactionRoleCreateHandler(interaction: ChatInputCommandInt
     enhancedLogger.error('Failed to create reaction role menu', error as Error, LogCategory.COMMAND_EXECUTION, {
       guildId,
     });
-    await interaction.reply({
-      content: tl.create.error,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.create.error);
   }
 }

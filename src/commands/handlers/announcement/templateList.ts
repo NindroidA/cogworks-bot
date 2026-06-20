@@ -28,6 +28,7 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
+  replyEphemeralError,
   showAndAwaitModal,
 } from '../../../utils';
 import { detectDynamicPlaceholders, renderPreview } from '../../../utils/announcement/templateEngine';
@@ -131,12 +132,12 @@ export async function templateListHandler(interaction: ChatInputCommandInteracti
 
           const reload = await templateRepo.findOneBy({ guildId, name });
           if (!reload) {
-            await submit.reply({ content: lang.announcement.template.edit.notFound, flags: [MessageFlags.Ephemeral] });
+            await replyEphemeralError(submit, lang.announcement.template.edit.notFound);
             return;
           }
           const result = await applyTemplateEditSubmit(reload, submit.fields);
           if ('error' in result) {
-            await submit.reply({ content: result.error, flags: [MessageFlags.Ephemeral] });
+            await replyEphemeralError(submit, result.error);
             return;
           }
           enhancedLogger.command(`Template '${name}' edited (list view)`, i.user.id, guildId);
@@ -158,7 +159,7 @@ export async function templateListHandler(interaction: ChatInputCommandInteracti
             return;
           }
           if (target.isDefault) {
-            await i.reply({ content: lang.announcement.template.delete.isDefault, flags: [MessageFlags.Ephemeral] });
+            await replyEphemeralError(i, lang.announcement.template.delete.isDefault);
             return;
           }
           const confirm = await awaitConfirmation(i, {

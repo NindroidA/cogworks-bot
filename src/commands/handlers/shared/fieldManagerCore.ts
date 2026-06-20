@@ -24,6 +24,7 @@ import {
   LogCategory,
   lang,
   MAX,
+  replyEphemeralError,
   sanitizeUserInput,
   TEXT_LIMITS,
 } from '../../../utils';
@@ -292,10 +293,7 @@ export async function handleAddFieldModal<T extends FieldBearingEntity>(
 
     const entity = await config.findEntity(guildId, entityId);
     if (!entity) {
-      await interaction.reply({
-        content: `❌ ${config.messages.notFound}`,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, config.messages.notFound);
       return;
     }
 
@@ -329,19 +327,13 @@ export async function handleAddFieldModal<T extends FieldBearingEntity>(
 
     // Validate field ID
     if (!/^[a-z0-9_]+$/.test(fieldId)) {
-      await interaction.reply({
-        content: `❌ ${config.messages.invalidId}`,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, config.messages.invalidId);
       return;
     }
 
     // Validate field style
     if (fieldStyle !== 'short' && fieldStyle !== 'paragraph') {
-      await interaction.reply({
-        content: `❌ ${config.messages.invalidStyle}`,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, config.messages.invalidStyle);
       return;
     }
 
@@ -352,19 +344,13 @@ export async function handleAddFieldModal<T extends FieldBearingEntity>(
 
     // Check for duplicate field ID
     if (fields.some(f => f.id === fieldId)) {
-      await interaction.reply({
-        content: `❌ ${config.messages.duplicateId}`,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, config.messages.duplicateId);
       return;
     }
 
     // Check field limit
     if (fields.length >= MAX.CUSTOM_FIELDS_PER_ENTITY) {
-      await interaction.reply({
-        content: `❌ ${config.messages.maxReached}`,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, config.messages.maxReached);
       return;
     }
 
@@ -522,10 +508,7 @@ async function showModalPreview<T extends FieldBearingEntity>(
   const { prefix } = config;
 
   if (fields.length === 0) {
-    await interaction.reply({
-      content: `❌ ${fm.noFieldsToPreview}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, fm.noFieldsToPreview);
     return;
   }
 
@@ -566,10 +549,7 @@ async function handleDeleteField<T extends FieldBearingEntity>(
   const fieldIndex = fields.findIndex(f => f.id === fieldId);
 
   if (fieldIndex === -1) {
-    await interaction.reply({
-      content: `❌ ${config.messages.fieldNotFound}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, config.messages.fieldNotFound);
     return;
   }
 
@@ -604,20 +584,14 @@ async function handleMoveField<T extends FieldBearingEntity>(
   const fields = entity.customFields || [];
 
   if (fieldIndex < 0 || fieldIndex >= fields.length) {
-    await interaction.followUp({
-      content: `❌ ${fm.invalidFieldIndex}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, fm.invalidFieldIndex);
     return;
   }
 
   const newIndex = direction === 'up' ? fieldIndex - 1 : fieldIndex + 1;
 
   if (newIndex < 0 || newIndex >= fields.length) {
-    await interaction.followUp({
-      content: `❌ ${formatLang(fm.cannotMoveField, direction)}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(fm.cannotMoveField, direction));
     return;
   }
 
@@ -656,10 +630,7 @@ export async function handleFieldButton<T extends FieldBearingEntity>(
 
     const entity = await config.findEntity(guildId, entityId);
     if (!entity) {
-      await interaction.reply({
-        content: `❌ ${config.messages.notFound}`,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, config.messages.notFound);
       return;
     }
 
@@ -743,10 +714,7 @@ export async function handleFieldSelectMenu<T extends FieldBearingEntity>(
 
     const entity = await config.findEntity(guildId, entityId);
     if (!entity) {
-      await interaction.reply({
-        content: `❌ ${config.messages.notFound}`,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, config.messages.notFound);
       return;
     }
 
@@ -767,14 +735,9 @@ export async function handleFieldSelectMenu<T extends FieldBearingEntity>(
       await handleDeleteField(interaction, entity, config);
     }
   } catch {
-    await interaction
-      .reply({
-        content: `❌ ${fm.selectionError}`,
-        flags: [MessageFlags.Ephemeral],
-      })
-      .catch(() => {
-        // Interaction may have already been handled
-      });
+    await replyEphemeralError(interaction, fm.selectionError).catch(() => {
+      // Interaction may have already been handled
+    });
   }
 }
 

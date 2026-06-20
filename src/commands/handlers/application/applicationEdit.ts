@@ -8,7 +8,14 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { enhancedLogger, guardFeatureAccess, handleInteractionError, LogCategory, lang } from '../../../utils';
+import {
+  enhancedLogger,
+  guardFeatureAccess,
+  handleInteractionError,
+  LogCategory,
+  lang,
+  replyEphemeralError,
+} from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { updateApplicationMessage } from './applicationPosition';
 
@@ -33,10 +40,7 @@ export async function applicationEditHandler(interaction: ChatInputCommandIntera
     });
 
     if (!position) {
-      await interaction.reply({
-        content: pl.edit.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, pl.edit.notFound);
       return;
     }
 
@@ -112,10 +116,7 @@ export async function applicationEditModalHandler(
     });
 
     if (!position) {
-      await interaction.reply({
-        content: pl.edit.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, pl.edit.notFound);
       return;
     }
 

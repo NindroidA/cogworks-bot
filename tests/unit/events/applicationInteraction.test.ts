@@ -320,7 +320,7 @@ describe("handleApplicationInteraction", () => {
 
       expect(interaction._replyCalls).toHaveLength(1);
       expect(interaction._replyCalls[0]).toMatchObject({
-        content: "This position is no longer available.",
+        content: "❌ This position is no longer available.",
         flags: [MessageFlags.Ephemeral],
       });
     });
@@ -526,7 +526,7 @@ describe("handleApplicationInteraction", () => {
 
       expect(interaction._replyCalls).toHaveLength(1);
       expect(interaction._replyCalls[0]).toMatchObject({
-        content: "This command can only be used in a server!",
+        content: "❌ This command can only be used in a server!",
         flags: [MessageFlags.Ephemeral],
       });
     });
@@ -542,7 +542,7 @@ describe("handleApplicationInteraction", () => {
 
       expect(interaction._replyCalls).toHaveLength(1);
       expect(interaction._replyCalls[0]).toMatchObject({
-        content: "Application Category does not exist!",
+        content: "❌ Application Category does not exist!",
         flags: [MessageFlags.Ephemeral],
       });
     });
@@ -555,7 +555,7 @@ describe("handleApplicationInteraction", () => {
 
       expect(interaction._replyCalls).toHaveLength(1);
       expect(interaction._replyCalls[0]).toMatchObject({
-        content: "Application Category does not exist!",
+        content: "❌ Application Category does not exist!",
         flags: [MessageFlags.Ephemeral],
       });
     });
@@ -568,7 +568,7 @@ describe("handleApplicationInteraction", () => {
 
       expect(interaction._replyCalls).toHaveLength(1);
       expect(interaction._replyCalls[0]).toMatchObject({
-        content: "This position is no longer available.",
+        content: "❌ This position is no longer available.",
         flags: [MessageFlags.Ephemeral],
       });
     });
@@ -886,7 +886,7 @@ describe("handleApplicationInteraction", () => {
       await handleApplicationInteraction(mockClient, interaction as never);
 
       expect(interaction._replyCalls[0]).toMatchObject({
-        content: "This position is no longer available.",
+        content: "❌ This position is no longer available.",
       });
     });
   });

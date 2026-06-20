@@ -8,7 +8,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
-import { lang } from '../../../utils';
+import { lang, replyEphemeralError } from '../../../utils';
 import { importManager } from '../../../utils/import/importManager';
 
 const tl = lang.import.commands;
@@ -20,10 +20,7 @@ export async function importStatusHandler(interaction: ChatInputCommandInteracti
     case 'status': {
       const running = importManager.getRunningImport(guildId);
       if (!running) {
-        await interaction.reply({
-          content: tl.noImportRunning,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, tl.noImportRunning);
         return;
       }
 
@@ -47,10 +44,7 @@ export async function importStatusHandler(interaction: ChatInputCommandInteracti
       const history = await importManager.getHistory(guildId);
 
       if (history.length === 0) {
-        await interaction.reply({
-          content: tl.noHistory,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, tl.noHistory);
         return;
       }
 
@@ -87,10 +81,7 @@ export async function importStatusHandler(interaction: ChatInputCommandInteracti
           flags: [MessageFlags.Ephemeral],
         });
       } else {
-        await interaction.reply({
-          content: tl.noImportRunning,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, tl.noImportRunning);
       }
       break;
     }

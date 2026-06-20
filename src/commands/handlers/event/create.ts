@@ -23,6 +23,7 @@ import {
   guardFeatureAccess,
   LogCategory,
   parseTimeInput,
+  replyEphemeralError,
   sanitizeUserInput,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -81,10 +82,7 @@ export async function handleEventCreate(
 
   const config = await eventConfigRepo.findOneBy({ guildId });
   if (!config?.enabled) {
-    await interaction.reply({
-      content: tl.errors.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.errors.notEnabled);
     return;
   }
 
@@ -98,18 +96,12 @@ export async function handleEventCreate(
   // Parse start time
   const startDate = parseTimeInput(startInput);
   if (!startDate) {
-    await interaction.reply({
-      content: tl.create.invalidStart,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.create.invalidStart);
     return;
   }
 
   if (startDate <= new Date()) {
-    await interaction.reply({
-      content: tl.create.startInPast,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.create.startInPast);
     return;
   }
 
@@ -122,10 +114,7 @@ export async function handleEventCreate(
       : GuildScheduledEventEntityType.Voice;
 
   if (isExternal && !location) {
-    await interaction.reply({
-      content: tl.create.missingChannel,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.create.missingChannel);
     return;
   }
 
@@ -193,10 +182,7 @@ export async function handleFromTemplate(
 
   const config = await eventConfigRepo.findOneBy({ guildId });
   if (!config?.enabled) {
-    await interaction.reply({
-      content: tl.errors.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.errors.notEnabled);
     return;
   }
 
@@ -208,27 +194,18 @@ export async function handleFromTemplate(
     name: templateName,
   });
   if (!template) {
-    await interaction.reply({
-      content: tl.fromTemplate.templateNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.fromTemplate.templateNotFound);
     return;
   }
 
   const startDate = parseTimeInput(startInput);
   if (!startDate) {
-    await interaction.reply({
-      content: tl.create.invalidStart,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.create.invalidStart);
     return;
   }
 
   if (startDate <= new Date()) {
-    await interaction.reply({
-      content: tl.create.startInPast,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.create.startInPast);
     return;
   }
 
@@ -295,10 +272,7 @@ export async function handleEventCancel(
     const scheduledEvent = await interaction.guild.scheduledEvents.fetch(eventId).catch(() => null);
 
     if (!scheduledEvent) {
-      await interaction.reply({
-        content: tl.cancel.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.cancel.notFound);
       return;
     }
 
@@ -317,10 +291,7 @@ export async function handleEventCancel(
     enhancedLogger.error('Event cancel failed', error as Error, LogCategory.COMMAND_EXECUTION, {
       guildId,
     });
-    await interaction.reply({
-      content: tl.cancel.error,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.cancel.error);
   }
 }
 
@@ -340,10 +311,7 @@ export async function handleRecurring(
 
   const config = await eventConfigRepo.findOneBy({ guildId });
   if (!config?.enabled) {
-    await interaction.reply({
-      content: tl.errors.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.errors.notEnabled);
     return;
   }
 
@@ -356,27 +324,18 @@ export async function handleRecurring(
     name: templateName,
   });
   if (!template) {
-    await interaction.reply({
-      content: tl.recurring.templateNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.recurring.templateNotFound);
     return;
   }
 
   const startDate = parseTimeInput(startInput);
   if (!startDate) {
-    await interaction.reply({
-      content: tl.create.invalidStart,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.create.invalidStart);
     return;
   }
 
   if (startDate <= new Date()) {
-    await interaction.reply({
-      content: tl.create.startInPast,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.create.startInPast);
     return;
   }
 

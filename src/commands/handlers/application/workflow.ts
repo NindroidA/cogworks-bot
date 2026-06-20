@@ -27,6 +27,7 @@ import {
   lang,
   MAX,
   REQUIRED_APPLICATION_STATUSES,
+  replyEphemeralError,
   sanitizeUserInput,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -95,19 +96,13 @@ export async function applicationStatusHandler(interaction: ChatInputCommandInte
 
   const { config, statuses } = await getWorkflowConfig(guildId);
   if (!config?.enableWorkflow) {
-    await interaction.reply({
-      content: tl.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 
   const application = await getApplicationByChannel(guildId, channelId);
   if (!application) {
-    await interaction.reply({
-      content: tl.notInApplication,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notInApplication);
     return;
   }
 
@@ -117,18 +112,12 @@ export async function applicationStatusHandler(interaction: ChatInputCommandInte
   const statusDef = findStatusById(statuses, newStatusId);
   if (!statusDef) {
     const validIds = statuses.map(s => `\`${s.id}\``).join(', ');
-    await interaction.reply({
-      content: formatLang(tl.invalidStatus, newStatusId, validIds),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.invalidStatus, newStatusId, validIds));
     return;
   }
 
   if (currentStatus === newStatusId) {
-    await interaction.reply({
-      content: formatLang(tl.sameStatus, statusDef.label),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.sameStatus, statusDef.label));
     return;
   }
 
@@ -171,19 +160,13 @@ export async function applicationNoteHandler(interaction: ChatInputCommandIntera
 
   const { config } = await getWorkflowConfig(guildId);
   if (!config?.enableWorkflow) {
-    await interaction.reply({
-      content: tl.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 
   const application = await getApplicationByChannel(guildId, channelId);
   if (!application) {
-    await interaction.reply({
-      content: tl.notInApplication,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notInApplication);
     return;
   }
 
@@ -192,10 +175,7 @@ export async function applicationNoteHandler(interaction: ChatInputCommandIntera
   });
 
   if (noteText.length > 1000) {
-    await interaction.reply({
-      content: tl.noteTooLong,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.noteTooLong);
     return;
   }
 
@@ -240,27 +220,18 @@ export async function applicationClaimHandler(interaction: ChatInputCommandInter
 
   const { config } = await getWorkflowConfig(guildId);
   if (!config?.enableWorkflow) {
-    await interaction.reply({
-      content: tl.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 
   const application = await getApplicationByChannel(guildId, channelId);
   if (!application) {
-    await interaction.reply({
-      content: tl.notInApplication,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notInApplication);
     return;
   }
 
   if (application.reviewedBy) {
-    await interaction.reply({
-      content: formatLang(tl.alreadyClaimed, application.reviewedBy),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.alreadyClaimed, application.reviewedBy));
     return;
   }
 
@@ -307,10 +278,7 @@ export async function applicationInfoHandler(interaction: ChatInputCommandIntera
     .getOne();
 
   if (!application) {
-    await interaction.reply({
-      content: tl.notInApplication,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notInApplication);
     return;
   }
 
@@ -447,18 +415,12 @@ export async function applicationWorkflowEnableHandler(interaction: ChatInputCom
   const config = await applicationConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.application.applicationConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.application.applicationConfigNotFound);
     return;
   }
 
   if (config.enableWorkflow) {
-    await interaction.reply({
-      content: tl.alreadyEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.alreadyEnabled);
     return;
   }
 
@@ -488,18 +450,12 @@ export async function applicationWorkflowDisableHandler(interaction: ChatInputCo
   const config = await applicationConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.application.applicationConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.application.applicationConfigNotFound);
     return;
   }
 
   if (!config.enableWorkflow) {
-    await interaction.reply({
-      content: tl.alreadyDisabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.alreadyDisabled);
     return;
   }
 
@@ -528,18 +484,12 @@ export async function applicationWorkflowAddStatusHandler(interaction: ChatInput
   const config = await applicationConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.application.applicationConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.application.applicationConfigNotFound);
     return;
   }
 
   if (!config.enableWorkflow) {
-    await interaction.reply({
-      content: tl.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 
@@ -548,28 +498,19 @@ export async function applicationWorkflowAddStatusHandler(interaction: ChatInput
   const emoji = interaction.options.getString('emoji') || '\uD83D\uDD35';
 
   if (!STATUS_ID_REGEX.test(statusId)) {
-    await interaction.reply({
-      content: tl.invalidStatusId,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.invalidStatusId);
     return;
   }
 
   const statuses = config.workflowStatuses || [...DEFAULT_APPLICATION_STATUSES];
 
   if (statuses.length >= MAX.APPLICATION_WORKFLOW_STATUSES) {
-    await interaction.reply({
-      content: formatLang(tl.maxStatuses, MAX.APPLICATION_WORKFLOW_STATUSES),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.maxStatuses, MAX.APPLICATION_WORKFLOW_STATUSES));
     return;
   }
 
   if (statuses.some(s => s.id === statusId)) {
-    await interaction.reply({
-      content: formatLang(tl.statusExists, statusId),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.statusExists, statusId));
     return;
   }
 
@@ -615,28 +556,19 @@ export async function applicationWorkflowRemoveStatusHandler(interaction: ChatIn
   const config = await applicationConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.application.applicationConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.application.applicationConfigNotFound);
     return;
   }
 
   if (!config.enableWorkflow) {
-    await interaction.reply({
-      content: tl.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 
   const statusId = interaction.options.getString('status', true);
 
   if (REQUIRED_APPLICATION_STATUSES.includes(statusId)) {
-    await interaction.reply({
-      content: formatLang(tl.cannotRemoveRequired, statusId),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.cannotRemoveRequired, statusId));
     return;
   }
 

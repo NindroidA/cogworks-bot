@@ -9,6 +9,7 @@ import {
   lang,
   RateLimits,
   rateLimiter,
+  replyEphemeralError,
 } from '../utils';
 import { writeAuditLog } from '../utils/api/handlers/auditHelper';
 import { lazyRepo } from '../utils/database/lazyRepo';
@@ -230,10 +231,7 @@ export const handleSlashCommand = async (client: Client, interaction: ChatInputC
         // this pre-setup edge case.
         const glang = await getGuildLang(guildId);
         enhancedLogger.warn(glang.botConfig.notFound, LogCategory.COMMAND_EXECUTION);
-        await interaction.reply({
-          content: glang.botConfig.notFound,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, glang.botConfig.notFound);
       } else {
         await dispatchCommand(client, interaction, commandName);
       }

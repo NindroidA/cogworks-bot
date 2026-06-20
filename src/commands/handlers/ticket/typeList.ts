@@ -18,6 +18,7 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
+  replyEphemeralError,
   showAndAwaitModal,
 } from '../../../utils';
 import { buildTypeConfirmationEmbed } from './typeAdd';
@@ -81,10 +82,7 @@ export async function renderInteractiveTypeView(
     if (options.startWith === 'detail') {
       const target = types.find(t => t.typeId === options.typeId);
       if (!target) {
-        await interaction.reply({
-          content: lang.ticket.customTypes.typeEdit.notFound,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, lang.ticket.customTypes.typeEdit.notFound);
         return;
       }
       await interaction.reply({
@@ -216,19 +214,13 @@ export async function renderInteractiveTypeView(
 
           const parsed = parseTypeEditSubmit(submit);
           if ('error' in parsed) {
-            await submit.reply({
-              content: parsed.error,
-              flags: [MessageFlags.Ephemeral],
-            });
+            await replyEphemeralError(submit, parsed.error);
             return;
           }
 
           const reload = await typeRepo.findOne({ where: { guildId, typeId } });
           if (!reload) {
-            await submit.reply({
-              content: lang.ticket.customTypes.typeEdit.notFound,
-              flags: [MessageFlags.Ephemeral],
-            });
+            await replyEphemeralError(submit, lang.ticket.customTypes.typeEdit.notFound);
             return;
           }
           reload.displayName = parsed.fields.displayName;
@@ -264,12 +256,9 @@ export async function renderInteractiveTypeView(
         // (interaction expired, already replied) so the collector keeps
         // running for the rest of the 5-min window.
         if (!i.replied && !i.deferred) {
-          await i
-            .reply({
-              content: buildErrorMessage('Something went wrong while processing this action.'),
-              flags: [MessageFlags.Ephemeral],
-            })
-            .catch(() => undefined);
+          await replyEphemeralError(i, buildErrorMessage('Something went wrong while processing this action.')).catch(
+            () => undefined,
+          );
         }
       }
     });

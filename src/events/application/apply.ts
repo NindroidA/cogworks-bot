@@ -27,6 +27,7 @@ import {
   PermissionSets,
   RateLimits,
   rateLimiter,
+  replyEphemeralError,
 } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
 
@@ -95,7 +96,7 @@ export const applyButton = async (_client: Client, interaction: ButtonInteractio
   const position = await positionRepo.findOne({ where: { id: positionId, guildId, isActive: true } });
 
   if (!position) {
-    await interaction.reply({ content: pl.notAvailable, flags: [MessageFlags.Ephemeral] });
+    await replyEphemeralError(interaction, pl.notAvailable);
     return;
   }
 
@@ -178,19 +179,19 @@ export const submitApplicationModal = async (_client: Client, interaction: Modal
   });
 
   if (!guild) {
-    await interaction.reply({ content: lang.general.cmdGuildNotFound, flags: [MessageFlags.Ephemeral] });
+    await replyEphemeralError(interaction, lang.general.cmdGuildNotFound);
     return;
   }
 
   if (!category) {
-    await interaction.reply({ content: tl.applicationCategoryNotFound, flags: [MessageFlags.Ephemeral] });
+    await replyEphemeralError(interaction, tl.applicationCategoryNotFound);
     return;
   }
 
   const position = await positionRepo.findOne({ where: { id: positionId, guildId, isActive: true } });
 
   if (!position) {
-    await interaction.reply({ content: pl.notAvailable, flags: [MessageFlags.Ephemeral] });
+    await replyEphemeralError(interaction, pl.notAvailable);
     return;
   }
 
@@ -199,6 +200,7 @@ export const submitApplicationModal = async (_client: Client, interaction: Modal
   const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.APPLICATION_CREATE);
 
   if (!rateCheck.allowed) {
+    // rateCheck.message is string | undefined — kept inline (replyEphemeralError takes a string)
     await interaction.reply({ content: rateCheck.message, flags: [MessageFlags.Ephemeral] });
     enhancedLogger.warn(`User hit application creation rate limit`, LogCategory.SECURITY, {
       userId: interaction.user.id,
@@ -334,7 +336,7 @@ export const submitApplicationModal = async (_client: Client, interaction: Modal
     );
 
     if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: tl.failCreate, flags: [MessageFlags.Ephemeral] });
+      await replyEphemeralError(interaction, tl.failCreate);
     }
   }
 };

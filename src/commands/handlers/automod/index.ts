@@ -5,8 +5,8 @@
  * All subcommands require admin permissions.
  */
 
-import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import { guardFeatureRateLimit, handleInteractionError, lang, RateLimits } from '../../../utils';
+import type { ChatInputCommandInteraction, Client } from 'discord.js';
+import { guardFeatureRateLimit, handleInteractionError, lang, RateLimits, replyEphemeralError } from '../../../utils';
 import { backupHandler } from './backup';
 import { keywordHandler } from './keyword';
 import { ruleHandler } from './rule';
@@ -44,10 +44,7 @@ export async function automodHandler(client: Client, interaction: ChatInputComma
         break;
 
       default:
-        await interaction.reply({
-          content: lang.errors.unknownSubcommand,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, lang.errors.unknownSubcommand);
     }
   } catch (error) {
     await handleInteractionError(interaction, error, lang.automod.error.general);

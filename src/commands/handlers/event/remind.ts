@@ -8,7 +8,7 @@ import { type CacheType, type ChatInputCommandInteraction, type Client, MessageF
 import eventLang from '../../../lang/en/event.json';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
-import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory } from '../../../utils';
+import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const eventConfigRepo = lazyRepo(EventConfig);
@@ -28,18 +28,12 @@ export async function handleRemind(
 
   const config = await eventConfigRepo.findOneBy({ guildId });
   if (!config?.enabled) {
-    await interaction.reply({
-      content: eventLang.errors.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, eventLang.errors.notEnabled);
     return;
   }
 
   if (!config.reminderChannelId) {
-    await interaction.reply({
-      content: eventLang.setup.notConfigured,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, eventLang.setup.notConfigured);
     return;
   }
 
@@ -50,28 +44,19 @@ export async function handleRemind(
     const scheduledEvent = await interaction.guild.scheduledEvents.fetch(eventId).catch(() => null);
 
     if (!scheduledEvent) {
-      await interaction.reply({
-        content: tl.eventNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.eventNotFound);
       return;
     }
 
     if (!scheduledEvent.scheduledStartAt || scheduledEvent.scheduledStartAt <= new Date()) {
-      await interaction.reply({
-        content: tl.alreadyPast,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.alreadyPast);
       return;
     }
 
     const reminderAt = new Date(scheduledEvent.scheduledStartAt.getTime() - minutesBefore * 60 * 1000);
 
     if (reminderAt <= new Date()) {
-      await interaction.reply({
-        content: tl.alreadyPast,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.alreadyPast);
       return;
     }
 
@@ -98,9 +83,6 @@ export async function handleRemind(
     enhancedLogger.error('Event remind failed', error as Error, LogCategory.COMMAND_EXECUTION, {
       guildId,
     });
-    await interaction.reply({
-      content: tl.error,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.error);
   }
 }

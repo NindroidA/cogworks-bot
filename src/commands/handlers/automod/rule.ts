@@ -25,6 +25,7 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
+  replyEphemeralError,
   showAndAwaitModal,
 } from '../../../utils';
 import {
@@ -68,10 +69,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction): Promise<v
     // Check rule count
     const existingRules = await fetchAutoModRules(guild);
     if (existingRules.size >= MAX_AUTOMOD_RULES) {
-      await interaction.reply({
-        content: tl.rule.create.limitReached,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.rule.create.limitReached);
       return;
     }
 
@@ -150,10 +148,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
     const rule = rules.get(ruleId);
 
     if (!rule) {
-      await interaction.reply({
-        content: tl.rule.edit.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.rule.edit.notFound);
       return;
     }
 
@@ -209,10 +204,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
     const rule = rules.get(ruleId);
 
     if (!rule) {
-      await interaction.reply({
-        content: tl.rule.delete.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.rule.delete.notFound);
       return;
     }
 
@@ -254,10 +246,7 @@ async function handleList(interaction: ChatInputCommandInteraction): Promise<voi
     const rules = await fetchAutoModRules(guild);
 
     if (rules.size === 0) {
-      await interaction.reply({
-        content: tl.rule.list.empty,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.rule.list.empty);
       return;
     }
 

@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import xpLang from '../../../lang/en/xp.json';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
-import { enhancedLogger, handleInteractionError, LogCategory } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LogCategory, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { calculateLevel } from '../../../utils/xp/xpCalculator';
 
@@ -25,10 +25,7 @@ export async function xpAdminHandler(_client: Client, interaction: ChatInputComm
         await handleResetAll(interaction, guildId);
         break;
       default:
-        await interaction.reply({
-          content: 'Unknown subcommand.',
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, 'Unknown subcommand.');
     }
   } catch (error) {
     await handleInteractionError(interaction, error, 'Failed to execute XP admin command');
@@ -76,10 +73,7 @@ async function handleReset(interaction: ChatInputCommandInteraction, guildId: st
   });
 
   if (!xpUser) {
-    await interaction.reply({
-      content: xpLang.admin.noXpData.replace('{0}', targetUser.displayName),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, xpLang.admin.noXpData.replace('{0}', targetUser.displayName));
     return;
   }
 

@@ -15,6 +15,7 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
+  replyEphemeralError,
 } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeRemove;
@@ -49,10 +50,7 @@ export async function typeRemoveHandler(interaction: ChatInputCommandInteraction
         guildId,
         typeId,
       });
-      await interaction.reply({
-        content: tl.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.notFound);
       return;
     }
 

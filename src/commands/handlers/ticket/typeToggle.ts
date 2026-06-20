@@ -8,6 +8,7 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
+  replyEphemeralError,
 } from '../../../utils';
 import { BUILTIN_TICKET_TYPE_IDS, BUILTIN_TYPES } from '../../../utils/ticket/builtinTypes';
 
@@ -43,10 +44,7 @@ export async function typeToggleHandler(interaction: ChatInputCommandInteraction
         guildId,
         typeId,
       });
-      await interaction.reply({
-        content: tl.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.notFound);
       return;
     }
 

@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFla
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
+import { handleInteractionError, lang, replyEphemeralError, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
@@ -19,10 +19,7 @@ export async function whitelistHandler(client: Client, interaction: ChatInputCom
     );
 
     if (!config) {
-      await interaction.reply({
-        content: tl.setupFirst,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.setupFirst);
       return;
     }
 
@@ -55,10 +52,7 @@ export async function whitelistHandler(client: Client, interaction: ChatInputCom
     const targetUser = user || (action === 'remove' ? interaction.user : null);
 
     if (!role && !targetUser) {
-      await interaction.reply({
-        content: tl.specifyRoleOrUser,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.specifyRoleOrUser);
       return;
     }
 
@@ -115,18 +109,12 @@ export async function whitelistHandler(client: Client, interaction: ChatInputCom
       const target = role
         ? tl.whitelist.role.replace('{0}', role.name)
         : tl.whitelist.user.replace('{0}', targetUser!.tag);
-      await interaction.reply({
-        content: tl.whitelist.alreadyAdded.replace('{0}', target),
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.whitelist.alreadyAdded.replace('{0}', target));
     } else if (notInList) {
       const target = role
         ? tl.whitelist.role.replace('{0}', role.name)
         : tl.whitelist.user.replace('{0}', targetUser!.tag);
-      await interaction.reply({
-        content: tl.whitelist.notInList.replace('{0}', target),
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.whitelist.notInList.replace('{0}', target));
     }
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.updateWhitelist);

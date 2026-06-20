@@ -8,6 +8,7 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
+  replyEphemeralError,
 } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeDefault;
@@ -42,10 +43,7 @@ export async function typeDefaultHandler(interaction: ChatInputCommandInteractio
         guildId,
         typeId,
       });
-      await interaction.reply({
-        content: tl.notFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.notFound);
       return;
     }
 
@@ -55,10 +53,7 @@ export async function typeDefaultHandler(interaction: ChatInputCommandInteractio
         guildId,
         typeId,
       });
-      await interaction.reply({
-        content: tl.mustBeActive,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.mustBeActive);
       return;
     }
 

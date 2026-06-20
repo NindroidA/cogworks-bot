@@ -10,6 +10,7 @@ import {
   LogCategory,
   lang,
   RateLimits,
+  replyEphemeralError,
   safeDbOperation,
   showAndAwaitModal,
 } from '../../../utils';
@@ -39,10 +40,7 @@ export async function settingsHandler(client: Client, interaction: ChatInputComm
     const config = await safeDbOperation(() => configRepo.findOneBy({ guildId }), 'Find bait channel config');
 
     if (!config) {
-      await interaction.reply({
-        content: tl.setupFirst,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.setupFirst);
       return;
     }
 

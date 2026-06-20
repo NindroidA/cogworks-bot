@@ -1,7 +1,7 @@
 import type { CacheType, ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { StarboardEntry } from '../../../typeorm/entities/starboard';
-import { handleInteractionError, lang } from '../../../utils';
+import { handleInteractionError, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const entryRepo = lazyRepo(StarboardEntry);
@@ -19,10 +19,7 @@ export async function starboardStatsHandler(interaction: ChatInputCommandInterac
     });
 
     if (entries.length === 0) {
-      await interaction.reply({
-        content: tl.stats.noEntries,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.stats.noEntries);
       return;
     }
 

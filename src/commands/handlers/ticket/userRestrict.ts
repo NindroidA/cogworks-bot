@@ -18,6 +18,7 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
+  replyEphemeralError,
   showAndAwaitModal,
 } from '../../../utils';
 import { checkboxGroup, labelWrap, rawModal } from '../../../utils/modalComponents';
@@ -101,10 +102,7 @@ async function handleSingleTypeToggle(
   const ticketType = ticketTypes.find(t => t.typeId === typeId);
 
   if (!ticketType) {
-    await interaction.reply({
-      content: lang.ticket.customTypes.typeEdit.notFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.customTypes.typeEdit.notFound);
     return;
   }
 

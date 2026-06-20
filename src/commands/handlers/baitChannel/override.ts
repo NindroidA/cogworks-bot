@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelLog } from '../../../typeorm/entities/bait/BaitChannelLog';
-import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
+import { handleInteractionError, lang, replyEphemeralError, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
@@ -26,26 +26,17 @@ export async function overrideHandler(_client: Client, interaction: ChatInputCom
     );
 
     if (!recentLog) {
-      await interaction.reply({
-        content: tl.override.noEntry,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.override.noEntry);
       return;
     }
 
     if (recentLog.overridden) {
-      await interaction.reply({
-        content: tl.override.alreadyOverridden,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.override.alreadyOverridden);
       return;
     }
 
     if (recentLog.actionTaken === 'logged') {
-      await interaction.reply({
-        content: tl.override.logOnlyCannotOverride,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.override.logOnlyCannotOverride);
       return;
     }
 

@@ -11,7 +11,14 @@ import {
 import { AppDataSource } from '../../../typeorm';
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
 import { Position } from '../../../typeorm/entities/application/Position';
-import { enhancedLogger, guardFeatureRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
+import {
+  enhancedLogger,
+  guardFeatureRateLimit,
+  LogCategory,
+  lang,
+  RateLimits,
+  replyEphemeralError,
+} from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { getTemplate } from './applicationTemplates';
 
@@ -46,10 +53,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
     if (template) {
       const templateData = getTemplate(template);
       if (!templateData) {
-        await interaction.reply({
-          content: pl.templateNotFound,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, pl.templateNotFound);
         return;
       }
       finalTitle = title || templateData.title;
@@ -60,10 +64,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
     } else {
       // use provided title and description
       if (!title || !description) {
-        await interaction.reply({
-          content: pl.provideEither,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, pl.provideEither);
         return;
       }
       finalTitle = title;
@@ -115,10 +116,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
           guildId,
         },
       );
-      await interaction.reply({
-        content: pl.failAdd,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, pl.failAdd);
     }
   } else if (subCommand === 'remove') {
     const positionValue = interaction.options.getString('position', true);
@@ -130,10 +128,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
       });
 
       if (!position) {
-        await interaction.reply({
-          content: pl.notFound,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, pl.notFound);
         return;
       }
 
@@ -174,10 +169,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
           guildId,
         },
       );
-      await interaction.reply({
-        content: pl.failRemove,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, pl.failRemove);
     }
   } else if (subCommand === 'toggle') {
     const positionValue = interaction.options.getString('position', true);
@@ -189,10 +181,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
       });
 
       if (!position) {
-        await interaction.reply({
-          content: pl.notFound,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, pl.notFound);
         return;
       }
 
@@ -226,10 +215,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
           guildId,
         },
       );
-      await interaction.reply({
-        content: pl.failToggle,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, pl.failToggle);
     }
   } else if (subCommand === 'list') {
     try {
@@ -270,10 +256,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
           guildId,
         },
       );
-      await interaction.reply({
-        content: pl.failList,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, pl.failList);
     }
   } else if (subCommand === 'refresh') {
     try {
@@ -290,10 +273,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
         LogCategory.COMMAND_EXECUTION,
         { userId: interaction.user.id, guildId },
       );
-      await interaction.reply({
-        content: pl.failRefresh,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, pl.failRefresh);
     }
   } else if (subCommand === 'reindex') {
     try {
@@ -338,10 +318,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
           guildId,
         },
       );
-      await interaction.reply({
-        content: pl.failReindex,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, pl.failReindex);
     }
   }
 }

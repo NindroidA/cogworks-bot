@@ -1,7 +1,7 @@
-import { type ButtonInteraction, type Client, MessageFlags } from 'discord.js';
+import type { ButtonInteraction, Client } from 'discord.js';
 import { buildPostSubmitButtons, buildTypeConfirmationEmbed } from '../../commands/handlers/ticket/typeAdd';
 import { CustomTicketType } from '../../typeorm/entities/ticket/CustomTicketType';
-import { enhancedLogger, guardFeatureAccess, LogCategory, lang } from '../../utils';
+import { enhancedLogger, guardFeatureAccess, LogCategory, lang, replyEphemeralError } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
 
 const customTypeRepo = lazyRepo(CustomTicketType);
@@ -31,10 +31,7 @@ export const pingToggleButton = async (_client: Client, interaction: ButtonInter
       guildId,
       typeId,
     });
-    await interaction.reply({
-      content: lang.ticket.customTypes.typeEdit.notFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.customTypes.typeEdit.notFound);
     return;
   }
 
@@ -86,10 +83,7 @@ export const activeToggleButton = async (_client: Client, interaction: ButtonInt
       guildId,
       typeId,
     });
-    await interaction.reply({
-      content: lang.ticket.customTypes.typeEdit.notFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.customTypes.typeEdit.notFound);
     return;
   }
 

@@ -1,6 +1,13 @@
 import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { StaffRole } from '../../../typeorm/entities/StaffRole';
-import { enhancedLogger, guardAdminRateLimit, LogCategory, lang, RateLimits } from '../../../utils';
+import {
+  enhancedLogger,
+  guardAdminRateLimit,
+  LogCategory,
+  lang,
+  RateLimits,
+  replyEphemeralError,
+} from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.addRole;
@@ -23,10 +30,7 @@ export async function roleAddHandler(interaction: ChatInputCommandInteraction<Ca
 
   // check to see if role id is already saved
   if (roleFinder) {
-    await interaction.reply({
-      content: tl.alreadyAdded,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.alreadyAdded);
     return;
   }
 
@@ -47,9 +51,6 @@ export async function roleAddHandler(interaction: ChatInputCommandInteraction<Ca
       guildId,
       role,
     });
-    await interaction.reply({
-      content: tl.fail,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.fail);
   }
 }

@@ -22,6 +22,7 @@ import {
   enhancedLogger,
   guardFeatureAccess,
   lang,
+  replyEphemeralError,
   sanitizeUserInput,
   showAndAwaitModal,
 } from '../../../utils';
@@ -81,10 +82,7 @@ export async function templateHandler(
       await handleReset(interaction, guildId);
       break;
     default:
-      await interaction.reply({
-        content: lang.errors.unknownSubcommand,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, lang.errors.unknownSubcommand);
   }
 }
 
@@ -98,10 +96,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction<CacheType>,
   // Check limit
   const count = await templateRepo.count({ where: { guildId } });
   if (count >= MAX.ANNOUNCEMENT_TEMPLATES) {
-    await interaction.reply({
-      content: tl.create.limitReached,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.create.limitReached);
     return;
   }
 
@@ -167,30 +162,21 @@ async function handleCreate(interaction: ChatInputCommandInteraction<CacheType>,
 
   // Validate name
   if (!TEMPLATE_NAME_RE.test(name)) {
-    await modalInteraction.reply({
-      content: tl.create.invalidName,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(modalInteraction, tl.create.invalidName);
     return;
   }
 
   // Validate color
   const colorCheck = validateHexColor(colorInput);
   if (!colorCheck.valid) {
-    await modalInteraction.reply({
-      content: tl.create.invalidColor,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(modalInteraction, tl.create.invalidColor);
     return;
   }
 
   // Check for duplicate name
   const existing = await templateRepo.findOneBy({ guildId, name });
   if (existing) {
-    await modalInteraction.reply({
-      content: tl.create.duplicate,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(modalInteraction, tl.create.duplicate);
     return;
   }
 
@@ -306,10 +292,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction<CacheType>, g
     name: templateName,
   });
   if (!template) {
-    await interaction.reply({
-      content: tl.edit.notFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.edit.notFound);
     return;
   }
 
@@ -318,7 +301,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction<CacheType>, g
 
   const result = await applyTemplateEditSubmit(template, modalInteraction.fields);
   if ('error' in result) {
-    await modalInteraction.reply({ content: result.error, flags: [MessageFlags.Ephemeral] });
+    await replyEphemeralError(modalInteraction, result.error);
     return;
   }
 
@@ -345,18 +328,12 @@ async function handleDelete(interaction: ChatInputCommandInteraction<CacheType>,
     name: templateName,
   });
   if (!template) {
-    await interaction.reply({
-      content: tl.delete.notFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.delete.notFound);
     return;
   }
 
   if (template.isDefault) {
-    await interaction.reply({
-      content: tl.delete.isDefault,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.delete.isDefault);
     return;
   }
 
@@ -391,10 +368,7 @@ async function handlePreview(
     name: templateName,
   });
   if (!template) {
-    await interaction.reply({
-      content: tl.edit.notFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.edit.notFound);
     return;
   }
 

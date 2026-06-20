@@ -7,6 +7,7 @@ import {
   LogCategory,
   lang,
   RateLimits,
+  replyEphemeralError,
   sanitizeUserInput,
   updateMenuMessage,
 } from '../../../utils';
@@ -35,10 +36,7 @@ export async function reactionRoleEditHandler(interaction: ChatInputCommandInter
 
   // Check at least one change provided
   if (!newName && newDescription === null && !newMode) {
-    await interaction.reply({
-      content: tl.edit.noChanges,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.edit.noChanges);
     return;
   }
 
@@ -48,10 +46,7 @@ export async function reactionRoleEditHandler(interaction: ChatInputCommandInter
       relations: { options: true },
     });
     if (!menu) {
-      await interaction.reply({
-        content: tl.errors.menuNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.errors.menuNotFound);
       return;
     }
 
@@ -82,9 +77,6 @@ export async function reactionRoleEditHandler(interaction: ChatInputCommandInter
     enhancedLogger.error('Failed to edit reaction role menu', error as Error, LogCategory.COMMAND_EXECUTION, {
       guildId,
     });
-    await interaction.reply({
-      content: tl.edit.error,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.edit.error);
   }
 }

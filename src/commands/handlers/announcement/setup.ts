@@ -15,6 +15,7 @@ import {
   LogCategory,
   lang,
   RateLimits,
+  replyEphemeralError,
   showAndAwaitModal,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -62,10 +63,7 @@ export async function announcementSetupHandler(_client: Client, interaction: Cha
     const channelId = extractModalField(modalSubmit.fields, 'ann_channel');
 
     if (!roleId || !channelId) {
-      await modalSubmit.reply({
-        content: lang.general.contextMenu.selectRoleAndChannel,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(modalSubmit, lang.general.contextMenu.selectRoleAndChannel);
       return;
     }
 

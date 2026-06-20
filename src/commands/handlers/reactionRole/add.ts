@@ -8,6 +8,7 @@ import {
   lang,
   MAX,
   RateLimits,
+  replyEphemeralError,
   updateMenuMessage,
   validateEmoji,
   validateRoleForMenu,
@@ -39,10 +40,7 @@ export async function reactionRoleAddHandler(interaction: ChatInputCommandIntera
   // Validate emoji format
   const emojiCheck = validateEmoji(emoji);
   if (!emojiCheck.valid) {
-    await interaction.reply({
-      content: tl.add.invalidEmoji,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.add.invalidEmoji);
     return;
   }
 
@@ -53,37 +51,25 @@ export async function reactionRoleAddHandler(interaction: ChatInputCommandIntera
       relations: { options: true },
     });
     if (!menu) {
-      await interaction.reply({
-        content: tl.errors.menuNotFound,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.errors.menuNotFound);
       return;
     }
 
     // Max 20 options (Discord reaction limit)
     if (menu.options.length >= MAX.REACTION_ROLE_OPTIONS) {
-      await interaction.reply({
-        content: tl.add.maxOptions,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.add.maxOptions);
       return;
     }
 
     // Check duplicate emoji
     if (menu.options.some(o => o.emoji === emoji)) {
-      await interaction.reply({
-        content: tl.add.duplicateEmoji,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.add.duplicateEmoji);
       return;
     }
 
     // Check duplicate role
     if (menu.options.some(o => o.roleId === role.id)) {
-      await interaction.reply({
-        content: tl.add.duplicateRole,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.add.duplicateRole);
       return;
     }
 
@@ -91,10 +77,7 @@ export async function reactionRoleAddHandler(interaction: ChatInputCommandIntera
     const botMember = await guild.members.fetchMe();
     const roleValidation = validateRoleForMenu(role, guild, botMember.roles.highest.position);
     if (!roleValidation.valid) {
-      await interaction.reply({
-        content: roleValidation.error!,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, roleValidation.error!);
       return;
     }
 
@@ -139,9 +122,6 @@ export async function reactionRoleAddHandler(interaction: ChatInputCommandIntera
     enhancedLogger.error('Failed to add reaction role option', error as Error, LogCategory.COMMAND_EXECUTION, {
       guildId,
     });
-    await interaction.reply({
-      content: tl.add.error,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.add.error);
   }
 }

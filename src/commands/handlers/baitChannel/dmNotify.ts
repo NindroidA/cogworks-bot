@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFla
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { handleInteractionError, lang, safeDbOperation, sanitizeUserInput } from '../../../utils';
+import { handleInteractionError, lang, replyEphemeralError, safeDbOperation, sanitizeUserInput } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel;
@@ -18,10 +18,7 @@ export async function dmNotifyHandler(client: Client, interaction: ChatInputComm
     );
 
     if (!config) {
-      await interaction.reply({
-        content: tl.notConfigured,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.notConfigured);
       return;
     }
 
@@ -54,10 +51,7 @@ export async function dmNotifyHandler(client: Client, interaction: ChatInputComm
         const text = sanitizeUserInput(interaction.options.getString('text', true));
 
         if (text.length > 500) {
-          await interaction.reply({
-            content: tl.dmNotify.appealTooLong,
-            flags: [MessageFlags.Ephemeral],
-          });
+          await replyEphemeralError(interaction, tl.dmNotify.appealTooLong);
           return;
         }
 
@@ -90,10 +84,7 @@ export async function dmNotifyHandler(client: Client, interaction: ChatInputComm
       }
 
       default:
-        await interaction.reply({
-          content: lang.errors.unknownSubcommand,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, lang.errors.unknownSubcommand);
     }
   } catch (error) {
     await handleInteractionError(interaction, error, 'Failed to update DM notification settings');

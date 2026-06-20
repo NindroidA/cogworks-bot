@@ -3,8 +3,14 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { MessageFlags } from 'discord.js';
-import { enhancedLogger, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
+import {
+  enhancedLogger,
+  guardAdmin,
+  handleInteractionError,
+  LogCategory,
+  lang,
+  replyEphemeralError,
+} from '../../../utils';
 import { csvImportHandler } from './csv';
 import { mee6ImportHandler } from './mee6';
 import { importStatusHandler } from './status';
@@ -29,10 +35,7 @@ export async function importHandler(interaction: ChatInputCommandInteraction): P
         await importStatusHandler(interaction, subcommand);
         break;
       default:
-        await interaction.reply({
-          content: lang.errors.unknownSubcommand,
-          flags: [MessageFlags.Ephemeral],
-        });
+        await replyEphemeralError(interaction, lang.errors.unknownSubcommand);
     }
   } catch (error) {
     enhancedLogger.error(

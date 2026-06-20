@@ -12,7 +12,7 @@ import { BotConfig } from '../../typeorm/entities/BotConfig';
 import { StaffRole } from '../../typeorm/entities/StaffRole';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
-import { enhancedLogger, extractIdFromMention, LogCategory, lang } from '../../utils';
+import { enhancedLogger, extractIdFromMention, LogCategory, lang, replyEphemeralError } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
 
 const tl = lang.ticket.adminOnly;
@@ -27,10 +27,7 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
   const user = interaction.user.displayName;
   const userId = interaction.user.id;
   if (!guildId) {
-    await interaction.reply({
-      content: lang.general.cmdGuildNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.general.cmdGuildNotFound);
     return;
   }
 

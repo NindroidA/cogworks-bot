@@ -10,7 +10,7 @@
 import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import {
   getStaffWorkload,
@@ -38,26 +38,17 @@ export async function routingEnableHandler(interaction: ChatInputCommandInteract
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
   if (!config.enableWorkflow) {
-    await interaction.reply({
-      content: tl.requiresWorkflow,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.requiresWorkflow);
     return;
   }
 
   if (config.smartRoutingEnabled) {
-    await interaction.reply({
-      content: tl.alreadyEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.alreadyEnabled);
     return;
   }
 
@@ -86,18 +77,12 @@ export async function routingDisableHandler(interaction: ChatInputCommandInterac
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
   if (!config.smartRoutingEnabled) {
-    await interaction.reply({
-      content: tl.alreadyDisabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.alreadyDisabled);
     return;
   }
 
@@ -129,18 +114,12 @@ export async function routingRuleAddHandler(interaction: ChatInputCommandInterac
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
   if (!config.smartRoutingEnabled) {
-    await interaction.reply({
-      content: tl.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 
@@ -152,19 +131,13 @@ export async function routingRuleAddHandler(interaction: ChatInputCommandInterac
 
   // Check for duplicate type
   if (rules.some(r => r.ticketTypeId === ticketTypeId)) {
-    await interaction.reply({
-      content: formatLang(tl.ruleDuplicate, ticketTypeId),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.ruleDuplicate, ticketTypeId));
     return;
   }
 
   // Check max rules
   if (rules.length >= MAX_ROUTING_RULES) {
-    await interaction.reply({
-      content: formatLang(tl.maxRules, MAX_ROUTING_RULES),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.maxRules, MAX_ROUTING_RULES));
     return;
   }
 
@@ -204,18 +177,12 @@ export async function routingRuleRemoveHandler(interaction: ChatInputCommandInte
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
   if (!config.smartRoutingEnabled) {
-    await interaction.reply({
-      content: tl.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 
@@ -224,10 +191,7 @@ export async function routingRuleRemoveHandler(interaction: ChatInputCommandInte
 
   const ruleIndex = rules.findIndex(r => r.ticketTypeId === ticketTypeId);
   if (ruleIndex === -1) {
-    await interaction.reply({
-      content: formatLang(tl.ruleNotFound, ticketTypeId),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.ruleNotFound, ticketTypeId));
     return;
   }
 
@@ -258,28 +222,19 @@ export async function routingStrategyHandler(interaction: ChatInputCommandIntera
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
   if (!config.smartRoutingEnabled) {
-    await interaction.reply({
-      content: tl.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 
   const strategy = interaction.options.getString('strategy', true) as RoutingStrategy;
 
   if (!VALID_STRATEGIES.includes(strategy)) {
-    await interaction.reply({
-      content: formatLang(tl.invalidStrategy, VALID_STRATEGIES.join(', ')),
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, formatLang(tl.invalidStrategy, VALID_STRATEGIES.join(', ')));
     return;
   }
 
@@ -314,18 +269,12 @@ export async function routingStatsHandler(interaction: ChatInputCommandInteracti
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
   if (!config.smartRoutingEnabled) {
-    await interaction.reply({
-      content: tl.notEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 

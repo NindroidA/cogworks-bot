@@ -1,7 +1,15 @@
 import type { CacheType, ChatInputCommandInteraction, TextChannel } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
-import { Colors, enhancedLogger, formatLang, guardFeatureRateLimit, LogCategory, lang } from '../../../utils';
+import {
+  Colors,
+  enhancedLogger,
+  formatLang,
+  guardFeatureRateLimit,
+  LogCategory,
+  lang,
+  replyEphemeralError,
+} from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.reactionRole;
@@ -134,6 +142,6 @@ export async function reactionRoleValidateHandler(interaction: ChatInputCommandI
       LogCategory.COMMAND_EXECUTION,
       { guildId },
     );
-    await interaction.editReply({ content: tl.validate.error });
+    await replyEphemeralError(interaction, tl.validate.error);
   }
 }

@@ -20,6 +20,7 @@ import {
   handleInteractionError,
   LogCategory,
   lang,
+  replyEphemeralError,
   sanitizeUserInput,
 } from '../../../utils';
 
@@ -123,10 +124,7 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
         `User ${user} type-add validation failed: invalid typeId format '${typeId}'`,
         LogCategory.COMMAND_EXECUTION,
       );
-      await interaction.reply({
-        content: tl.invalidTypeId,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.invalidTypeId);
       return;
     }
 
@@ -136,10 +134,7 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
         `User ${user} type-add validation failed: invalid color '${colorInput}'`,
         LogCategory.COMMAND_EXECUTION,
       );
-      await interaction.reply({
-        content: tl.invalidColor,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.invalidColor);
       return;
     }
 
@@ -152,10 +147,7 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
 
     if (existing) {
       enhancedLogger.warn(`User ${user} type-add failed: duplicate typeId '${typeId}'`, LogCategory.COMMAND_EXECUTION);
-      await interaction.reply({
-        content: formatLang(tl.duplicate, typeId),
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, formatLang(tl.duplicate, typeId));
       return;
     }
 

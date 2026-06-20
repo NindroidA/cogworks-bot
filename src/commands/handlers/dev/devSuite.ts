@@ -7,7 +7,7 @@
 
 import type { ChatInputCommandInteraction, Client } from 'discord.js';
 import { MessageFlags } from 'discord.js';
-import { enhancedLogger, guardOwner, LogCategory } from '../../../utils';
+import { enhancedLogger, guardOwner, LogCategory, replyEphemeralError } from '../../../utils';
 import { handleScaffold, handleScaffoldAll, handleTeardown, handleTeardownAll } from './devSuiteScaffold';
 import { handleMasterTest, handlePermissionsAudit, handleRegression, handleSmokeTest } from './devSuiteTests';
 import { handleChain, handlePopulate, handleTimeline, handleWalkthrough } from './devSuiteWorkflows';
@@ -84,12 +84,7 @@ export async function devSuiteHandler(client: Client, interaction: ChatInputComm
     if (interaction.deferred || interaction.replied) {
       await interaction.editReply(`❌ Error: ${(error as Error).message}`).catch(() => {});
     } else {
-      await interaction
-        .reply({
-          content: `❌ Error: ${(error as Error).message}`,
-          flags: [MessageFlags.Ephemeral],
-        })
-        .catch(() => {});
+      await replyEphemeralError(interaction, `Error: ${(error as Error).message}`).catch(() => {});
     }
   }
 }

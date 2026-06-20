@@ -7,7 +7,7 @@
 import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { getTicketCreationTime } from '../../../utils/ticket/slaChecker';
 
@@ -27,26 +27,17 @@ export async function slaEnableHandler(interaction: ChatInputCommandInteraction<
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
   if (!config.enableWorkflow) {
-    await interaction.reply({
-      content: tl.requiresWorkflow,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.requiresWorkflow);
     return;
   }
 
   if (config.slaEnabled) {
-    await interaction.reply({
-      content: tl.alreadyEnabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.alreadyEnabled);
     return;
   }
 
@@ -88,18 +79,12 @@ export async function slaDisableHandler(interaction: ChatInputCommandInteraction
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
   if (!config.slaEnabled) {
-    await interaction.reply({
-      content: tl.alreadyDisabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.alreadyDisabled);
     return;
   }
 
@@ -129,18 +114,12 @@ export async function slaPerTypeHandler(interaction: ChatInputCommandInteraction
   const config = await ticketConfigRepo.findOneBy({ guildId });
 
   if (!config) {
-    await interaction.reply({
-      content: lang.ticket.ticketConfigNotFound,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
     return;
   }
 
   if (!config.slaEnabled) {
-    await interaction.reply({
-      content: tl.alreadyDisabled,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyEphemeralError(interaction, tl.alreadyDisabled);
     return;
   }
 
@@ -152,10 +131,7 @@ export async function slaPerTypeHandler(interaction: ChatInputCommandInteraction
   if (minutes === null || minutes === undefined) {
     // Remove override
     if (!(typeId in perType)) {
-      await interaction.reply({
-        content: formatLang(tl.perTypeNotFound, typeId),
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, formatLang(tl.perTypeNotFound, typeId));
       return;
     }
 

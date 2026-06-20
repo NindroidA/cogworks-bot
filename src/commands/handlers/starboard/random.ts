@@ -1,7 +1,7 @@
 import type { CacheType, ChatInputCommandInteraction } from 'discord.js';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { StarboardEntry } from '../../../typeorm/entities/starboard';
-import { handleInteractionError, lang } from '../../../utils';
+import { handleInteractionError, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const entryRepo = lazyRepo(StarboardEntry);
@@ -16,10 +16,7 @@ export async function starboardRandomHandler(interaction: ChatInputCommandIntera
     const count = await entryRepo.count({ where: { guildId } });
 
     if (count === 0) {
-      await interaction.reply({
-        content: tl.random.noEntries,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.random.noEntries);
       return;
     }
 
@@ -33,10 +30,7 @@ export async function starboardRandomHandler(interaction: ChatInputCommandIntera
 
     const entry = entries[0];
     if (!entry) {
-      await interaction.reply({
-        content: tl.random.noEntries,
-        flags: [MessageFlags.Ephemeral],
-      });
+      await replyEphemeralError(interaction, tl.random.noEntries);
       return;
     }
 

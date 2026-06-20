@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.2] - 2026-06-20
+
+Internal refactor (unification A3, cont.) — standardized error replies.
+
+### Changed
+
+- Migrated the remaining command/event handlers onto `replyEphemeralError`
+  (~357 sites across ~80 files, −867 net lines). Ephemeral error messages are
+  now consistently prefixed with the ❌ emoji and route reply/editReply/followUp
+  automatically. Bare-string error replies that previously showed no emoji now
+  show ❌ (intentional normalization); success/info replies are unchanged.
+
 ## [3.6.1] - 2026-06-20
 
 Internal refactor (no behavior change) — first step of the codebase
