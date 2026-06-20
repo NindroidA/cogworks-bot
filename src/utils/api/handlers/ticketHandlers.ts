@@ -4,7 +4,7 @@ import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { lazyRepo } from '../../database/lazyRepo';
 import { archiveAndCloseTicket as defaultArchiveAndCloseTicket } from '../../ticket/closeWorkflow';
 import { ApiError } from '../apiError';
-import { isValidSnowflake, requireId, requireString } from '../helpers';
+import { getAndValidateEntity, isValidSnowflake, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditAction } from './auditHelper';
 
@@ -25,9 +25,9 @@ export function registerTicketHandlers(
 ): void {
   // POST /internal/guilds/:guildId/tickets/:id/close
   routes.set('POST /tickets/:id/close', async (guildId, body, url) => {
-    const ticketId = requireId(url, 'tickets');
-    const ticket = await ticketRepo.findOneBy({ guildId, id: ticketId });
-    if (!ticket) throw ApiError.notFound('Ticket not found');
+    const ticket = await getAndValidateEntity(url, 'tickets', ticketRepo, guildId, {
+      notFoundMessage: 'Ticket not found',
+    });
     if (ticket.status === 'closed') throw ApiError.conflict('Ticket already closed');
 
     const archivedConfig = await archivedTicketConfigRepo.findOneBy({
@@ -80,12 +80,12 @@ export function registerTicketHandlers(
 
   // POST /internal/guilds/:guildId/tickets/:id/assign
   routes.set('POST /tickets/:id/assign', async (guildId, body, url) => {
-    const ticketId = requireId(url, 'tickets');
     const userId = requireString(body, 'userId');
     if (!isValidSnowflake(userId)) throw ApiError.badRequest('Invalid userId format');
 
-    const ticket = await ticketRepo.findOneBy({ guildId, id: ticketId });
-    if (!ticket) throw ApiError.notFound('Ticket not found');
+    const ticket = await getAndValidateEntity(url, 'tickets', ticketRepo, guildId, {
+      notFoundMessage: 'Ticket not found',
+    });
 
     const guild = client.guilds.cache.get(guildId);
     if (!guild) throw ApiError.notFound('Guild not found');
@@ -108,7 +108,7 @@ export function registerTicketHandlers(
     await ticketRepo.update({ id: ticket.id, guildId }, { assignedTo: userId, assignedAt: new Date() });
 
     await writeAuditAction(guildId, body, 'ticket.assign', {
-      ticketId,
+      ticketId: ticket.id,
       userId,
     });
     return { success: true };

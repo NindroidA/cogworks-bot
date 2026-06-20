@@ -4,7 +4,7 @@ import { ArchivedApplicationConfig } from '../../../typeorm/entities/application
 import { archiveAndCloseApplication as defaultArchiveAndCloseApplication } from '../../application/closeWorkflow';
 import { lazyRepo } from '../../database/lazyRepo';
 import { ApiError } from '../apiError';
-import { optionalString, requireId, requireString } from '../helpers';
+import { getAndValidateEntity, optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditAction, writeAuditLog } from './auditHelper';
 
@@ -25,11 +25,11 @@ export function registerApplicationHandlers(
 ): void {
   // POST /internal/guilds/:guildId/applications/:id/approve
   routes.set('POST /applications/:id/approve', async (guildId, body, url) => {
-    const appId = requireId(url, 'applications');
     const approvedBy = optionalString(body, 'triggeredBy') ?? requireString(body, 'approvedBy');
 
-    const app = await applicationRepo.findOneBy({ guildId, id: appId });
-    if (!app) throw ApiError.notFound('Application not found');
+    const app = await getAndValidateEntity(url, 'applications', applicationRepo, guildId, {
+      notFoundMessage: 'Application not found',
+    });
     if (app.status === 'closed') throw ApiError.conflict('Application already closed');
 
     await applicationRepo.update({ id: app.id, guildId }, { status: 'accepted' });
@@ -49,11 +49,11 @@ export function registerApplicationHandlers(
 
   // POST /internal/guilds/:guildId/applications/:id/deny
   routes.set('POST /applications/:id/deny', async (guildId, body, url) => {
-    const appId = requireId(url, 'applications');
     const deniedBy = optionalString(body, 'triggeredBy') ?? requireString(body, 'deniedBy');
 
-    const app = await applicationRepo.findOneBy({ guildId, id: appId });
-    if (!app) throw ApiError.notFound('Application not found');
+    const app = await getAndValidateEntity(url, 'applications', applicationRepo, guildId, {
+      notFoundMessage: 'Application not found',
+    });
     if (app.status === 'closed') throw ApiError.conflict('Application already closed');
 
     await applicationRepo.update({ id: app.id, guildId }, { status: 'rejected' });
@@ -72,9 +72,9 @@ export function registerApplicationHandlers(
 
   // POST /internal/guilds/:guildId/applications/:id/archive
   routes.set('POST /applications/:id/archive', async (guildId, body, url) => {
-    const appId = requireId(url, 'applications');
-    const app = await applicationRepo.findOneBy({ guildId, id: appId });
-    if (!app) throw ApiError.notFound('Application not found');
+    const app = await getAndValidateEntity(url, 'applications', applicationRepo, guildId, {
+      notFoundMessage: 'Application not found',
+    });
 
     const archivedConfig = await archivedAppConfigRepo.findOneBy({ guildId });
     if (!archivedConfig) throw ApiError.notFound('Archive config not found');

@@ -1,3 +1,4 @@
+import type { FindOptionsRelations, FindOptionsWhere, Repository } from 'typeorm';
 import { ApiError } from './apiError';
 
 const SNOWFLAKE_RE = /^\d{17,20}$/;
@@ -26,6 +27,33 @@ export function requireId(url: string, segment: string): number {
 /** Validates a Discord snowflake ID (17-20 digit numeric string). */
 export function isValidSnowflake(id: string): boolean {
   return SNOWFLAKE_RE.test(id);
+}
+
+/**
+ * Extract the numeric id from the URL, fetch the guild-scoped entity, and throw
+ * 404 if it doesn't exist. Collapses the repeated
+ * `const id = requireId(url, seg); const x = await repo.findOneBy({guildId,id}); if (!x) throw notFound`
+ * pattern in the internal-API handlers.
+ *
+ * @param opts.relations  eager relations to load (e.g. `{ options: true }`)
+ * @param opts.notFoundMessage  overrides the default `"<segment> not found"`
+ */
+export async function getAndValidateEntity<T extends { guildId: string; id: number }>(
+  url: string,
+  segment: string,
+  repo: Repository<T>,
+  guildId: string,
+  opts?: { notFoundMessage?: string; relations?: FindOptionsRelations<T> },
+): Promise<T> {
+  const id = requireId(url, segment);
+  const where = { guildId, id } as FindOptionsWhere<T>;
+  // Use findOneBy for the common (no-relations) case — matches the call shape
+  // these handlers used before; findOne only when relations are requested.
+  const entity = opts?.relations
+    ? await repo.findOne({ where, relations: opts.relations })
+    : await repo.findOneBy(where);
+  if (!entity) throw ApiError.notFound(opts?.notFoundMessage ?? `${segment} not found`);
+  return entity;
 }
 
 /** Validates a hex color string (#RRGGBB). */

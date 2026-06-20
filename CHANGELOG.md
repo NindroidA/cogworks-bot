@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.0] - 2026-06-20
+
+Internal refactor (unification Phase C, part 1) — no behavior change.
+
+### Added
+
+- `applyFields(entity, body, descriptors)` — descriptor-driven application of
+  optional config PATCH fields (bool / int with range / string / nullableString
+  / enum), returning the changed-field list for audit. Proven on the
+  baitChannel 24-field config PATCH, which collapses ~75 lines of hand-rolled
+  field handling to a declarative descriptor list (+7 unit tests).
+- `getAndValidateEntity(url, segment, repo, guildId, opts?)` — fetch-or-404 for
+  internal-API id routes; migrated 6 sites (ticket close/assign, application
+  approve/deny/archive, reaction-role rebuild), preserving each route's
+  not-found message and validation order.
+
 ## [3.7.0] - 2026-06-20
 
 Internal refactor (unification Phase B complete) — cache unification, no

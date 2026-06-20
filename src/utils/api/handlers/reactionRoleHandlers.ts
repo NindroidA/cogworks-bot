@@ -5,7 +5,7 @@ import { lazyRepo } from '../../database/lazyRepo';
 import { buildMenuEmbed, updateMenuMessage } from '../../reactionRole/menuBuilder';
 import { invalidateGuildMenuCache } from '../../reactionRole/menuCache';
 import { ApiError } from '../apiError';
-import { isValidSnowflake, optionalString, requireId, requireString } from '../helpers';
+import { getAndValidateEntity, isValidSnowflake, optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditAction } from './auditHelper';
 
@@ -87,12 +87,10 @@ export function registerReactionRoleHandlers(client: Client, routes: Map<string,
 
   // POST /internal/guilds/:guildId/reaction-roles/:id/rebuild
   routes.set('POST /reaction-roles/:id/rebuild', async (guildId, body, url) => {
-    const menuId = requireId(url, 'reaction-roles');
-    const menu = await menuRepo.findOne({
-      where: { guildId, id: menuId },
+    const menu = await getAndValidateEntity(url, 'reaction-roles', menuRepo, guildId, {
+      notFoundMessage: 'Menu not found',
       relations: { options: true },
     });
-    if (!menu) throw ApiError.notFound('Menu not found');
 
     const guild = client.guilds.cache.get(guildId);
     if (!guild) throw ApiError.notFound('Guild not found');
@@ -103,7 +101,7 @@ export function registerReactionRoleHandlers(client: Client, routes: Map<string,
     invalidateGuildMenuCache(guildId);
 
     await writeAuditAction(guildId, body, 'reactionRole.rebuild', {
-      menuId,
+      menuId: menu.id,
     });
     return { success: true };
   });

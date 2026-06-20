@@ -12,14 +12,8 @@ import { MAX } from '../../constants';
 import { lazyRepo } from '../../database/lazyRepo';
 import { requestGuildCommandRefresh } from '../../setup/commandGating';
 import { ApiError } from '../apiError';
-import {
-  isValidSnowflake,
-  optionalBoolean,
-  optionalNullableString,
-  optionalNumber,
-  optionalString,
-  requireString,
-} from '../helpers';
+import { applyFields, type FieldDescriptor } from '../configFields';
+import { isValidSnowflake, optionalNumber, optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditLog } from './auditHelper';
 
@@ -32,6 +26,53 @@ const logRepo = lazyRepo(BaitChannelLog);
 const joinEventRepo = lazyRepo(JoinEvent);
 const configRepo = lazyRepo(BaitChannelConfig);
 const pendingActionRepo = lazyRepo(PendingAction);
+
+/**
+ * Field map for `POST /bait-channel/config/update`. Numbers stay rangeless
+ * except logRetentionDays (30-365). actionType is left as a free string for a
+ * 1:1 port (the prior PATCH did no enum validation). Nullable strings accept
+ * null/"" to clear; the appeal-link cross-field validation is handled
+ * separately in the route after these are applied.
+ */
+const BAIT_CONFIG_FIELDS: FieldDescriptor<BaitChannelConfig>[] = [
+  { field: 'enabled', type: 'bool' },
+  { field: 'enableSmartDetection', type: 'bool' },
+  { field: 'requireVerification', type: 'bool' },
+  { field: 'disableAdminWhitelist', type: 'bool' },
+  { field: 'deleteUserMessages', type: 'bool' },
+  { field: 'enableEscalation', type: 'bool' },
+  { field: 'dmBeforeAction', type: 'bool' },
+  { field: 'testMode', type: 'bool' },
+  { field: 'enableWeeklySummary', type: 'bool' },
+  { field: 'enableRaidMode', type: 'bool' },
+  { field: 'enableAppealLink', type: 'bool' },
+  { field: 'gracePeriodSeconds', type: 'int' },
+  { field: 'instantActionThreshold', type: 'int' },
+  { field: 'minAccountAgeDays', type: 'int' },
+  { field: 'minMembershipMinutes', type: 'int' },
+  { field: 'minMessageCount', type: 'int' },
+  { field: 'deleteMessageHours', type: 'int' },
+  { field: 'timeoutDurationMinutes', type: 'int' },
+  { field: 'escalationLogThreshold', type: 'int' },
+  { field: 'escalationTimeoutThreshold', type: 'int' },
+  { field: 'escalationKickThreshold', type: 'int' },
+  { field: 'escalationBanThreshold', type: 'int' },
+  { field: 'joinVelocityThreshold', type: 'int' },
+  { field: 'joinVelocityWindowMinutes', type: 'int' },
+  { field: 'raidModeThreshold', type: 'int' },
+  { field: 'raidModeWindowSeconds', type: 'int' },
+  { field: 'crossChannelBurstThreshold', type: 'int' },
+  { field: 'crossChannelBurstWindowSeconds', type: 'int' },
+  { field: 'logRetentionDays', type: 'int', min: 30, max: 365 },
+  { field: 'banReason', type: 'string' },
+  { field: 'warningMessage', type: 'string' },
+  { field: 'actionType', type: 'string' },
+  { field: 'appealInfo', type: 'nullableString' },
+  { field: 'logChannelId', type: 'nullableString' },
+  { field: 'summaryChannelId', type: 'nullableString' },
+  { field: 'raidModeAlertRoleId', type: 'nullableString' },
+  { field: 'appealLinkBaseUrl', type: 'nullableString' },
+];
 
 export function registerBaitChannelHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // GET /internal/guilds/:guildId/bait-channel/keywords
@@ -276,82 +317,11 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
     if (!config) throw ApiError.notFound('Bait channel is not configured for this guild');
 
     const triggeredBy = optionalString(body, 'triggeredBy');
-    const patched: string[] = [];
-    const apply = <K extends keyof BaitChannelConfig>(field: K, value: BaitChannelConfig[K] | undefined): void => {
-      if (value === undefined) return;
-      config[field] = value;
-      patched.push(field as string);
-    };
-
-    // Booleans
-    apply('enabled', optionalBoolean(body, 'enabled'));
-    apply('enableSmartDetection', optionalBoolean(body, 'enableSmartDetection'));
-    apply('requireVerification', optionalBoolean(body, 'requireVerification'));
-    apply('disableAdminWhitelist', optionalBoolean(body, 'disableAdminWhitelist'));
-    apply('deleteUserMessages', optionalBoolean(body, 'deleteUserMessages'));
-    apply('enableEscalation', optionalBoolean(body, 'enableEscalation'));
-    apply('dmBeforeAction', optionalBoolean(body, 'dmBeforeAction'));
-    apply('testMode', optionalBoolean(body, 'testMode'));
-    apply('enableWeeklySummary', optionalBoolean(body, 'enableWeeklySummary'));
-    apply('enableRaidMode', optionalBoolean(body, 'enableRaidMode'));
-    apply('enableAppealLink', optionalBoolean(body, 'enableAppealLink'));
-
-    // Numbers
-    apply('gracePeriodSeconds', optionalNumber(body, 'gracePeriodSeconds'));
-    apply('instantActionThreshold', optionalNumber(body, 'instantActionThreshold'));
-    apply('minAccountAgeDays', optionalNumber(body, 'minAccountAgeDays'));
-    apply('minMembershipMinutes', optionalNumber(body, 'minMembershipMinutes'));
-    apply('minMessageCount', optionalNumber(body, 'minMessageCount'));
-    apply('deleteMessageHours', optionalNumber(body, 'deleteMessageHours'));
-    apply('timeoutDurationMinutes', optionalNumber(body, 'timeoutDurationMinutes'));
-    apply('escalationLogThreshold', optionalNumber(body, 'escalationLogThreshold'));
-    apply('escalationTimeoutThreshold', optionalNumber(body, 'escalationTimeoutThreshold'));
-    apply('escalationKickThreshold', optionalNumber(body, 'escalationKickThreshold'));
-    apply('escalationBanThreshold', optionalNumber(body, 'escalationBanThreshold'));
-    apply('joinVelocityThreshold', optionalNumber(body, 'joinVelocityThreshold'));
-    apply('joinVelocityWindowMinutes', optionalNumber(body, 'joinVelocityWindowMinutes'));
-    apply('raidModeThreshold', optionalNumber(body, 'raidModeThreshold'));
-    apply('raidModeWindowSeconds', optionalNumber(body, 'raidModeWindowSeconds'));
-    apply('crossChannelBurstThreshold', optionalNumber(body, 'crossChannelBurstThreshold'));
-    apply('crossChannelBurstWindowSeconds', optionalNumber(body, 'crossChannelBurstWindowSeconds'));
-    const retentionDays = optionalNumber(body, 'logRetentionDays');
-    if (retentionDays !== undefined) {
-      if (retentionDays < 30 || retentionDays > 365) {
-        throw ApiError.badRequest('logRetentionDays must be 30-365');
-      }
-      config.logRetentionDays = retentionDays;
-      patched.push('logRetentionDays');
-    }
-
-    // Strings split into:
-    //   - non-nullable: NOT NULL columns — never accept null
-    //   - nullable:     entity column is nullable — accept null/"" to clear
-    // The split avoids the prior bug where `optionalString` collapsed null
-    // and undefined to the same thing, making it impossible to clear a
-    // nullable field via the API.
-    const nonNullableStringFields: (keyof BaitChannelConfig)[] = ['banReason', 'warningMessage', 'actionType'];
-    for (const field of nonNullableStringFields) {
-      const v = optionalString(body, field as string);
-      if (v !== undefined) {
-        (config as unknown as Record<string, unknown>)[field as string] = v;
-        patched.push(field as string);
-      }
-    }
-
-    const nullableStringFields: (keyof BaitChannelConfig)[] = [
-      'appealInfo',
-      'logChannelId',
-      'summaryChannelId',
-      'raidModeAlertRoleId',
-      'appealLinkBaseUrl',
-    ];
-    for (const field of nullableStringFields) {
-      const v = optionalNullableString(body, field as string);
-      if (v !== undefined) {
-        (config as unknown as Record<string, unknown>)[field as string] = v;
-        patched.push(field as string);
-      }
-    }
+    // Per-field application is descriptor-driven (applyFields). Only the
+    // logRetentionDays 30-365 range is enforced here; the other int fields stay
+    // rangeless (1:1 with the prior behavior). String fields keep the
+    // non-nullable / nullable split (the latter accept null/"" to clear).
+    const patched = applyFields(config, body, BAIT_CONFIG_FIELDS);
 
     // Appeal-link safety. Two gates:
     //   1. Refuse to enable if base URL is HTTP (or unset).
