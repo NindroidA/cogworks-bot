@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0] - 2026-06-20
+
+Announcement module overhaul (timezone picker, template consolidation,
+dashboard editing) plus reliability fixes — including the changelog post itself
+no longer cutting bullets off.
+
+### Fixed
+
+- **Changelog posts no longer truncate.** The deploy workflow dropped wrapped
+  continuation lines, cutting each bullet to its first line; bullets now reflow
+  in full.
+- **Scheduled-announcement times are correct.** The time input was parsed as
+  UTC while the label said "Central Time". You now pick the timezone
+  (DST-aware); display stays per-viewer via Discord timestamps.
+- **`{channel}` placeholder renders on the modal send path** (was showing the
+  literal `{channel}`).
+- **SLA breach alerts no longer silently lost.** A breach was marked "notified"
+  before sending, so with no breach channel set nothing was delivered or
+  retried; it now marks notified only after a successful send.
+- **Reaction-role API validates options** (rejects bad role IDs / empty emoji
+  and cleans up the message on a failed reaction instead of orphaning it).
+
+### Added
+
+- **Timezone picker on `/announcement send`** (UTC, US, and major international
+  zones; DST-aware).
+- **Internal API `POST /announcements/templates/update`** so the dashboard can
+  edit templates (Discord `/announcement template edit` already existed).
+
+### Changed
+
+- **Legacy announcement subcommands consolidated into templates** — send
+  maintenance/back-online/update via `/announcement send`.
+- **Removed the redundant embed footer timestamp** (Discord already shows the
+  sent time; scheduled times render per-viewer).
+
 ## [3.3.0] - 2026-06-19
 
 Critical stability fixes (a production crash loop and silently-empty ticket

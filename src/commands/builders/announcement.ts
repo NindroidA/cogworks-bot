@@ -9,115 +9,35 @@ import { lang } from '../../utils';
 const tl = lang.announcement;
 
 /* =========================================================================
- * Legacy subcommands (backward compat)
+ * Timezone choices for time-based templates (the `timezone` option on `send`).
+ * Values are IANA zone IDs, interpreted DST-aware by parseTimeInput().
  * ========================================================================= */
-
-const maintenance = new SlashCommandSubcommandBuilder()
-  .setName('maintenance')
-  .setDescription(tl.maintenance.cmdDescrp)
-  .addStringOption(option =>
-    option
-      .setName('duration')
-      .setDescription(tl.maintenance.duration.cmdDescrp)
-      .setRequired(true)
-      .addChoices(
-        { name: tl.maintenance.duration.short.name, value: tl.maintenance.duration.short.value },
-        { name: tl.maintenance.duration.long.name, value: tl.maintenance.duration.long.value },
-      ),
-  )
-  .addStringOption(option =>
-    option
-      .setName('message')
-      .setDescription('Custom message (overrides default)')
-      .setRequired(false)
-      .setMaxLength(2048),
-  )
-  .addChannelOption(option => option.setName('channel').setDescription(tl.channel).setRequired(false));
-
-const maintenanceScheduled = new SlashCommandSubcommandBuilder()
-  .setName('maintenance-scheduled')
-  .setDescription(tl.maintenance.scheduled.cmdDescrp)
-  .addStringOption(option =>
-    option
-      .setName('time')
-      .setDescription(tl['update-scheduled'].time.cmdDescrp)
-      .setRequired(true)
-      .setMinLength(19)
-      .setMaxLength(22),
-  )
-  .addStringOption(option =>
-    option
-      .setName('duration')
-      .setDescription(tl.maintenance.duration.cmdDescrp)
-      .setRequired(true)
-      .addChoices(
-        { name: tl.maintenance.duration.short.name, value: tl.maintenance.duration.short.value },
-        { name: tl.maintenance.duration.long.name, value: tl.maintenance.duration.long.value },
-      ),
-  )
-  .addStringOption(option =>
-    option
-      .setName('message')
-      .setDescription('Custom message (overrides default)')
-      .setRequired(false)
-      .setMaxLength(2048),
-  )
-  .addChannelOption(option => option.setName('channel').setDescription(tl.channel).setRequired(false));
-
-const backOnline = new SlashCommandSubcommandBuilder()
-  .setName('back-online')
-  .setDescription(tl['back-online'].cmdDescrp)
-  .addStringOption(option =>
-    option
-      .setName('message')
-      .setDescription('Custom message (overrides default)')
-      .setRequired(false)
-      .setMaxLength(2048),
-  )
-  .addChannelOption(option => option.setName('channel').setDescription(tl.channel).setRequired(false));
-
-const updateScheduled = new SlashCommandSubcommandBuilder()
-  .setName('update-scheduled')
-  .setDescription(tl['update-scheduled'].cmdDescrp)
-  .addStringOption(option =>
-    option.setName('version').setDescription(tl['update-scheduled'].version.cmdDescrp).setRequired(true),
-  )
-  .addStringOption(option =>
-    option
-      .setName('time')
-      .setDescription(tl['update-scheduled'].time.cmdDescrp)
-      .setRequired(true)
-      .setMinLength(19)
-      .setMaxLength(22),
-  )
-  .addStringOption(option =>
-    option
-      .setName('message')
-      .setDescription('Custom message (overrides default)')
-      .setRequired(false)
-      .setMaxLength(2048),
-  )
-  .addChannelOption(option => option.setName('channel').setDescription(tl.channel).setRequired(false));
-
-const updateComplete = new SlashCommandSubcommandBuilder()
-  .setName('update-complete')
-  .setDescription(tl['update-complete'].cmdDescrp)
-  .addStringOption(option =>
-    option.setName('version').setDescription(tl['update-scheduled'].version.cmdDescrp).setRequired(true),
-  )
-  .addStringOption(option =>
-    option
-      .setName('message')
-      .setDescription('Custom message (overrides default)')
-      .setRequired(false)
-      .setMaxLength(2048),
-  )
-  .addChannelOption(option => option.setName('channel').setDescription(tl.channel).setRequired(false));
+const TIMEZONE_CHOICES = [
+  { name: 'UTC', value: 'UTC' },
+  { name: 'US Eastern (ET)', value: 'America/New_York' },
+  { name: 'US Central (CT)', value: 'America/Chicago' },
+  { name: 'US Mountain (MT)', value: 'America/Denver' },
+  { name: 'US Arizona (no DST)', value: 'America/Phoenix' },
+  { name: 'US Pacific (PT)', value: 'America/Los_Angeles' },
+  { name: 'US Alaska (AKT)', value: 'America/Anchorage' },
+  { name: 'US Hawaii (HST)', value: 'Pacific/Honolulu' },
+  { name: 'Brazil (BRT)', value: 'America/Sao_Paulo' },
+  { name: 'UK (GMT/BST)', value: 'Europe/London' },
+  { name: 'Central Europe (CET)', value: 'Europe/Paris' },
+  { name: 'Eastern Europe (EET)', value: 'Europe/Athens' },
+  { name: 'Moscow (MSK)', value: 'Europe/Moscow' },
+  { name: 'India (IST)', value: 'Asia/Kolkata' },
+  { name: 'China (CST)', value: 'Asia/Shanghai' },
+  { name: 'Japan (JST)', value: 'Asia/Tokyo' },
+  { name: 'Sydney (AET)', value: 'Australia/Sydney' },
+  { name: 'New Zealand (NZT)', value: 'Pacific/Auckland' },
+];
 
 /* =========================================================================
- * New send subcommand
+ * Send subcommand — the single entry point for sending an announcement.
+ * Replaces the former per-type legacy subcommands (maintenance, back-online,
+ * update-scheduled, …); each of those is now simply a template selected here.
  * ========================================================================= */
-
 const send = new SlashCommandSubcommandBuilder()
   .setName('send')
   .setDescription('Send an announcement using a template')
@@ -127,6 +47,13 @@ const send = new SlashCommandSubcommandBuilder()
   .addChannelOption(option => option.setName('channel').setDescription(tl.channel).setRequired(false))
   .addStringOption(option =>
     option
+      .setName('timezone')
+      .setDescription('Timezone for any date/time you enter (default: UTC)')
+      .setRequired(false)
+      .addChoices(...TIMEZONE_CHOICES),
+  )
+  .addStringOption(option =>
+    option
       .setName('message')
       .setDescription('Custom message (overrides template body)')
       .setRequired(false)
@@ -134,9 +61,8 @@ const send = new SlashCommandSubcommandBuilder()
   );
 
 /* =========================================================================
- * Template subcommand group
+ * Template subcommand group — create / edit / delete / list / preview / reset
  * ========================================================================= */
-
 const templateGroup = new SlashCommandSubcommandGroupBuilder()
   .setName('template')
   .setDescription('Manage announcement templates')
@@ -171,16 +97,10 @@ const templateGroup = new SlashCommandSubcommandGroupBuilder()
 /* =========================================================================
  * Main slash command
  * ========================================================================= */
-
 export const announcement = new SlashCommandBuilder()
   .setName('announcement')
   .setDescription(tl.cmdDescrp)
   .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
   .addSubcommandGroup(templateGroup)
   .addSubcommand(send)
-  .addSubcommand(maintenance)
-  .addSubcommand(maintenanceScheduled)
-  .addSubcommand(backOnline)
-  .addSubcommand(updateScheduled)
-  .addSubcommand(updateComplete)
   .toJSON();

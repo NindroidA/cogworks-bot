@@ -102,20 +102,22 @@ jobs:
           VERSION="v${VERSION:-Latest}"
 
           CHANGELOG=$(awk '
-            BEGIN { found=0; in_section=0 }
+            BEGIN { found=0; in_section=0; buf="" }
+            function flush() { if (buf != "") { print buf; buf="" } }
             /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ {
-              if (found) exit;
-              found=1;
-              next;
+              if (found) { flush(); exit }
+              found=1; next
             }
-            found && /^### / {
-              in_section=1;
-              print;
-              next;
+            found && /^### / { flush(); in_section=1; print; next }
+            found && in_section && /^- / { flush(); sub(/^- +/, ""); buf="- " $0; next }
+            found && in_section && /^[[:space:]]+[^[:space:]]/ {
+              line=$0; sub(/^[[:space:]]+/, "", line);
+              buf = (buf == "") ? line : buf " " line;
+              next
             }
-            found && in_section && /^- / { print; next }
-            found && in_section && /^  / { next }
-            found && in_section && /\S/ && !/^  / { print }
+            found && in_section && /^[[:space:]]*$/ { flush(); next }
+            found && in_section { flush(); print }
+            END { flush() }
           ' CHANGELOG.md)
 
           QUOTES=(

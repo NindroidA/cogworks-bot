@@ -1,8 +1,8 @@
 /**
  * Announcement Handler
  *
- * Supports both legacy subcommands (maintenance, back-online, etc.) and the
- * new template-based send flow (/announcement send <template>).
+ * Template-based announcement send flow (/announcement send <template>). The
+ * former per-type legacy subcommands were consolidated into templates.
  */
 
 import {
@@ -44,15 +44,6 @@ const announcementConfigRepo = lazyRepo(AnnouncementConfig);
 const announcementLogRepo = lazyRepo(AnnouncementLog);
 const templateRepo = lazyRepo(AnnouncementTemplate);
 
-// Map legacy subcommand names to default template names
-const LEGACY_TEMPLATE_MAP: Record<string, string> = {
-  maintenance: 'maintenance',
-  'maintenance-scheduled': 'maintenance-scheduled',
-  'back-online': 'back-online',
-  'update-scheduled': 'update-scheduled',
-  'update-complete': 'update-complete',
-};
-
 /**
  * Main announcement handler
  */
@@ -90,13 +81,6 @@ export async function announcementHandler(client: Client, interaction: ChatInput
       return;
     }
 
-    // Legacy subcommands map to default templates
-    const legacyTemplateName = LEGACY_TEMPLATE_MAP[subCommand];
-    if (legacyTemplateName) {
-      await handleLegacySend(client, interaction, config, guildId, subCommand, legacyTemplateName);
-      return;
-    }
-
     await interaction.reply({
       content: tlErr.unknownSubcommand,
       flags: [MessageFlags.Ephemeral],
@@ -124,6 +108,7 @@ async function handleTemplateSend(
   const tl = lang.announcement;
   const templateName = interaction.options.getString('template', true);
   const messageOverride = interaction.options.getString('message');
+  const timezone = interaction.options.getString('timezone') ?? 'UTC';
 
   const template = await templateRepo.findOneBy({
     guildId,
@@ -144,7 +129,9 @@ async function handleTemplateSend(
   // Check for dynamic placeholders
   const dynamicPlaceholders = detectDynamicPlaceholders(template);
 
-  const params: TemplatePlaceholderParams = {};
+  // channelId is set up-front so the {channel} placeholder resolves on BOTH the
+  // modal and the no-placeholder paths (the modal path previously left it unset).
+  const params: TemplatePlaceholderParams = { channelId: targetChannel.id };
 
   if (dynamicPlaceholders.length > 0) {
     // Open modal to collect placeholder values
@@ -179,14 +166,19 @@ async function handleTemplateSend(
       } else if (placeholder.name === 'duration') {
         params.duration = value;
       } else if (placeholder.name === 'time' || placeholder.name === 'time_relative') {
-        // Try parsing as a time input, otherwise treat as unix timestamp
-        const parsed = parseTimeInput(value);
+        // Interpret the entered wall-clock time in the chosen timezone, else
+        // accept a raw Unix timestamp. Reject anything else so we don't send a
+        // template with an unrendered {time} placeholder.
+        const parsed = parseTimeInput(value, timezone);
         if (parsed) {
           params.time = Math.floor(parsed.getTime() / 1000);
         } else {
           const unix = Number.parseInt(value, 10);
           if (!Number.isNaN(unix)) {
             params.time = unix;
+          } else {
+            await modalInteraction.reply({ content: tl.invalidTime, flags: [MessageFlags.Ephemeral] });
+            return;
           }
         }
       }
@@ -196,94 +188,8 @@ async function handleTemplateSend(
     await previewAndSend(modalInteraction, targetChannel, template, config, guildId, params, messageOverride);
   } else {
     // No dynamic placeholders — show preview directly
-    params.channelId = targetChannel.id;
     await previewAndSend(interaction, targetChannel, template, config, guildId, params, messageOverride);
   }
-}
-
-/**
- * Handle legacy subcommands by mapping to default templates.
- */
-async function handleLegacySend(
-  client: Client,
-  interaction: ChatInputCommandInteraction<CacheType>,
-  config: AnnouncementConfig,
-  guildId: string,
-  subCommand: string,
-  templateName: string,
-): Promise<void> {
-  const tl = lang.announcement;
-
-  // Load template from DB
-  const template = await templateRepo.findOneBy({
-    guildId,
-    name: templateName,
-  });
-
-  // If not found in DB (templates not seeded yet), we still need to work
-  if (!template) {
-    await interaction.reply({
-      content: tl.send.noTemplates,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
-
-  const targetChannel = await resolveTargetChannel(client, interaction, config);
-  if (!targetChannel) return;
-
-  // Build params from legacy options
-  const params: TemplatePlaceholderParams = {};
-  const customMessage = interaction.options.getString('message') || undefined;
-
-  switch (subCommand) {
-    case 'maintenance': {
-      const duration = interaction.options.getString('duration', true);
-      params.duration = duration === 'short' ? '5-10 minutes' : 'up to 1 hour or more';
-      break;
-    }
-    case 'maintenance-scheduled': {
-      const timeInput = interaction.options.getString('time', true);
-      const duration = interaction.options.getString('duration', true);
-      const scheduledTime = parseTimeInput(timeInput);
-      if (!scheduledTime) {
-        await interaction.reply({
-          content: tl.invalidTime,
-          flags: [MessageFlags.Ephemeral],
-        });
-        return;
-      }
-      params.time = Math.floor(scheduledTime.getTime() / 1000);
-      params.duration = duration === 'short' ? '5-10 minutes' : 'up to 1 hour or more';
-      break;
-    }
-    case 'update-scheduled': {
-      const version = interaction.options.getString('version', true);
-      const timeInput = interaction.options.getString('time', true);
-      const scheduledTime = parseTimeInput(timeInput);
-      if (!scheduledTime) {
-        await interaction.reply({
-          content: tl.invalidTime,
-          flags: [MessageFlags.Ephemeral],
-        });
-        return;
-      }
-      params.version = version;
-      params.time = Math.floor(scheduledTime.getTime() / 1000);
-      break;
-    }
-    case 'update-complete': {
-      const version = interaction.options.getString('version', true);
-      params.version = version;
-      break;
-    }
-    case 'back-online':
-      // No params needed
-      break;
-  }
-
-  params.channelId = targetChannel.id;
-  await previewAndSend(interaction, targetChannel, template, config, guildId, params, customMessage);
 }
 
 /**
@@ -343,10 +249,6 @@ async function previewAndSend(
     idPrefix: 'announcement',
   });
   if (!result) return;
-
-  for (const embed of messageData.embeds) {
-    embed.setTimestamp(new Date());
-  }
 
   const sentMessage = await targetChannel.send({
     content: messageData.content,

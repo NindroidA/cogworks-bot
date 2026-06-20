@@ -175,6 +175,50 @@ export function registerAnnouncementHandlers(client: Client, routes: Map<string,
     return { success: true, template };
   });
 
+  // POST /internal/guilds/:guildId/announcements/templates/update
+  // Partial update — only fields present in the body are changed. Default
+  // templates ARE editable (matching the Discord /announcement template edit),
+  // unlike delete which protects them. This is what lets the dashboard edit
+  // announcement templates.
+  routes.set('POST /announcements/templates/update', async (guildId, body) => {
+    const name = requireString(body, 'name');
+
+    const template = await templateRepo.findOneBy({ guildId, name });
+    if (!template) throw ApiError.notFound(`Template '${name}' not found`);
+
+    const displayName = optionalString(body, 'displayName');
+    if (displayName !== undefined) template.displayName = sanitizeUserInput(displayName);
+
+    const title = optionalString(body, 'title');
+    if (title !== undefined) template.title = sanitizeUserInput(title);
+
+    const templateBody = optionalString(body, 'body');
+    if (templateBody !== undefined) template.body = sanitizeUserInput(templateBody);
+
+    const color = optionalString(body, 'color');
+    if (color !== undefined) {
+      const colorCheck = validateHexColor(color);
+      if (!colorCheck.valid) throw ApiError.badRequest(colorCheck.error!);
+      template.color = color.toUpperCase();
+    }
+
+    const description = optionalString(body, 'description');
+    if (description !== undefined) template.description = sanitizeUserInput(description) || null;
+
+    const footerText = optionalString(body, 'footerText');
+    if (footerText !== undefined) template.footerText = sanitizeUserInput(footerText) || null;
+
+    if (typeof body.showTimestamp === 'boolean') template.showTimestamp = body.showTimestamp;
+    if (typeof body.mentionRole === 'boolean') template.mentionRole = body.mentionRole;
+
+    await templateRepo.save(template);
+
+    await writeAuditAction(guildId, body, 'announcement.template.update', {
+      templateName: name,
+    });
+    return { success: true, template };
+  });
+
   // POST /internal/guilds/:guildId/announcements/templates/delete
   routes.set('POST /announcements/templates/delete', async (guildId, body) => {
     const name = requireString(body, 'name');

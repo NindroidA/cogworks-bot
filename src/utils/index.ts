@@ -96,19 +96,44 @@ export function extractIdFromMention(mention: string): string | null {
 }
 
 /**
- * Parses time input string into Date object (UTC)
- *
- * The parsed Date is treated as UTC. Callers should convert the resulting
- * Unix timestamp to a Discord timestamp (`<t:UNIX:F>`) so each user sees
- * the time in their own local timezone.
+ * Returns the offset (ms) of `timeZone` from UTC at the given instant, DST-aware.
+ * Positive when the zone is ahead of UTC. Uses Intl (available under Bun/Node)
+ * so no timezone database dependency is needed.
+ */
+function tzOffsetMs(instant: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const parts: Record<string, number> = {};
+  for (const part of dtf.formatToParts(instant)) {
+    if (part.type !== 'literal') parts[part.type] = Number(part.value);
+  }
+  // What wall-clock `instant` shows as in the zone, read back as if it were UTC.
+  const asIfUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour % 24, parts.minute, parts.second);
+  return asIfUtc - instant.getTime();
+}
+
+/**
+ * Parses a time input string into a Date, interpreting the wall-clock value in
+ * the given IANA `timeZone` (DST-aware). Defaults to UTC for backward
+ * compatibility. Callers should render the resulting Unix timestamp as a
+ * Discord timestamp (`<t:UNIX:F>`) so each viewer sees their own local time.
  *
  * @param timeInput - Time string in format "YYYY-MM-DD HH:MM AM/PM"
- * @returns Parsed Date object (UTC) or null if invalid
+ * @param timeZone - IANA zone (e.g. "America/Chicago") the input is expressed in; default "UTC"
+ * @returns Parsed Date (the correct UTC instant) or null if invalid
  * @example
- * parseTimeInput("2025-10-27 3:45 PM")
- * // Returns: Date object for October 27, 2025 at 3:45 PM UTC
+ * parseTimeInput("2025-10-27 3:45 PM", "America/Chicago")
+ * // Returns the UTC instant for 3:45 PM Central on that date (CDT/CST handled)
  */
-export function parseTimeInput(timeInput: string): Date | null {
+export function parseTimeInput(timeInput: string, timeZone = 'UTC'): Date | null {
   try {
     // Parse YYYY-MM-DD HH:MM AM/PM format
     const match = timeInput.match(/^(\d{4})-(\d{2})-(\d{2})\s(\d{1,2}):(\d{2})\s?(AM|PM)$/i);
@@ -124,13 +149,18 @@ export function parseTimeInput(timeInput: string): Date | null {
       hour = 0;
     }
 
-    // Format hour with leading zero if needed
-    const hourFormatted = hour.toString().padStart(2, '0');
+    if (timeZone === 'UTC') {
+      const hourFormatted = hour.toString().padStart(2, '0');
+      const utcTime = new Date(`${year}-${month}-${day}T${hourFormatted}:${minute}:00Z`);
+      return Number.isNaN(utcTime.getTime()) ? null : utcTime;
+    }
 
-    // Parse as UTC — Discord timestamps (<t:UNIX:F>) handle local timezone display
-    const utcTime = new Date(`${year}-${month}-${day}T${hourFormatted}:${minute}:00Z`);
-
-    return utcTime;
+    // Interpret the wall-clock components as local time in `timeZone`, then
+    // correct to the true UTC instant using that zone's offset at that time.
+    const asUtcGuess = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), hour, Number(minute), 0));
+    if (Number.isNaN(asUtcGuess.getTime())) return null;
+    const offset = tzOffsetMs(asUtcGuess, timeZone);
+    return new Date(asUtcGuess.getTime() - offset);
   } catch {
     return null;
   }

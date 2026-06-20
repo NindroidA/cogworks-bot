@@ -83,10 +83,13 @@ async function processGuildSla(client: Client, config: TicketConfig): Promise<vo
       const elapsedMinutes = Math.floor(elapsed / 60_000);
 
       ticket.slaBreached = true;
-      ticket.slaBreachNotified = true;
-      await ticketRepo.save(ticket);
 
-      // Send breach alert
+      // Only mark the breach as notified once an alert is actually delivered.
+      // Otherwise an unconfigured/unreachable breach channel would permanently
+      // flag the ticket notified with nothing sent — and the query filters on
+      // slaBreachNotified = false, so it would never retry (even after an admin
+      // later configures a valid channel). Leaving it false makes it retry.
+      let notified = false;
       if (breachChannel) {
         const embed = new EmbedBuilder()
           .setTitle(tl.breachAlertTitle)
@@ -100,13 +103,21 @@ async function processGuildSla(client: Client, config: TicketConfig): Promise<vo
             ),
           )
           .setColor(0xff0000);
-        await breachChannel.send({ embeds: [embed] }).catch(() => {
-          enhancedLogger.error('Failed to send SLA breach alert', new Error('Channel send failed'), LogCategory.ERROR, {
-            guildId: config.guildId,
-            ticketId: ticket.id,
-          });
-        });
+        try {
+          await breachChannel.send({ embeds: [embed] });
+          notified = true;
+        } catch (error) {
+          enhancedLogger.error(
+            'Failed to send SLA breach alert',
+            error instanceof Error ? error : new Error(String(error)),
+            LogCategory.ERROR,
+            { guildId: config.guildId, ticketId: ticket.id },
+          );
+        }
       }
+
+      ticket.slaBreachNotified = notified;
+      await ticketRepo.save(ticket);
 
       enhancedLogger.info('SLA breach detected', LogCategory.SYSTEM, {
         guildId: config.guildId,

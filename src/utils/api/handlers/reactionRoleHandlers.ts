@@ -41,22 +41,19 @@ export function registerReactionRoleHandlers(client: Client, routes: Map<string,
       options: [],
     });
 
-    // Create options if provided
-    const rawOptions =
-      (body.options as Array<{
-        emoji: string;
-        roleId: string;
-        label?: string;
-      }>) || [];
-
-    const options: ReactionRoleOption[] = rawOptions.map((opt, idx) =>
-      optionRepo.create({
-        emoji: opt.emoji,
-        roleId: opt.roleId,
-        description: opt.label || null,
-        sortOrder: idx,
-      }),
-    );
+    // Create options if provided — validate each before any Discord write (no
+    // unchecked `as` cast on body fields per project rules; an invalid roleId
+    // or empty emoji must not silently create a broken menu or orphan a message).
+    const rawOptions = Array.isArray(body.options) ? body.options : [];
+    const options: ReactionRoleOption[] = rawOptions.map((raw, idx) => {
+      const opt = (raw ?? {}) as { emoji?: unknown; roleId?: unknown; label?: unknown };
+      const emoji = typeof opt.emoji === 'string' ? opt.emoji.trim() : '';
+      const roleId = typeof opt.roleId === 'string' ? opt.roleId : '';
+      if (!emoji) throw ApiError.badRequest(`options[${idx}]: emoji is required`);
+      if (!isValidSnowflake(roleId)) throw ApiError.badRequest(`options[${idx}]: invalid roleId`);
+      const label = typeof opt.label === 'string' ? opt.label : null;
+      return optionRepo.create({ emoji, roleId, description: label, sortOrder: idx });
+    });
     menu.options = options;
 
     // Build and send embed
@@ -65,9 +62,15 @@ export function registerReactionRoleHandlers(client: Client, routes: Map<string,
       embeds: [embed],
     });
 
-    // Add reactions
-    for (const opt of options) {
-      await sentMessage.react(opt.emoji);
+    // Add reactions — if an emoji is invalid the message would otherwise be left
+    // orphaned (sent, but no backing DB row yet), so clean it up and surface 400.
+    try {
+      for (const opt of options) {
+        await sentMessage.react(opt.emoji);
+      }
+    } catch {
+      await sentMessage.delete().catch(() => {});
+      throw ApiError.badRequest('Failed to add a reaction — check the emoji values');
     }
 
     // Update with actual message ID and save

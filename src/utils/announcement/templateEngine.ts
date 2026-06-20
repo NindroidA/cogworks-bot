@@ -198,10 +198,10 @@ export function renderTemplate(
     embed.setFooter({ text: renderPlaceholders(template.footerText, resolvedParams) });
   }
 
-  // Timestamp
-  if (template.showTimestamp) {
-    embed.setTimestamp(new Date());
-  }
+  // No embed timestamp: Discord already shows each message's sent time, and any
+  // scheduled time in the body uses <t:unix:F>/<t:unix:R> so every viewer sees
+  // their own local time. (template.showTimestamp is retained for back-compat
+  // but intentionally not rendered — it only added a confusing duplicate time.)
 
   // Content: mention role if configured
   const content = template.mentionRole && roleId ? `<@&${roleId}>` : undefined;
