@@ -62,6 +62,7 @@ import {
   showAndAwaitModal,
 } from '../../../utils';
 import { Colors } from '../../../utils/colors';
+import { upsertGuildEntity } from '../../../utils/database/guildQueries';
 import { channelSelect, checkbox, labelWrap, radioGroup, rawModal, roleSelect } from '../../../utils/modalComponents';
 import { type CreatedChannels, createSystemChannels, type SystemType } from '../../../utils/setup/channelCreator';
 import { BAIT_CHANNEL_WARNING, DEFAULT_MEMORY_TAGS } from '../../../utils/setup/channelDefaults';
@@ -144,12 +145,12 @@ async function configureStaffRole(
   const enabled = extractModalBoolean(submit.fields, 'setup_staff_enable', true);
 
   if (roleId && enabled) {
-    const repo = AppDataSource.getRepository(BotConfig);
-    let config = await repo.findOneBy({ guildId });
-    if (!config) config = repo.create({ guildId });
-    config.enableGlobalStaffRole = true;
-    config.globalStaffRole = roleId;
-    await repo.save(config);
+    await upsertGuildEntity(AppDataSource.getRepository(BotConfig), guildId, {
+      apply: config => {
+        config.enableGlobalStaffRole = true;
+        config.globalStaffRole = roleId;
+      },
+    });
 
     const states = {
       ...(setupState.systemStates ?? DEFAULT_SYSTEM_STATES),
@@ -388,37 +389,41 @@ async function configureForumSystem(
 // ---------------------------------------------------------------------------
 
 async function saveTicketConfig(guildId: string, data: ForumSystemData) {
-  const ticketRepo = AppDataSource.getRepository(TicketConfig);
-  let config = await ticketRepo.findOneBy({ guildId });
-  if (!config) config = ticketRepo.create({ guildId, messageId: '' });
-  config.channelId = data.channelId;
-  config.categoryId = data.categoryId;
-  if (data.messageId) config.messageId = data.messageId;
-  await ticketRepo.save(config);
+  await upsertGuildEntity(AppDataSource.getRepository(TicketConfig), guildId, {
+    create: { messageId: '' },
+    apply: config => {
+      config.channelId = data.channelId;
+      config.categoryId = data.categoryId;
+      if (data.messageId) config.messageId = data.messageId;
+    },
+  });
 
-  const archiveRepo = AppDataSource.getRepository(ArchivedTicketConfig);
-  let archive = await archiveRepo.findOneBy({ guildId });
-  if (!archive) archive = archiveRepo.create({ guildId, messageId: '' });
-  archive.channelId = data.archiveId;
-  if (data.archiveMessageId) archive.messageId = data.archiveMessageId;
-  await archiveRepo.save(archive);
+  await upsertGuildEntity(AppDataSource.getRepository(ArchivedTicketConfig), guildId, {
+    create: { messageId: '' },
+    apply: archive => {
+      archive.channelId = data.archiveId;
+      if (data.archiveMessageId) archive.messageId = data.archiveMessageId;
+    },
+  });
 }
 
 async function saveApplicationConfig(guildId: string, data: ForumSystemData) {
-  const appRepo = AppDataSource.getRepository(ApplicationConfig);
-  let config = await appRepo.findOneBy({ guildId });
-  if (!config) config = appRepo.create({ guildId, messageId: '' });
-  config.channelId = data.channelId;
-  config.categoryId = data.categoryId;
-  if (data.messageId) config.messageId = data.messageId;
-  await appRepo.save(config);
+  await upsertGuildEntity(AppDataSource.getRepository(ApplicationConfig), guildId, {
+    create: { messageId: '' },
+    apply: config => {
+      config.channelId = data.channelId;
+      config.categoryId = data.categoryId;
+      if (data.messageId) config.messageId = data.messageId;
+    },
+  });
 
-  const archiveRepo = AppDataSource.getRepository(ArchivedApplicationConfig);
-  let archive = await archiveRepo.findOneBy({ guildId });
-  if (!archive) archive = archiveRepo.create({ guildId, messageId: '' });
-  archive.channelId = data.archiveId;
-  if (data.archiveMessageId) archive.messageId = data.archiveMessageId;
-  await archiveRepo.save(archive);
+  await upsertGuildEntity(AppDataSource.getRepository(ArchivedApplicationConfig), guildId, {
+    create: { messageId: '' },
+    apply: archive => {
+      archive.channelId = data.archiveId;
+      if (data.archiveMessageId) archive.messageId = data.archiveMessageId;
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -670,12 +675,12 @@ const announcementConfig: SimpleSystemConfig<AnnouncementData, 'announcement'> =
     return { kind: 'partial', data: { roleId, channelId } };
   },
   apply: async (guildId, data) => {
-    const repo = AppDataSource.getRepository(AnnouncementConfig);
-    let config = await repo.findOneBy({ guildId });
-    if (!config) config = repo.create({ guildId });
-    config.defaultRoleId = data.roleId;
-    config.defaultChannelId = data.channelId;
-    await repo.save(config);
+    await upsertGuildEntity(AppDataSource.getRepository(AnnouncementConfig), guildId, {
+      apply: config => {
+        config.defaultRoleId = data.roleId;
+        config.defaultChannelId = data.channelId;
+      },
+    });
 
     await seedDefaultTemplates(guildId);
   },

@@ -14,11 +14,13 @@ import {
   deleteByGuild,
   findManyByGuild,
   findOneByGuild,
+  upsertGuildEntity,
 } from '../../../../src/utils/database/guildQueries';
 
 interface FakeEntity {
   guildId: string;
   id: number;
+  name?: string;
 }
 
 type FakeRepo = {
@@ -26,6 +28,8 @@ type FakeRepo = {
   find: (opts: unknown) => Promise<FakeEntity[]>;
   count: (opts: unknown) => Promise<number>;
   delete: (where: unknown) => Promise<{ affected?: number }>;
+  create: (data: unknown) => FakeEntity;
+  save: (entity: FakeEntity) => Promise<FakeEntity>;
   metadata: { name: string };
 };
 
@@ -35,6 +39,8 @@ function makeFakeRepo(overrides: Partial<FakeRepo> = {}): Repository<FakeEntity>
     find: async () => [],
     count: async () => 0,
     delete: async () => ({ affected: 0 }),
+    create: (data: unknown) => ({ ...(data as FakeEntity) }),
+    save: async (entity: FakeEntity) => entity,
     metadata: { name: 'FakeEntity' },
     ...overrides,
   };
@@ -172,6 +178,68 @@ describe('guildQueries — error propagation contract (v3.1.5+)', () => {
       });
       await deleteByGuild(repo, GUILD, { id: 9 } as Partial<FakeEntity>);
       expect(captured).toMatchObject({ guildId: GUILD, id: 9 });
+    });
+  });
+
+  describe('upsertGuildEntity()', () => {
+    test('updates the existing row (no create) and saves', async () => {
+      const existing: FakeEntity = { guildId: GUILD, id: 7, name: 'old' };
+      let createdCalled = false;
+      let saved: FakeEntity | undefined;
+      const repo = makeFakeRepo({
+        findOne: async () => existing,
+        create: () => {
+          createdCalled = true;
+          return { guildId: GUILD, id: 0 };
+        },
+        save: async e => {
+          saved = e;
+          return e;
+        },
+      });
+      const result = await upsertGuildEntity(repo, GUILD, { apply: e => (e.name = 'new') });
+      expect(createdCalled).toBe(false);
+      expect(result.name).toBe('new');
+      expect(saved).toBe(existing);
+    });
+
+    test('creates with guildId + seed when no row exists, then applies + saves', async () => {
+      let createArg: unknown;
+      const repo = makeFakeRepo({
+        findOne: async () => null,
+        create: (data: unknown) => {
+          createArg = data;
+          return { ...(data as FakeEntity) };
+        },
+      });
+      const result = await upsertGuildEntity(repo, GUILD, {
+        create: { id: 42 },
+        apply: e => (e.name = 'seeded'),
+      });
+      expect(createArg).toMatchObject({ guildId: GUILD, id: 42 });
+      expect(result).toMatchObject({ guildId: GUILD, id: 42, name: 'seeded' });
+    });
+
+    test('merges extra where keys with guildId for the lookup', async () => {
+      let whereCaptured: Record<string, unknown> | undefined;
+      const repo = makeFakeRepo({
+        findOne: async (opts: unknown) => {
+          whereCaptured = (opts as { where: Record<string, unknown> }).where;
+          return { guildId: GUILD, id: 5 };
+        },
+      });
+      await upsertGuildEntity(repo, GUILD, { where: { id: 5 } as Partial<FakeEntity> });
+      expect(whereCaptured).toMatchObject({ guildId: GUILD, id: 5 });
+    });
+
+    test('propagates DB errors from save', async () => {
+      const repo = makeFakeRepo({
+        findOne: async () => ({ guildId: GUILD, id: 1 }),
+        save: async () => {
+          throw DB_ERROR;
+        },
+      });
+      await expect(upsertGuildEntity(repo, GUILD)).rejects.toThrow(DB_ERROR.message);
     });
   });
 });

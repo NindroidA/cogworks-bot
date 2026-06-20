@@ -1,5 +1,6 @@
 import type { Client, TextChannel } from 'discord.js';
 import { RulesConfig } from '../../../typeorm/entities/rules/RulesConfig';
+import { upsertGuildEntity } from '../../database/guildQueries';
 import { lazyRepo } from '../../database/lazyRepo';
 import { invalidateRulesCache } from '../../rules/rulesCache';
 import { ApiError } from '../apiError';
@@ -33,24 +34,15 @@ export function registerRulesHandlers(client: Client, routes: Map<string, RouteH
     await rulesMessage.react(emoji);
 
     // Save or update config
-    let config = await rulesConfigRepo.findOneBy({ guildId });
-    if (!config) {
-      config = rulesConfigRepo.create({
-        guildId,
-        channelId,
-        messageId: rulesMessage.id,
-        roleId,
-        emoji,
-        customMessage: messageContent,
-      });
-    } else {
-      config.channelId = channelId;
-      config.messageId = rulesMessage.id;
-      config.roleId = roleId;
-      config.emoji = emoji;
-      config.customMessage = messageContent;
-    }
-    await rulesConfigRepo.save(config);
+    await upsertGuildEntity(rulesConfigRepo, guildId, {
+      apply: config => {
+        config.channelId = channelId;
+        config.messageId = rulesMessage.id;
+        config.roleId = roleId;
+        config.emoji = emoji;
+        config.customMessage = messageContent;
+      },
+    });
 
     // Invalidate cache
     invalidateRulesCache(guildId);

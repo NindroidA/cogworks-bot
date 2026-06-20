@@ -11,7 +11,7 @@
  * `safeDbOperation()` from `../errorHandler`.
  */
 
-import type { FindManyOptions, FindOneOptions, FindOptionsWhere, Repository } from 'typeorm';
+import type { DeepPartial, FindManyOptions, FindOneOptions, FindOptionsWhere, Repository } from 'typeorm';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
 /**
@@ -69,6 +69,44 @@ export async function findManyByGuild<T extends { guildId: string }>(
       guildId,
     } as FindOptionsWhere<T>,
   });
+}
+
+/**
+ * Find-or-create a guild-scoped entity, apply changes, and save. Collapses the
+ * repeated `let c = await repo.findOneBy({guildId}); if (!c) c = repo.create({guildId,...});
+ * ...assign...; await repo.save(c)` pattern in setup/config handlers. Propagates DB errors.
+ *
+ * @param repo - TypeORM repository
+ * @param guildId - Guild ID the entity is scoped to
+ * @param options.where - extra key columns for the lookup (merged with guildId)
+ * @param options.create - seed columns applied only when creating a new row (guildId is always set)
+ * @param options.apply - mutate the (found or created) entity before save
+ * @returns The saved entity
+ *
+ * @example
+ * const config = await upsertGuildEntity(starboardRepo, guildId, {
+ *   create: { channelId },
+ *   apply: c => { c.channelId = channelId; c.threshold = threshold; },
+ * });
+ */
+export async function upsertGuildEntity<T extends { guildId: string }>(
+  repo: Repository<T>,
+  guildId: string,
+  options?: {
+    where?: Omit<FindOptionsWhere<T>, 'guildId'>;
+    create?: DeepPartial<T>;
+    apply?: (entity: T) => void;
+  },
+): Promise<T> {
+  const { where, create, apply } = options ?? {};
+  let entity = await repo.findOne({
+    where: { ...(where as object), guildId } as FindOptionsWhere<T>,
+  });
+  if (!entity) {
+    entity = repo.create({ guildId, ...(create as object) } as DeepPartial<T>);
+  }
+  apply?.(entity);
+  return repo.save(entity);
 }
 
 /**

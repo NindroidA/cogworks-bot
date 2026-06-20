@@ -2,6 +2,7 @@ import type { CacheType, ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import { StarboardConfig } from '../../../typeorm/entities/starboard';
 import { formatLang, guardFeatureAccess, handleInteractionError, lang, replyEphemeralError } from '../../../utils';
+import { upsertGuildEntity } from '../../../utils/database/guildQueries';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const configRepo = lazyRepo(StarboardConfig);
@@ -20,24 +21,14 @@ export async function starboardSetupHandler(interaction: ChatInputCommandInterac
     const emoji = interaction.options.getString('emoji') || '\u2B50';
     const threshold = interaction.options.getInteger('threshold') || 3;
 
-    let config = await configRepo.findOneBy({ guildId });
-
-    if (config) {
-      config.channelId = channel.id;
-      config.emoji = emoji;
-      config.threshold = threshold;
-      config.enabled = true;
-    } else {
-      config = configRepo.create({
-        guildId,
-        channelId: channel.id,
-        emoji,
-        threshold,
-        enabled: true,
-      });
-    }
-
-    await configRepo.save(config);
+    await upsertGuildEntity(configRepo, guildId, {
+      apply: config => {
+        config.channelId = channel.id;
+        config.emoji = emoji;
+        config.threshold = threshold;
+        config.enabled = true;
+      },
+    });
 
     await interaction.reply({
       content: formatLang(tl.setup.success, threshold.toString(), emoji, `<#${channel.id}>`),
