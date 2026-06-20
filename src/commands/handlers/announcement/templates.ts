@@ -10,7 +10,6 @@ import {
   type CacheType,
   type ChatInputCommandInteraction,
   type Client,
-  EmbedBuilder,
   MessageFlags,
   ModalBuilder,
   TextInputBuilder,
@@ -27,7 +26,7 @@ import {
   showAndAwaitModal,
 } from '../../../utils';
 import { DEFAULT_ANNOUNCEMENT_TEMPLATES } from '../../../utils/announcement/defaultTemplates';
-import { detectDynamicPlaceholders, renderPreview } from '../../../utils/announcement/templateEngine';
+import { renderPreview } from '../../../utils/announcement/templateEngine';
 import { validateHexColor } from '../../../utils/api/helpers';
 import { MAX } from '../../../utils/constants';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -74,9 +73,7 @@ export async function templateHandler(
     case 'delete':
       await handleDelete(interaction, guildId);
       break;
-    case 'list':
-      await handleList(interaction, guildId);
-      break;
+    // 'list' is intercepted in index.ts → templateListHandler (interactive view)
     case 'preview':
       await handlePreview(client, interaction, guildId);
       break;
@@ -226,25 +223,14 @@ async function handleCreate(interaction: ChatInputCommandInteraction<CacheType>,
 // Edit
 // ============================================================================
 
-async function handleEdit(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
-  const tl = lang.announcement.template;
-  const templateName = interaction.options.getString('template', true);
-
-  const template = await templateRepo.findOneBy({
-    guildId,
-    name: templateName,
-  });
-  if (!template) {
-    await interaction.reply({
-      content: tl.edit.notFound,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
-
-  const modal = new ModalBuilder()
+/**
+ * Build the pre-filled "edit template" modal. Exported so the interactive
+ * template list (templateList.ts) can reuse the exact same edit form.
+ */
+export function buildTemplateEditModal(template: AnnouncementTemplate): ModalBuilder {
+  return new ModalBuilder()
     .setCustomId(`announcement_tpl_edit_${Date.now()}`)
-    .setTitle(`Edit: ${template.displayName}`)
+    .setTitle(`Edit: ${template.displayName}`.slice(0, 45))
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
@@ -283,34 +269,60 @@ async function handleEdit(interaction: ChatInputCommandInteraction<CacheType>, g
           .setValue(template.color),
       ),
     );
+}
 
-  const modalInteraction = await showAndAwaitModal(interaction, modal);
-  if (!modalInteraction) return;
+/**
+ * Apply an edit-modal submission to a template and persist it. Pure of any
+ * reply — the caller owns user feedback. Returns `{ error }` on a validation
+ * failure (currently only invalid color) or `{ template }` on success.
+ * Exported for reuse by the interactive template list.
+ */
+export async function applyTemplateEditSubmit(
+  template: AnnouncementTemplate,
+  fields: { getTextInputValue: (id: string) => string },
+): Promise<{ error: string } | { template: AnnouncementTemplate }> {
+  const displayName = sanitizeUserInput(fields.getTextInputValue('display_name'));
+  const title = sanitizeUserInput(fields.getTextInputValue('title'));
+  const body = sanitizeUserInput(fields.getTextInputValue('body'));
+  const colorInput = fields.getTextInputValue('color').trim() || template.color;
 
-  const displayName = sanitizeUserInput(modalInteraction.fields.getTextInputValue('display_name'));
-  const title = sanitizeUserInput(modalInteraction.fields.getTextInputValue('title'));
-  const body = sanitizeUserInput(modalInteraction.fields.getTextInputValue('body'));
-  const colorInput = modalInteraction.fields.getTextInputValue('color').trim() || template.color;
-
-  // Validate color
   const colorCheck = validateHexColor(colorInput);
-  if (!colorCheck.valid) {
-    await modalInteraction.reply({
-      content: tl.create.invalidColor,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
+  if (!colorCheck.valid) return { error: lang.announcement.template.create.invalidColor };
 
   template.displayName = displayName;
   template.title = title;
   template.body = body;
   template.color = colorInput.toUpperCase();
-
   await templateRepo.save(template);
+  return { template };
+}
 
-  const preview = renderPreview(template, interaction.guild, interaction.user);
+async function handleEdit(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
+  const tl = lang.announcement.template;
+  const templateName = interaction.options.getString('template', true);
 
+  const template = await templateRepo.findOneBy({
+    guildId,
+    name: templateName,
+  });
+  if (!template) {
+    await interaction.reply({
+      content: tl.edit.notFound,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  const modalInteraction = await showAndAwaitModal(interaction, buildTemplateEditModal(template));
+  if (!modalInteraction) return;
+
+  const result = await applyTemplateEditSubmit(template, modalInteraction.fields);
+  if ('error' in result) {
+    await modalInteraction.reply({ content: result.error, flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  const preview = renderPreview(result.template, interaction.guild, interaction.user);
   await modalInteraction.reply({
     content: tl.edit.success,
     embeds: preview.embeds,
@@ -360,50 +372,6 @@ async function handleDelete(interaction: ChatInputCommandInteraction<CacheType>,
   await result.interaction.editReply({ content: tl.delete.success });
 
   enhancedLogger.command(`Template '${templateName}' deleted`, interaction.user.id, guildId);
-}
-
-// ============================================================================
-// List
-// ============================================================================
-
-async function handleList(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
-  const tl = lang.announcement.template;
-
-  const templates = await templateRepo.find({
-    where: { guildId },
-    order: { isDefault: 'DESC', name: 'ASC' },
-  });
-
-  if (templates.length === 0) {
-    await interaction.reply({
-      content: tl.list.empty,
-      flags: [MessageFlags.Ephemeral],
-    });
-    return;
-  }
-
-  const embed = new EmbedBuilder().setTitle(tl.list.title).setColor(0x5865f2);
-
-  for (const tmpl of templates.slice(0, 25)) {
-    const placeholders = detectDynamicPlaceholders(tmpl);
-    const placeholderText = placeholders.length > 0 ? placeholders.map(p => `\`{${p.name}}\``).join(', ') : 'None';
-    const defaultBadge = tmpl.isDefault ? ' (default)' : '';
-
-    embed.addFields({
-      name: `${tmpl.displayName}${defaultBadge}`,
-      value: `Name: \`${tmpl.name}\` | Color: ${tmpl.color} | Placeholders: ${placeholderText}`,
-      inline: false,
-    });
-  }
-
-  embed.setFooter({
-    text: `${templates.length}/${MAX.ANNOUNCEMENT_TEMPLATES} templates`,
-  });
-
-  await interaction.reply({
-    embeds: [embed],
-    flags: [MessageFlags.Ephemeral],
-  });
 }
 
 // ============================================================================

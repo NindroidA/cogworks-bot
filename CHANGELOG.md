@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.0] - 2026-06-20
+
+### Added
+
+- **Interactive announcement template manager.** `/announcement template list`
+  now opens a browsable view — pick a template from the menu to preview, edit
+  (pre-filled modal), or delete it, all in one place, mirroring the
+  `/ticket type list` experience. Default templates are protected from deletion.
+- **Templates are editable from the dashboard too** (via the v3.4.0 update
+  endpoint), so the template system is fully manageable from both Discord and
+  the web app.
+
 ## [3.5.1] - 2026-06-20
 
 Post-upgrade cleanups (no behavior change).
