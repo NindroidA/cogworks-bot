@@ -1,5 +1,6 @@
-import { ChannelType, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
+import { createActionOption, createTextChannelOption } from './factories';
 
 const tl = lang.baitChannel.builder;
 
@@ -18,11 +19,7 @@ export const baitChannelCommand = new SlashCommandBuilder()
           .setName('setup')
           .setDescription(tl.setup.descrp)
           .addChannelOption(option =>
-            option
-              .setName('channel')
-              .setDescription(tl.setup.channel)
-              .addChannelTypes(ChannelType.GuildText)
-              .setRequired(true),
+            createTextChannelOption(option, { description: tl.setup.channel, required: true }),
           )
           .addIntegerOption(option =>
             option
@@ -33,19 +30,18 @@ export const baitChannelCommand = new SlashCommandBuilder()
               .setRequired(true),
           )
           .addStringOption(option =>
-            option
-              .setName('action')
-              .setDescription(tl.setup.action)
-              .addChoices(
+            createActionOption(option, {
+              description: tl.setup.action,
+              choices: [
                 { name: tl.setup.actionBan, value: 'ban' },
                 { name: tl.setup.actionKick, value: 'kick' },
                 { name: tl.setup.actionTimeout, value: 'timeout' },
                 { name: tl.setup.actionLogOnly, value: 'log-only' },
-              )
-              .setRequired(true),
+              ],
+            }),
           )
           .addChannelOption(option =>
-            option.setName('log_channel').setDescription(tl.setup.logChannel).addChannelTypes(ChannelType.GuildText),
+            createTextChannelOption(option, { name: 'log_channel', description: tl.setup.logChannel }),
           ),
       )
       .addSubcommand(subcommand =>
@@ -59,11 +55,7 @@ export const baitChannelCommand = new SlashCommandBuilder()
           .setName('add-channel')
           .setDescription(tl.addChannel.descrp)
           .addChannelOption(option =>
-            option
-              .setName('channel')
-              .setDescription(tl.addChannel.channel)
-              .addChannelTypes(ChannelType.GuildText)
-              .setRequired(true),
+            createTextChannelOption(option, { description: tl.addChannel.channel, required: true }),
           ),
       )
       .addSubcommand(subcommand =>
@@ -71,11 +63,7 @@ export const baitChannelCommand = new SlashCommandBuilder()
           .setName('remove-channel')
           .setDescription(tl.removeChannel.descrp)
           .addChannelOption(option =>
-            option
-              .setName('channel')
-              .setDescription(tl.removeChannel.channel)
-              .addChannelTypes(ChannelType.GuildText)
-              .setRequired(true),
+            createTextChannelOption(option, { description: tl.removeChannel.channel, required: true }),
           ),
       )
       .addSubcommand(subcommand => subcommand.setName('status').setDescription(tl.status.descrp)),
@@ -137,15 +125,14 @@ export const baitChannelCommand = new SlashCommandBuilder()
           .setName('whitelist')
           .setDescription(tl.whitelist.descrp)
           .addStringOption(option =>
-            option
-              .setName('action')
-              .setDescription(tl.whitelist.action)
-              .addChoices(
+            createActionOption(option, {
+              description: tl.whitelist.action,
+              choices: [
                 { name: tl.whitelist.actionAdd, value: 'add' },
                 { name: tl.whitelist.actionRemove, value: 'remove' },
                 { name: tl.whitelist.actionList, value: 'list' },
-              )
-              .setRequired(true),
+              ],
+            }),
           )
           .addRoleOption(option => option.setName('role').setDescription(tl.whitelist.role))
           .addUserOption(option => option.setName('user').setDescription(tl.whitelist.user)),
@@ -155,16 +142,15 @@ export const baitChannelCommand = new SlashCommandBuilder()
           .setName('keywords')
           .setDescription(tl.keywords.descrp)
           .addStringOption(option =>
-            option
-              .setName('action')
-              .setDescription(tl.keywords.action)
-              .addChoices(
+            createActionOption(option, {
+              description: tl.keywords.action,
+              choices: [
                 { name: 'Add keyword', value: 'add' },
                 { name: 'Remove keyword', value: 'remove' },
                 { name: 'List keywords', value: 'list' },
                 { name: 'Reset to defaults', value: 'reset' },
-              )
-              .setRequired(true),
+              ],
+            }),
           )
           .addStringOption(option =>
             option.setName('keyword').setDescription(tl.keywords.keyword).setMaxLength(100).setAutocomplete(true),
@@ -244,9 +230,7 @@ export const baitChannelCommand = new SlashCommandBuilder()
           .setName('summary')
           .setDescription(tl.summary.descrp)
           .addBooleanOption(option => option.setName('enabled').setDescription(tl.summary.enabled).setRequired(true))
-          .addChannelOption(option =>
-            option.setName('channel').setDescription(tl.summary.channel).addChannelTypes(ChannelType.GuildText),
-          ),
+          .addChannelOption(option => createTextChannelOption(option, { description: tl.summary.channel })),
       )
       .addSubcommand(subcommand =>
         subcommand

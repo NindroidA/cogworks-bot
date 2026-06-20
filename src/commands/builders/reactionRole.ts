@@ -1,18 +1,13 @@
-import { ChannelType, PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
+import { PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
+import { createTextChannelOption } from './factories';
 
 const tl = lang.reactionRole.builder;
 
 const create = new SlashCommandSubcommandBuilder()
   .setName('create')
   .setDescription(tl.create.descrp)
-  .addChannelOption(option =>
-    option
-      .setName('channel')
-      .setDescription(tl.create.channel)
-      .setRequired(true)
-      .addChannelTypes(ChannelType.GuildText),
-  )
+  .addChannelOption(option => createTextChannelOption(option, { description: tl.create.channel, required: true }))
   .addStringOption(option => option.setName('name').setDescription(tl.create.name).setRequired(true).setMaxLength(255))
   .addStringOption(option =>
     option.setName('description').setDescription(tl.create.description).setRequired(false).setMaxLength(4000),

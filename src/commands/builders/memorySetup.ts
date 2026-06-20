@@ -1,6 +1,7 @@
-import { ChannelType, PermissionsBitField, SlashCommandBuilder } from 'discord.js';
+import { PermissionsBitField, SlashCommandBuilder } from 'discord.js';
 import { lang } from '../../lang';
 import { MAX } from '../../utils/constants';
+import { createForumChannelOption } from './factories';
 
 const tl = lang.memory.setup;
 const tb = lang.memory.setupBuilder;
@@ -13,13 +14,7 @@ export const memorySetup = new SlashCommandBuilder()
     sub
       .setName('setup')
       .setDescription(tl.cmdDescrp)
-      .addChannelOption(option =>
-        option
-          .setName('channel')
-          .setDescription(tl.channelOption)
-          .addChannelTypes(ChannelType.GuildForum)
-          .setRequired(false),
-      )
+      .addChannelOption(option => createForumChannelOption(option, { description: tl.channelOption, required: false }))
       .addStringOption(option =>
         option.setName('channel-name').setDescription(tl.channelNameOption).setRequired(false).setMaxLength(100),
       ),
@@ -28,13 +23,7 @@ export const memorySetup = new SlashCommandBuilder()
     sub
       .setName('add-channel')
       .setDescription(tl.addChannelDescrp)
-      .addChannelOption(option =>
-        option
-          .setName('channel')
-          .setDescription(tl.channelOption)
-          .addChannelTypes(ChannelType.GuildForum)
-          .setRequired(true),
-      )
+      .addChannelOption(option => createForumChannelOption(option, { description: tl.channelOption, required: true }))
       .addStringOption(option =>
         option.setName('channel-name').setDescription(tl.channelNameOption).setRequired(false).setMaxLength(100),
       ),
@@ -56,13 +45,7 @@ export const memorySetup = new SlashCommandBuilder()
           .addChoices({ name: 'Category', value: 'category' }, { name: 'Status', value: 'status' }),
       )
       .addStringOption(option => option.setName('emoji').setDescription(tb.tagEmoji).setRequired(false))
-      .addChannelOption(option =>
-        option
-          .setName('channel')
-          .setDescription(tb.channelOption)
-          .addChannelTypes(ChannelType.GuildForum)
-          .setRequired(false),
-      ),
+      .addChannelOption(option => createForumChannelOption(option, { description: tb.channelOption, required: false })),
   )
   .addSubcommand(sub =>
     sub
@@ -71,13 +54,7 @@ export const memorySetup = new SlashCommandBuilder()
       .addStringOption(option =>
         option.setName('tag').setDescription(tb.tagOption).setRequired(true).setAutocomplete(true),
       )
-      .addChannelOption(option =>
-        option
-          .setName('channel')
-          .setDescription(tb.channelOption)
-          .addChannelTypes(ChannelType.GuildForum)
-          .setRequired(false),
-      ),
+      .addChannelOption(option => createForumChannelOption(option, { description: tb.channelOption, required: false })),
   )
   .addSubcommand(sub =>
     sub
@@ -94,36 +71,18 @@ export const memorySetup = new SlashCommandBuilder()
           .setMaxLength(MAX.MEMORY_TAG_NAME_LENGTH),
       )
       .addStringOption(option => option.setName('emoji').setDescription(tb.tagEmoji).setRequired(false))
-      .addChannelOption(option =>
-        option
-          .setName('channel')
-          .setDescription(tb.channelOption)
-          .addChannelTypes(ChannelType.GuildForum)
-          .setRequired(false),
-      ),
+      .addChannelOption(option => createForumChannelOption(option, { description: tb.channelOption, required: false })),
   )
   .addSubcommand(sub =>
     sub
       .setName('tag-list')
       .setDescription(tb.tagList)
-      .addChannelOption(option =>
-        option
-          .setName('channel')
-          .setDescription(tb.channelOption)
-          .addChannelTypes(ChannelType.GuildForum)
-          .setRequired(false),
-      ),
+      .addChannelOption(option => createForumChannelOption(option, { description: tb.channelOption, required: false })),
   )
   .addSubcommand(sub =>
     sub
       .setName('tag-reset')
       .setDescription(tb.tagReset)
-      .addChannelOption(option =>
-        option
-          .setName('channel')
-          .setDescription(tb.channelOption)
-          .addChannelTypes(ChannelType.GuildForum)
-          .setRequired(false),
-      ),
+      .addChannelOption(option => createForumChannelOption(option, { description: tb.channelOption, required: false })),
   )
   .toJSON();

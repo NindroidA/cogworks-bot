@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.0] - 2026-06-20
+
+Internal refactor (unification Phase D — builder factories) — no behavior change.
+
+### Added
+
+- `commands/builders/factories.ts` — `createTextChannelOption`,
+  `createForumChannelOption`, and `createActionOption` collapse the repeated
+  channel-option and `action`-choice scaffolding shared across command builders.
+  +7 unit tests.
+
+### Changed
+
+- Migrated 24 channel options (15 GuildText, 9 GuildForum) and 4 `action`
+  options onto the factories across 10 builders (starboard, ticketSetup,
+  applicationSetup, memorySetup, memory, baitChannel, xpSetup, reactionRole,
+  rulesSetup, event). Generated command JSON is byte-identical
+  (`commands.map(c => c.toJSON())` verified pre/post), so every registered
+  command shape is unchanged.
+
 ## [3.9.0] - 2026-06-20
 
 Internal refactor (unification Phase C complete) — no behavior change.
