@@ -1,68 +1,39 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import onboardingLang from '../../../lang/en/onboarding.json';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
-import { enhancedLogger, formatLang, replyEphemeralError } from '../../../utils';
+import { createToggleHandler, enhancedLogger, formatLang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const configRepo = lazyRepo(OnboardingConfig);
 const tl = onboardingLang;
 
+const onboardingToggle = createToggleHandler({
+  repo: configRepo,
+  field: 'enabled',
+  messages: {
+    alreadyEnabled: tl.setup.alreadyEnabled,
+    alreadyDisabled: tl.setup.alreadyDisabled,
+    enabled: tl.setup.enabled,
+    disabled: tl.setup.disabled,
+  },
+  // Cannot enable onboarding until at least one step is configured.
+  canEnable: config => (!config.steps || config.steps.length === 0 ? tl.setup.noSteps : null),
+  onToggled: (interaction, guildId, enabled) =>
+    enhancedLogger.command(`Onboarding ${enabled ? 'enabled' : 'disabled'}`, interaction.user.id, guildId),
+});
+
 /**
  * Enable the onboarding flow.
  */
 export async function enableHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
-  const guildId = interaction.guildId!;
-
-  let config = await configRepo.findOneBy({ guildId });
-
-  if (!config) {
-    config = configRepo.create({ guildId });
-  }
-
-  // Cannot enable if no steps are configured
-  if (!config.steps || config.steps.length === 0) {
-    await replyEphemeralError(interaction, tl.setup.noSteps);
-    return;
-  }
-
-  if (config.enabled) {
-    await replyEphemeralError(interaction, tl.setup.alreadyEnabled);
-    return;
-  }
-
-  config.enabled = true;
-  await configRepo.save(config);
-
-  await interaction.reply({
-    content: tl.setup.enabled,
-    flags: [MessageFlags.Ephemeral],
-  });
-
-  enhancedLogger.command('Onboarding enabled', interaction.user.id, guildId);
+  await onboardingToggle.enable(interaction, interaction.guildId!);
 }
 
 /**
  * Disable the onboarding flow.
  */
 export async function disableHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
-  const guildId = interaction.guildId!;
-
-  const config = await configRepo.findOneBy({ guildId });
-
-  if (!config?.enabled) {
-    await replyEphemeralError(interaction, tl.setup.alreadyDisabled);
-    return;
-  }
-
-  config.enabled = false;
-  await configRepo.save(config);
-
-  await interaction.reply({
-    content: tl.setup.disabled,
-    flags: [MessageFlags.Ephemeral],
-  });
-
-  enhancedLogger.command('Onboarding disabled', interaction.user.id, guildId);
+  await onboardingToggle.disable(interaction, interaction.guildId!);
 }
 
 /**

@@ -8,6 +8,7 @@ import { type CacheType, type ChatInputCommandInteraction, type Client, MessageF
 import eventLang from '../../../lang/en/event.json';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import {
+  createToggleHandler,
   enhancedLogger,
   formatLang,
   guardFeatureRateLimit,
@@ -20,6 +21,19 @@ import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const eventConfigRepo = lazyRepo(EventConfig);
 const tl = eventLang.setup;
+
+const eventToggle = createToggleHandler({
+  repo: eventConfigRepo,
+  field: 'enabled',
+  messages: {
+    alreadyEnabled: tl.alreadyEnabled,
+    alreadyDisabled: tl.alreadyDisabled,
+    enabled: tl.enableSuccess,
+    disabled: tl.disableSuccess,
+  },
+  onToggled: (interaction, guildId, enabled) =>
+    enhancedLogger.command(`Event system ${enabled ? 'enabled' : 'disabled'}`, interaction.user.id, guildId),
+});
 
 export async function eventSetupHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardFeatureRateLimit(interaction, 'events', 'manage', {
@@ -34,40 +48,16 @@ export async function eventSetupHandler(_client: Client, interaction: ChatInputC
   const subcommand = interaction.options.getSubcommand();
 
   try {
-    let config = await eventConfigRepo.findOneBy({ guildId });
+    const config = await eventConfigRepo.findOneBy({ guildId });
 
     switch (subcommand) {
       case 'enable': {
-        if (config?.enabled) {
-          await replyEphemeralError(interaction, tl.alreadyEnabled);
-          return;
-        }
-        if (!config) {
-          config = eventConfigRepo.create({ guildId, enabled: true });
-        } else {
-          config.enabled = true;
-        }
-        await eventConfigRepo.save(config);
-        await interaction.reply({
-          content: tl.enableSuccess,
-          flags: [MessageFlags.Ephemeral],
-        });
-        enhancedLogger.command('Event system enabled', interaction.user.id, guildId);
+        await eventToggle.enable(interaction, guildId);
         break;
       }
 
       case 'disable': {
-        if (!config?.enabled) {
-          await replyEphemeralError(interaction, tl.alreadyDisabled);
-          return;
-        }
-        config.enabled = false;
-        await eventConfigRepo.save(config);
-        await interaction.reply({
-          content: tl.disableSuccess,
-          flags: [MessageFlags.Ephemeral],
-        });
-        enhancedLogger.command('Event system disabled', interaction.user.id, guildId);
+        await eventToggle.disable(interaction, guildId);
         break;
       }
 

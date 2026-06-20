@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.0] - 2026-06-20
+
+Internal refactor (unification #7 — toggle handler) — no behavior change.
+
+### Added
+
+- `createToggleHandler({ repo, field, messages, canEnable?, onToggled? })`
+  (`utils/interactions/toggleHandler.ts`) — binds the enable/disable spine
+  (find-or-create → idempotent check → flip flag → save → side effect → reply)
+  to a guild-config flag. Its `onToggled` hook is where the Phase-B cache
+  `invalidate*` calls plug in. +7 unit tests.
+
+### Changed
+
+- Migrated the xp, event, and onboarding enable/disable handlers onto it
+  (6 handlers, ~40 fewer lines). onboarding keeps its "needs steps" pre-enable
+  guard via `canEnable`; xp keeps its `invalidateXPConfigCache` via `onToggled`.
+  Left hand-written (not a thin fit): ticket workflow/sla/routing (option reads,
+  workflow prechecks, round-robin reset), bait toggle/dmnotify/escalation
+  (boolean-param or dispatcher-prefetched config, embed reply), and insights
+  (its plain-reply already-enabled path differs from the standard error style).
+
 ## [3.10.0] - 2026-06-20
 
 Internal refactor (unification Phase D — builder factories) — no behavior change.
