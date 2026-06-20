@@ -20,7 +20,6 @@
  */
 
 import { Routes } from 'discord.js';
-import { commands } from '../../commands/commandList';
 import { AnnouncementConfig } from '../../typeorm/entities/announcement/AnnouncementConfig';
 import { ApplicationConfig } from '../../typeorm/entities/application/ApplicationConfig';
 import { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelConfig';
@@ -75,7 +74,7 @@ const pendingRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const lastRegisteredSignature = new Map<string, string>();
 
 /** Extract a command's registered name from a builder or plain command object. */
-function commandName(cmd: (typeof commands)[number]): string | undefined {
+function commandName(cmd: unknown): string | undefined {
   const c = cmd as { toJSON?: () => { name: string }; name?: string };
   return typeof c.toJSON === 'function' ? c.toJSON().name : c.name;
 }
@@ -123,7 +122,15 @@ export function isCommandVisible(commandName: string, enabled: Set<GatedModule>)
   return !mod || enabled.has(mod);
 }
 
-function filterCommandsByEnabled(enabled: Set<GatedModule>): typeof commands {
+// commandList — and the entire slash-command builder graph it imports — is
+// loaded LAZILY. Modules that wire the refresh trigger (api handlers, the
+// command dispatcher, channelDelete, bot-setup flows) import this file at
+// module load; pulling the builder graph in with them perturbed Bun's
+// process-shared mock.module state in tests. The heavy load now happens only
+// when commands are actually (re)registered — i.e. at startup or on a real
+// toggle — never just from importing the refresh helpers.
+async function filterCommandsByEnabled(enabled: Set<GatedModule>) {
+  const { commands } = await import('../../commands/commandList');
   return commands.filter(cmd => {
     const name = commandName(cmd);
     return name ? isCommandVisible(name, enabled) : true;
@@ -131,9 +138,8 @@ function filterCommandsByEnabled(enabled: Set<GatedModule>): typeof commands {
 }
 
 async function putGuildCommands(guildId: string, enabled: Set<GatedModule>): Promise<void> {
-  await getRest().put(Routes.applicationGuildCommands(getClientId(), guildId), {
-    body: filterCommandsByEnabled(enabled),
-  });
+  const body = await filterCommandsByEnabled(enabled);
+  await getRest().put(Routes.applicationGuildCommands(getClientId(), guildId), { body });
   lastRegisteredSignature.set(guildId, signatureOf(enabled));
 }
 
