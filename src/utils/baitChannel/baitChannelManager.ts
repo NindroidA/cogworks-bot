@@ -22,6 +22,7 @@ import type { PendingAction as PendingActionEntity } from '../../typeorm/entitie
 import type { UserActivity } from '../../typeorm/entities/UserActivity';
 import { Colors } from '../colors';
 import { CACHE_TTL, INTERVALS } from '../constants';
+import { createTtlCache } from '../database/configCache';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { buildAppealUrl } from './appealToken';
@@ -103,11 +104,6 @@ interface SuspicionAnalysis {
   reasons: string[];
 }
 
-interface CachedConfig {
-  config: BaitChannelConfig;
-  cachedAt: number;
-}
-
 interface BufferedActivity {
   messageCount: number;
   firstMessageAt: Date;
@@ -122,8 +118,8 @@ interface RepeatOffenderResult {
 
 export class BaitChannelManager {
   private pendingBans: Map<string, PendingBan> = new Map();
-  private configCache: Map<string, CachedConfig> = new Map();
-  private keywordCache: Map<string, { keywords: BaitKeyword[]; cachedAt: number }> = new Map();
+  private configCache = createTtlCache<string, BaitChannelConfig>(CACHE_TTL.BAIT_CONFIG);
+  private keywordCache = createTtlCache<string, BaitKeyword[]>(CACHE_TTL.BAIT_CONFIG);
   private activityBuffer: Map<string, BufferedActivity> = new Map();
   private activityFlushInterval: ReturnType<typeof setInterval> | null = null;
   private joinVelocityTracker: JoinVelocityTracker | null = null;
@@ -1697,24 +1693,9 @@ export class BaitChannelManager {
 
   private async getConfig(guildId: string): Promise<BaitChannelConfig | null> {
     try {
-      // Check cache first (with TTL)
-      const cached = this.configCache.get(guildId);
-      if (cached && Date.now() - cached.cachedAt < CACHE_TTL.BAIT_CONFIG) {
-        return cached.config;
-      }
-
-      // Evict stale entry if expired
-      if (cached) {
-        this.configCache.delete(guildId);
-      }
-
-      // Fetch from database
-      const config = await this.configRepo.findOne({ where: { guildId } });
-      if (config) {
-        this.configCache.set(guildId, { config, cachedAt: Date.now() });
-      }
-
-      return config;
+      // getOrLoad caches only a non-null config (TTL-evicted on read), so an
+      // unconfigured guild is re-queried rather than cached — as before.
+      return await this.configCache.getOrLoad(guildId, gid => this.configRepo.findOne({ where: { guildId: gid } }));
     } catch (error) {
       logError({
         category: ErrorCategory.DATABASE,
@@ -1728,17 +1709,11 @@ export class BaitChannelManager {
   }
 
   private async getKeywords(guildId: string): Promise<BaitKeyword[]> {
-    const cached = this.keywordCache.get(guildId);
-    if (cached && Date.now() - cached.cachedAt < CACHE_TTL.BAIT_CONFIG) {
-      return cached.keywords;
-    }
-
     if (!this.keywordRepo) return [];
+    const repo = this.keywordRepo;
 
     try {
-      const keywords = await this.keywordRepo.find({ where: { guildId } });
-      this.keywordCache.set(guildId, { keywords, cachedAt: Date.now() });
-      return keywords;
+      return (await this.keywordCache.getOrLoad(guildId, gid => repo.find({ where: { guildId: gid } }))) ?? [];
     } catch (error) {
       logError({
         category: ErrorCategory.DATABASE,
@@ -1752,11 +1727,11 @@ export class BaitChannelManager {
   }
 
   public clearKeywordCache(guildId: string): void {
-    this.keywordCache.delete(guildId);
+    this.keywordCache.invalidate(guildId);
   }
 
   public clearConfigCache(guildId: string): void {
-    this.configCache.delete(guildId);
+    this.configCache.invalidate(guildId);
   }
 
   // Track user activity in-memory, flushed to DB periodically

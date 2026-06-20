@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.0] - 2026-06-20
+
+Internal refactor (unification Phase B complete) — cache unification, no
+behavior change.
+
+### Changed
+
+- All six hand-rolled guild-config caches now run on the shared `createTtlCache`
+  primitive: feature-permissions, guild locale, reaction-role menus (with the
+  derived emoji index folded into one cache entry so it can't go stale),
+  XP config, rules config (guild-scoped invalidation), and the bait-channel
+  config + keyword caches. Behavior preserved (TTLs, don't-cache-misses,
+  per-guild/per-message invalidation); the hot-path caches were verified against
+  a live MySQL. Net effect: cache invalidation is now consistent and far harder
+  to get wrong when adding new cached config.
+
 ## [3.6.3] - 2026-06-20
 
 Internal refactor (unification Phase B kickoff) — no behavior change.

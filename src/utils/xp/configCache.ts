@@ -8,32 +8,24 @@
  */
 
 import { XPConfig } from '../../typeorm/entities/xp/XPConfig';
+import { createTtlCache } from '../database/configCache';
 import { lazyRepo } from '../database/lazyRepo';
 
 const configRepo = lazyRepo(XPConfig);
 
 const CONFIG_CACHE_TTL = 5 * 60 * 1000;
-const configCache = new Map<string, { config: XPConfig; cachedAt: number }>();
+const configCache = createTtlCache<string, XPConfig>(CONFIG_CACHE_TTL);
 
 /** Get XP config for a guild with 5-minute caching. Returns null when not configured. */
 export async function getXPConfig(guildId: string): Promise<XPConfig | null> {
-  const cached = configCache.get(guildId);
-  if (cached && Date.now() - cached.cachedAt < CONFIG_CACHE_TTL) {
-    return cached.config;
-  }
-
-  const config = await configRepo.findOne({ where: { guildId } });
-  if (config) {
-    configCache.set(guildId, { config, cachedAt: Date.now() });
-  } else {
-    configCache.delete(guildId);
-  }
-  return config;
+  // getOrLoad caches only non-null results, so unconfigured guilds (null) are
+  // re-queried each call rather than cached — matching the prior behavior.
+  return configCache.getOrLoad(guildId, gid => configRepo.findOne({ where: { guildId: gid } }));
 }
 
 /** Drop cached config for a guild. Call after any write to XPConfig. */
 export function invalidateXPConfigCache(guildId: string): void {
-  configCache.delete(guildId);
+  configCache.invalidate(guildId);
 }
 
 /** Drop the entire XP config cache. Used by tests + bot-reset. */

@@ -24,9 +24,10 @@ export interface TtlCache<K, V> {
   /**
    * Return the cached value, or run `loader` and cache its result. Only
    * non-null/non-undefined results are cached (matches the common
-   * "don't cache misses" behavior). `loader` errors propagate uncached.
+   * "don't cache misses" behavior), so the loader may return `null` for a miss
+   * without poisoning the cache. `loader` errors propagate uncached.
    */
-  getOrLoad(key: K, loader: (key: K) => Promise<V>): Promise<V>;
+  getOrLoad(key: K, loader: (key: K) => Promise<V | null>): Promise<V | null>;
   /** Drop a single key. */
   invalidate(key: K): void;
   /** Drop every entry whose value (or key) matches the predicate. */
@@ -66,7 +67,7 @@ export function createTtlCache<K, V>(ttlMs: number, now: () => number = Date.now
     store.set(key, { value, cachedAt: now() });
   }
 
-  async function getOrLoad(key: K, loader: (key: K) => Promise<V>): Promise<V> {
+  async function getOrLoad(key: K, loader: (key: K) => Promise<V | null>): Promise<V | null> {
     const cached = get(key);
     if (cached !== undefined) return cached;
     const loaded = await loader(key);

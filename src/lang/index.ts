@@ -27,6 +27,7 @@
  * ```
  */
 
+import { createTtlCache } from '../utils/database/configCache';
 import analyticsDe from './de/analytics.json';
 import announcementDe from './de/announcement.json';
 import applicationDe from './de/application.json';
@@ -103,7 +104,6 @@ import starboardEs from './es/starboard.json';
 import statusEs from './es/status.json';
 import ticketEs from './es/ticket.json';
 import xpEs from './es/xp.json';
-
 import analyticsFr from './fr/analytics.json';
 import announcementFr from './fr/announcement.json';
 import applicationFr from './fr/application.json';
@@ -152,7 +152,6 @@ import starboardPt from './pt-BR/starboard.json';
 import statusPt from './pt-BR/status.json';
 import ticketPt from './pt-BR/ticket.json';
 import xpPt from './pt-BR/xp.json';
-
 import type { Language } from './types';
 
 // ---------------------------------------------------------------------------
@@ -481,10 +480,10 @@ export function getLangForLocale(locale: Locale): Language {
  * see the update immediately rather than waiting for TTL expiry.
  */
 const GUILD_LOCALE_TTL_MS = 5 * 60 * 1000;
-const guildLocaleCache = new Map<string, { locale: Locale; expires: number }>();
+const guildLocaleCache = createTtlCache<string, Locale>(GUILD_LOCALE_TTL_MS);
 
 export function invalidateGuildLocaleCache(guildId?: string): void {
-  if (guildId) guildLocaleCache.delete(guildId);
+  if (guildId) guildLocaleCache.invalidate(guildId);
   else guildLocaleCache.clear();
 }
 
@@ -497,7 +496,7 @@ export function invalidateGuildLocaleCache(guildId?: string): void {
  */
 export async function getGuildLocale(guildId: string): Promise<Locale> {
   const cached = guildLocaleCache.get(guildId);
-  if (cached && cached.expires > Date.now()) return cached.locale;
+  if (cached !== undefined) return cached;
 
   let locale: Locale = DEFAULT_LOCALE;
   try {
@@ -514,7 +513,7 @@ export async function getGuildLocale(guildId: string): Promise<Locale> {
     // DB not ready or column missing (pre-migration) — default is safe.
   }
 
-  guildLocaleCache.set(guildId, { locale, expires: Date.now() + GUILD_LOCALE_TTL_MS });
+  guildLocaleCache.set(guildId, locale);
   return locale;
 }
 

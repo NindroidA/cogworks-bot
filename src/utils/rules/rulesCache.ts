@@ -8,31 +8,23 @@
 
 import type { RulesConfig } from '../../typeorm/entities/rules';
 import { CACHE_TTL } from '../constants';
+import { createTtlCache } from '../database/configCache';
 
-// In-memory cache: Map<messageId, { config, cachedAt }>
-const rulesCache = new Map<string, { config: RulesConfig; cachedAt: number }>();
+// In-memory cache keyed by messageId (TTL-evicted on read).
+const rulesCache = createTtlCache<string, RulesConfig>(CACHE_TTL.RULES);
 
 /** Get a cached rules config by message ID, or null if expired/missing. */
 export function getCachedRulesConfig(messageId: string): RulesConfig | null {
-  const cached = rulesCache.get(messageId);
-  if (!cached) return null;
-  if (Date.now() - cached.cachedAt > CACHE_TTL.RULES) {
-    rulesCache.delete(messageId);
-    return null;
-  }
-  return cached.config;
+  return rulesCache.get(messageId) ?? null;
 }
 
 /** Cache a rules config entry. */
 export function setCachedRulesConfig(messageId: string, config: RulesConfig): void {
-  rulesCache.set(messageId, { config, cachedAt: Date.now() });
+  rulesCache.set(messageId, config);
 }
 
 /** Clear all cached entries for a guild (called on setup/remove/guild leave). */
 export function invalidateRulesCache(guildId: string): void {
-  for (const [messageId, entry] of rulesCache) {
-    if (entry.config.guildId === guildId) {
-      rulesCache.delete(messageId);
-    }
-  }
+  // messageId-keyed cache, guild-scoped invalidation — match on the entry's guildId.
+  rulesCache.invalidateWhere(config => config.guildId === guildId);
 }
