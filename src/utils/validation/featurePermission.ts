@@ -23,6 +23,7 @@ import type { GuildMember, Interaction } from 'discord.js';
 import { PermissionsBitField } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { GuildPermission } from '../../typeorm/entities/GuildPermission';
+import { createTtlCache } from '../database/configCache';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
 // ---------------------------------------------------------------------------
@@ -84,32 +85,26 @@ export function levelMeets(granted: Level, required: Level): boolean {
 // Cache
 // ---------------------------------------------------------------------------
 
-interface CacheEntry {
-  rows: GuildPermission[];
-  expires: number;
-}
-
 const CACHE_TTL_MS = 60_000;
-const cache = new Map<string, CacheEntry>();
+const cache = createTtlCache<string, GuildPermission[]>(CACHE_TTL_MS);
 
 /**
  * Drop cached permission rows for a guild. Call after any write to
  * `guild_permissions` so the next check reflects the change immediately.
  */
 export function invalidateFeaturePermissionsCache(guildId?: string): void {
-  if (guildId) cache.delete(guildId);
+  if (guildId) cache.invalidate(guildId);
   else cache.clear();
 }
 
 async function getGuildPermissions(guildId: string): Promise<GuildPermission[]> {
-  const now = Date.now();
   const cached = cache.get(guildId);
-  if (cached && cached.expires > now) return cached.rows;
+  if (cached !== undefined) return cached;
 
   try {
     const repo = AppDataSource.getRepository(GuildPermission);
     const rows = await repo.find({ where: { guildId } });
-    cache.set(guildId, { rows, expires: now + CACHE_TTL_MS });
+    cache.set(guildId, rows);
     return rows;
   } catch (error) {
     // DB hiccup should not lock users out — fall back to "no custom perms"
