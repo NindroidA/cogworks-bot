@@ -3,8 +3,10 @@ FROM oven/bun:1.2.17-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files (patches/ holds the @discordjs/ws Bun-compat patch and
+# must be present before install so bun re-applies it)
 COPY package.json bun.lock ./
+COPY patches/ ./patches/
 
 # Install all dependencies (including dev for building)
 RUN bun install --frozen-lockfile
@@ -25,8 +27,9 @@ WORKDIR /app
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S cogworks -u 1001 -G nodejs
 
-# Copy package files
+# Copy package files (patches/ must be present before install — see builder stage)
 COPY package.json bun.lock ./
+COPY patches/ ./patches/
 
 # Install production dependencies only
 RUN bun install --frozen-lockfile --production && \

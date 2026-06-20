@@ -17,6 +17,7 @@ import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';
 import { invalidateGuildMenuCache } from '../utils/reactionRole/menuCache';
 import { invalidateRulesCache } from '../utils/rules/rulesCache';
+import { requestGuildCommandRefresh } from '../utils/setup/commandGating';
 import { invalidateStarboardCache } from './starboardReaction';
 
 interface ChannelRefCleaner {
@@ -328,5 +329,9 @@ export default {
         );
       }
     });
+
+    // A deleted channel may have disabled a gated module (memory config removed,
+    // bait auto-disabled) — refresh the picker if the enabled set changed.
+    requestGuildCommandRefresh(guildId);
   },
 };

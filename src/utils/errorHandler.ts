@@ -276,6 +276,29 @@ export function withErrorHandling<T extends Array<unknown>>(
   };
 }
 
+/**
+ * Detects the transient @discordjs/ws gateway error that crash-loops the bot
+ * under Bun. The library's `WebSocketShard.onError` runs `"code" in error`,
+ * but Bun sometimes delivers a non-object (string/undefined) to the WebSocket
+ * error callback, so the `in` operator throws `TypeError: error is not an
+ * Object` synchronously inside the library's own callback — surfacing here as
+ * an uncaughtException. It's a recoverable gateway hiccup (discord.js
+ * reconnects the shard on its own), NOT a real fault, so the uncaughtException
+ * handler must not shut the process down for it. The source is also patched
+ * (patches/@discordjs%2Fws); this is the belt-and-suspenders safety net in
+ * case the patch ever fails to apply in a given build.
+ */
+function isRecoverableGatewayError(error: unknown): boolean {
+  if (!(error instanceof TypeError)) return false;
+  const stack = error.stack ?? '';
+  const message = error.message ?? '';
+  // Narrow match: must originate in @discordjs/ws AND look like the failed
+  // `"code" in error` check specifically (Bun: `error is not an Object.
+  // (evaluating '"code" in error')`; Node: `Cannot use 'in' operator ...`).
+  // Phrase-specific (not a bare /code/) so unrelated TypeErrors aren't swallowed.
+  return stack.includes('@discordjs/ws') && /"code" in|in operator|is not an Object/i.test(message);
+}
+
 export function setupGlobalErrorHandlers(onFatalShutdown?: (signal: string) => Promise<void>): void {
   process.on('unhandledRejection', (reason, promise) => {
     enhancedLogger.error(
@@ -295,6 +318,18 @@ export function setupGlobalErrorHandlers(onFatalShutdown?: (signal: string) => P
   });
 
   process.on('uncaughtException', error => {
+    // Transient gateway WS errors must not take the whole process down —
+    // they are recoverable (discord.js reconnects the shard). See
+    // isRecoverableGatewayError for the full explanation.
+    if (isRecoverableGatewayError(error)) {
+      enhancedLogger.warn(
+        'Recovered from transient @discordjs/ws gateway error (non-object error in onError); shard will reconnect',
+        LogCategory.SYSTEM,
+        { error: error instanceof Error ? error.message : String(error) },
+      );
+      return;
+    }
+
     enhancedLogger.error(`${E.alert} Uncaught Exception!`, error, LogCategory.ERROR);
     logError({
       category: ErrorCategory.UNKNOWN,

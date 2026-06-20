@@ -34,6 +34,7 @@ import { deleteAllGuildData } from '../../utils/database/guildQueries';
 import { compileGuildArchive } from '../../utils/offboarding/archiveCompiler';
 import { cleanupGuildMessages } from '../../utils/offboarding/messageCleanup';
 import { getClientId, getRest } from '../../utils/restClient';
+import { clearGuildCommandSignature } from '../../utils/setup/commandGating';
 
 const STAGE_TIMEOUT_MS = 60_000;
 const FINAL_STAGE_TIMEOUT_MS = 30_000;
@@ -288,6 +289,8 @@ async function executeReset(
     try {
       await getRest().put(Routes.applicationGuildCommands(getClientId(), guildId), { body: [] });
       commandsRemoved = true;
+      // Drop the cached registration signature so a later re-setup re-registers.
+      clearGuildCommandSignature(guildId);
     } catch {
       enhancedLogger.warn('Failed to unregister guild commands during reset', LogCategory.COMMAND_EXECUTION, {
         guildId,

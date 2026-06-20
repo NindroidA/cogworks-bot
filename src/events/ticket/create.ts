@@ -34,6 +34,7 @@ import {
 } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
 import { isBuiltinTicketType, resolveBuiltinPingColumn, resolveTicketType } from '../../utils/ticket/builtinTypes';
+import { chunkByMessageBoundary } from '../../utils/ticket/transcriptBuilder';
 import { ageVerifyMessage, ageVerifyModal } from './ageVerify';
 import { banAppealMessage, banAppealModal } from './banAppeal';
 import { bugReportMessage, bugReportModal } from './bugReport';
@@ -465,7 +466,16 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
       content: welcomeMsg,
       components: [buttonOptions],
     });
-    await newChannel.send(`​\n${description}`);
+    // Discord caps message content at 2000 chars. The assembled answers can
+    // exceed that (custom fields without a maxLength default to 4000 chars,
+    // markdown escaping inflates length, builtin types add labels), which
+    // previously threw and left the ticket with only a welcome message and no
+    // answers — looking exactly like a blank submission. Chunk on line
+    // boundaries so every answer always posts, no matter the length.
+    const answerChunks = chunkByMessageBoundary([`​\n${description}`]);
+    for (const chunk of answerChunks) {
+      await newChannel.send(chunk);
+    }
 
     const botConfig = await botConfigRepo.findOneBy({ guildId });
     if (botConfig?.enableGlobalStaffRole && botConfig?.globalStaffRole) {
@@ -514,9 +524,14 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
         ticketType,
       },
     );
-    await interaction.reply({
-      content: lang.ticket.error,
-      flags: [MessageFlags.Ephemeral],
-    });
+    // The "ticket created" reply above may already have fired before the
+    // error — replying again would throw InteractionAlreadyReplied and mask
+    // the real failure (the old behavior). Follow up instead, and never let
+    // the error notification itself bubble.
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content: lang.ticket.error, flags: [MessageFlags.Ephemeral] }).catch(() => {});
+    } else {
+      await interaction.reply({ content: lang.ticket.error, flags: [MessageFlags.Ephemeral] }).catch(() => {});
+    }
   }
 };

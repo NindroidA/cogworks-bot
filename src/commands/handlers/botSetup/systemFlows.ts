@@ -66,6 +66,7 @@ import { channelSelect, checkbox, labelWrap, radioGroup, rawModal, roleSelect } 
 import { type CreatedChannels, createSystemChannels, type SystemType } from '../../../utils/setup/channelCreator';
 import { BAIT_CHANNEL_WARNING, DEFAULT_MEMORY_TAGS } from '../../../utils/setup/channelDefaults';
 import { detectGuildChannelFormat } from '../../../utils/setup/channelFormatDetector';
+import { requestGuildCommandRefresh } from '../../../utils/setup/commandGating';
 import { seedDefaultTemplates } from '../announcement/templates';
 import { buildApplicationMessage } from '../application/applicationPosition';
 
@@ -755,6 +756,12 @@ const baitConfig: SimpleSystemConfig<BaitData, 'baitchannel'> = {
     const repo = AppDataSource.getRepository(BaitChannelConfig);
     let config = await repo.findOneBy({ guildId });
     if (!config) config = repo.create({ guildId, channelId: data.channelId });
+    // Re-running setup via the always-visible /bot-setup dashboard must yield a
+    // functional (enabled) config. An existing row may carry enabled=false from
+    // /baitchannel toggle or a deleted bait channel (channelDelete auto-disables);
+    // without this, command-gating would keep /baitchannel hidden with no
+    // in-Discord way back. This makes the dashboard the guaranteed re-enable path.
+    config.enabled = true;
     config.channelId = data.channelId;
     config.channelIds = [data.channelId];
     config.actionType = data.actionType;
@@ -996,4 +1003,8 @@ async function saveSetupState(
   setupState.systemStates = states;
   setupState.partialData = { ...setupState.partialData, ...newPartialData };
   await repo.save(setupState);
+  // A dashboard flow just (un)configured a system — refresh the guild's
+  // visible commands if its enabled-module set changed (debounced + no-op when
+  // unchanged, so calling on every save is safe).
+  requestGuildCommandRefresh(setupState.guildId);
 }

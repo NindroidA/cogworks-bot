@@ -12,6 +12,7 @@ import {
 } from '../utils';
 import { writeAuditLog } from '../utils/api/handlers/auditHelper';
 import { lazyRepo } from '../utils/database/lazyRepo';
+import { maybeRefreshCommandsAfterSetup } from '../utils/setup/commandGating';
 import { announcementHandler } from './handlers/announcement';
 import { announcementSetupHandler } from './handlers/announcement/setup';
 import { applicationEditHandler } from './handlers/application/applicationEdit';
@@ -239,6 +240,9 @@ export const handleSlashCommand = async (client: Client, interaction: ChatInputC
     }
 
     logCommandAudit(interaction, commandName, guildId);
+    // If this was a setup command that may have toggled a gated module on/off,
+    // refresh the guild's visible commands (debounced, no-op when unchanged).
+    maybeRefreshCommandsAfterSetup(commandName, guildId);
 
     const executionTime = Date.now() - startTime;
     healthMonitor.recordCommand(commandName, executionTime, false);

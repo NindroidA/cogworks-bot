@@ -1,0 +1,13 @@
+diff --git a/dist/index.js b/dist/index.js
+index 106b2ec450a248cd5bd7c36c038215145438eade..055b96d83b779c1e4f80d59ddf4845e0598b6d2a 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1064,7 +1064,7 @@ var WebSocketShard = class extends import_async_event_emitter.AsyncEventEmitter
+     }
+   }
+   onError(error) {
+-    if ("code" in error && KnownNetworkErrorCodes.has(error.code)) {
++    if (error != null && typeof error === "object" && "code" in error && KnownNetworkErrorCodes.has(error.code)) {
+       this.debug(["Failed to connect to the gateway URL specified due to a network error"]);
+       this.failedToConnectDueToNetworkError = true;
+       return;

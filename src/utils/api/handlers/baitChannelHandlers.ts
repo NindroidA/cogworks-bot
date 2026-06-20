@@ -10,6 +10,7 @@ import { DEFAULT_KEYWORDS } from '../../baitChannel/defaultKeywords';
 import { getRaidModeManager } from '../../baitChannel/raidModeManager';
 import { MAX } from '../../constants';
 import { lazyRepo } from '../../database/lazyRepo';
+import { requestGuildCommandRefresh } from '../../setup/commandGating';
 import { ApiError } from '../apiError';
 import {
   isValidSnowflake,
@@ -384,6 +385,9 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
     // new config.
     const baitManager = (client as ClientWithBaitManager).baitChannelManager;
     baitManager?.clearConfigCache(guildId);
+
+    // If the webapp toggled the module on/off, refresh the guild's commands.
+    if (patched.includes('enabled')) requestGuildCommandRefresh(guildId);
 
     await writeAuditLog(guildId, 'bait.configUpdate', triggeredBy, { patched });
 

@@ -5,11 +5,10 @@
  * Sends a welcome message with setup instructions.
  */
 
-import { type Client, EmbedBuilder, type Guild, Routes, type TextChannel } from 'discord.js';
-import { commands } from '../commands/commandList';
+import { type Client, EmbedBuilder, type Guild, type TextChannel } from 'discord.js';
 import { Colors, enhancedLogger, LogCategory, lang } from '../utils';
 import { notifyGuildJoin } from '../utils/api/guildWebhook';
-import { getClientId, getRest } from '../utils/restClient';
+import { registerGuildCommands } from '../utils/setup/commandGating';
 
 const tl = lang.general.welcome;
 
@@ -24,9 +23,8 @@ export default {
 
       // Register commands for this guild immediately
       try {
-        await getRest().put(Routes.applicationGuildCommands(getClientId(), guild.id), {
-          body: commands,
-        });
+        // Filtered to the guild's enabled modules (on join, none → only always-visible commands)
+        await registerGuildCommands(guild.id);
         enhancedLogger.info(`Registered commands for new guild: ${guild.id}`, LogCategory.SYSTEM);
       } catch (error) {
         enhancedLogger.error(

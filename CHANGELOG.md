@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2026-06-19
+
+Critical stability fixes (a production crash loop and silently-empty ticket
+submissions) plus per-guild module-gated command visibility.
+
+### Fixed
+
+- **Bot no longer crash-loops on a Bun gateway hiccup.** `@discordjs/ws`'s
+  `onError` ran `"code" in error`; under Bun a non-object WebSocket error made
+  the `in` operator throw a `TypeError`, which surfaced as an uncaught exception
+  and tripped the fail-fast shutdown → Docker restart → repeat. The dependency
+  is now patched (`bun patch`) to guard the check, a narrow `uncaughtException`
+  safety net logs-and-recovers for that exact signature instead of shutting
+  down, and `client` `error`/`shardError` listeners were added for gateway
+  hygiene.
+- **Ticket submissions no longer post empty.** The assembled answers were sent
+  as a single message; when they exceeded Discord's 2000-char limit the send
+  threw *after* the channel + welcome message were created, so the ticket
+  opened with no answers (looking like a blank submission) and the real error
+  was masked by a second `reply()`. Answers are now chunked (every message
+  `<= 2000` chars, nothing dropped) and the catch uses `followUp` when the
+  interaction was already replied to.
+
+### Added
+
+- **Per-guild module-gated command visibility.** A module's slash and
+  context-menu commands are now hidden in guilds where the module is disabled
+  (e.g. `/rank` no longer appears when XP is off). Commands register per-guild
+  filtered by each guild's enabled modules, and re-register (debounced) when a
+  module is toggled via slash setup, the `/bot-setup` dashboard, or the webapp.
+  Gated modules: tickets, applications, announcements, memory, xp, baitchannel
+  — each kept with an always-visible re-enable path so an admin is never
+  stranded.
+
+### Changed
+
+- Re-running bait-channel setup via `/bot-setup` now re-enables a previously
+  disabled bait config, so the gated `/baitchannel` command is always
+  recoverable from within Discord.
+
 ## [3.2.2] - 2026-06-03
 
 Internal consolidation (no behavior change beyond one latent-bug fix).

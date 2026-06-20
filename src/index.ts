@@ -1,7 +1,6 @@
 import { Client, GatewayIntentBits, Options, Partials, Routes } from 'discord.js';
 import dotenv from 'dotenv';
 import 'reflect-metadata';
-import { commands } from './commands/commandList';
 import { handleSlashCommand } from './commands/commands';
 import { startFieldSessionCleanup, stopFieldSessionCleanup } from './commands/handlers/application/applicationFields';
 import { handleContextMenuCommand } from './commands/handlers/contextMenus';
@@ -72,6 +71,7 @@ import { baitChannelIdsBackfill } from './utils/database/migrations/baitChannelI
 import { ErrorSeverity, setupGlobalErrorHandlers } from './utils/errorHandler';
 import { errorReporter } from './utils/monitoring/errorReporter';
 import { setDescription, setStatus } from './utils/profileFunctions';
+import { registerGuildCommands } from './utils/setup/commandGating';
 import { StatusManager } from './utils/status/statusManager';
 import { checkAndAutoCloseTickets } from './utils/ticket/autoClose';
 
@@ -169,6 +169,19 @@ const client = new Client({
       filter: () => u => u.bot && u.id !== u.client.user!.id,
     },
   },
+});
+
+// Gateway hygiene: surface shard/client errors that discord.js DOES emit,
+// instead of leaving them unhandled. Note the Bun-specific @discordjs/ws
+// onError TypeError throws *before* discord.js can emit these, so this
+// complements (does not replace) the uncaughtException safety net + the
+// @discordjs/ws source patch — together they keep transient gateway hiccups
+// from crash-looping the bot.
+client.on('error', error => {
+  enhancedLogger.error('Discord client error', error, LogCategory.SYSTEM);
+});
+client.on('shardError', (error, shardId) => {
+  enhancedLogger.error(`Discord shard ${shardId} error`, error, LogCategory.SYSTEM);
 });
 
 // Shared REST client (also used by guildCreate event handler)
@@ -421,11 +434,8 @@ client.once('clientReady', async () => {
   const unconfiguredGuilds = client.guilds.cache.filter(g => !configuredGuildIds.has(g.id));
   if (unconfiguredGuilds.size > 0) {
     const results = await Promise.allSettled(
-      unconfiguredGuilds.map(guild =>
-        getRest().put(Routes.applicationGuildCommands(CLIENT, guild.id), {
-          body: commands,
-        }),
-      ),
+      // Filtered per guild — with no config yet, only always-visible commands register.
+      unconfiguredGuilds.map(guild => registerGuildCommands(guild.id)),
     );
     const registered = results.filter(r => r.status === 'fulfilled').length;
     if (registered > 0) {
@@ -584,17 +594,14 @@ async function main() {
       console.warn(tl.noFoundConfigs);
     }
 
-    // register commands for each guild found in database (in parallel)
+    // register commands for each guild in the database (in parallel),
+    // filtered to each guild's enabled modules
     const registrationResults = await Promise.allSettled(
       botConfigs.map(config =>
-        getRest()
-          .put(Routes.applicationGuildCommands(CLIENT, config.guildId), {
-            body: commands,
-          })
-          .then(() => {
-            // nosemgrep: javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring
-            console.log(tl.regCmdsSuccess + config.guildId);
-          }),
+        registerGuildCommands(config.guildId).then(() => {
+          // nosemgrep: javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring
+          console.log(tl.regCmdsSuccess + config.guildId);
+        }),
       ),
     );
     for (let i = 0; i < registrationResults.length; i++) {
