@@ -329,7 +329,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
     }
 
     const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
-    if (!ticketConfig || !ticketConfig.categoryId) {
+    if (!ticketConfig?.categoryId) {
       await interaction.reply({
         content: lang.ticket.ticketConfigNotFound,
         flags: [MessageFlags.Ephemeral],

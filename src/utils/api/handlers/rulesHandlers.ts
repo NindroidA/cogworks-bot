@@ -22,7 +22,7 @@ export function registerRulesHandlers(client: Client, routes: Map<string, RouteH
     if (!guild) throw ApiError.notFound('Guild not found');
 
     const channel = await guild.channels.fetch(channelId).catch(() => null);
-    if (!channel || !channel.isTextBased()) {
+    if (!channel?.isTextBased()) {
       throw ApiError.notFound('Channel not found or not a text channel');
     }
 

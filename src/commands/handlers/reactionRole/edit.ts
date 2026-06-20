@@ -45,7 +45,7 @@ export async function reactionRoleEditHandler(interaction: ChatInputCommandInter
   try {
     const menu = await menuRepo.findOne({
       where: { id: menuId, guildId },
-      relations: ['options'],
+      relations: { options: true },
     });
     if (!menu) {
       await interaction.reply({

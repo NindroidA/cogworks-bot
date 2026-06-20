@@ -46,7 +46,7 @@ export class Ticket {
   @Column({ type: 'varchar', nullable: true })
   emailSubject: string | null;
 
-  @Column({ default: 'created' })
+  @Column({ type: 'varchar', default: 'created' })
   status: TicketStatus;
 
   @Column({ type: 'varchar', nullable: true })

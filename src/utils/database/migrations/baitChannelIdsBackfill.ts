@@ -29,7 +29,7 @@ export const baitChannelIdsBackfill: LegacyMigration = {
     const repo = AppDataSource.getRepository(BaitChannelConfig);
     const config = await repo.findOneBy({ guildId });
 
-    if (!config || !config.channelId) {
+    if (!config?.channelId) {
       return {
         success: true,
         changes: 0,

@@ -39,7 +39,7 @@ export async function migrateTicketTagsHandler(interaction: ChatInputCommandInte
 
     // Get forum channel
     const forumChannel = (await client.channels.fetch(archivedConfig.channelId)) as ForumChannel;
-    if (!forumChannel || !forumChannel.isThreadOnly()) {
+    if (!forumChannel?.isThreadOnly()) {
       await interaction.editReply('❌ Archived ticket channel is not a forum channel');
       return;
     }

@@ -46,7 +46,7 @@ async function getWorkflowConfig(guildId: string): Promise<{
   statuses: ApplicationWorkflowStatus[];
 }> {
   const config = await applicationConfigRepo.findOneBy({ guildId });
-  if (!config || !config.enableWorkflow) {
+  if (!config?.enableWorkflow) {
     return { config, statuses: [] };
   }
   const statuses = config.workflowStatuses || DEFAULT_APPLICATION_STATUSES;

@@ -678,7 +678,7 @@ async function scaffoldRules(
 
   // Send rules message and add reaction
   const channel = await guild.channels.fetch(channelId);
-  if (!channel || !channel.isTextBased()) {
+  if (!channel?.isTextBased()) {
     return 'Failed to fetch dev-rules channel after creation.';
   }
 
@@ -727,7 +727,7 @@ async function scaffoldReactionRoles(
 
   // Send the menu embed message
   const channel = await guild.channels.fetch(channelId);
-  if (!channel || !channel.isTextBased()) {
+  if (!channel?.isTextBased()) {
     return 'Failed to fetch dev-reaction-roles channel after creation.';
   }
 

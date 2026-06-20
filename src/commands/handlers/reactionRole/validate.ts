@@ -32,7 +32,7 @@ export async function reactionRoleValidateHandler(interaction: ChatInputCommandI
   try {
     const menus = await menuRepo.find({
       where: { guildId },
-      relations: ['options'],
+      relations: { options: true },
     });
 
     if (menus.length === 0) {

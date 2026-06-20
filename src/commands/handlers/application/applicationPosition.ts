@@ -357,7 +357,7 @@ export async function updateApplicationMessage(client: Client, guildId: string) 
     if (!applicationConfig) return;
 
     const channel = await client.channels.fetch(applicationConfig.channelId);
-    if (!channel || !channel.isTextBased()) return;
+    if (!channel?.isTextBased()) return;
 
     const message = await channel.messages.fetch(applicationConfig.messageId);
     if (!message) return;

@@ -34,7 +34,7 @@ export async function reactionRoleRemoveHandler(interaction: ChatInputCommandInt
   try {
     const menu = await menuRepo.findOne({
       where: { id: menuId, guildId },
-      relations: ['options'],
+      relations: { options: true },
     });
     if (!menu) {
       await interaction.reply({
@@ -63,7 +63,7 @@ export async function reactionRoleRemoveHandler(interaction: ChatInputCommandInt
     // Reload and update the menu message
     const updatedMenu = await menuRepo.findOne({
       where: { id: menu.id, guildId },
-      relations: ['options'],
+      relations: { options: true },
     });
     if (updatedMenu) {
       await updateMenuMessage(updatedMenu, guild);

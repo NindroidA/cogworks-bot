@@ -36,7 +36,7 @@ export class Application {
   @Column({ type: 'varchar', nullable: true })
   type: string | null;
 
-  @Column({ default: 'created' })
+  @Column({ type: 'varchar', default: 'created' })
   status: ApplicationStatus;
 
   // Workflow tracking

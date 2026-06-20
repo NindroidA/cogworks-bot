@@ -96,7 +96,7 @@ export function registerApplicationHandlers(
       await applicationRepo.update({ id: app.id, guildId }, { status: app.status });
       return { success: false, archived: false };
     }
-    if (!channel || !channel.isTextBased()) {
+    if (!channel?.isTextBased()) {
       return { success: true, archived: false };
     }
 

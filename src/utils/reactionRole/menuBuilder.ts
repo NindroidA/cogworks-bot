@@ -51,7 +51,7 @@ export function buildMenuEmbed(menu: ReactionRoleMenu): EmbedBuilder {
 export async function updateMenuMessage(menu: ReactionRoleMenu, guild: Guild): Promise<boolean> {
   try {
     const channel = await guild.channels.fetch(menu.channelId);
-    if (!channel || !channel.isTextBased()) return false;
+    if (!channel?.isTextBased()) return false;
 
     const textChannel = channel as TextChannel;
     const message = await textChannel.messages.fetch(menu.messageId);

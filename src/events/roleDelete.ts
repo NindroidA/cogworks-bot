@@ -111,7 +111,7 @@ const ROLE_REF_CLEANERS: RoleRefCleaner[] = [
     clean: async (guildId, roleId) => {
       const repo = AppDataSource.getRepository(XPConfig);
       const config = await repo.findOneBy({ guildId });
-      if (!config || !config.ignoredRoles?.includes(roleId)) return;
+      if (!config?.ignoredRoles?.includes(roleId)) return;
 
       config.ignoredRoles = config.ignoredRoles.filter(id => id !== roleId);
       await repo.save(config);
@@ -155,7 +155,7 @@ const ROLE_REF_CLEANERS: RoleRefCleaner[] = [
     clean: async (guildId, roleId, client) => {
       const repo = AppDataSource.getRepository(BaitChannelConfig);
       const config = await repo.findOneBy({ guildId });
-      if (!config || !config.whitelistedRoles?.includes(roleId)) return;
+      if (!config?.whitelistedRoles?.includes(roleId)) return;
 
       config.whitelistedRoles = config.whitelistedRoles.filter(id => id !== roleId);
       await repo.save(config);

@@ -120,7 +120,7 @@ async function handleResetAll(interaction: ChatInputCommandInteraction, guildId:
     });
 
     const response = collected.first();
-    if (!response || response.content !== 'CONFIRM') {
+    if (response?.content !== 'CONFIRM') {
       await interaction.followUp({
         content: xpLang.admin.xpResetAllCancelled,
         flags: [MessageFlags.Ephemeral],

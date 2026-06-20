@@ -264,7 +264,7 @@ export class BaitChannelManager {
       if (!message.guild || message.author.bot || message.system) return;
 
       const config = await this.getConfig(message.guild.id);
-      if (!config || !config.enabled) {
+      if (!config?.enabled) {
         enhancedLogger.debug(
           `Bait channel ${!config ? 'not configured' : 'disabled'} for guild ${message.guild.id}`,
           LogCategory.SYSTEM,
@@ -1765,7 +1765,7 @@ export class BaitChannelManager {
 
     // Skip activity tracking if bait channel isn't configured/enabled for this guild
     const config = await this.getConfig(message.guild.id);
-    if (!config || !config.enabled) return;
+    if (!config?.enabled) return;
 
     const key = `${message.guild.id}:${message.author.id}`;
     const existing = this.activityBuffer.get(key);

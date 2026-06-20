@@ -53,7 +53,7 @@ export function registerTicketHandlers(
       await ticketRepo.update({ id: ticket.id, guildId }, { status: ticket.status });
       return { success: false, ticketId: ticket.id, archived: false };
     }
-    if (!channel || !channel.isTextBased()) {
+    if (!channel?.isTextBased()) {
       return { success: true, ticketId: ticket.id, archived: false };
     }
 

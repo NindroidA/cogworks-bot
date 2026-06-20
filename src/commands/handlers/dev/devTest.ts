@@ -123,7 +123,7 @@ async function handleStarboardSimulate(
 
   // Fetch the original message
   const channel = interaction.channel;
-  if (!channel || !channel.isTextBased()) {
+  if (!channel?.isTextBased()) {
     await interaction.reply({
       content: '❌ Run this in the channel containing the message.',
       flags: [MessageFlags.Ephemeral],
@@ -147,7 +147,7 @@ async function handleStarboardSimulate(
   });
 
   const fetchedChannel = await client.channels.fetch(config.channelId).catch(() => null);
-  if (!fetchedChannel || !fetchedChannel.isTextBased() || !('send' in fetchedChannel)) {
+  if (!fetchedChannel?.isTextBased() || !('send' in fetchedChannel)) {
     await interaction.reply({
       content: '❌ Starboard channel not found.',
       flags: [MessageFlags.Ephemeral],

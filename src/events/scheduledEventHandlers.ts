@@ -253,7 +253,7 @@ async function handleRecurringNext(event: GuildScheduledEvent, config: EventConf
   });
 
   const matchingTemplate = templates.find(t => t.title === event.name);
-  if (!matchingTemplate || !matchingTemplate.recurringPattern) return;
+  if (!matchingTemplate?.recurringPattern) return;
 
   // Calculate next occurrence
   const lastStart = event.scheduledStartAt || new Date();

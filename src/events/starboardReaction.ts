@@ -106,7 +106,7 @@ export async function handleStarboardReactionAdd(
 
     const guildId = message.guild.id;
     const config = await getStarboardConfig(guildId);
-    if (!config || !config.enabled) return;
+    if (!config?.enabled) return;
 
     // Check if emoji matches
     const reactionEmoji = reaction.emoji.name || reaction.emoji.toString();
@@ -250,7 +250,7 @@ export async function handleStarboardReactionRemove(
 
     const guildId = message.guild.id;
     const config = await getStarboardConfig(guildId);
-    if (!config || !config.enabled) return;
+    if (!config?.enabled) return;
 
     // Check if emoji matches
     const reactionEmoji = reaction.emoji.name || reaction.emoji.toString();

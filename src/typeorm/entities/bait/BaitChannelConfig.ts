@@ -66,7 +66,7 @@ export class BaitChannelConfig {
   disableAdminWhitelist: boolean;
 
   // Action settings
-  @Column({ default: 'ban' }) // 'ban', 'kick', 'timeout', 'log-only'
+  @Column({ type: 'varchar', default: 'ban' }) // 'ban', 'kick', 'timeout', 'log-only'
   actionType: BaitActionType;
 
   @Column({ default: false })

@@ -505,7 +505,7 @@ export async function getGuildLocale(guildId: string): Promise<Locale> {
     const { BotConfig } = await import('../typeorm/entities/BotConfig');
     if (AppDataSource.isInitialized) {
       const repo = AppDataSource.getRepository(BotConfig);
-      const config = await repo.findOne({ where: { guildId }, select: ['guildId', 'locale'] });
+      const config = await repo.findOne({ where: { guildId }, select: { guildId: true, locale: true } });
       if (config?.locale && isSupportedLocale(config.locale)) {
         locale = config.locale;
       }

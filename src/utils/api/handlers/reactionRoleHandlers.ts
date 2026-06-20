@@ -23,7 +23,7 @@ export function registerReactionRoleHandlers(client: Client, routes: Map<string,
     if (!guild) throw ApiError.notFound('Guild not found');
 
     const channel = await guild.channels.fetch(channelId).catch(() => null);
-    if (!channel || !channel.isTextBased()) {
+    if (!channel?.isTextBased()) {
       throw ApiError.notFound('Channel not found or not a text channel');
     }
 
@@ -90,7 +90,7 @@ export function registerReactionRoleHandlers(client: Client, routes: Map<string,
     const menuId = requireId(url, 'reaction-roles');
     const menu = await menuRepo.findOne({
       where: { guildId, id: menuId },
-      relations: ['options'],
+      relations: { options: true },
     });
     if (!menu) throw ApiError.notFound('Menu not found');
 

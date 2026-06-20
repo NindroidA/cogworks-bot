@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.0] - 2026-06-20
+
+Dependency modernization — major runtime and tooling upgrades, validated
+against a live MySQL and a real gateway connection.
+
+### Changed
+
+- **Dependencies updated:** discord.js 14.26.4, TypeScript 6.0, TypeORM 1.0,
+  Bun 1.3.14 (Docker + CI), mysql2 3.22.5, Biome 2.5.0, dotenv 17. The
+  `@discordjs/ws` Bun-compatibility patch carries forward unchanged (still
+  resolves to 1.2.3).
+
+### Fixed
+
+- **TypeORM 1.0 migration:** converted string-form `relations`/`select` find
+  options to the object form, and gave string-union entity columns (ticket and
+  application status, bait action type, event entity type) explicit column
+  types — TypeORM 1.0 validates these strictly. No data migration: the columns
+  already stored strings.
+- Quieted dotenv 17's new startup injection log; applied Biome 2.5.0's
+  optional-chaining cleanups.
+
 ## [3.4.0] - 2026-06-20
 
 Announcement module overhaul (timezone picker, template consolidation,

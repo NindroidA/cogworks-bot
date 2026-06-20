@@ -36,7 +36,7 @@ export async function getCachedMenu(messageId: string, guildId: string): Promise
 
   const menu = await menuRepo.findOne({
     where: { messageId, guildId },
-    relations: ['options'],
+    relations: { options: true },
   });
 
   if (menu) {

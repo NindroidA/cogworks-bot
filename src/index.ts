@@ -75,7 +75,7 @@ import { registerGuildCommands } from './utils/setup/commandGating';
 import { StatusManager } from './utils/status/statusManager';
 import { checkAndAutoCloseTickets } from './utils/ticket/autoClose';
 
-dotenv.config();
+dotenv.config({ quiet: true }); // dotenv 17 logs an injection summary by default; keep prod logs clean
 
 // Configure external error reporter. Reads envs once at startup:
 //   ERROR_WEBHOOK_URL          — Discord webhook (disables reporter if empty)

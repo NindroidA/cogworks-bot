@@ -25,7 +25,7 @@ export class EventTemplate {
   @Column({ type: 'varchar', length: 256, nullable: true })
   location: string | null;
 
-  @Column({ length: 20, default: 'external' })
+  @Column({ type: 'varchar', length: 20, default: 'external' })
   entityType: EventEntityType;
 
   @Column({ default: 60 })

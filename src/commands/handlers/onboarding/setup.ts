@@ -55,7 +55,7 @@ export async function disableHandler(_client: Client, interaction: ChatInputComm
 
   const config = await configRepo.findOneBy({ guildId });
 
-  if (!config || !config.enabled) {
+  if (!config?.enabled) {
     await interaction.reply({
       content: tl.setup.alreadyDisabled,
       flags: [MessageFlags.Ephemeral],

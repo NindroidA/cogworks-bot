@@ -136,7 +136,7 @@ const EXPORT_ENTITIES: ExportEntity[] = [
     entity: ReactionRoleMenu,
     buildFindOptions: guildId => ({
       where: { guildId },
-      relations: ['options'],
+      relations: { options: true },
     }),
   },
   {

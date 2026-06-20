@@ -43,7 +43,7 @@ import { XPConfig } from './entities/xp/XPConfig';
 import { XPRoleReward } from './entities/xp/XPRoleReward';
 import { XPUser } from './entities/xp/XPUser';
 
-dotenv.config();
+dotenv.config({ quiet: true }); // dotenv 17 logs an injection summary by default; keep logs clean
 
 const IS_DEV = (process.env.RELEASE || 'prod').toLowerCase().trim() === 'dev';
 

@@ -50,7 +50,7 @@ export async function reactionRoleAddHandler(interaction: ChatInputCommandIntera
     // Find the menu
     const menu = await menuRepo.findOne({
       where: { id: menuId, guildId },
-      relations: ['options'],
+      relations: { options: true },
     });
     if (!menu) {
       await interaction.reply({
@@ -114,7 +114,7 @@ export async function reactionRoleAddHandler(interaction: ChatInputCommandIntera
     // Reload menu with new option and update the message
     const updatedMenu = await menuRepo.findOne({
       where: { id: menu.id, guildId },
-      relations: ['options'],
+      relations: { options: true },
     });
     if (updatedMenu) {
       await updateMenuMessage(updatedMenu, guild);

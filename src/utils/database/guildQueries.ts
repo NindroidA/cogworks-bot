@@ -24,7 +24,7 @@ import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
  *
  * @example
  * const config = await findOneByGuild(ticketConfigRepo, guildId, {
- *   select: ['channelId', 'categoryId']
+ *   select: { channelId: true, categoryId: true }
  * });
  */
 export async function findOneByGuild<T extends { guildId: string }>(

@@ -90,7 +90,7 @@ async function handleEnable(interaction: ChatInputCommandInteraction, guildId: s
 
 async function handleDisable(interaction: ChatInputCommandInteraction, guildId: string) {
   const config = await configRepo.findOne({ where: { guildId } });
-  if (!config || !config.enabled) {
+  if (!config?.enabled) {
     await interaction.reply({
       content: xpLang.setup.alreadyDisabled,
       flags: [MessageFlags.Ephemeral],
