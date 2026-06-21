@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.3] - 2026-06-21
+
+Internal refactor (unification #7 — toggle require-existing mode) — no behavior change.
+
+### Changed
+
+- `createToggleHandler` gains a `requireExisting` mode (+ an `onEnable` pre-save
+  seed hook): the config row must already exist, replying a `notConfigured`
+  message instead of creating it. Folded the ticket **workflow** and **smart-
+  routing** enable/disable handlers onto it — routing's `resetRoundRobin` rides
+  `onToggled`, workflow seeds default statuses via `onEnable`. Ticket **SLA**
+  stays hand-written (its enable reads command options + formats conditional
+  replies — a config-setter, not a pure toggle). +5 unit tests.
+
 ## [3.11.2] - 2026-06-21
 
 Internal refactor (unification #5 — archive transcript spine) — no behavior change.
