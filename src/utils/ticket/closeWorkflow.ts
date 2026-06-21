@@ -19,6 +19,7 @@ import { applyForumTags, ensureForumTag } from '../forumTagManager';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { builtinTypeInfo, resolveTicketType } from './builtinTypes';
 import { buildTranscript, type TicketMetadata, type TranscriptMessage } from './transcriptBuilder';
+import { postTranscriptToThread } from './transcriptPoster';
 
 const archivedTicketRepo = lazyRepo(ArchivedTicket);
 
@@ -134,31 +135,6 @@ async function resolveArchiveThreadName(client: Client, ticket: Ticket): Promise
   return user?.username || 'Unknown';
 }
 
-/**
- * Post each transcript chunk to the thread. Never pings (historical content),
- * and attributes a failed send to its chunk index so a partial-archive failure
- * is diagnosable. Rethrows so the caller marks the archive failed.
- */
-async function sendTranscriptChunks(
-  thread: ForumThreadChannel,
-  chunks: string[],
-  ctx: { guildId: string; channelId: string },
-): Promise<void> {
-  for (let i = 0; i < chunks.length; i++) {
-    try {
-      await thread.send({ content: chunks[i], allowedMentions: { parse: [] } });
-    } catch (error) {
-      enhancedLogger.error(
-        `Transcript chunk ${i + 1}/${chunks.length} failed to post`,
-        error as Error,
-        LogCategory.SYSTEM,
-        ctx,
-      );
-      throw error;
-    }
-  }
-}
-
 /** Union of existing + incoming forum tag ids, order-preserving, deduped. */
 function mergeForumTags(existing: string[] | null | undefined, incoming: string[]): string[] {
   const merged = [...(existing ?? [])];
@@ -269,7 +245,7 @@ export async function archiveAndCloseTicket(
         }),
       );
 
-      await sendTranscriptChunks(newPost, transcript.chunks, {
+      await postTranscriptToThread(newPost, transcript.chunks, {
         guildId,
         channelId,
       });
@@ -310,7 +286,7 @@ export async function archiveAndCloseTicket(
         existingArchive.messageId = newPost.id;
         existingArchive.forumTagIds = mergedTags;
         await deps.archivedTicketRepo.save(existingArchive);
-        await sendTranscriptChunks(newPost, transcript.chunks, {
+        await postTranscriptToThread(newPost, transcript.chunks, {
           guildId,
           channelId,
         });
@@ -322,7 +298,7 @@ export async function archiveAndCloseTicket(
           content: separator + transcript.header,
           allowedMentions: { parse: [] },
         });
-        await sendTranscriptChunks(post, transcript.chunks, {
+        await postTranscriptToThread(post, transcript.chunks, {
           guildId,
           channelId,
         });
