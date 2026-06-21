@@ -10,7 +10,15 @@
 import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory, lang, replyEphemeralError } from '../../../utils';
+import {
+  createToggleHandler,
+  enhancedLogger,
+  formatLang,
+  guardFeatureAccess,
+  LogCategory,
+  lang,
+  replyEphemeralError,
+} from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import {
   getStaffWorkload,
@@ -26,6 +34,26 @@ const ticketRepo = lazyRepo(Ticket);
 const MAX_ROUTING_RULES = 25;
 const VALID_STRATEGIES: RoutingStrategy[] = ['round-robin', 'least-load', 'random'];
 
+const routingToggle = createToggleHandler<TicketConfig>({
+  repo: ticketConfigRepo,
+  field: 'smartRoutingEnabled',
+  requireExisting: { notConfigured: lang.ticket.ticketConfigNotFound },
+  messages: {
+    alreadyEnabled: tl.alreadyEnabled,
+    alreadyDisabled: tl.alreadyDisabled,
+    enabled: tl.enabled,
+    disabled: tl.disabled,
+  },
+  // Smart routing rides on the workflow system.
+  canEnable: config => (!config.enableWorkflow ? tl.requiresWorkflow : null),
+  onToggled: (_interaction, guildId, enabled) => {
+    if (!enabled) resetRoundRobin(guildId); // clear round-robin state on disable
+    enhancedLogger.info(`Smart routing ${enabled ? 'enabled' : 'disabled'}`, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+    });
+  },
+});
+
 // ============================================================================
 // /ticket routing-enable
 // ============================================================================
@@ -33,36 +61,7 @@ const VALID_STRATEGIES: RoutingStrategy[] = ['round-robin', 'least-load', 'rando
 export async function routingEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
-
-  const guildId = interaction.guildId!;
-  const config = await ticketConfigRepo.findOneBy({ guildId });
-
-  if (!config) {
-    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
-    return;
-  }
-
-  if (!config.enableWorkflow) {
-    await replyEphemeralError(interaction, tl.requiresWorkflow);
-    return;
-  }
-
-  if (config.smartRoutingEnabled) {
-    await replyEphemeralError(interaction, tl.alreadyEnabled);
-    return;
-  }
-
-  config.smartRoutingEnabled = true;
-  await ticketConfigRepo.save(config);
-
-  await interaction.reply({
-    content: tl.enabled,
-    flags: [MessageFlags.Ephemeral],
-  });
-
-  enhancedLogger.info('Smart routing enabled', LogCategory.COMMAND_EXECUTION, {
-    guildId,
-  });
+  await routingToggle.enable(interaction, interaction.guildId!);
 }
 
 // ============================================================================
@@ -72,34 +71,7 @@ export async function routingEnableHandler(interaction: ChatInputCommandInteract
 export async function routingDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
-
-  const guildId = interaction.guildId!;
-  const config = await ticketConfigRepo.findOneBy({ guildId });
-
-  if (!config) {
-    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
-    return;
-  }
-
-  if (!config.smartRoutingEnabled) {
-    await replyEphemeralError(interaction, tl.alreadyDisabled);
-    return;
-  }
-
-  config.smartRoutingEnabled = false;
-  await ticketConfigRepo.save(config);
-
-  // Clear round-robin state for this guild
-  resetRoundRobin(guildId);
-
-  await interaction.reply({
-    content: tl.disabled,
-    flags: [MessageFlags.Ephemeral],
-  });
-
-  enhancedLogger.info('Smart routing disabled', LogCategory.COMMAND_EXECUTION, {
-    guildId,
-  });
+  await routingToggle.disable(interaction, interaction.guildId!);
 }
 
 // ============================================================================

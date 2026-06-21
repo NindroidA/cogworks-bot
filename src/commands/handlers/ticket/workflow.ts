@@ -17,6 +17,7 @@ import type { TicketStatusHistoryEntry } from '../../../typeorm/entities/ticket/
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig, type WorkflowStatus } from '../../../typeorm/entities/ticket/TicketConfig';
 import {
+  createToggleHandler,
   DEFAULT_TICKET_STATUSES,
   enhancedLogger,
   formatLang,
@@ -35,6 +36,29 @@ const tl = lang.ticket.workflow;
 const tlInfo = lang.ticket.info;
 const ticketConfigRepo = lazyRepo(TicketConfig);
 const ticketRepo = lazyRepo(Ticket);
+
+const workflowToggle = createToggleHandler<TicketConfig>({
+  repo: ticketConfigRepo,
+  field: 'enableWorkflow',
+  requireExisting: { notConfigured: lang.ticket.ticketConfigNotFound },
+  messages: {
+    alreadyEnabled: tl.alreadyEnabled,
+    alreadyDisabled: tl.alreadyDisabled,
+    enabled: tl.enabled,
+    disabled: tl.disabled,
+  },
+  // Seed the default status set on first enable; preserved across a later disable.
+  onEnable: config => {
+    if (!config.workflowStatuses || config.workflowStatuses.length === 0) {
+      config.workflowStatuses = [...DEFAULT_TICKET_STATUSES];
+    }
+  },
+  onToggled: (_interaction, guildId, enabled) => {
+    enhancedLogger.info(`Ticket workflow ${enabled ? 'enabled' : 'disabled'}`, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+    });
+  },
+});
 
 // ============================================================================
 // Helper: Get ticket config with workflow check
@@ -331,32 +355,7 @@ export async function ticketInfoHandler(interaction: ChatInputCommandInteraction
 export async function workflowEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
-
-  const guildId = interaction.guildId!;
-  const config = await ticketConfigRepo.findOneBy({ guildId });
-
-  if (!config) {
-    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
-    return;
-  }
-
-  if (config.enableWorkflow) {
-    await replyEphemeralError(interaction, tl.alreadyEnabled);
-    return;
-  }
-
-  config.enableWorkflow = true;
-  if (!config.workflowStatuses || config.workflowStatuses.length === 0) {
-    config.workflowStatuses = [...DEFAULT_TICKET_STATUSES];
-  }
-  await ticketConfigRepo.save(config);
-
-  await interaction.reply({
-    content: tl.enabled,
-    flags: [MessageFlags.Ephemeral],
-  });
-
-  enhancedLogger.info('Ticket workflow enabled', LogCategory.COMMAND_EXECUTION, { guildId });
+  await workflowToggle.enable(interaction, interaction.guildId!);
 }
 
 // ============================================================================
@@ -366,30 +365,7 @@ export async function workflowEnableHandler(interaction: ChatInputCommandInterac
 export async function workflowDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
-
-  const guildId = interaction.guildId!;
-  const config = await ticketConfigRepo.findOneBy({ guildId });
-
-  if (!config) {
-    await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
-    return;
-  }
-
-  if (!config.enableWorkflow) {
-    await replyEphemeralError(interaction, tl.alreadyDisabled);
-    return;
-  }
-
-  config.enableWorkflow = false;
-  // Don't delete workflowStatuses — preserved for re-enable
-  await ticketConfigRepo.save(config);
-
-  await interaction.reply({
-    content: tl.disabled,
-    flags: [MessageFlags.Ephemeral],
-  });
-
-  enhancedLogger.info('Ticket workflow disabled', LogCategory.COMMAND_EXECUTION, { guildId });
+  await workflowToggle.disable(interaction, interaction.guildId!);
 }
 
 // ============================================================================

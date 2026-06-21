@@ -204,3 +204,95 @@ describe('createToggleHandler — disable', () => {
     expect(replies.at(-1)?.content).toContain('already off');
   });
 });
+
+describe('createToggleHandler — requireExisting', () => {
+  const requireExisting = { notConfigured: 'set it up first' };
+
+  test('enable on a missing config replies notConfigured and never creates a row', async () => {
+    const r = makeRepo(null);
+    const { enable } = createToggleHandler<FakeConfig>({
+      repo: asRepo(r.repo),
+      field: 'enabled',
+      messages,
+      requireExisting,
+    });
+    const { interaction, replies } = makeInteraction();
+
+    await enable(asInteraction(interaction), 'g1');
+
+    expect(r.stored).toBeNull();
+    expect(r.saveCount).toBe(0);
+    expect(replies.at(-1)?.content).toContain('set it up first');
+  });
+
+  test('disable on a missing config replies notConfigured (not alreadyDisabled)', async () => {
+    const r = makeRepo(null);
+    const { disable } = createToggleHandler<FakeConfig>({
+      repo: asRepo(r.repo),
+      field: 'enabled',
+      messages,
+      requireExisting,
+    });
+    const { interaction, replies } = makeInteraction();
+
+    await disable(asInteraction(interaction), 'g1');
+
+    expect(r.saveCount).toBe(0);
+    expect(replies.at(-1)?.content).toContain('set it up first');
+  });
+
+  test('enable on an existing config toggles normally', async () => {
+    const r = makeRepo({ guildId: 'g1', enabled: false });
+    const { enable } = createToggleHandler<FakeConfig>({
+      repo: asRepo(r.repo),
+      field: 'enabled',
+      messages,
+      requireExisting,
+    });
+    const { interaction, replies } = makeInteraction();
+
+    await enable(asInteraction(interaction), 'g1');
+
+    expect(r.stored?.enabled).toBe(true);
+    expect(replies.at(-1)?.content).toBe('turned on');
+  });
+});
+
+describe('createToggleHandler — onEnable', () => {
+  test('mutates the config before save when enabling', async () => {
+    const r = makeRepo({ guildId: 'g1', enabled: false });
+    const { enable } = createToggleHandler<FakeConfig>({
+      repo: asRepo(r.repo),
+      field: 'enabled',
+      messages,
+      onEnable: config => {
+        if (!config.steps || config.steps.length === 0) config.steps = ['seeded'];
+      },
+    });
+    const { interaction } = makeInteraction();
+
+    await enable(asInteraction(interaction), 'g1');
+
+    expect(r.stored?.enabled).toBe(true);
+    expect(r.stored?.steps).toEqual(['seeded']);
+  });
+
+  test('does not run onEnable on disable', async () => {
+    const r = makeRepo({ guildId: 'g1', enabled: true });
+    let onEnableCalls = 0;
+    const { disable } = createToggleHandler<FakeConfig>({
+      repo: asRepo(r.repo),
+      field: 'enabled',
+      messages,
+      onEnable: () => {
+        onEnableCalls += 1;
+      },
+    });
+    const { interaction } = makeInteraction();
+
+    await disable(asInteraction(interaction), 'g1');
+
+    expect(onEnableCalls).toBe(0);
+    expect(r.stored?.enabled).toBe(false);
+  });
+});
