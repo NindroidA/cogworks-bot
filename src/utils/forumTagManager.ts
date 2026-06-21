@@ -1,5 +1,6 @@
 import type { ForumChannel, GuildForumTag } from 'discord.js';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
+import { sleep } from './time';
 
 /**
  * Creates or finds a forum tag based on custom ticket type properties.
@@ -72,7 +73,7 @@ export async function ensureForumTag(
     await forumChannel.setAvailableTags(updatedTags);
 
     // Wait a moment for Discord to process the change
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await sleep(500);
 
     // Fetch the created tag ID (it's the last one added)
     const refreshedChannel = (await forumChannel.fetch()) as ForumChannel;

@@ -49,6 +49,8 @@ export * from './security/rateLimiter';
 export * from './setup';
 // Status utilities
 export * from './status';
+// Time primitives
+export * from './time';
 export * from './types';
 // Validation utilities
 export * from './validation/inputSanitizer';

@@ -25,6 +25,7 @@ import {
   parseTimeInput,
   replyEphemeralError,
   sanitizeUserInput,
+  toUnixSeconds,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
@@ -371,7 +372,7 @@ export async function handleRecurring(
       await createAutoReminder(guildId, scheduledEvent.id, template.title, startDate, config.defaultReminderMinutes);
     }
 
-    const startTimestamp = `<t:${Math.floor(startDate.getTime() / 1000)}:F>`;
+    const startTimestamp = `<t:${toUnixSeconds(startDate)}:F>`;
 
     await interaction.editReply({
       content: formatLang(tl.recurring.success, template.title, pattern, startTimestamp),

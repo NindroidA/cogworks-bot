@@ -6,6 +6,7 @@
  */
 
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+import { sleep } from '../time';
 import type { BotImporter, ImportOptions, ImportResult, RawXpRecord } from './types';
 
 const MEE6_API_BASE = 'https://mee6.xyz/api/plugins/levels/leaderboard';
@@ -24,13 +25,6 @@ interface Mee6Player {
 interface Mee6LeaderboardResponse {
   players: Mee6Player[];
   page: number;
-}
-
-/**
- * Delay execution for a given number of milliseconds
- */
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export class Mee6Importer implements BotImporter {
@@ -166,7 +160,7 @@ export class Mee6Importer implements BotImporter {
         } else {
           page++;
           // Rate limit: wait between requests
-          await delay(REQUEST_DELAY_MS);
+          await sleep(REQUEST_DELAY_MS);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';

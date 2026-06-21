@@ -31,6 +31,7 @@ import {
   RateLimits,
   replyEphemeralError,
   showAndAwaitModal,
+  toUnixSeconds,
 } from '../../../utils';
 import {
   detectDynamicPlaceholders,
@@ -159,7 +160,7 @@ async function handleTemplateSend(
         // template with an unrendered {time} placeholder.
         const parsed = parseTimeInput(value, timezone);
         if (parsed) {
-          params.time = Math.floor(parsed.getTime() / 1000);
+          params.time = toUnixSeconds(parsed);
         } else {
           const unix = Number.parseInt(value, 10);
           if (!Number.isNaN(unix)) {

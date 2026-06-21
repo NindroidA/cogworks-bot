@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.1] - 2026-06-21
+
+Internal tidiness (unification Phase A4 — time primitives) — no behavior change.
+
+### Added
+
+- `utils/time.ts` — `sleep(ms)`, `toUnixSeconds(date)`, `nowUnixSeconds()`. +6 unit tests.
+
+### Changed
+
+- Migrated the repeated `Math.floor(date.getTime() / 1000)` unix-seconds
+  conversion (12 sites) and the inline `new Promise(r => setTimeout(r, ms))`
+  sleep (7 sites — including the local `delay`/`sleep` helpers in `mee6Importer`
+  and `apiConnector`) onto the shared primitives. Duration *formatting* is
+  intentionally left with its callers (different units/granularity).
+
 ## [3.11.0] - 2026-06-20
 
 Internal refactor (unification #7 — toggle handler) — no behavior change.

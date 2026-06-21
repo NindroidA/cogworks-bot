@@ -7,6 +7,7 @@
 
 import { EmbedBuilder, type Guild, type User } from 'discord.js';
 import type { AnnouncementTemplate } from '../../typeorm/entities/announcement/AnnouncementTemplate';
+import { nowUnixSeconds } from '../time';
 import { sanitizeUserInput } from '../validation/inputSanitizer';
 
 // ============================================================================
@@ -218,7 +219,7 @@ export function renderPreview(
   user: User | null,
   roleId?: string | null,
 ): RenderedAnnouncement {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowUnixSeconds();
   const exampleParams: TemplatePlaceholderParams = {
     version: '1.0.0',
     duration: '5-10 minutes',

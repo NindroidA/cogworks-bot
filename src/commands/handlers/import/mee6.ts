@@ -7,7 +7,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
-import { enhancedLogger, formatLang, LogCategory, lang, replyEphemeralError } from '../../../utils';
+import { enhancedLogger, formatLang, LogCategory, lang, replyEphemeralError, toUnixSeconds } from '../../../utils';
 import { importManager } from '../../../utils/import/importManager';
 
 const tl = lang.import.commands;
@@ -26,7 +26,7 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
   // Check cooldown
   const cooldownUntil = await importManager.checkCooldown(guildId);
   if (cooldownUntil) {
-    const timestamp = Math.floor(cooldownUntil.getTime() / 1000);
+    const timestamp = toUnixSeconds(cooldownUntil);
     await interaction.reply({
       content: formatLang(tl.importCooldown, `<t:${timestamp}:R>`),
       flags: [MessageFlags.Ephemeral],

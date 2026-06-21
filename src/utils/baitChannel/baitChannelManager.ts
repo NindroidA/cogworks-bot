@@ -25,6 +25,7 @@ import { CACHE_TTL, INTERVALS } from '../constants';
 import { createTtlCache } from '../database/configCache';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+import { toUnixSeconds } from '../time';
 import { buildAppealUrl } from './appealToken';
 import { buildAuditReason, flagsTriggered } from './auditReason';
 import { type BanExecutorAction, type BanExecutorResult, executeBanAction } from './banExecutor';
@@ -1553,7 +1554,7 @@ export class BaitChannelManager {
       if (repeatOffenderResult && repeatOffenderResult.matchCount > 0) {
         const matchList = repeatOffenderResult.matchingUsers
           .slice(0, 10) // Cap display at 10
-          .map(u => `• <@${u.userId}> — joined <t:${Math.floor(u.joinedAt.getTime() / 1000)}:R>`)
+          .map(u => `• <@${u.userId}> — joined <t:${toUnixSeconds(u.joinedAt)}:R>`)
           .join('\n');
         embed.addFields({
           name: '🚨 Possible Coordinated Raid',

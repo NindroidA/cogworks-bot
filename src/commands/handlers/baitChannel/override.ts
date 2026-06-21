@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelLog } from '../../../typeorm/entities/bait/BaitChannelLog';
-import { handleInteractionError, lang, replyEphemeralError, safeDbOperation } from '../../../utils';
+import { handleInteractionError, lang, replyEphemeralError, safeDbOperation, toUnixSeconds } from '../../../utils';
 
 const tl = lang.baitChannel;
 
@@ -74,7 +74,7 @@ export async function overrideHandler(_client: Client, interaction: ChatInputCom
         },
         {
           name: tl.override.detectedAt,
-          value: `<t:${Math.floor(recentLog.createdAt.getTime() / 1000)}:R>`,
+          value: `<t:${toUnixSeconds(recentLog.createdAt)}:R>`,
           inline: true,
         },
       );

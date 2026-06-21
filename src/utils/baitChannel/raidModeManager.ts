@@ -33,6 +33,7 @@ import type { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog'
 import { Colors } from '../colors';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+import { toUnixSeconds } from '../time';
 
 /** Maximum duration of an auto-entered raid lockdown — admin must release earlier or wait. */
 const RAID_MODE_MAX_DURATION_MS = 4 * 60 * 60 * 1000; // 4 hours
@@ -385,7 +386,7 @@ export class RaidModeManager {
         `Detected **${triggers.length} bait triggers** within ` +
           `**${config.raidModeWindowSeconds}s** — exceeded threshold of ` +
           `${config.raidModeThreshold}. Server is locked down until ` +
-          `<t:${Math.floor(until.getTime() / 1000)}:f>.`,
+          `<t:${toUnixSeconds(until)}:f>.`,
       )
       .addFields(
         {

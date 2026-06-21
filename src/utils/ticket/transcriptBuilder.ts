@@ -15,6 +15,7 @@
  */
 
 import { TEXT_LIMITS } from '../constants';
+import { toUnixSeconds } from '../time';
 
 /** Per-message shape the fetcher hands to the builder. */
 export interface TranscriptMessage {
@@ -82,7 +83,7 @@ const CHUNK_HARD_LIMIT = TEXT_LIMITS.TRANSCRIPT_CHUNK_HARD;
 
 /** `<t:unix:f>` — Discord renders this in the viewer's local timezone. */
 function formatDiscordTimestamp(date: Date): string {
-  return `<t:${Math.floor(date.getTime() / 1000)}:f>`;
+  return `<t:${toUnixSeconds(date)}:f>`;
 }
 
 /** Minutes-granularity duration for `2h 14m` / `3d 5h` / `47m` strings. */

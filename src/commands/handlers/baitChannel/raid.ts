@@ -7,7 +7,7 @@
  */
 
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
-import { guardFeatureAccess, handleInteractionError } from '../../../utils';
+import { guardFeatureAccess, handleInteractionError, toUnixSeconds } from '../../../utils';
 import { getRaidModeManager } from '../../../utils/baitChannel/raidModeManager';
 import { Colors } from '../../../utils/colors';
 
@@ -53,7 +53,7 @@ export async function raidHandler(_client: Client, interaction: ChatInputCommand
         if (status.active && status.until) {
           embed.addFields({
             name: 'Auto-release at',
-            value: `<t:${Math.floor(status.until.getTime() / 1000)}:f>`,
+            value: `<t:${toUnixSeconds(status.until)}:f>`,
             inline: false,
           });
         }
