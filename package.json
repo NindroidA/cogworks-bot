@@ -16,7 +16,7 @@
     "extract-commands": "bun run scripts/extractCommands.ts",
     "docs:sync": "bun run scripts/extractCommands.ts",
     "build:contract": "bun run scripts/generateContract.ts",
-    "check:contract": "bun run scripts/generateContract.ts && git diff --exit-status contract/cogworks-contract.json",
+    "check:contract": "bun run scripts/generateContract.ts && git diff --exit-code contract/cogworks-contract.json",
     "lint": "biome lint ./src",
     "lint:fix": "biome lint --write ./src",
     "format": "biome format ./src",
