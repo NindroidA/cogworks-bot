@@ -13,6 +13,7 @@
 import type { Client } from 'discord.js';
 import { version } from '../../package.json';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
+import { sleep } from './time';
 
 /**
  * Bot stats data sent to API (v1.3.0 format)
@@ -203,7 +204,7 @@ export class APIConnector {
           LogCategory.API,
         );
 
-        await this.sleep(delay);
+        await sleep(delay);
         return this.makeRequestWithRetry(requestFn, retryCount + 1);
       }
 
@@ -245,10 +246,6 @@ export class APIConnector {
     );
     const jitter = Math.random() * 0.3 * delay;
     return Math.floor(delay + jitter);
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   private recordSuccess(): void {

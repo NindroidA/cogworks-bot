@@ -24,7 +24,7 @@ import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedT
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
-import { enhancedLogger, handleInteractionError, LogCategory } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LogCategory, sleep } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -1102,7 +1102,7 @@ async function timelineSla(
   await interaction.editReply(`SLA Timeline: Step 1/4 - Ticket #${ticket.id} created`);
 
   // Step 2: Wait then backdate past SLA
-  await new Promise(r => setTimeout(r, 5_000));
+  await sleep(5_000);
   ticket.lastActivityAt = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
   await repo.save(ticket);
   steps.push(`Backdated ticket #${ticket.id} to 2 hours ago`);
@@ -1110,7 +1110,7 @@ async function timelineSla(
   await interaction.editReply(`SLA Timeline: Step 2/4 - Ticket backdated past SLA threshold`);
 
   // Step 3: Force SLA breach
-  await new Promise(r => setTimeout(r, 5_000));
+  await sleep(5_000);
   ticket.slaBreached = true;
   ticket.slaBreachNotified = true;
   await repo.save(ticket);
@@ -1119,7 +1119,7 @@ async function timelineSla(
   await interaction.editReply(`SLA Timeline: Step 3/4 - SLA breach triggered`);
 
   // Step 4: Simulate staff response
-  await new Promise(r => setTimeout(r, 5_000));
+  await sleep(5_000);
   ticket.firstResponseAt = new Date();
   ticket.lastActivityAt = new Date();
   await repo.save(ticket);

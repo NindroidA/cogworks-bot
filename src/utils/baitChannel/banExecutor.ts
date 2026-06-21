@@ -30,6 +30,7 @@ import type { Repository } from 'typeorm';
 import type { IdempotencyKey } from '../../typeorm/entities/bait/IdempotencyKey';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+import { sleep } from '../time';
 
 export type BanExecutorAction = 'ban' | 'softban' | 'kick' | 'timeout' | 'log-only';
 
@@ -246,7 +247,7 @@ export async function executeBanAction(
         });
         // Brief delay so Discord finishes the message-purge step before we
         // lift the ban.
-        await new Promise(r => setTimeout(r, softbanDelayMs));
+        await sleep(softbanDelayMs);
         try {
           await guild.bans.remove(userId, 'Softban complete — user may rejoin');
         } catch (removeError) {

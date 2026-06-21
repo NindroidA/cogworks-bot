@@ -8,7 +8,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
-import { lang, replyEphemeralError } from '../../../utils';
+import { lang, replyEphemeralError, toUnixSeconds } from '../../../utils';
 import { importManager } from '../../../utils/import/importManager';
 
 const tl = lang.import.commands;
@@ -61,7 +61,7 @@ export async function importStatusHandler(interaction: ChatInputCommandInteracti
                 : '\u23f3';
 
         const duration = log.durationMs ? `${(log.durationMs / 1000).toFixed(1)}s` : 'N/A';
-        const timestamp = Math.floor(log.startedAt.getTime() / 1000);
+        const timestamp = toUnixSeconds(log.startedAt);
 
         embed.addFields({
           name: `${statusEmoji} ${log.source} (${log.dataType})`,

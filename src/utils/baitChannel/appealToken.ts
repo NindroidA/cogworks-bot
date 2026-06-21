@@ -22,6 +22,7 @@
 
 import { Buffer } from 'node:buffer';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { nowUnixSeconds } from '../time';
 
 const ISSUER_NAME = 'cogworks';
 const DEFAULT_EXP_HOURS = 7 * 24; // 7 days — long enough for most ban-appeal workflows
@@ -85,7 +86,7 @@ function getSecret(): string {
 }
 
 export function signAppealToken(input: SignAppealTokenInput): string {
-  const now = Math.floor(Date.now() / 1000);
+  const now = nowUnixSeconds();
   const exp = now + (input.expiresInHours ?? DEFAULT_EXP_HOURS) * 3600;
   const payload: AppealTokenPayload = {
     guildId: input.guildId,
