@@ -18,6 +18,7 @@ import { verifiedChannelDelete } from '../discord/verifiedDelete';
 import { fetchMessagesAsTranscript } from '../fetchAllMessages';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { buildTranscript, type TicketMetadata, type TranscriptMessage } from '../ticket/transcriptBuilder';
+import { postTranscriptToThread } from '../ticket/transcriptPoster';
 
 const archivedAppRepo = lazyRepo(ArchivedApplication);
 
@@ -46,31 +47,6 @@ const defaultDeps: CloseApplicationWorkflowDeps = {
   verifiedChannelDelete,
   archivedAppRepo,
 };
-
-/**
- * Post each transcript chunk to the thread. Never pings (historical content),
- * and attributes a failed send to its chunk index. Rethrows so the caller marks
- * the archive failed.
- */
-async function sendTranscriptChunks(
-  thread: ForumThreadChannel,
-  chunks: string[],
-  ctx: { guildId: string; channelId: string },
-): Promise<void> {
-  for (let i = 0; i < chunks.length; i++) {
-    try {
-      await thread.send({ content: chunks[i], allowedMentions: { parse: [] } });
-    } catch (error) {
-      enhancedLogger.error(
-        `Application transcript chunk ${i + 1}/${chunks.length} failed to post`,
-        error as Error,
-        LogCategory.SYSTEM,
-        ctx,
-      );
-      throw error;
-    }
-  }
-}
 
 /**
  * Archive an application to the forum channel and clean up.
@@ -139,7 +115,7 @@ export async function archiveAndCloseApplication(
         }),
       );
 
-      await sendTranscriptChunks(newPost, transcript.chunks, { guildId, channelId });
+      await postTranscriptToThread(newPost, transcript.chunks, { guildId, channelId, label: 'Application transcript' });
     } else if (existingArchive.messageId) {
       // Re-close: reuse the archive thread, but it may have been deleted out
       // from under us. force:true bypasses the cache; catch ONLY 10003 (Unknown
@@ -160,14 +136,18 @@ export async function archiveAndCloseApplication(
         // Repoint + persist BEFORE chunks so a chunk failure can't orphan it.
         existingArchive.messageId = newPost.id;
         await deps.archivedAppRepo.save(existingArchive);
-        await sendTranscriptChunks(newPost, transcript.chunks, { guildId, channelId });
+        await postTranscriptToThread(newPost, transcript.chunks, {
+          guildId,
+          channelId,
+          label: 'Application transcript',
+        });
       } else {
         const separator = '\n━━━━━━━━━━━━━━━━━━━━━━━━\n';
         await post.send({
           content: separator + transcript.header,
           allowedMentions: { parse: [] },
         });
-        await sendTranscriptChunks(post, transcript.chunks, { guildId, channelId });
+        await postTranscriptToThread(post, transcript.chunks, { guildId, channelId, label: 'Application transcript' });
       }
     }
   } catch (error) {

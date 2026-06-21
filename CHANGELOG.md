@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.2] - 2026-06-21
+
+Internal refactor (unification #5 — archive transcript spine) — no behavior change.
+
+### Added
+
+- `utils/ticket/transcriptPoster.ts` — `postTranscriptToThread(thread, chunks, ctx)`,
+  the shared chunk-posting spine of the ticket and application close workflows
+  (near-mirror archive paths). Kept out of the pure `transcriptBuilder` so that
+  module stays Discord-client-free. +3 unit tests.
+
+### Changed
+
+- `ticket/closeWorkflow` and `application/closeWorkflow` drop their duplicate
+  local `sendTranscriptChunks` and call the shared spine (a `label` keeps each
+  side's log line). Left hand-written: the divergent archive bodies (ticket tags
+  / custom types / email fields vs application) — parametrizing those would be lossy.
+
 ## [3.11.1] - 2026-06-21
 
 Internal tidiness (unification Phase A4 — time primitives) — no behavior change.
