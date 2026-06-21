@@ -1,6 +1,6 @@
 import { ActionRowBuilder, type ChatInputCommandInteraction, MessageFlags, StringSelectMenuBuilder } from 'discord.js';
 import { MemoryConfig } from '../../../typeorm/entities/memory';
-import { E, lang, replyEphemeralError } from '../../../utils';
+import { awaitSelectMenuChoice, E, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.memory;
@@ -43,28 +43,16 @@ export async function resolveMemoryConfig(
     flags: [MessageFlags.Ephemeral],
   });
 
-  try {
-    const i = await response.awaitMessageComponent({
-      filter: i => i.user.id === interaction.user.id && i.customId === 'memory_channel_picker',
-      time: 30000,
-    });
+  const choice = await awaitSelectMenuChoice(interaction, response, {
+    userId: interaction.user.id,
+    customId: 'memory_channel_picker',
+  });
+  if (!choice) return null;
 
-    if (i.isStringSelectMenu()) {
-      const selectedId = Number.parseInt(i.values[0], 10);
-      const config = configs.find(c => c.id === selectedId);
-
-      await i.update({ content: `${E.loading} Processing...`, components: [] });
-
-      return config || null;
-    }
-  } catch {
-    await interaction.editReply({
-      content: lang.errors.timeout,
-      components: [],
-    });
-  }
-
-  return null;
+  const selectedId = Number.parseInt(choice.values[0], 10);
+  const config = configs.find(c => c.id === selectedId);
+  await choice.update({ content: `${E.loading} Processing...`, components: [] });
+  return config || null;
 }
 
 export async function resolveConfigFromThread(
