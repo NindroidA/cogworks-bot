@@ -220,6 +220,8 @@ export const TIMEOUTS = {
   MODAL: 300_000,
   /** Confirm/cancel button timeout: 30 seconds */
   CONFIRMATION: 30_000,
+  /** Single select-menu choice timeout: 30 seconds */
+  SELECT_MENU: 30_000,
   /** General component collection timeout: 60 seconds */
   COMPONENT: 60_000,
   /** Long-lived dashboards/wizards: 5 minutes */

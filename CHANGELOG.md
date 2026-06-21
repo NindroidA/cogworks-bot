@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.12.0] - 2026-06-21
+
+New shared interaction primitive (unification — select-menu helper).
+
+### Added
+
+- `awaitSelectMenuChoice(interaction, response, { userId, customId, timeout? })`
+  (`utils/interactions/selectMenuHelper.ts`) — awaits a single string-select
+  choice, returning the interaction or `null` on timeout (clearing the menu with
+  the standard timeout message). New `TIMEOUTS.SELECT_MENU` (30s). +3 unit tests.
+
+### Changed
+
+- `memory/channelPicker` migrated onto it as proof-of-fit (drops the hand-rolled
+  `awaitMessageComponent` + try/catch + hardcoded `30000`). The other ~4
+  await-one sites (memorySetup, botSetup/systemFlows, botReset, automod/backup)
+  are the documented follow-up; stateful multi-step flows keep the event-based
+  collectors in `utils/collectors.ts`.
+
 ## [3.11.3] - 2026-06-21
 
 Internal refactor (unification #7 — toggle require-existing mode) — no behavior change.

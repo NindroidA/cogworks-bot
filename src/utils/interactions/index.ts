@@ -17,6 +17,7 @@ export {
   showAndAwaitModal,
 } from './modalHelper';
 export { type EphemeralErrorOptions, replyEphemeralError } from './replyHelper';
+export { awaitSelectMenuChoice, type SelectMenuChoiceOptions } from './selectMenuHelper';
 export {
   createToggleHandler,
   type ToggleHandlerOptions,
