@@ -34,7 +34,7 @@ const pendingActionRepo = lazyRepo(PendingAction);
  * null/"" to clear; the appeal-link cross-field validation is handled
  * separately in the route after these are applied.
  */
-const BAIT_CONFIG_FIELDS: FieldDescriptor<BaitChannelConfig>[] = [
+export const BAIT_CONFIG_FIELDS: FieldDescriptor<BaitChannelConfig>[] = [
   { field: 'enabled', type: 'bool' },
   { field: 'enableSmartDetection', type: 'bool' },
   { field: 'requireVerification', type: 'bool' },
@@ -66,7 +66,7 @@ const BAIT_CONFIG_FIELDS: FieldDescriptor<BaitChannelConfig>[] = [
   { field: 'logRetentionDays', type: 'int', min: 30, max: 365 },
   { field: 'banReason', type: 'string' },
   { field: 'warningMessage', type: 'string' },
-  { field: 'actionType', type: 'string' },
+  { field: 'actionType', type: 'enum', values: ['ban', 'kick', 'timeout', 'log-only'] },
   { field: 'appealInfo', type: 'nullableString' },
   { field: 'logChannelId', type: 'nullableString' },
   { field: 'summaryChannelId', type: 'nullableString' },

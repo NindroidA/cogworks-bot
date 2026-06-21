@@ -1,0 +1,3887 @@
+{
+  "contractVersion": "1",
+  "botVersion": "3.13.0",
+  "features": {
+    "keys": [
+      "tickets",
+      "applications",
+      "announcements",
+      "baitchannel",
+      "memory",
+      "xp",
+      "starboard",
+      "events",
+      "reactionroles",
+      "onboarding",
+      "automod",
+      "rules",
+      "analytics"
+    ],
+    "levels": [
+      "use",
+      "manage",
+      "admin"
+    ]
+  },
+  "commands": [
+    {
+      "options": [],
+      "name": "bot-setup",
+      "description": "Sets up the bot for your server",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 2,
+          "name": "add",
+          "description": "Adds a role to the Cogworks database",
+          "options": [
+            {
+              "type": 1,
+              "name": "staff",
+              "description": "Adds a Staff role",
+              "options": [
+                {
+                  "name": "role_id",
+                  "description": "The actual Role ID",
+                  "required": true,
+                  "type": 8
+                },
+                {
+                  "type": 3,
+                  "name": "alias",
+                  "description": "What you refer to this role as",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "admin",
+              "description": "Adds an Admin role",
+              "options": [
+                {
+                  "name": "role_id",
+                  "description": "The actual Role ID",
+                  "required": true,
+                  "type": 8
+                },
+                {
+                  "type": 3,
+                  "name": "alias",
+                  "description": "What you refer to this role as",
+                  "required": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "remove",
+          "description": "Removes a role to the Cogworks database",
+          "options": [
+            {
+              "type": 1,
+              "name": "staff",
+              "description": "Removes a Staff role",
+              "options": [
+                {
+                  "name": "role_id",
+                  "description": "The actual Role ID",
+                  "required": true,
+                  "type": 8
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "admin",
+              "description": "Removes an Admin role",
+              "options": [
+                {
+                  "name": "role_id",
+                  "description": "The actual Role ID",
+                  "required": true,
+                  "type": 8
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "list",
+          "description": "Gets your saved roles from the Cogworks database",
+          "options": []
+        }
+      ],
+      "name": "role",
+      "description": "Manage saved staff and admin roles",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "channel_types": [
+            0
+          ],
+          "name": "channel",
+          "description": "Text channel for the ticket creation button",
+          "required": false,
+          "type": 7
+        },
+        {
+          "channel_types": [
+            15
+          ],
+          "name": "archive",
+          "description": "Forum channel for archived/closed tickets",
+          "required": false,
+          "type": 7
+        },
+        {
+          "channel_types": [
+            4
+          ],
+          "name": "category",
+          "description": "Category where ticket threads are created",
+          "required": false,
+          "type": 7
+        }
+      ],
+      "name": "ticket-setup",
+      "description": "Configure the ticket system channels and category",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 2,
+          "name": "type",
+          "description": "Manage custom ticket types",
+          "options": [
+            {
+              "type": 1,
+              "name": "add",
+              "description": "Create a custom ticket type",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "edit",
+              "description": "Edit an existing custom ticket type",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "type",
+                  "description": "Select the ticket type to edit",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "list",
+              "description": "List all custom ticket types",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "toggle",
+              "description": "Activate or deactivate a custom ticket type",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "type",
+                  "description": "Select the ticket type to toggle",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "default",
+              "description": "Set the default ticket type",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "type",
+                  "description": "Select the ticket type to set as default",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "remove",
+              "description": "Delete a custom ticket type",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "type",
+                  "description": "Select the ticket type to delete",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "fields",
+              "description": "Configure custom input fields for a ticket type",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "type",
+                  "description": "Select the ticket type to configure",
+                  "required": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "manage",
+          "description": "Ticket management actions",
+          "options": [
+            {
+              "type": 1,
+              "name": "status",
+              "description": "Change the status of a ticket",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "status",
+                  "description": "The new status for the ticket",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "assign",
+              "description": "Assign a staff member to this ticket",
+              "options": [
+                {
+                  "name": "user",
+                  "description": "The staff member to assign",
+                  "required": true,
+                  "type": 6
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "unassign",
+              "description": "Remove the current assignment from this ticket",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "info",
+              "description": "View detailed information about this ticket",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "import-email",
+              "description": "Import a ticket from email",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "user-restrict",
+              "description": "Manage user restrictions for ticket types",
+              "options": [
+                {
+                  "name": "user",
+                  "description": "User to manage restrictions for",
+                  "required": true,
+                  "type": 6
+                },
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "type",
+                  "description": "Ticket type (optional - opens configurator if not specified)",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "settings",
+              "description": "Configure ticket system settings",
+              "options": [
+                {
+                  "type": 3,
+                  "choices": [
+                    {
+                      "name": "Admin-Only Staff Mention",
+                      "value": "admin-only-mention"
+                    },
+                    {
+                      "name": "Ping Staff on Create",
+                      "value": "ping-on-create"
+                    }
+                  ],
+                  "name": "setting",
+                  "description": "The setting to configure",
+                  "required": true
+                },
+                {
+                  "name": "enabled",
+                  "description": "Enable or disable this setting",
+                  "required": true,
+                  "type": 5
+                },
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "type",
+                  "description": "Ticket type (required for ping-on-create)",
+                  "required": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "workflow",
+          "description": "Ticket workflow configuration",
+          "options": [
+            {
+              "type": 1,
+              "name": "enable",
+              "description": "Enable ticket workflow states",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "disable",
+              "description": "Disable ticket workflow states",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "add-status",
+              "description": "Add a custom workflow status",
+              "options": [
+                {
+                  "type": 3,
+                  "name": "id",
+                  "description": "Status ID (lowercase, hyphens allowed)",
+                  "required": true
+                },
+                {
+                  "type": 3,
+                  "name": "label",
+                  "description": "Display label for the status",
+                  "required": true
+                },
+                {
+                  "type": 3,
+                  "name": "emoji",
+                  "description": "Emoji for the status (optional)",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "remove-status",
+              "description": "Remove a workflow status",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "status",
+                  "description": "Select the status to remove",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "settings",
+              "description": "Open workflow settings modal (enable/disable workflow + auto-close)",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "autoclose-enable",
+              "description": "Enable auto-close for inactive tickets",
+              "options": [
+                {
+                  "max_value": 90,
+                  "min_value": 1,
+                  "type": 4,
+                  "name": "days",
+                  "description": "Days of inactivity before closing (1-90)",
+                  "required": false
+                },
+                {
+                  "max_value": 72,
+                  "min_value": 1,
+                  "type": 4,
+                  "name": "warning-hours",
+                  "description": "Hours before close to send warning (1-72)",
+                  "required": false
+                },
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "status",
+                  "description": "Which status triggers auto-close countdown",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "autoclose-disable",
+              "description": "Disable auto-close",
+              "options": []
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "sla",
+          "description": "SLA tracking and configuration",
+          "options": [
+            {
+              "type": 1,
+              "name": "enable",
+              "description": "Enable SLA tracking for ticket response times",
+              "options": [
+                {
+                  "max_value": 1440,
+                  "min_value": 1,
+                  "type": 4,
+                  "name": "target-minutes",
+                  "description": "Target first response time in minutes (1-1440)",
+                  "required": false
+                },
+                {
+                  "name": "breach-channel",
+                  "description": "Channel for SLA breach alerts",
+                  "required": false,
+                  "type": 7
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "disable",
+              "description": "Disable SLA tracking",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "per-type",
+              "description": "Set a per-type SLA target override",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "type",
+                  "description": "Ticket type to set SLA override for",
+                  "required": true
+                },
+                {
+                  "max_value": 1440,
+                  "min_value": 1,
+                  "type": 4,
+                  "name": "minutes",
+                  "description": "SLA target in minutes for this type (omit to remove override)",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "stats",
+              "description": "View SLA compliance statistics",
+              "options": [
+                {
+                  "max_value": 365,
+                  "min_value": 1,
+                  "type": 4,
+                  "name": "days",
+                  "description": "Number of days to look back (default: 30)",
+                  "required": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "routing",
+          "description": "Smart ticket routing configuration",
+          "options": [
+            {
+              "type": 1,
+              "name": "enable",
+              "description": "Enable smart ticket routing",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "disable",
+              "description": "Disable smart ticket routing",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "rule-add",
+              "description": "Add a routing rule for a ticket type",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "type",
+                  "description": "The ticket type to route",
+                  "required": true
+                },
+                {
+                  "name": "role",
+                  "description": "Staff role to route tickets to",
+                  "required": true,
+                  "type": 8
+                },
+                {
+                  "max_value": 50,
+                  "min_value": 1,
+                  "type": 4,
+                  "name": "max-open",
+                  "description": "Max open tickets per staff (optional, 1-50)",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "rule-remove",
+              "description": "Remove a routing rule",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "type",
+                  "description": "The ticket type to route",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "strategy",
+              "description": "Set the routing strategy",
+              "options": [
+                {
+                  "type": 3,
+                  "choices": [
+                    {
+                      "name": "Round Robin",
+                      "value": "round-robin"
+                    },
+                    {
+                      "name": "Least Load",
+                      "value": "least-load"
+                    },
+                    {
+                      "name": "Random",
+                      "value": "random"
+                    }
+                  ],
+                  "name": "strategy",
+                  "description": "The routing strategy to use",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "stats",
+              "description": "View smart routing statistics",
+              "options": []
+            }
+          ]
+        }
+      ],
+      "name": "ticket",
+      "description": "Manage custom ticket types and import email tickets",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "channel_types": [
+            0
+          ],
+          "name": "channel",
+          "description": "Text channel for the application position buttons",
+          "required": false,
+          "type": 7
+        },
+        {
+          "channel_types": [
+            15
+          ],
+          "name": "archive",
+          "description": "Forum channel for archived/closed applications",
+          "required": false,
+          "type": 7
+        },
+        {
+          "channel_types": [
+            4
+          ],
+          "name": "category",
+          "description": "Category where application threads are created",
+          "required": false,
+          "type": 7
+        }
+      ],
+      "name": "application-setup",
+      "description": "Configure the application system channels and category",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 2,
+          "name": "position",
+          "description": "Commands for configuring application positions",
+          "options": [
+            {
+              "type": 1,
+              "name": "add",
+              "description": "Add a new position",
+              "options": [
+                {
+                  "type": 3,
+                  "choices": [
+                    {
+                      "name": "General Application",
+                      "value": "general"
+                    },
+                    {
+                      "name": "Staff Application",
+                      "value": "staff"
+                    },
+                    {
+                      "name": "Content Creator",
+                      "value": "content_creator"
+                    },
+                    {
+                      "name": "Developer Application",
+                      "value": "developer"
+                    },
+                    {
+                      "name": "Partnership Application",
+                      "value": "partnership"
+                    }
+                  ],
+                  "name": "template",
+                  "description": "Use a predefined template",
+                  "required": false
+                },
+                {
+                  "type": 3,
+                  "name": "title",
+                  "description": "Custom position title (if not using template)",
+                  "required": false
+                },
+                {
+                  "type": 3,
+                  "name": "description",
+                  "description": "Custom position description (if not using template)",
+                  "required": false
+                },
+                {
+                  "type": 3,
+                  "name": "emoji",
+                  "description": "Custom emoji for the position button (e.g., 🤝)",
+                  "required": false,
+                  "max_length": 100
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "remove",
+              "description": "Remove a position",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "position",
+                  "description": "Position to remove",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "toggle",
+              "description": "Toggle position visibility",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "position",
+                  "description": "Position to toggle",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "edit",
+              "description": "Edit a position's details",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "position",
+                  "description": "Position to edit",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "fields",
+              "description": "Manage custom application fields for a position",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "position",
+                  "description": "Position to configure fields for",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "list",
+              "description": "List all positions",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "refresh",
+              "description": "Refresh the application channel message",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "reindex",
+              "description": "Reindex position display numbers to fill gaps",
+              "options": []
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "status",
+          "description": "Change the status of an application",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "status",
+              "description": "The new status for the application",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "note",
+          "description": "Add an internal staff note to an application",
+          "options": [
+            {
+              "type": 3,
+              "name": "text",
+              "description": "The note text to add",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "claim",
+          "description": "Claim this application for review",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "info",
+          "description": "View detailed information about this application",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "check",
+          "description": "Check the status of your application",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "workflow-enable",
+          "description": "Enable application workflow states",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "workflow-disable",
+          "description": "Disable application workflow states",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "workflow-add-status",
+          "description": "Add a custom workflow status",
+          "options": [
+            {
+              "type": 3,
+              "name": "id",
+              "description": "Status ID (lowercase, hyphens allowed)",
+              "required": true
+            },
+            {
+              "type": 3,
+              "name": "label",
+              "description": "Display label for the status",
+              "required": true
+            },
+            {
+              "type": 3,
+              "name": "emoji",
+              "description": "Emoji for the status (optional)",
+              "required": false
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "workflow-remove-status",
+          "description": "Remove a workflow status",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "status",
+              "description": "Select the status to remove",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "name": "application",
+      "description": "Manage application system",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "name": "announcement-role",
+          "description": "The role to ping in announcements",
+          "required": false,
+          "type": 8
+        },
+        {
+          "name": "default-channel",
+          "description": "Default channel for announcements",
+          "required": false,
+          "type": 7
+        }
+      ],
+      "name": "announcement-setup",
+      "description": "Initializes and sets up the announcement module.",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 2,
+          "name": "template",
+          "description": "Manage announcement templates",
+          "options": [
+            {
+              "type": 1,
+              "name": "create",
+              "description": "Create a new announcement template",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "edit",
+              "description": "Edit an existing template",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "template",
+                  "description": "Template to edit",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "delete",
+              "description": "Delete a custom template",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "template",
+                  "description": "Template to delete",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "list",
+              "description": "List all templates for this server",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "preview",
+              "description": "Preview a template with example values",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "template",
+                  "description": "Template to preview",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "reset",
+              "description": "Reset all templates to defaults",
+              "options": []
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "send",
+          "description": "Send an announcement using a template",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "template",
+              "description": "Template to use",
+              "required": true
+            },
+            {
+              "name": "channel",
+              "description": "Channel to send announcement (optional).",
+              "required": false,
+              "type": 7
+            },
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "UTC",
+                  "value": "UTC"
+                },
+                {
+                  "name": "US Eastern (ET)",
+                  "value": "America/New_York"
+                },
+                {
+                  "name": "US Central (CT)",
+                  "value": "America/Chicago"
+                },
+                {
+                  "name": "US Mountain (MT)",
+                  "value": "America/Denver"
+                },
+                {
+                  "name": "US Arizona (no DST)",
+                  "value": "America/Phoenix"
+                },
+                {
+                  "name": "US Pacific (PT)",
+                  "value": "America/Los_Angeles"
+                },
+                {
+                  "name": "US Alaska (AKT)",
+                  "value": "America/Anchorage"
+                },
+                {
+                  "name": "US Hawaii (HST)",
+                  "value": "Pacific/Honolulu"
+                },
+                {
+                  "name": "Brazil (BRT)",
+                  "value": "America/Sao_Paulo"
+                },
+                {
+                  "name": "UK (GMT/BST)",
+                  "value": "Europe/London"
+                },
+                {
+                  "name": "Central Europe (CET)",
+                  "value": "Europe/Paris"
+                },
+                {
+                  "name": "Eastern Europe (EET)",
+                  "value": "Europe/Athens"
+                },
+                {
+                  "name": "Moscow (MSK)",
+                  "value": "Europe/Moscow"
+                },
+                {
+                  "name": "India (IST)",
+                  "value": "Asia/Kolkata"
+                },
+                {
+                  "name": "China (CST)",
+                  "value": "Asia/Shanghai"
+                },
+                {
+                  "name": "Japan (JST)",
+                  "value": "Asia/Tokyo"
+                },
+                {
+                  "name": "Sydney (AET)",
+                  "value": "Australia/Sydney"
+                },
+                {
+                  "name": "New Zealand (NZT)",
+                  "value": "Pacific/Auckland"
+                }
+              ],
+              "name": "timezone",
+              "description": "Timezone for any date/time you enter (default: UTC)",
+              "required": false
+            },
+            {
+              "type": 3,
+              "name": "message",
+              "description": "Custom message (overrides template body)",
+              "required": false,
+              "max_length": 4000
+            }
+          ]
+        }
+      ],
+      "name": "announcement",
+      "description": "Sends a specialized server announcement.",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 2,
+          "name": "setup",
+          "description": "Set up and manage bait channel configuration",
+          "options": [
+            {
+              "type": 1,
+              "name": "setup",
+              "description": "Set up or update the bait channel configuration",
+              "options": [
+                {
+                  "channel_types": [
+                    0
+                  ],
+                  "name": "channel",
+                  "description": "The bait channel",
+                  "required": true,
+                  "type": 7
+                },
+                {
+                  "max_value": 60,
+                  "min_value": 0,
+                  "type": 4,
+                  "name": "grace_period",
+                  "description": "Grace period in seconds (0 for instant action)",
+                  "required": true
+                },
+                {
+                  "type": 3,
+                  "choices": [
+                    {
+                      "name": "Ban",
+                      "value": "ban"
+                    },
+                    {
+                      "name": "Kick",
+                      "value": "kick"
+                    },
+                    {
+                      "name": "Timeout — Temporarily mute the user",
+                      "value": "timeout"
+                    },
+                    {
+                      "name": "Log Only (Testing)",
+                      "value": "log-only"
+                    }
+                  ],
+                  "name": "action",
+                  "description": "Action to take",
+                  "required": true
+                },
+                {
+                  "channel_types": [
+                    0
+                  ],
+                  "name": "log_channel",
+                  "description": "Channel for logging detections",
+                  "required": false,
+                  "type": 7
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "toggle",
+              "description": "Enable or disable the bait channel",
+              "options": [
+                {
+                  "name": "enabled",
+                  "description": "Enable or disable",
+                  "required": true,
+                  "type": 5
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "add-channel",
+              "description": "Add an additional bait channel (up to 3)",
+              "options": [
+                {
+                  "channel_types": [
+                    0
+                  ],
+                  "name": "channel",
+                  "description": "The text channel to add as a bait channel",
+                  "required": true,
+                  "type": 7
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "remove-channel",
+              "description": "Remove a bait channel",
+              "options": [
+                {
+                  "channel_types": [
+                    0
+                  ],
+                  "name": "channel",
+                  "description": "The bait channel to remove",
+                  "required": true,
+                  "type": 7
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "status",
+              "description": "View current configuration and statistics",
+              "options": []
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "detection",
+          "description": "Configure detection rules and filters",
+          "options": [
+            {
+              "type": 1,
+              "name": "detection",
+              "description": "Configure smart detection settings",
+              "options": [
+                {
+                  "name": "enabled",
+                  "description": "Enable smart detection",
+                  "required": true,
+                  "type": 5
+                },
+                {
+                  "max_value": 365,
+                  "min_value": 0,
+                  "type": 4,
+                  "name": "min_account_age",
+                  "description": "Minimum account age in days (default: 7)",
+                  "required": false
+                },
+                {
+                  "max_value": 1440,
+                  "min_value": 0,
+                  "type": 4,
+                  "name": "min_membership",
+                  "description": "Minimum server membership in minutes (default: 5)",
+                  "required": false
+                },
+                {
+                  "max_value": 100,
+                  "min_value": 0,
+                  "type": 4,
+                  "name": "min_messages",
+                  "description": "Minimum message count (default: 0)",
+                  "required": false
+                },
+                {
+                  "name": "require_verification",
+                  "description": "Require verification role",
+                  "required": false,
+                  "type": 5
+                },
+                {
+                  "name": "disable_admin_whitelist",
+                  "description": "Disable automatic admin whitelist (for testing)",
+                  "required": false,
+                  "type": 5
+                },
+                {
+                  "max_value": 100,
+                  "min_value": 50,
+                  "type": 4,
+                  "name": "threshold",
+                  "description": "Instant action score threshold (default: 90, range: 50-100)",
+                  "required": false
+                },
+                {
+                  "max_value": 100,
+                  "min_value": 2,
+                  "type": 4,
+                  "name": "join_velocity_threshold",
+                  "description": "Joins within window to trigger burst detection (2-100)",
+                  "required": false
+                },
+                {
+                  "max_value": 30,
+                  "min_value": 1,
+                  "type": 4,
+                  "name": "join_velocity_window",
+                  "description": "Sliding window size in minutes for join velocity (1-30)",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "whitelist",
+              "description": "Manage whitelist",
+              "options": [
+                {
+                  "type": 3,
+                  "choices": [
+                    {
+                      "name": "Add",
+                      "value": "add"
+                    },
+                    {
+                      "name": "Remove",
+                      "value": "remove"
+                    },
+                    {
+                      "name": "List",
+                      "value": "list"
+                    }
+                  ],
+                  "name": "action",
+                  "description": "Add, remove, or list whitelist",
+                  "required": true
+                },
+                {
+                  "name": "role",
+                  "description": "Role to whitelist",
+                  "required": false,
+                  "type": 8
+                },
+                {
+                  "name": "user",
+                  "description": "User to whitelist",
+                  "required": false,
+                  "type": 6
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "keywords",
+              "description": "Manage detection keywords and weights",
+              "options": [
+                {
+                  "type": 3,
+                  "choices": [
+                    {
+                      "name": "Add keyword",
+                      "value": "add"
+                    },
+                    {
+                      "name": "Remove keyword",
+                      "value": "remove"
+                    },
+                    {
+                      "name": "List keywords",
+                      "value": "list"
+                    },
+                    {
+                      "name": "Reset to defaults",
+                      "value": "reset"
+                    }
+                  ],
+                  "name": "action",
+                  "description": "Add, remove, list, or reset keywords",
+                  "required": true
+                },
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "keyword",
+                  "description": "The keyword to add or remove",
+                  "required": false,
+                  "max_length": 100
+                },
+                {
+                  "max_value": 10,
+                  "min_value": 1,
+                  "type": 4,
+                  "name": "weight",
+                  "description": "Keyword weight 1-10 (default: 5, higher = more suspicious)",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "settings",
+              "description": "Open settings modal to configure bait channel",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "test-mode",
+              "description": "Toggle test mode (detects but does not ban/kick/timeout)",
+              "options": [
+                {
+                  "name": "enabled",
+                  "description": "Enable or disable test mode",
+                  "required": true,
+                  "type": 5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "escalation",
+          "description": "Score-based action escalation settings",
+          "options": [
+            {
+              "type": 1,
+              "name": "enable",
+              "description": "Enable score-based action escalation",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "disable",
+              "description": "Disable escalation (use fixed action type)",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "thresholds",
+              "description": "Configure escalation score thresholds",
+              "options": [
+                {
+                  "max_value": 100,
+                  "min_value": 0,
+                  "type": 4,
+                  "name": "log",
+                  "description": "Minimum score for log-only (default: 30)",
+                  "required": false
+                },
+                {
+                  "max_value": 100,
+                  "min_value": 0,
+                  "type": 4,
+                  "name": "timeout",
+                  "description": "Minimum score for timeout (default: 50)",
+                  "required": false
+                },
+                {
+                  "max_value": 100,
+                  "min_value": 0,
+                  "type": 4,
+                  "name": "kick",
+                  "description": "Minimum score for kick (default: 75)",
+                  "required": false
+                },
+                {
+                  "max_value": 100,
+                  "min_value": 0,
+                  "type": 4,
+                  "name": "ban",
+                  "description": "Minimum score for ban (default: 90)",
+                  "required": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "dm",
+          "description": "DM notification settings before action",
+          "options": [
+            {
+              "type": 1,
+              "name": "enable",
+              "description": "Enable DM notification before action",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "disable",
+              "description": "Disable DM notification before action",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "appeal-info",
+              "description": "Set appeal information shown in DM",
+              "options": [
+                {
+                  "type": 3,
+                  "name": "text",
+                  "description": "Appeal instructions text (max 500 characters)",
+                  "required": true,
+                  "max_length": 500
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "clear-appeal",
+              "description": "Clear appeal information from DMs",
+              "options": []
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "stats",
+          "description": "View statistics and manage detections",
+          "options": [
+            {
+              "type": 1,
+              "name": "stats",
+              "description": "View detailed statistics",
+              "options": [
+                {
+                  "max_value": 90,
+                  "min_value": 1,
+                  "type": 4,
+                  "name": "days",
+                  "description": "Number of days to analyze (default: 7)",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "summary",
+              "description": "Enable or disable weekly summary digest",
+              "options": [
+                {
+                  "name": "enabled",
+                  "description": "Enable or disable weekly summary",
+                  "required": true,
+                  "type": 5
+                },
+                {
+                  "channel_types": [
+                    0
+                  ],
+                  "name": "channel",
+                  "description": "Channel to send the summary (defaults to log channel)",
+                  "required": false,
+                  "type": 7
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "override",
+              "description": "Override a detection action for a user",
+              "options": [
+                {
+                  "name": "user",
+                  "description": "The user whose most recent detection to override",
+                  "required": true,
+                  "type": 6
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "raid",
+          "description": "Raid mode — sticky guild lockdown when bait actions stack rapidly",
+          "options": [
+            {
+              "type": 1,
+              "name": "status",
+              "description": "Show current raid mode status (active / threshold / recent triggers)",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "enter",
+              "description": "Manually enter raid mode (sticky until released or 4h cap elapses)",
+              "options": [
+                {
+                  "type": 3,
+                  "name": "reason",
+                  "description": "Optional context shown in the mod-alert embed",
+                  "required": false,
+                  "max_length": 200
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "release",
+              "description": "Release raid mode and restore @everyone send permissions on non-staff channels",
+              "options": []
+            }
+          ]
+        }
+      ],
+      "name": "baitchannel",
+      "description": "Configure the bait channel anti-bot system",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [],
+      "name": "data-export",
+      "description": "Export all server data (GDPR compliance) - Admin only, rate limited to once per 24 hours",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "bulk-close-tickets",
+          "description": "Close all active tickets in this server",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "delete-archived-ticket",
+          "description": "Delete a specific archived ticket by user",
+          "options": [
+            {
+              "name": "user",
+              "description": "The user whose archived ticket to delete",
+              "required": true,
+              "type": 6
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "delete-all-archived-tickets",
+          "description": "DELETE ALL archived tickets in this server",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "delete-archived-application",
+          "description": "Delete a specific archived application by user",
+          "options": [
+            {
+              "name": "user",
+              "description": "The user whose archived application to delete",
+              "required": true,
+              "type": 6
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "delete-all-archived-applications",
+          "description": "Delete ALL archived applications in this server",
+          "options": []
+        }
+      ],
+      "name": "dev",
+      "description": "[ADMIN ONLY] Development and maintenance commands",
+      "default_member_permissions": "8",
+      "dm_permission": false,
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "ticket-tags",
+          "description": "Retroactively apply forum tags to existing archived tickets",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "application-tags",
+          "description": "Retroactively apply forum tags to existing archived applications",
+          "options": []
+        }
+      ],
+      "name": "migrate",
+      "description": "[ADMIN ONLY] Migrate and update existing data",
+      "default_member_permissions": "8",
+      "dm_permission": false,
+      "type": 1
+    },
+    {
+      "options": [],
+      "name": "ping",
+      "description": "Check bot latency and status",
+      "type": 1
+    },
+    {
+      "options": [],
+      "name": "coffee",
+      "description": "Support Cogworks development",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "setup",
+          "description": "Set up or edit the memory system",
+          "options": [
+            {
+              "channel_types": [
+                15
+              ],
+              "name": "channel",
+              "description": "Existing forum channel to use (leave empty to create new)",
+              "required": false,
+              "type": 7
+            },
+            {
+              "type": 3,
+              "name": "channel-name",
+              "description": "Custom name for this memory channel",
+              "required": false,
+              "max_length": 100
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "add-channel",
+          "description": "Add another memory channel to this server",
+          "options": [
+            {
+              "channel_types": [
+                15
+              ],
+              "name": "channel",
+              "description": "Existing forum channel to use (leave empty to create new)",
+              "required": true,
+              "type": 7
+            },
+            {
+              "type": 3,
+              "name": "channel-name",
+              "description": "Custom name for this memory channel",
+              "required": false,
+              "max_length": 100
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "remove-channel",
+          "description": "Remove a memory channel from this server",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "view",
+          "description": "Memory Channels",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "tag-add",
+          "description": "Add a custom tag to a memory channel",
+          "options": [
+            {
+              "type": 3,
+              "name": "name",
+              "description": "Name for the tag (max 20 characters)",
+              "required": true,
+              "max_length": 20
+            },
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "Category",
+                  "value": "category"
+                },
+                {
+                  "name": "Status",
+                  "value": "status"
+                }
+              ],
+              "name": "type",
+              "description": "Type of tag (category or status)",
+              "required": true
+            },
+            {
+              "type": 3,
+              "name": "emoji",
+              "description": "Emoji for the tag",
+              "required": false
+            },
+            {
+              "channel_types": [
+                15
+              ],
+              "name": "channel",
+              "description": "Memory channel (required if multiple channels)",
+              "required": false,
+              "type": 7
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "tag-remove",
+          "description": "Remove a custom tag from a memory channel",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "tag",
+              "description": "Select a tag",
+              "required": true
+            },
+            {
+              "channel_types": [
+                15
+              ],
+              "name": "channel",
+              "description": "Memory channel (required if multiple channels)",
+              "required": false,
+              "type": 7
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "tag-edit",
+          "description": "Edit a tag on a memory channel",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "tag",
+              "description": "Select a tag",
+              "required": true
+            },
+            {
+              "type": 3,
+              "name": "name",
+              "description": "New name for the tag",
+              "required": false,
+              "max_length": 20
+            },
+            {
+              "type": 3,
+              "name": "emoji",
+              "description": "Emoji for the tag",
+              "required": false
+            },
+            {
+              "channel_types": [
+                15
+              ],
+              "name": "channel",
+              "description": "Memory channel (required if multiple channels)",
+              "required": false,
+              "type": 7
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "tag-list",
+          "description": "List all tags on a memory channel",
+          "options": [
+            {
+              "channel_types": [
+                15
+              ],
+              "name": "channel",
+              "description": "Memory channel (required if multiple channels)",
+              "required": false,
+              "type": 7
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "tag-reset",
+          "description": "Reset tags to defaults on a memory channel",
+          "options": [
+            {
+              "channel_types": [
+                15
+              ],
+              "name": "channel",
+              "description": "Memory channel (required if multiple channels)",
+              "required": false,
+              "type": 7
+            }
+          ]
+        }
+      ],
+      "name": "memory-setup",
+      "description": "Set up or edit the memory system",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "add",
+          "description": "Add a new memory item manually",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "capture",
+          "description": "Capture a message as a memory item",
+          "options": [
+            {
+              "type": 3,
+              "name": "message",
+              "description": "Message ID or message link to capture",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "update",
+          "description": "Update status of a memory item (run in memory forum)",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "update-status",
+          "description": "Quick-update status of a memory item from anywhere",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "thread",
+              "description": "Select a memory item",
+              "required": true
+            },
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "status",
+              "description": "New status for the item",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "update-tags",
+          "description": "Quick-update tags on a memory item from anywhere",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "thread",
+              "description": "Select a memory item",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "delete",
+          "description": "Delete a memory item (run in memory forum)",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "tags",
+          "description": "Manage memory tags",
+          "options": [
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "Add a new tag",
+                  "value": "add"
+                },
+                {
+                  "name": "Edit an existing tag",
+                  "value": "edit"
+                },
+                {
+                  "name": "Remove a tag",
+                  "value": "remove"
+                },
+                {
+                  "name": "List all tags",
+                  "value": "list"
+                }
+              ],
+              "name": "action",
+              "description": "Action to perform",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "name": "memory",
+      "description": "Manage memory system (todos, bugs, notes)",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "setup",
+          "description": "Set up the rules acknowledgment message",
+          "options": [
+            {
+              "channel_types": [
+                0
+              ],
+              "name": "channel",
+              "description": "Channel to post the rules message in",
+              "required": true,
+              "type": 7
+            },
+            {
+              "name": "role",
+              "description": "Role to assign when user reacts",
+              "required": true,
+              "type": 8
+            },
+            {
+              "type": 3,
+              "name": "message",
+              "description": "Custom message text (optional)",
+              "required": false,
+              "max_length": 1800
+            },
+            {
+              "type": 3,
+              "name": "emoji",
+              "description": "Custom emoji for reaction (default: ✅)",
+              "required": false
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "view",
+          "description": "View current rules configuration",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "remove",
+          "description": "Remove the rules message and disable the system",
+          "options": []
+        }
+      ],
+      "name": "rules-setup",
+      "description": "Configure rules acknowledgment system",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "create",
+          "description": "Create a new reaction role menu",
+          "options": [
+            {
+              "channel_types": [
+                0
+              ],
+              "name": "channel",
+              "description": "Channel to post the menu in",
+              "required": true,
+              "type": 7
+            },
+            {
+              "type": 3,
+              "name": "name",
+              "description": "Menu name/title",
+              "required": true,
+              "max_length": 255
+            },
+            {
+              "type": 3,
+              "name": "description",
+              "description": "Menu description text",
+              "required": false,
+              "max_length": 4000
+            },
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "Normal (select multiple)",
+                  "value": "normal"
+                },
+                {
+                  "name": "Unique (one at a time)",
+                  "value": "unique"
+                },
+                {
+                  "name": "Lock (cannot remove)",
+                  "value": "lock"
+                }
+              ],
+              "name": "mode",
+              "description": "Menu mode: normal, unique, or lock",
+              "required": false
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "add",
+          "description": "Add a role option to a menu",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "menu",
+              "description": "Menu to add the option to",
+              "required": true
+            },
+            {
+              "type": 3,
+              "name": "emoji",
+              "description": "Emoji for this role option",
+              "required": true,
+              "max_length": 64
+            },
+            {
+              "name": "role",
+              "description": "Role to assign when reacted",
+              "required": true,
+              "type": 8
+            },
+            {
+              "type": 3,
+              "name": "description",
+              "description": "Description for this option",
+              "required": false,
+              "max_length": 200
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "remove",
+          "description": "Remove a role option from a menu",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "menu",
+              "description": "Menu to remove from",
+              "required": true
+            },
+            {
+              "type": 3,
+              "name": "emoji",
+              "description": "Emoji to remove",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "edit",
+          "description": "Edit a reaction role menu's properties",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "menu",
+              "description": "Menu to edit",
+              "required": true
+            },
+            {
+              "type": 3,
+              "name": "name",
+              "description": "New menu name",
+              "required": false,
+              "max_length": 255
+            },
+            {
+              "type": 3,
+              "name": "description",
+              "description": "New menu description",
+              "required": false,
+              "max_length": 4000
+            },
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "Normal (select multiple)",
+                  "value": "normal"
+                },
+                {
+                  "name": "Unique (one at a time)",
+                  "value": "unique"
+                },
+                {
+                  "name": "Lock (cannot remove)",
+                  "value": "lock"
+                }
+              ],
+              "name": "mode",
+              "description": "New menu mode",
+              "required": false
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "delete",
+          "description": "Delete a reaction role menu",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "menu",
+              "description": "Menu to delete",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "list",
+          "description": "List all reaction role menus in this server",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "validate",
+          "description": "Check all reaction role menus for broken roles, channels, or messages",
+          "options": []
+        }
+      ],
+      "name": "reactionrole",
+      "description": "Manage reaction role menus",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [],
+      "name": "server",
+      "description": "Get the Cogworks development Discord server invite",
+      "type": 1
+    },
+    {
+      "options": [],
+      "name": "dashboard",
+      "description": "Open the Cogworks web dashboard",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "setup",
+          "description": "Set up the starboard channel",
+          "options": [
+            {
+              "channel_types": [
+                0
+              ],
+              "name": "channel",
+              "description": "The channel to post starred messages in",
+              "required": true,
+              "type": 7
+            },
+            {
+              "type": 3,
+              "name": "emoji",
+              "description": "The emoji to track (default: star)",
+              "required": false
+            },
+            {
+              "max_value": 25,
+              "min_value": 1,
+              "type": 4,
+              "name": "threshold",
+              "description": "Number of reactions required (default: 3)",
+              "required": false
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "config",
+          "description": "Update starboard settings",
+          "options": [
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "emoji",
+                  "value": "emoji"
+                },
+                {
+                  "name": "threshold",
+                  "value": "threshold"
+                },
+                {
+                  "name": "self-star",
+                  "value": "self-star"
+                },
+                {
+                  "name": "ignore-bots",
+                  "value": "ignore-bots"
+                },
+                {
+                  "name": "ignore-nsfw",
+                  "value": "ignore-nsfw"
+                }
+              ],
+              "name": "setting",
+              "description": "The setting to change",
+              "required": true
+            },
+            {
+              "type": 3,
+              "name": "value",
+              "description": "The new value",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "ignore",
+          "description": "Ignore a channel from starboard",
+          "options": [
+            {
+              "channel_types": [
+                0
+              ],
+              "name": "channel",
+              "description": "The channel to ignore",
+              "required": true,
+              "type": 7
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "unignore",
+          "description": "Stop ignoring a channel",
+          "options": [
+            {
+              "channel_types": [
+                0
+              ],
+              "name": "channel",
+              "description": "The channel to stop ignoring",
+              "required": true,
+              "type": 7
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "stats",
+          "description": "View starboard statistics",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "toggle",
+          "description": "Enable or disable the starboard",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "random",
+          "description": "Show a random starred message",
+          "options": []
+        }
+      ],
+      "name": "starboard",
+      "description": "Starboard system — pin popular messages automatically",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "set",
+          "description": "Set the bot's operational status",
+          "options": [
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "Operational",
+                  "value": "operational"
+                },
+                {
+                  "name": "Degraded Performance",
+                  "value": "degraded"
+                },
+                {
+                  "name": "Partial Outage",
+                  "value": "partial-outage"
+                },
+                {
+                  "name": "Major Outage",
+                  "value": "major-outage"
+                },
+                {
+                  "name": "Scheduled Maintenance",
+                  "value": "maintenance"
+                }
+              ],
+              "name": "level",
+              "description": "Status level",
+              "required": true
+            },
+            {
+              "type": 3,
+              "name": "message",
+              "description": "Status message",
+              "required": false
+            },
+            {
+              "type": 3,
+              "name": "systems",
+              "description": "Affected systems (comma-separated)",
+              "required": false,
+              "max_length": 500
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "clear",
+          "description": "Clear active status and resume normal operations",
+          "options": [
+            {
+              "type": 3,
+              "name": "message",
+              "description": "Resolution message",
+              "required": false
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "view",
+          "description": "View current bot status",
+          "options": []
+        }
+      ],
+      "name": "status",
+      "description": "Manage bot status and outage information",
+      "default_member_permissions": "0",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "mee6",
+          "description": "Import XP data from MEE6",
+          "options": [
+            {
+              "name": "overwrite",
+              "description": "Overwrite existing data (default: skip existing)",
+              "required": false,
+              "type": 5
+            },
+            {
+              "name": "dry-run",
+              "description": "Preview what would be imported without writing data",
+              "required": false,
+              "type": 5
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "csv",
+          "description": "Import data from a CSV file",
+          "options": [
+            {
+              "name": "file",
+              "description": "CSV file to import (userId,xp,level,messages)",
+              "required": true,
+              "type": 11
+            },
+            {
+              "name": "overwrite",
+              "description": "Overwrite existing data (default: skip existing)",
+              "required": false,
+              "type": 5
+            },
+            {
+              "name": "dry-run",
+              "description": "Preview what would be imported without writing data",
+              "required": false,
+              "type": 5
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "status",
+          "description": "Check current import status",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "history",
+          "description": "View import history",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "cancel",
+          "description": "Cancel a running import",
+          "options": []
+        }
+      ],
+      "name": "import",
+      "description": "Import data from other bots (MEE6, CSV, etc.)",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "name": "user",
+          "description": "The user to view (defaults to yourself)",
+          "required": false,
+          "type": 6
+        }
+      ],
+      "name": "rank",
+      "description": "View your XP rank or another user's rank",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "min_value": 1,
+          "type": 4,
+          "name": "page",
+          "description": "Page number (10 per page)",
+          "required": false
+        }
+      ],
+      "name": "leaderboard",
+      "description": "View the server XP leaderboard",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "enable",
+          "description": "Enable the XP system",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "disable",
+          "description": "Disable the XP system",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "config",
+          "description": "Configure XP settings",
+          "options": [
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "XP Rate (min-max)",
+                  "value": "xp-rate"
+                },
+                {
+                  "name": "Cooldown (seconds)",
+                  "value": "cooldown"
+                },
+                {
+                  "name": "Voice XP (per minute)",
+                  "value": "voice-xp"
+                },
+                {
+                  "name": "Level-Up Channel",
+                  "value": "level-up-channel"
+                },
+                {
+                  "name": "Level-Up Message",
+                  "value": "level-up-message"
+                },
+                {
+                  "name": "Voice XP Enabled",
+                  "value": "voice-xp-enabled"
+                },
+                {
+                  "name": "Stack Multipliers",
+                  "value": "stack-multipliers"
+                }
+              ],
+              "name": "setting",
+              "description": "The setting to configure",
+              "required": true
+            },
+            {
+              "type": 3,
+              "name": "value",
+              "description": "The new value for the setting",
+              "required": false
+            },
+            {
+              "channel_types": [
+                0
+              ],
+              "name": "channel",
+              "description": "Channel (for level-up-channel setting)",
+              "required": false,
+              "type": 7
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "role-reward-add",
+          "description": "Add a role reward for a level",
+          "options": [
+            {
+              "max_value": 1000,
+              "min_value": 1,
+              "type": 4,
+              "name": "level",
+              "description": "The level threshold for this reward",
+              "required": true
+            },
+            {
+              "name": "role",
+              "description": "The role to grant at this level",
+              "required": true,
+              "type": 8
+            },
+            {
+              "name": "remove-on-delevel",
+              "description": "Remove the role if user drops below this level",
+              "required": false,
+              "type": 5
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "role-reward-remove",
+          "description": "Remove a role reward",
+          "options": [
+            {
+              "min_value": 1,
+              "type": 4,
+              "name": "level",
+              "description": "The level to remove the reward from",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "role-reward-list",
+          "description": "List all role rewards",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "ignore-channel-add",
+          "description": "Ignore a channel for XP",
+          "options": [
+            {
+              "channel_types": [
+                0,
+                2
+              ],
+              "name": "channel",
+              "description": "The channel to ignore",
+              "required": true,
+              "type": 7
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "ignore-channel-remove",
+          "description": "Stop ignoring a channel for XP",
+          "options": [
+            {
+              "channel_types": [
+                0,
+                2
+              ],
+              "name": "channel",
+              "description": "The channel to unignore",
+              "required": true,
+              "type": 7
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "multiplier-set",
+          "description": "Set an XP multiplier for a channel",
+          "options": [
+            {
+              "channel_types": [
+                0,
+                2
+              ],
+              "name": "channel",
+              "description": "The channel to set a multiplier for",
+              "required": true,
+              "type": 7
+            },
+            {
+              "max_value": 10,
+              "min_value": 0.1,
+              "type": 10,
+              "name": "multiplier",
+              "description": "Multiplier value (e.g. 1.5, 2, 0.5)",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "multiplier-remove",
+          "description": "Remove an XP multiplier from a channel",
+          "options": [
+            {
+              "channel_types": [
+                0,
+                2
+              ],
+              "name": "channel",
+              "description": "The channel to remove the multiplier from",
+              "required": true,
+              "type": 7
+            }
+          ]
+        }
+      ],
+      "name": "xp-setup",
+      "description": "Configure the XP & leveling system",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "set",
+          "description": "Set a user's XP to a specific value",
+          "options": [
+            {
+              "name": "user",
+              "description": "The user to modify",
+              "required": true,
+              "type": 6
+            },
+            {
+              "min_value": 0,
+              "type": 4,
+              "name": "xp",
+              "description": "The XP value to set",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "reset",
+          "description": "Reset a user's XP to zero",
+          "options": [
+            {
+              "name": "user",
+              "description": "The user to reset",
+              "required": true,
+              "type": 6
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "reset-all",
+          "description": "Reset all XP data for this server",
+          "options": []
+        }
+      ],
+      "name": "xp",
+      "description": "XP administration commands",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "enable",
+          "description": "Enable the onboarding flow.",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "disable",
+          "description": "Disable the onboarding flow.",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "welcome-message",
+          "description": "Set the welcome message (supports {server} and {user} placeholders).",
+          "options": [
+            {
+              "type": 3,
+              "name": "message",
+              "description": "Set the welcome message (supports {server} and {user} placeholders).",
+              "required": true,
+              "max_length": 2000
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "completion-role",
+          "description": "Set the role granted when a member completes onboarding.",
+          "options": [
+            {
+              "name": "role",
+              "description": "Set the role granted when a member completes onboarding.",
+              "required": false,
+              "type": 8
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "step-add",
+          "description": "Add a step to the onboarding flow.",
+          "options": [
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "Message",
+                  "value": "message"
+                },
+                {
+                  "name": "Role Select",
+                  "value": "role-select"
+                },
+                {
+                  "name": "Channel Suggest",
+                  "value": "channel-suggest"
+                },
+                {
+                  "name": "Rules Accept",
+                  "value": "rules-accept"
+                },
+                {
+                  "name": "Custom Question",
+                  "value": "custom-question"
+                }
+              ],
+              "name": "type",
+              "description": "The type of onboarding step.",
+              "required": true
+            },
+            {
+              "type": 3,
+              "name": "title",
+              "description": "Step title displayed to the user.",
+              "required": true,
+              "max_length": 256
+            },
+            {
+              "type": 3,
+              "name": "description",
+              "description": "Step description displayed to the user.",
+              "required": true,
+              "max_length": 4000
+            },
+            {
+              "name": "required",
+              "description": "Whether this step must be completed to proceed.",
+              "required": false,
+              "type": 5
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "step-remove",
+          "description": "Remove a step from the onboarding flow.",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "step",
+              "description": "The step to remove (by ID).",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "step-list",
+          "description": "List all onboarding steps.",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "stats",
+          "description": "View onboarding completion statistics.",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "preview",
+          "description": "Preview the onboarding flow by sending it to yourself.",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "resend",
+          "description": "Resend the onboarding flow to a specific user.",
+          "options": [
+            {
+              "name": "user",
+              "description": "The user to resend onboarding to.",
+              "required": true,
+              "type": 6
+            }
+          ]
+        }
+      ],
+      "name": "onboarding",
+      "description": "Configure the interactive onboarding flow for new members.",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 2,
+          "name": "rule",
+          "description": "Manage AutoMod rules",
+          "options": [
+            {
+              "type": 1,
+              "name": "create",
+              "description": "Create a new AutoMod rule",
+              "options": [
+                {
+                  "type": 3,
+                  "name": "name",
+                  "description": "Rule name",
+                  "required": true,
+                  "max_length": 100
+                },
+                {
+                  "type": 3,
+                  "choices": [
+                    {
+                      "name": "Keyword Filter",
+                      "value": "keyword"
+                    },
+                    {
+                      "name": "Mention Spam",
+                      "value": "mention-spam"
+                    },
+                    {
+                      "name": "Spam Filter",
+                      "value": "spam"
+                    }
+                  ],
+                  "name": "type",
+                  "description": "Rule type",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "edit",
+              "description": "Edit an existing AutoMod rule",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "rule",
+                  "description": "The rule to edit",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "delete",
+              "description": "Delete an AutoMod rule",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "rule",
+                  "description": "The rule to delete",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "list",
+              "description": "List all AutoMod rules",
+              "options": []
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "template",
+          "description": "Apply a preset AutoMod template",
+          "options": [
+            {
+              "type": 1,
+              "name": "apply",
+              "description": "Apply a template to set up AutoMod rules",
+              "options": [
+                {
+                  "type": 3,
+                  "choices": [
+                    {
+                      "name": "Anti-Spam",
+                      "value": "anti-spam"
+                    },
+                    {
+                      "name": "Anti-Phishing",
+                      "value": "anti-phishing"
+                    },
+                    {
+                      "name": "Family-Friendly",
+                      "value": "family-friendly"
+                    },
+                    {
+                      "name": "Gaming",
+                      "value": "gaming"
+                    }
+                  ],
+                  "name": "template",
+                  "description": "Template to apply",
+                  "required": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "backup",
+          "description": "Backup all AutoMod rules as JSON",
+          "options": [
+            {
+              "type": 1,
+              "name": "export",
+              "description": "Export all AutoMod rules as a JSON file",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "restore",
+              "description": "Restore AutoMod rules from a JSON attachment",
+              "options": [
+                {
+                  "name": "file",
+                  "description": "JSON file with AutoMod rules",
+                  "required": true,
+                  "type": 11
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "keyword",
+          "description": "Manage keywords in an AutoMod rule",
+          "options": [
+            {
+              "type": 1,
+              "name": "add",
+              "description": "Add a keyword to an AutoMod rule",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "rule",
+                  "description": "The rule to add the keyword to",
+                  "required": true
+                },
+                {
+                  "type": 3,
+                  "name": "keyword",
+                  "description": "The keyword to add",
+                  "required": true,
+                  "max_length": 100
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "remove",
+              "description": "Remove a keyword from an AutoMod rule",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "rule",
+                  "description": "The rule to remove the keyword from",
+                  "required": true
+                },
+                {
+                  "type": 3,
+                  "name": "keyword",
+                  "description": "The keyword to remove",
+                  "required": true,
+                  "max_length": 100
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "regex",
+          "description": "Manage regex patterns in an AutoMod rule",
+          "options": [
+            {
+              "type": 1,
+              "name": "add",
+              "description": "Add a regex pattern to an AutoMod rule",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "rule",
+                  "description": "The rule to add the pattern to",
+                  "required": true
+                },
+                {
+                  "type": 3,
+                  "name": "pattern",
+                  "description": "The regex pattern to add (max 75 characters)",
+                  "required": true,
+                  "max_length": 75
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "remove",
+              "description": "Remove a regex pattern from an AutoMod rule",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "rule",
+                  "description": "The rule to remove the pattern from",
+                  "required": true
+                },
+                {
+                  "type": 3,
+                  "name": "pattern",
+                  "description": "The regex pattern to remove",
+                  "required": true,
+                  "max_length": 75
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "exempt",
+          "description": "Manage exemptions for an AutoMod rule",
+          "options": [
+            {
+              "type": 1,
+              "name": "add",
+              "description": "Add a role or channel exemption to an AutoMod rule",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "rule",
+                  "description": "The rule to add the exemption to",
+                  "required": true
+                },
+                {
+                  "name": "role",
+                  "description": "Role to exempt",
+                  "required": false,
+                  "type": 8
+                },
+                {
+                  "name": "channel",
+                  "description": "Channel to exempt",
+                  "required": false,
+                  "type": 7
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "remove",
+              "description": "Remove a role or channel exemption from an AutoMod rule",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "rule",
+                  "description": "The rule to remove the exemption from",
+                  "required": true
+                },
+                {
+                  "name": "role",
+                  "description": "Role to un-exempt",
+                  "required": false,
+                  "type": 8
+                },
+                {
+                  "name": "channel",
+                  "description": "Channel to un-exempt",
+                  "required": false,
+                  "type": 7
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "name": "automod",
+      "description": "Manage Discord AutoMod rules, templates, and backups",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 2,
+          "name": "template",
+          "description": "Manage event templates.",
+          "options": [
+            {
+              "type": 1,
+              "name": "create",
+              "description": "Create a new event template",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "edit",
+              "description": "Edit an existing event template",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "template",
+                  "description": "Template to manage",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "delete",
+              "description": "Delete an event template",
+              "options": [
+                {
+                  "autocomplete": true,
+                  "type": 3,
+                  "name": "template",
+                  "description": "Template to manage",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "list",
+              "description": "List all event templates",
+              "options": []
+            }
+          ]
+        },
+        {
+          "type": 2,
+          "name": "setup",
+          "description": "Configure the scheduled events system.",
+          "options": [
+            {
+              "type": 1,
+              "name": "enable",
+              "description": "Enable the scheduled events system",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "disable",
+              "description": "Disable the scheduled events system",
+              "options": []
+            },
+            {
+              "type": 1,
+              "name": "reminder-channel",
+              "description": "Set the channel for event reminders",
+              "options": [
+                {
+                  "channel_types": [
+                    0
+                  ],
+                  "name": "channel",
+                  "description": "Channel for notifications",
+                  "required": true,
+                  "type": 7
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "summary-channel",
+              "description": "Set the channel for post-event summaries",
+              "options": [
+                {
+                  "channel_types": [
+                    0
+                  ],
+                  "name": "channel",
+                  "description": "Channel for notifications",
+                  "required": true,
+                  "type": 7
+                }
+              ]
+            },
+            {
+              "type": 1,
+              "name": "default-reminder",
+              "description": "Set default reminder time (minutes before event)",
+              "options": [
+                {
+                  "max_value": 10080,
+                  "min_value": 1,
+                  "type": 4,
+                  "name": "minutes",
+                  "description": "Minutes before event (default: 30)",
+                  "required": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "create",
+          "description": "Create a new scheduled event.",
+          "options": [
+            {
+              "type": 3,
+              "name": "title",
+              "description": "Event title",
+              "required": true,
+              "max_length": 100
+            },
+            {
+              "type": 3,
+              "name": "start",
+              "description": "Start time (YYYY-MM-DD HH:MM AM/PM)",
+              "required": true,
+              "max_length": 22,
+              "min_length": 10
+            },
+            {
+              "type": 3,
+              "name": "description",
+              "description": "Event description",
+              "required": false,
+              "max_length": 1000
+            },
+            {
+              "channel_types": [
+                2,
+                13
+              ],
+              "name": "channel",
+              "description": "Voice or stage channel for the event",
+              "required": false,
+              "type": 7
+            },
+            {
+              "max_value": 1440,
+              "min_value": 1,
+              "type": 4,
+              "name": "duration",
+              "description": "Duration in minutes (default: 60)",
+              "required": false
+            },
+            {
+              "type": 3,
+              "name": "location",
+              "description": "External event location",
+              "required": false,
+              "max_length": 100
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "from-template",
+          "description": "Create an event from a saved template.",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "template",
+              "description": "Template to use",
+              "required": true
+            },
+            {
+              "type": 3,
+              "name": "start",
+              "description": "Start time (YYYY-MM-DD HH:MM AM/PM)",
+              "required": true,
+              "max_length": 22,
+              "min_length": 10
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "cancel",
+          "description": "Cancel a scheduled event.",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "event",
+              "description": "Event to cancel",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "remind",
+          "description": "Set a reminder for a scheduled event.",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "event",
+              "description": "Event to set reminder for",
+              "required": true
+            },
+            {
+              "max_value": 10080,
+              "min_value": 1,
+              "type": 4,
+              "name": "minutes",
+              "description": "Minutes before event to send reminder",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "recurring",
+          "description": "Create a recurring event from a template.",
+          "options": [
+            {
+              "autocomplete": true,
+              "type": 3,
+              "name": "template",
+              "description": "Recurring template to use",
+              "required": true
+            },
+            {
+              "type": 3,
+              "name": "start",
+              "description": "Start time for first occurrence (YYYY-MM-DD HH:MM AM/PM)",
+              "required": true,
+              "max_length": 22,
+              "min_length": 10
+            },
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "Daily",
+                  "value": "daily"
+                },
+                {
+                  "name": "Weekly",
+                  "value": "weekly"
+                },
+                {
+                  "name": "Biweekly",
+                  "value": "biweekly"
+                },
+                {
+                  "name": "Monthly",
+                  "value": "monthly"
+                }
+              ],
+              "name": "pattern",
+              "description": "Recurrence pattern",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "name": "event",
+      "description": "Manage scheduled events for your server.",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "overview",
+          "description": "View today's server activity overview",
+          "options": []
+        },
+        {
+          "type": 1,
+          "name": "growth",
+          "description": "View member growth over time",
+          "options": [
+            {
+              "max_value": 90,
+              "min_value": 1,
+              "type": 4,
+              "name": "days",
+              "description": "Number of days to show (default: 7, max: 90)",
+              "required": false
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "channels",
+          "description": "View most active channels",
+          "options": [
+            {
+              "max_value": 90,
+              "min_value": 1,
+              "type": 4,
+              "name": "days",
+              "description": "Number of days to aggregate (default: 7, max: 90)",
+              "required": false
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "hours",
+          "description": "View activity by hour of day",
+          "options": [
+            {
+              "max_value": 90,
+              "min_value": 1,
+              "type": 4,
+              "name": "days",
+              "description": "Number of days to aggregate (default: 7, max: 90)",
+              "required": false
+            }
+          ]
+        },
+        {
+          "type": 1,
+          "name": "setup",
+          "description": "Configure analytics settings",
+          "options": [
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "Enable",
+                  "value": "enable"
+                },
+                {
+                  "name": "Disable",
+                  "value": "disable"
+                },
+                {
+                  "name": "Set Digest Channel",
+                  "value": "channel"
+                },
+                {
+                  "name": "Set Digest Frequency",
+                  "value": "frequency"
+                },
+                {
+                  "name": "View Status",
+                  "value": "status"
+                }
+              ],
+              "name": "action",
+              "description": "Action to perform",
+              "required": true
+            },
+            {
+              "name": "channel",
+              "description": "Channel for digest messages",
+              "required": false,
+              "type": 7
+            },
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "Weekly",
+                  "value": "weekly"
+                },
+                {
+                  "name": "Monthly",
+                  "value": "monthly"
+                },
+                {
+                  "name": "Both",
+                  "value": "both"
+                }
+              ],
+              "name": "frequency",
+              "description": "How often to send digests",
+              "required": false
+            },
+            {
+              "max_value": 28,
+              "min_value": 0,
+              "type": 4,
+              "name": "day",
+              "description": "Day for digest (0-6 for weekly = Sun-Sat, 1-28 for monthly)",
+              "required": false
+            }
+          ]
+        }
+      ],
+      "name": "insights",
+      "description": "View server analytics and insights",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [],
+      "name": "bot-reset",
+      "description": "Factory reset Cogworks — removes all data and messages from this server",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "cleanup",
+          "description": "Export and clean up archived tickets, applications, or all data",
+          "options": [
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "Tickets",
+                  "value": "tickets"
+                },
+                {
+                  "name": "Applications",
+                  "value": "applications"
+                },
+                {
+                  "name": "All",
+                  "value": "all"
+                }
+              ],
+              "name": "system",
+              "description": "Which archives to clean up",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "name": "archive",
+      "description": "Manage and clean up archived data",
+      "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "name": "Capture to Memory",
+      "type": 3,
+      "default_member_permissions": "8"
+    },
+    {
+      "name": "Open Ticket For User",
+      "type": 2,
+      "default_member_permissions": "8"
+    },
+    {
+      "name": "View Bait Score",
+      "type": 2,
+      "default_member_permissions": "8"
+    },
+    {
+      "name": "Manage Restrictions",
+      "type": 2,
+      "default_member_permissions": "8"
+    }
+  ],
+  "configSchemas": {
+    "baitChannel": {
+      "fields": [
+        {
+          "field": "enabled",
+          "type": "bool"
+        },
+        {
+          "field": "enableSmartDetection",
+          "type": "bool"
+        },
+        {
+          "field": "requireVerification",
+          "type": "bool"
+        },
+        {
+          "field": "disableAdminWhitelist",
+          "type": "bool"
+        },
+        {
+          "field": "deleteUserMessages",
+          "type": "bool"
+        },
+        {
+          "field": "enableEscalation",
+          "type": "bool"
+        },
+        {
+          "field": "dmBeforeAction",
+          "type": "bool"
+        },
+        {
+          "field": "testMode",
+          "type": "bool"
+        },
+        {
+          "field": "enableWeeklySummary",
+          "type": "bool"
+        },
+        {
+          "field": "enableRaidMode",
+          "type": "bool"
+        },
+        {
+          "field": "enableAppealLink",
+          "type": "bool"
+        },
+        {
+          "field": "gracePeriodSeconds",
+          "type": "int"
+        },
+        {
+          "field": "instantActionThreshold",
+          "type": "int"
+        },
+        {
+          "field": "minAccountAgeDays",
+          "type": "int"
+        },
+        {
+          "field": "minMembershipMinutes",
+          "type": "int"
+        },
+        {
+          "field": "minMessageCount",
+          "type": "int"
+        },
+        {
+          "field": "deleteMessageHours",
+          "type": "int"
+        },
+        {
+          "field": "timeoutDurationMinutes",
+          "type": "int"
+        },
+        {
+          "field": "escalationLogThreshold",
+          "type": "int"
+        },
+        {
+          "field": "escalationTimeoutThreshold",
+          "type": "int"
+        },
+        {
+          "field": "escalationKickThreshold",
+          "type": "int"
+        },
+        {
+          "field": "escalationBanThreshold",
+          "type": "int"
+        },
+        {
+          "field": "joinVelocityThreshold",
+          "type": "int"
+        },
+        {
+          "field": "joinVelocityWindowMinutes",
+          "type": "int"
+        },
+        {
+          "field": "raidModeThreshold",
+          "type": "int"
+        },
+        {
+          "field": "raidModeWindowSeconds",
+          "type": "int"
+        },
+        {
+          "field": "crossChannelBurstThreshold",
+          "type": "int"
+        },
+        {
+          "field": "crossChannelBurstWindowSeconds",
+          "type": "int"
+        },
+        {
+          "field": "logRetentionDays",
+          "type": "int",
+          "min": 30,
+          "max": 365
+        },
+        {
+          "field": "banReason",
+          "type": "string"
+        },
+        {
+          "field": "warningMessage",
+          "type": "string"
+        },
+        {
+          "field": "actionType",
+          "type": "enum",
+          "values": [
+            "ban",
+            "kick",
+            "timeout",
+            "log-only"
+          ]
+        },
+        {
+          "field": "appealInfo",
+          "type": "nullableString"
+        },
+        {
+          "field": "logChannelId",
+          "type": "nullableString"
+        },
+        {
+          "field": "summaryChannelId",
+          "type": "nullableString"
+        },
+        {
+          "field": "raidModeAlertRoleId",
+          "type": "nullableString"
+        },
+        {
+          "field": "appealLinkBaseUrl",
+          "type": "nullableString"
+        }
+      ]
+    }
+  }
+}

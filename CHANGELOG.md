@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.0] - 2026-06-21
+
+Bot→dashboard contract unification (Phase 1 — contract backbone).
+
+### Added
+
+- `scripts/generateContract.ts` + committed `contract/cogworks-contract.json` —
+  the single source of truth the dashboard + ninsys-api codegen their types
+  from, derived from real bot code: registered command JSON, the `FEATURES`
+  permission catalog, and the `applyFields` config-field descriptors
+  (bait-channel today; more as handlers adopt descriptors). `bun run build:contract`.
+- CI **contract drift gate** (`bun run check:contract`): regenerates and fails on
+  any diff, so a bot change not reflected in the contract breaks the build. +4 tests.
+
+### Changed
+
+- The bait config PATCH descriptor now validates `actionType` as an `enum`
+  (`ban`/`kick`/`timeout`/`log-only`) instead of a free string — closing the
+  Phase 0 enum fix at the bot's API boundary and letting the contract carry the
+  allowed values.
+
 ## [3.12.0] - 2026-06-21
 
 New shared interaction primitive (unification — select-menu helper).

@@ -34,5 +34,8 @@ jobs:
       - name: Lint and format
         run: bun run check
 
+      - name: Contract drift check
+        run: bun run check:contract
+
       - name: Run tests
         run: bun test
