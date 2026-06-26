@@ -10,7 +10,7 @@ import {
 import { Application } from '../../typeorm/entities/application/Application';
 import { ArchivedApplicationConfig } from '../../typeorm/entities/application/ArchivedApplicationConfig';
 import { enhancedLogger, LogCategory, lang, replyEphemeralError } from '../../utils';
-import { archiveAndCloseApplication } from '../../utils/application/closeWorkflow';
+import { type ArchiveApplicationResult, archiveAndCloseApplication } from '../../utils/application/closeWorkflow';
 import { lazyRepo } from '../../utils/database/lazyRepo';
 
 const tl = lang.application.close;
@@ -27,13 +27,19 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
   });
   const application = await applicationRepo.findOneBy({ guildId, channelId });
 
+  // Every early return below runs AFTER confirmCloseApplication already showed
+  // "Closing application..." (interaction.update). A bare return freezes that
+  // message forever (the close-button hang). Each guard surfaces an ephemeral
+  // followUp before bailing — mirrors the ticket close flow.
   if (!archivedConfig) {
     enhancedLogger.warn(lang.application.applicationConfigNotFound, LogCategory.SYSTEM, { guildId });
+    await replyEphemeralError(interaction, tl.notConfigured);
     return;
   }
 
   if (!application) {
     enhancedLogger.error(lang.general.fatalError, undefined, LogCategory.SYSTEM, { guildId, channelId });
+    await replyEphemeralError(interaction, tl.notFound);
     return;
   }
 
@@ -43,12 +49,29 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
       guildId,
       channelId,
     });
+    await replyEphemeralError(interaction, tl.alreadyClosed);
     return;
   }
 
   await applicationRepo.update({ id: application.id, guildId }, { status: 'closed' });
 
-  const result = await archiveAndCloseApplication(client, application, guildId, channel, archivedConfig.channelId);
+  let result: ArchiveApplicationResult;
+  try {
+    result = await archiveAndCloseApplication(client, application, guildId, channel, archivedConfig.channelId);
+  } catch (error) {
+    // Unexpected throw escaped the workflow. Status was flipped to 'closed'
+    // above but the channel still exists — revert (otherwise the dup-close guard
+    // strands it) and tell the user instead of leaving "Closing application...".
+    await applicationRepo.update({ id: application.id, guildId }, { status: application.status });
+    enhancedLogger.error(
+      'Application close threw unexpectedly — status reverted, channel preserved for retry',
+      error instanceof Error ? error : undefined,
+      LogCategory.ERROR,
+      { guildId, channelId, applicationId: application.id },
+    );
+    await replyEphemeralError(interaction, tl.transcriptCreate.error).catch(() => {});
+    return;
+  }
 
   if (!result.archived) {
     // Close did not complete (transcript fetch or forum post failed). The
@@ -65,11 +88,9 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
         transcriptFailed: result.transcriptFailed ?? false,
       },
     );
-    const notify =
-      interaction.replied || interaction.deferred
-        ? replyEphemeralError(interaction, tl.transcriptCreate.error)
-        : replyEphemeralError(interaction, tl.transcriptCreate.error);
-    await notify.catch((err: unknown) => {
+    // replyEphemeralError picks reply/editReply/followUp from the interaction
+    // state internally, so no branch on replied/deferred is needed.
+    await replyEphemeralError(interaction, tl.transcriptCreate.error).catch((err: unknown) => {
       enhancedLogger.error(
         'Failed to deliver application-close failure notice to the user',
         err instanceof Error ? err : undefined,

@@ -1,6 +1,6 @@
 {
   "contractVersion": "1",
-  "botVersion": "3.13.0",
+  "botVersion": "3.13.1",
   "features": {
     "keys": [
       "tickets",

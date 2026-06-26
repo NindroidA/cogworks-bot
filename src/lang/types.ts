@@ -449,6 +449,9 @@ export interface LangTicket {
     closing: string;
     cancel: string;
     byUser: string;
+    notConfigured: string;
+    notFound: string;
+    alreadyClosed: string;
     transcriptCreate: {
       success: string;
       error: string;
@@ -769,6 +772,9 @@ export interface LangApplication {
     cancel: string;
     cancelL: string;
     byUser: string;
+    notConfigured: string;
+    notFound: string;
+    alreadyClosed: string;
     transcriptCreate: {
       success: string;
       error: string;
