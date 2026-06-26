@@ -125,4 +125,23 @@ describe('ticketCloseEvent', () => {
     expect(ticketRepo.update).toHaveBeenCalledWith({ id: 7, guildId: 'guild1' }, { status: 'closed' });
     expect(replyEphemeralError).not.toHaveBeenCalled();
   });
+
+  test('archived but channel delete failed → notifies user instead of leaving a live channel hanging', async () => {
+    const { deps, archiveAndCloseTicket, replyEphemeralError } = makeDeps();
+    archiveAndCloseTicket.mockResolvedValue({ success: true, archived: true, channelDeleted: false });
+
+    await ticketCloseEvent(client, makeInteraction(), deps);
+
+    expect(replyEphemeralError).toHaveBeenCalledTimes(1);
+    expect(replyEphemeralError).toHaveBeenCalledWith(expect.anything(), tl.archivedChannelRemains, expect.anything());
+  });
+
+  test('archived and channel deleted → clean success, no notice', async () => {
+    const { deps, archiveAndCloseTicket, replyEphemeralError } = makeDeps();
+    archiveAndCloseTicket.mockResolvedValue({ success: true, archived: true, channelDeleted: true });
+
+    await ticketCloseEvent(client, makeInteraction(), deps);
+
+    expect(replyEphemeralError).not.toHaveBeenCalled();
+  });
 });

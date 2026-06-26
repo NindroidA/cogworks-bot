@@ -203,7 +203,12 @@ export async function applicationSetupHandler(_client: Client, interaction: Chat
 
     const statusEmbed = buildApplicationStatusEmbed(applicationConfig, archivedApplicationConfig, !!hasAnyOption);
 
+    // Closing an application requires an archive forum; warn when creation is
+    // enabled but the archive is missing (mirrors ticket setup).
+    const closeNeedsArchive = !!applicationConfig?.channelId && !archivedApplicationConfig?.channelId;
+
     await interaction.reply({
+      content: closeNeedsArchive ? tl.closeNeedsArchive : undefined,
       embeds: [statusEmbed],
       flags: [MessageFlags.Ephemeral],
     });

@@ -11,7 +11,9 @@
     "confirm": "Are you sure you want to make this ticket Admin Only?",
     "changing": "Changing to Admin Only...",
     "cancel": "Change to Admin Only canceled.",
-    "request": "has requested to make this ticket Admin Only."
+    "request": "has requested to make this ticket Admin Only.",
+    "requestSent": "Your request to make this ticket Admin Only has been sent to the staff team.",
+    "success": "This ticket is now Admin Only — staff roles can no longer view it."
   },
   "close": {
     "confirm": "Are you sure you want to close this ticket?",
@@ -21,6 +23,7 @@
     "notConfigured": "This ticket can't be closed yet — no archive forum is configured. An admin needs to run ticket setup and choose an archive forum.",
     "notFound": "This ticket could not be found — it may have already been closed.",
     "alreadyClosed": "This ticket is already being closed.",
+    "archivedChannelRemains": "This ticket was archived, but I couldn't delete its channel — please check my **Manage Channels** permission and delete it manually.",
     "transcriptCreate": {
       "success": "Transcript successfully sent to channel and deleted from memory!",
       "error": "Error making transcript file!",
@@ -48,7 +51,8 @@
     "statusTitle": "Ticket System",
     "missingChannel": "Text channel for the ticket creation button",
     "missingArchive": "Forum channel for archived/closed tickets",
-    "missingCategory": "Category where ticket threads are created"
+    "missingCategory": "Category where ticket threads are created",
+    "closeNeedsArchive": "⚠️ Tickets can't be closed until an archive forum is set. Run `/ticket-setup` again with the **archive** option — otherwise the Close button will fail."
   },
   "customTypes": {
     "typeAdd": {

@@ -22,7 +22,8 @@
     "statusTitle": "Application System",
     "missingChannel": "Text channel for the application position buttons",
     "missingArchive": "Forum channel for archived/closed applications",
-    "missingCategory": "Category where application threads are created"
+    "missingCategory": "Category where application threads are created",
+    "closeNeedsArchive": "⚠️ Applications can't be closed until an archive forum is set. Run `/application-setup` again with the **archive** option — otherwise the Close button will fail."
   },
   "close": {
     "confirm": "Are you sure you want to close this application?",
@@ -34,6 +35,7 @@
     "notConfigured": "This application can't be closed yet — no archive forum is configured. An admin needs to run application setup and choose an archive forum.",
     "notFound": "This application could not be found — it may have already been closed.",
     "alreadyClosed": "This application is already being closed.",
+    "archivedChannelRemains": "This application was archived, but I couldn't delete its channel — please check my **Manage Channels** permission and delete it manually.",
     "transcriptCreate": {
       "success": "Transcript successfully sent to channel and deleted from memory!",
       "error": "Error making transcript file!",

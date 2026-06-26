@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.2] - 2026-06-26
+
+Close-flow follow-ups + a release-notes drift guard.
+
+### Fixed
+
+- **Admin Only button** no longer leaves the ticket stuck on "Changing to Admin
+  Only…", and no longer pings a literal "undefined" when no global staff role is
+  set. A missing ticket now surfaces an error, staff-role view removal is awaited
+  (it was fire-and-forget), and the acknowledgement resolves to a clear success
+  or request-sent message.
+- **Close flows** (ticket + application) now tell the user when the transcript
+  was archived but the channel couldn't be deleted (e.g. missing Manage
+  Channels), instead of sitting on "Closing…" forever.
+- **Setup** now warns when a ticket/application creation channel is configured
+  without an archive forum — the exact misconfiguration that makes the Close
+  button fail.
+
+### Added
+
+- CI **changelog drift gate** (`bun run check:changelog`): fails the build when
+  `package.json`'s version doesn't match the top `CHANGELOG.md` entry, so a
+  version bump can never ship stale Discord release notes again.
+
+## [3.13.1] - 2026-06-25
+
+### Fixed
+
+- **Ticket & application Close button no longer hangs.** After confirming a
+  close, three early-return guards (no archive config / no ticket / already
+  closed) returned silently, freezing the "Closing ticket…" message forever and
+  never closing the ticket. They now surface feedback; an unexpected error during
+  archiving reverts the status instead of stranding the ticket as `closed` with a
+  live channel. Added a router-level safety net so any post-acknowledgement throw
+  in any button/select/modal handler becomes a visible error rather than a
+  permanent hang.
+
 ## [3.13.0] - 2026-06-21
 
 Bot→dashboard contract unification (Phase 1 — contract backbone).

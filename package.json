@@ -1,6 +1,6 @@
 {
   "name": "cogworks-bot",
-  "version": "3.13.1",
+  "version": "3.13.2",
   "description": "A modular Discord server management bot built with TypeScript and Discord.js",
   "main": "index.js",
   "scripts": {
@@ -17,6 +17,7 @@
     "docs:sync": "bun run scripts/extractCommands.ts",
     "build:contract": "bun run scripts/generateContract.ts",
     "check:contract": "bun run scripts/generateContract.ts && git diff --exit-code contract/cogworks-contract.json",
+    "check:changelog": "bun run scripts/checkChangelog.ts",
     "lint": "biome lint ./src",
     "lint:fix": "biome lint --write ./src",
     "format": "biome format ./src",
