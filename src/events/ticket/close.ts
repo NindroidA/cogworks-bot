@@ -11,27 +11,58 @@ import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTick
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { enhancedLogger, LogCategory, lang, replyEphemeralError } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
-import { archiveAndCloseTicket } from '../../utils/ticket/closeWorkflow';
+import { type ArchiveTicketResult, archiveAndCloseTicket } from '../../utils/ticket/closeWorkflow';
 
 const tl = lang.ticket.close;
 const ticketRepo = lazyRepo(Ticket);
 const archivedTicketConfigRepo = lazyRepo(ArchivedTicketConfig);
 
-export const ticketCloseEvent = async (client: Client, interaction: ButtonInteraction) => {
+/**
+ * Injectable seam for {@link ticketCloseEvent}. Production callers omit it (the
+ * defaults bind the real repos + workflow). Tests pass fakes directly rather
+ * than relying on `mock.module()`, which bun applies inconsistently across a
+ * full-suite run — the same deterministic-injection pattern used by
+ * `archiveAndCloseTicket` in closeWorkflow.ts.
+ */
+export interface TicketCloseDeps {
+  ticketRepo: typeof ticketRepo;
+  archivedTicketConfigRepo: typeof archivedTicketConfigRepo;
+  archiveAndCloseTicket: typeof archiveAndCloseTicket;
+  replyEphemeralError: typeof replyEphemeralError;
+}
+
+const defaultTicketCloseDeps: TicketCloseDeps = {
+  ticketRepo,
+  archivedTicketConfigRepo,
+  archiveAndCloseTicket,
+  replyEphemeralError,
+};
+
+export const ticketCloseEvent = async (
+  client: Client,
+  interaction: ButtonInteraction,
+  deps: TicketCloseDeps = defaultTicketCloseDeps,
+) => {
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
   const channel = interaction.channel as GuildTextBasedChannel;
   const channelId = interaction.channelId || '';
-  const archivedConfig = await archivedTicketConfigRepo.findOneBy({ guildId });
-  const ticket = await ticketRepo.findOneBy({ guildId, channelId });
+  const archivedConfig = await deps.archivedTicketConfigRepo.findOneBy({ guildId });
+  const ticket = await deps.ticketRepo.findOneBy({ guildId, channelId });
 
+  // Every early return below runs AFTER confirmClose already showed the user
+  // "Closing ticket..." (interaction.update). A bare return would freeze that
+  // message forever — the reported "close button hangs, ticket never closes".
+  // So each guard surfaces an ephemeral followUp before bailing.
   if (!archivedConfig) {
     enhancedLogger.warn(lang.ticket.archiveTicketConfigNotFound, LogCategory.SYSTEM, { guildId });
+    await deps.replyEphemeralError(interaction, tl.notConfigured);
     return;
   }
 
   if (!ticket) {
     enhancedLogger.error(lang.general.fatalError, undefined, LogCategory.SYSTEM, { guildId, channelId });
+    await deps.replyEphemeralError(interaction, tl.notFound);
     return;
   }
 
@@ -41,20 +72,40 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
       guildId,
       channelId,
     });
+    await deps.replyEphemeralError(interaction, tl.alreadyClosed);
     return;
   }
 
   // Immediately mark as closed to prevent concurrent close attempts
-  await ticketRepo.update({ id: ticket.id, guildId }, { status: 'closed' });
+  await deps.ticketRepo.update({ id: ticket.id, guildId }, { status: 'closed' });
 
-  const result = await archiveAndCloseTicket(client, ticket, guildId, channel, archivedConfig.channelId);
+  let result: ArchiveTicketResult;
+  try {
+    result = await deps.archiveAndCloseTicket(client, ticket, guildId, channel, archivedConfig.channelId);
+  } catch (error) {
+    // An unexpected throw escaped the workflow (e.g. a transient DB error while
+    // resolving a custom ticket type — closeWorkflow's metadata region isn't
+    // inside its try blocks). The ticket was flipped to 'closed' above but the
+    // channel still exists, so revert the status (otherwise the dup-close guard
+    // strands it permanently) and tell the user instead of leaving them on
+    // "Closing ticket...".
+    await deps.ticketRepo.update({ id: ticket.id, guildId }, { status: ticket.status });
+    enhancedLogger.error(
+      'Ticket close threw unexpectedly — status reverted, channel preserved for retry',
+      error instanceof Error ? error : undefined,
+      LogCategory.ERROR,
+      { guildId, channelId, ticketId: ticket.id },
+    );
+    await deps.replyEphemeralError(interaction, tl.transcriptCreate.error).catch(() => {});
+    return;
+  }
 
   if (!result.archived) {
     // Close did not complete (transcript fetch or forum post failed). The
     // workflow deliberately preserved the channel, so revert the status —
     // otherwise the ticket is stranded 'closed' with a live channel and the
     // dup-close guard blocks any retry.
-    await ticketRepo.update({ id: ticket.id, guildId }, { status: ticket.status });
+    await deps.ticketRepo.update({ id: ticket.id, guildId }, { status: ticket.status });
     enhancedLogger.warn(
       'Ticket close reverted — archive failed, channel + ticket preserved for retry',
       LogCategory.SYSTEM,
@@ -65,11 +116,9 @@ export const ticketCloseEvent = async (client: Client, interaction: ButtonIntera
         transcriptFailed: result.transcriptFailed ?? false,
       },
     );
-    const notify =
-      interaction.replied || interaction.deferred
-        ? replyEphemeralError(interaction, tl.transcriptCreate.error)
-        : replyEphemeralError(interaction, tl.transcriptCreate.error);
-    await notify.catch((err: unknown) => {
+    // replyEphemeralError picks reply/editReply/followUp from the interaction
+    // state internally, so no branch on replied/deferred is needed.
+    await deps.replyEphemeralError(interaction, tl.transcriptCreate.error).catch((err: unknown) => {
       enhancedLogger.error(
         'Failed to deliver ticket-close failure notice to the user',
         err instanceof Error ? err : undefined,

@@ -14,6 +14,7 @@
  */
 
 import type { Client, Interaction } from 'discord.js';
+import { lang, logHandlerError, replyEphemeralError } from '../utils';
 import { applicationFieldsInteraction } from './applicationFieldsInteraction';
 import { handleApplicationInteraction } from './applicationInteraction';
 import { handleTicketInteraction } from './ticketInteraction';
@@ -35,12 +36,27 @@ const FEATURE_DISPATCHERS: FeatureDispatcher[] = [
   handleTicketInteraction,
 ];
 
-export const routeInteraction = async (client: Client, interaction: Interaction): Promise<void> => {
+export const routeInteraction = async (
+  client: Client,
+  interaction: Interaction,
+  dispatchers: FeatureDispatcher[] = FEATURE_DISPATCHERS,
+): Promise<void> => {
   if (!interaction.isButton() && !interaction.isStringSelectMenu() && !interaction.isModalSubmit()) {
     return;
   }
 
-  for (const dispatch of FEATURE_DISPATCHERS) {
-    if (await dispatch(client, interaction)) return;
+  try {
+    for (const dispatch of dispatchers) {
+      if (await dispatch(client, interaction)) return;
+    }
+  } catch (error) {
+    // A feature handler threw mid-dispatch. If it had already acknowledged the
+    // interaction (reply/update/defer), Discord shows no "interaction failed" —
+    // the user is stranded on a stale loading state forever. Convert any such
+    // post-ack throw into a visible ephemeral error so a button can never hang.
+    // (Site-level guards still handle the non-throwing early returns; this is
+    // the defense-in-depth net for every feature, not a substitute for them.)
+    logHandlerError('interaction-router', error, { customId: interaction.customId });
+    await replyEphemeralError(interaction, lang.general.fatalError, { bugReport: true });
   }
 };

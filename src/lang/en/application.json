@@ -31,6 +31,9 @@
     "cancel": "Application close cancelled",
     "cancelL": "Cancel",
     "byUser": "User has initiated the application to close...",
+    "notConfigured": "This application can't be closed yet — no archive forum is configured. An admin needs to run application setup and choose an archive forum.",
+    "notFound": "This application could not be found — it may have already been closed.",
+    "alreadyClosed": "This application is already being closed.",
     "transcriptCreate": {
       "success": "Transcript successfully sent to channel and deleted from memory!",
       "error": "Error making transcript file!",

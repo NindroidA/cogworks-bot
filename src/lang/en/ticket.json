@@ -18,6 +18,9 @@
     "closing": "Closing ticket...",
     "cancel": "Ticket close cancelled",
     "byUser": "User has initiated the ticket to close...",
+    "notConfigured": "This ticket can't be closed yet — no archive forum is configured. An admin needs to run ticket setup and choose an archive forum.",
+    "notFound": "This ticket could not be found — it may have already been closed.",
+    "alreadyClosed": "This ticket is already being closed.",
     "transcriptCreate": {
       "success": "Transcript successfully sent to channel and deleted from memory!",
       "error": "Error making transcript file!",

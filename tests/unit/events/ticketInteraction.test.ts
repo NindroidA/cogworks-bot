@@ -38,15 +38,16 @@ import { Repository } from "typeorm";
 // Sub-event handlers — replaced before the module under test is evaluated
 // ---------------------------------------------------------------------------
 
-const mockTicketCloseEvent = jest.fn().mockResolvedValue(undefined);
 const mockTicketAdminOnlyEvent = jest.fn().mockResolvedValue(undefined);
 const mockTypeAddModalHandler = jest.fn().mockResolvedValue(undefined);
 const mockEmailImportModalHandler = jest.fn().mockResolvedValue(undefined);
 
-mock.module("../../../src/events/ticket/close", () => ({
-  ticketCloseEvent: (...args: unknown[]) => mockTicketCloseEvent(...args),
-}));
-
+// NOTE: the close module is intentionally NOT mocked. mock.module() is
+// process-global in bun, so faking ticketCloseEvent here leaked into
+// events/ticket/close.test.ts (which tests the real handler via its injected
+// deps seam) and broke it. confirmClose/closeButton/cancelClose run for real
+// here; routing into ticketCloseEvent is verified via the DB lookup it performs
+// (findOneBySpy) rather than a spy on the function itself.
 mock.module("../../../src/events/ticket/adminOnly", () => ({
   ticketAdminOnlyEvent: (...args: unknown[]) =>
     mockTicketAdminOnlyEvent(...args),
@@ -311,12 +312,14 @@ describe("handleTicketInteraction", () => {
       );
     });
 
-    test("should not call ticketCloseEvent on the initial close_ticket button", async () => {
+    test("should not run the close workflow on the initial close_ticket button", async () => {
       const interaction = makeButtonInteraction("close_ticket");
 
       await handleTicketInteraction(mockClient, interaction as never);
 
-      expect(mockTicketCloseEvent).not.toHaveBeenCalled();
+      // closeButton only shows the confirm prompt — it must not touch the DB
+      // (ticketCloseEvent's first action is the archivedConfig/ticket lookup).
+      expect(findOneBySpy).not.toHaveBeenCalled();
     });
   });
 
@@ -332,10 +335,10 @@ describe("handleTicketInteraction", () => {
       expect(interaction.update).toHaveBeenCalledWith(
         expect.objectContaining({ components: [] }),
       );
-      expect(mockTicketCloseEvent).toHaveBeenCalledWith(
-        mockClient,
-        interaction,
-      );
+      // ticketCloseEvent ran for real — proven by its archivedConfig/ticket
+      // lookup. (No archive config in this test → it surfaces feedback and
+      // returns, which is itself the close-hang regression guard.)
+      expect(findOneBySpy).toHaveBeenCalled();
     });
   });
 
@@ -351,7 +354,8 @@ describe("handleTicketInteraction", () => {
       expect(interaction.update).toHaveBeenCalledWith(
         expect.objectContaining({ components: [] }),
       );
-      expect(mockTicketCloseEvent).not.toHaveBeenCalled();
+      // cancelClose only edits the message — it must not run the close workflow.
+      expect(findOneBySpy).not.toHaveBeenCalled();
     });
   });
 
