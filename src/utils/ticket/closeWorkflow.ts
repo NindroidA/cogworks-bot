@@ -26,6 +26,13 @@ const archivedTicketRepo = lazyRepo(ArchivedTicket);
 export interface ArchiveTicketResult {
   success: boolean;
   archived: boolean;
+  /**
+   * Whether the source ticket channel was actually deleted. Only meaningful
+   * when `archived` is true: the transcript was saved but Discord refused the
+   * channel delete (e.g. missing Manage Channels), so the channel is still
+   * live and the caller should tell the user rather than silently "succeed".
+   */
+  channelDeleted?: boolean;
   postId?: string;
   transcriptFailed?: boolean;
   error?: string;
@@ -360,5 +367,8 @@ export async function archiveAndCloseTicket(
     );
   }
 
-  return { success: true, archived: true };
+  // archived:true reflects that the transcript is safely saved. channelDeleted
+  // tells the caller whether the channel actually went away — when false, the
+  // "Closing ticket..." ack would otherwise sit forever on a live channel.
+  return { success: true, archived: true, channelDeleted: deleteResult.success };
 }

@@ -427,6 +427,7 @@ export interface LangTicketSetup {
   missingChannel: string;
   missingArchive: string;
   missingCategory: string;
+  closeNeedsArchive: string;
 }
 
 export interface LangTicket {
@@ -443,6 +444,8 @@ export interface LangTicket {
     changing: string;
     cancel: string;
     request: string;
+    requestSent: string;
+    success: string;
   };
   close: {
     confirm: string;
@@ -452,6 +455,7 @@ export interface LangTicket {
     notConfigured: string;
     notFound: string;
     alreadyClosed: string;
+    archivedChannelRemains: string;
     transcriptCreate: {
       success: string;
       error: string;
@@ -757,6 +761,7 @@ export interface LangApplication {
     missingChannel: string;
     missingArchive: string;
     missingCategory: string;
+    closeNeedsArchive: string;
   };
   applicationConfigNotFound: string;
   applicationCategoryNotFound: string;
@@ -775,6 +780,7 @@ export interface LangApplication {
     notConfigured: string;
     notFound: string;
     alreadyClosed: string;
+    archivedChannelRemains: string;
     transcriptCreate: {
       success: string;
       error: string;

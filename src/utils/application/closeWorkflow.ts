@@ -25,6 +25,12 @@ const archivedAppRepo = lazyRepo(ArchivedApplication);
 export interface ArchiveApplicationResult {
   success: boolean;
   archived: boolean;
+  /**
+   * Whether the source application channel was actually deleted. Only
+   * meaningful when `archived` is true: the transcript was saved but the
+   * channel delete failed, so it's still live and the caller should say so.
+   */
+  channelDeleted?: boolean;
   transcriptFailed?: boolean;
 }
 
@@ -193,5 +199,5 @@ export async function archiveAndCloseApplication(
     );
   }
 
-  return { success: true, archived: true };
+  return { success: true, archived: true, channelDeleted: deleteResult.success };
 }

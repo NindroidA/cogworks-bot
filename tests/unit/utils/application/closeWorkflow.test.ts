@@ -151,7 +151,7 @@ describe("archiveAndCloseApplication", () => {
       deps,
     );
 
-    expect(result).toEqual({ success: true, archived: true });
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
     expect(forumChannel.threads.create).toHaveBeenCalledTimes(1);
     expect(fakeRepoState.createCalls).toHaveLength(1);
     expect(fakeRepoState.createCalls[0]).toMatchObject({
@@ -174,7 +174,7 @@ describe("archiveAndCloseApplication", () => {
       deps,
     );
 
-    expect(result).toEqual({ success: true, archived: true });
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
     expect(forumChannel.threads.create).not.toHaveBeenCalled();
     expect(forumChannel.threads.fetch).toHaveBeenCalledWith("existing-app-thread", { force: true });
     const thread = forumState.threadsFetched.get("existing-app-thread");
@@ -196,7 +196,7 @@ describe("archiveAndCloseApplication", () => {
       deps,
     );
 
-    expect(result).toEqual({ success: true, archived: true });
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
     expect(forumChannel.threads.create).toHaveBeenCalledTimes(1);
     expect(fakeRepoState.saveCalls).toHaveLength(1);
     expect(fakeRepoState.saveCalls[0].messageId).toBe(forumState.threadsCreated[0].id);

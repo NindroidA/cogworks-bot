@@ -126,6 +126,16 @@ export const ticketCloseEvent = async (
         { guildId, channelId, ticketId: ticket.id },
       );
     });
+  } else if (result.channelDeleted === false) {
+    // Transcript archived OK, but Discord refused to delete the channel (e.g.
+    // missing Manage Channels). The channel — and the "Closing ticket..." ack —
+    // are still here, so tell the user instead of looking like a hang.
+    enhancedLogger.warn('Ticket archived but channel delete failed — notifying user', LogCategory.SYSTEM, {
+      guildId,
+      channelId,
+      ticketId: ticket.id,
+    });
+    await deps.replyEphemeralError(interaction, tl.archivedChannelRemains, { bugReport: true }).catch(() => {});
   }
 };
 

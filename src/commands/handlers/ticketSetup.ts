@@ -208,7 +208,13 @@ export async function ticketSetupHandler(_client: Client, interaction: ChatInput
 
     const statusEmbed = buildTicketStatusEmbed(ticketConfig, archivedTicketConfig, !!hasAnyOption);
 
+    // Ticket creation works with just a channel, but closing requires an archive
+    // forum (the close flow has nowhere to post the transcript otherwise). Warn
+    // explicitly when creation is enabled but the archive is missing.
+    const closeNeedsArchive = !!ticketConfig?.channelId && !archivedTicketConfig?.channelId;
+
     await interaction.reply({
+      content: closeNeedsArchive ? tl.closeNeedsArchive : undefined,
       embeds: [statusEmbed],
       flags: [MessageFlags.Ephemeral],
     });

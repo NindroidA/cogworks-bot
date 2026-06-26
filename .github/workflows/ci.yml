@@ -37,5 +37,8 @@ jobs:
       - name: Contract drift check
         run: bun run check:contract
 
+      - name: Changelog drift check
+        run: bun run check:changelog
+
       - name: Run tests
         run: bun test

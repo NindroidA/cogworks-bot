@@ -302,7 +302,7 @@ describe("archiveAndCloseTicket", () => {
       deps,
     );
 
-    expect(result).toEqual({ success: true, archived: true });
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
     expect(forumChannel.threads.create).toHaveBeenCalledTimes(1);
     expect(forumState.threadsCreated).toHaveLength(1);
     // Header is the initial create message; transcript chunks (if any) are follow-ups.
@@ -353,7 +353,7 @@ describe("archiveAndCloseTicket", () => {
       deps,
     );
 
-    expect(result).toEqual({ success: true, archived: true });
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
     expect(fakeResolveTicketType).not.toHaveBeenCalled();
     expect(fakeBuiltinTypeInfo).toHaveBeenCalledWith("general");
     expect(fakeEnsureForumTag).toHaveBeenCalledWith(
@@ -387,7 +387,7 @@ describe("archiveAndCloseTicket", () => {
       deps,
     );
 
-    expect(result).toEqual({ success: true, archived: true });
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
     // Email ticket lookup is scoped to the EMAIL archive namespace
     // (isEmailTicket:true + emailSender) — never the createdBy namespace.
     expect(fakeRepo.findOneBy).toHaveBeenCalledWith({
@@ -462,7 +462,7 @@ describe("archiveAndCloseTicket", () => {
       deps,
     );
 
-    expect(result).toEqual({ success: true, archived: true });
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
     // No NEW thread created — existing one fetched (force:true bypasses cache)
     expect(forumChannel.threads.create).not.toHaveBeenCalled();
     expect(forumChannel.threads.fetch).toHaveBeenCalledWith(
@@ -504,7 +504,7 @@ describe("archiveAndCloseTicket", () => {
       deps,
     );
 
-    expect(result).toEqual({ success: true, archived: true });
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
     expect(fakeApplyForumTags).toHaveBeenCalledTimes(1);
     expect(fakeApplyForumTags).toHaveBeenCalledWith(
       forumChannel,
@@ -660,7 +660,7 @@ describe("archiveAndCloseTicket", () => {
       deps,
     );
 
-    expect(result).toEqual({ success: true, archived: true });
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
     // A replacement thread was created (the deleted one is unrecoverable).
     expect(forumChannel.threads.create).toHaveBeenCalledTimes(1);
     // Archive row repointed to the new thread + accumulated tags, then saved.
@@ -732,7 +732,7 @@ describe("archiveAndCloseTicket", () => {
       deps,
     );
 
-    expect(result).toEqual({ success: true, archived: true });
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
     expect(fakeVerifiedChannelDelete).toHaveBeenCalledTimes(1);
   });
 
@@ -764,9 +764,9 @@ describe("archiveAndCloseTicket", () => {
 
     // Workflow returns success: true regardless — channel delete failure is logged,
     // not propagated. The archive succeeded; the orphaned channel is a Discord-side
-    // problem. This documents current behavior; bumping it to success: false would
-    // be a separate behavior-change patch.
-    expect(result).toEqual({ success: true, archived: true });
+    // problem. channelDeleted: false carries that outcome so the close handler can
+    // tell the user the channel still needs to be removed.
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: false });
   });
 
   test("orphaned customTypeId (resolveTicketType returns null): falls back to default title", async () => {
@@ -789,7 +789,7 @@ describe("archiveAndCloseTicket", () => {
       deps,
     );
 
-    expect(result).toEqual({ success: true, archived: true });
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
     expect(fakeResolveTicketType).toHaveBeenCalledWith(
       "guild-1",
       "deleted-type-id",
@@ -825,7 +825,7 @@ describe("archiveAndCloseTicket", () => {
       deps,
     );
 
-    expect(result).toEqual({ success: true, archived: true });
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
     // Builtin fallback intentionally returns null — no tag ensured
     expect(fakeEnsureForumTag).not.toHaveBeenCalled();
     // builtinTypeInfo NOT consulted because customTypeId branch already returned null

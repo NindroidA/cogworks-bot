@@ -37,11 +37,15 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
   const botConfigRepo = AppDataSource.getRepository(BotConfig);
   const botConfig = await botConfigRepo.findOneBy({ guildId });
   const gsrFlag = botConfig?.enableGlobalStaffRole;
-  const gsr = `${botConfig?.globalStaffRole}\n`;
+  const globalStaffRole = botConfig?.globalStaffRole;
 
   // check if the ticket exists in the database
   if (!ticket) {
-    return enhancedLogger.error(lang.general.fatalError, undefined, LogCategory.COMMAND_EXECUTION);
+    enhancedLogger.error(lang.general.fatalError, undefined, LogCategory.COMMAND_EXECUTION, { guildId, channelId });
+    // confirmAdminOnly already showed "Changing to Admin Only..." — surface the
+    // failure instead of leaving the user on a frozen ack.
+    await replyEphemeralError(interaction, lang.general.fatalError, { bugReport: true });
+    return;
   }
 
   // check if the person hitting the button is the ticket creator
@@ -50,16 +54,22 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
     const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
     const shouldMentionStaff = ticketConfig?.adminOnlyMentionStaff ?? true;
 
-    // Only mention staff if the setting is enabled and staff role is configured
-    if (gsrFlag && gsr && shouldMentionStaff) {
+    // Only mention staff if the setting is enabled AND a staff role is actually
+    // configured — `globalStaffRole` may be null/empty, and the old
+    // `${botConfig?.globalStaffRole}\n` template was always truthy, so it could
+    // ping a literal "undefined".
+    if (gsrFlag && globalStaffRole && shouldMentionStaff) {
       await channel.send({
-        content: `${gsr}❗Oh, Mods!❗ ${user} ${tl.request}`,
+        content: `${globalStaffRole}\n❗Oh, Mods!❗ ${user} ${tl.request}`,
       });
     } else {
       await channel.send({
         content: `❗Oh, Mods!❗ ${user} ${tl.request}`,
       });
     }
+    // Resolve the "Changing to Admin Only..." ack: the creator is *requesting*
+    // admin-only (staff act on it), not performing it.
+    await interaction.editReply({ content: tl.requestSent }).catch(() => {});
     return;
   }
 
@@ -70,34 +80,47 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
     .andWhere('type = :type', { type: 'staff' })
     .getRawMany();
 
-  // get each staff role and remove them from being able to view the channel
-  savedRoles.forEach(role => {
+  // Remove each staff role's view access. Await sequentially (forEach does NOT
+  // await async callbacks — the old fire-and-forget edits raced and could throw
+  // unhandled) and tolerate per-role failures so one bad role doesn't abort the
+  // rest or strand the interaction.
+  for (const role of savedRoles) {
     const roleId = extractIdFromMention(role.role);
     if (!roleId) {
       enhancedLogger.warn(`Invalid role format: ${role.role}`, LogCategory.COMMAND_EXECUTION);
-      return; // skip this role
+      continue;
     }
+    try {
+      await channel.permissionOverwrites.edit(roleId, { ViewChannel: false });
+    } catch (error) {
+      enhancedLogger.error(
+        'Failed to hide ticket channel from staff role during admin-only',
+        error instanceof Error ? error : undefined,
+        LogCategory.COMMAND_EXECUTION,
+        { guildId, roleId },
+      );
+    }
+  }
 
-    channel.permissionOverwrites.edit(roleId, {
-      ViewChannel: false,
-    });
-  });
-
-  // edit the channel's initial welcome message to not include the admin only button
+  // Strip the Admin Only button from the welcome message, leaving just Close.
   const messageId = ticket.messageId;
-  if (!messageId) return;
-  const msg = channel.messages.fetch(messageId);
-
-  // close ticket button
-  const closeButton = new ActionRowBuilder<ButtonBuilder>().setComponents(
-    new ButtonBuilder().setCustomId('close_ticket').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
-  );
-
-  // set the components of the welcome message to just have the close button
-  (await msg)?.edit({ components: [closeButton] });
+  if (messageId) {
+    const closeButton = new ActionRowBuilder<ButtonBuilder>().setComponents(
+      new ButtonBuilder().setCustomId('close_ticket').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
+    );
+    const msg = await channel.messages.fetch(messageId).catch(() => null);
+    await msg?.edit({ components: [closeButton] }).catch((error: unknown) => {
+      enhancedLogger.warn(`Failed to update admin-only welcome message: ${error}`, LogCategory.COMMAND_EXECUTION, {
+        guildId,
+      });
+    });
+  }
 
   // update the ticket status
   await ticketRepo.update({ id: ticket.id, guildId }, { status: 'adminOnly' });
+
+  // Resolve the "Changing to Admin Only..." ack so it isn't left frozen.
+  await interaction.editReply({ content: tl.success }).catch(() => {});
 };
 
 export const adminOnlyButton = async (_client: Client, interaction: ButtonInteraction) => {

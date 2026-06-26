@@ -98,6 +98,15 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
         { guildId, channelId, applicationId: application.id },
       );
     });
+  } else if (result.channelDeleted === false) {
+    // Archived OK, but Discord refused to delete the channel — surface it so the
+    // "Closing application..." ack doesn't sit forever on a live channel.
+    enhancedLogger.warn('Application archived but channel delete failed — notifying user', LogCategory.SYSTEM, {
+      guildId,
+      channelId,
+      applicationId: application.id,
+    });
+    await replyEphemeralError(interaction, tl.archivedChannelRemains, { bugReport: true }).catch(() => {});
   }
 };
 
