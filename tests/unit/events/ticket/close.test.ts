@@ -17,6 +17,7 @@
  */
 
 import { describe, expect, jest, test } from 'bun:test';
+import { Not } from 'typeorm';
 import ticketLang from '../../../../src/lang/en/ticket.json';
 import { type TicketCloseDeps, ticketCloseEvent } from '../../../../src/events/ticket/close';
 
@@ -96,9 +97,14 @@ describe('ticketCloseEvent', () => {
 
     await ticketCloseEvent(client, makeInteraction(), deps);
 
-    // First update flips to 'closed', second reverts to the original 'opened'.
+    // First update flips to 'closed' (conditionally — the race fix), second
+    // reverts to the original 'opened'.
     expect(ticketRepo.update).toHaveBeenCalledTimes(2);
-    expect(ticketRepo.update).toHaveBeenNthCalledWith(1, { id: 7, guildId: 'guild1' }, { status: 'closed' });
+    expect(ticketRepo.update).toHaveBeenNthCalledWith(
+      1,
+      { id: 7, guildId: 'guild1', status: Not('closed') },
+      { status: 'closed' },
+    );
     expect(ticketRepo.update).toHaveBeenNthCalledWith(2, { id: 7, guildId: 'guild1' }, { status: 'opened' });
     expect(replyEphemeralError).toHaveBeenCalledTimes(1);
     expect(replyEphemeralError).toHaveBeenCalledWith(expect.anything(), tl.transcriptCreate.error);
@@ -122,8 +128,21 @@ describe('ticketCloseEvent', () => {
 
     expect(archiveAndCloseTicket).toHaveBeenCalledTimes(1);
     expect(ticketRepo.update).toHaveBeenCalledTimes(1);
-    expect(ticketRepo.update).toHaveBeenCalledWith({ id: 7, guildId: 'guild1' }, { status: 'closed' });
+    expect(ticketRepo.update).toHaveBeenCalledWith(
+      { id: 7, guildId: 'guild1', status: Not('closed') },
+      { status: 'closed' },
+    );
     expect(replyEphemeralError).not.toHaveBeenCalled();
+  });
+
+  test('flip race lost (affected=0) → treated as duplicate close, no archive attempt', async () => {
+    const { deps, ticketRepo, archiveAndCloseTicket, replyEphemeralError } = makeDeps();
+    ticketRepo.update.mockResolvedValue({ affected: 0 });
+
+    await ticketCloseEvent(client, makeInteraction(), deps);
+
+    expect(archiveAndCloseTicket).not.toHaveBeenCalled();
+    expect(replyEphemeralError).toHaveBeenCalledWith(expect.anything(), tl.alreadyClosed);
   });
 
   test('archived but channel delete failed → notifies user instead of leaving a live channel hanging', async () => {

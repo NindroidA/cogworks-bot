@@ -106,29 +106,45 @@ export async function ensureForumTag(
 }
 
 /**
- * Applies forum tags to a forum post/thread
+ * Applies forum tags to a forum post/thread, ACCUMULATING onto whatever tags
+ * the thread already carries (the "Forum Tag System" rule in CLAUDE.md) —
+ * `setAppliedTags` replaces, so passing only the caller's list used to wipe
+ * any tag a moderator had added to the thread by hand.
  * @param forumChannel - The forum channel containing the thread
  * @param threadId - The thread/post ID to apply tags to
- * @param tagIds - Array of tag IDs to apply
+ * @param tagIds - Array of tag IDs to add (order-preserving, deduped)
  */
 export async function applyForumTags(forumChannel: ForumChannel, threadId: string, tagIds: string[]): Promise<void> {
   try {
-    // Filter out empty tag IDs and ensure we don't exceed 5 tags (Discord API limit)
-    const validTagIds = tagIds.filter(id => id.length > 0).slice(0, 5);
-
-    if (validTagIds.length === 0) {
+    const incoming = tagIds.filter(id => id.length > 0);
+    if (incoming.length === 0) {
       enhancedLogger.info('No valid tags to apply to forum post', LogCategory.SYSTEM, { threadId });
       return;
     }
 
     const thread = await forumChannel.threads.fetch(threadId);
-    if (thread) {
-      await thread.setAppliedTags(validTagIds);
-      enhancedLogger.info(`Applied ${validTagIds.length} tags to forum post`, LogCategory.SYSTEM, {
+    if (!thread) return;
+
+    // Live thread tags first (manual additions survive), then new ones.
+    const merged = [...(thread.appliedTags ?? [])];
+    for (const id of incoming) {
+      if (!merged.includes(id)) merged.push(id);
+    }
+
+    // Discord caps applied tags at 5 per thread — don't hide what fell off.
+    const applied = merged.slice(0, 5);
+    if (merged.length > applied.length) {
+      enhancedLogger.warn('Forum post is at the 5-tag limit — some tags were not applied', LogCategory.SYSTEM, {
         threadId,
-        tagCount: validTagIds.length,
+        dropped: merged.slice(5),
       });
     }
+
+    await thread.setAppliedTags(applied);
+    enhancedLogger.info(`Applied ${applied.length} tags to forum post`, LogCategory.SYSTEM, {
+      threadId,
+      tagCount: applied.length,
+    });
   } catch (error) {
     enhancedLogger.error('Failed to apply forum tags to post', error as Error, LogCategory.ERROR, {
       threadId,

@@ -1,4 +1,5 @@
 import type { Client, GuildTextBasedChannel } from 'discord.js';
+import { Not } from 'typeorm';
 import { Application } from '../../../typeorm/entities/application/Application';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
 import { archiveAndCloseApplication as defaultArchiveAndCloseApplication } from '../../application/closeWorkflow';
@@ -79,8 +80,10 @@ export function registerApplicationHandlers(
     const archivedConfig = await archivedAppConfigRepo.findOneBy({ guildId });
     if (!archivedConfig) throw ApiError.notFound('Archive config not found');
 
-    // Mark closed
-    await applicationRepo.update({ id: app.id, guildId }, { status: 'closed' });
+    // Mark closed — conditional so a concurrent close loses cleanly instead
+    // of both proceeding.
+    const flip = await applicationRepo.update({ id: app.id, guildId, status: Not('closed') }, { status: 'closed' });
+    if (flip?.affected === 0) throw ApiError.conflict('Application already closed');
 
     // Distinguish a genuinely-gone channel (10003 → nothing to archive, terminal
     // close) from a transient/permission fetch failure (→ revert so a retry can
@@ -100,13 +103,22 @@ export function registerApplicationHandlers(
       return { success: true, archived: false };
     }
 
-    const result = await archiveAndCloseApplication(
-      client,
-      app,
-      guildId,
-      channel as GuildTextBasedChannel,
-      archivedConfig.channelId,
-    );
+    let result: Awaited<ReturnType<typeof archiveAndCloseApplication>>;
+    try {
+      result = await archiveAndCloseApplication(
+        client,
+        app,
+        guildId,
+        channel as GuildTextBasedChannel,
+        archivedConfig.channelId,
+      );
+    } catch (error) {
+      // Unexpected throw — the channel still exists; revert so the archive can
+      // be retried, then rethrow so the API reports the failure (mirrors the
+      // ticket close handler + events/application/close.ts).
+      await applicationRepo.update({ id: app.id, guildId }, { status: app.status });
+      throw error;
+    }
 
     if (!result.archived) {
       // Archive failed — the workflow preserved the channel; revert the status

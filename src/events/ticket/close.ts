@@ -7,6 +7,7 @@ import {
   type GuildTextBasedChannel,
   MessageFlags,
 } from 'discord.js';
+import { Not } from 'typeorm';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { enhancedLogger, LogCategory, lang, replyEphemeralError } from '../../utils';
@@ -76,8 +77,19 @@ export const ticketCloseEvent = async (
     return;
   }
 
-  // Immediately mark as closed to prevent concurrent close attempts
-  await deps.ticketRepo.update({ id: ticket.id, guildId }, { status: 'closed' });
+  // Immediately mark as closed to prevent concurrent close attempts. The
+  // status guard above is check-then-set — two near-simultaneous confirms
+  // could both pass it — so the flip itself is conditional: whoever loses
+  // the UPDATE gets affected=0 and bails as a duplicate.
+  const flip = await deps.ticketRepo.update({ id: ticket.id, guildId, status: Not('closed') }, { status: 'closed' });
+  if (flip?.affected === 0) {
+    enhancedLogger.warn('Ticket close lost the flip race — concurrent close already in progress', LogCategory.SYSTEM, {
+      guildId,
+      channelId,
+    });
+    await deps.replyEphemeralError(interaction, tl.alreadyClosed);
+    return;
+  }
 
   let result: ArchiveTicketResult;
   try {

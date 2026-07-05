@@ -1,4 +1,5 @@
 import type { Client, GuildTextBasedChannel } from 'discord.js';
+import { Not } from 'typeorm';
 import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { lazyRepo } from '../../database/lazyRepo';
@@ -35,8 +36,11 @@ export function registerTicketHandlers(
     });
     if (!archivedConfig) throw ApiError.notFound('Archive config not found');
 
-    // Mark closed immediately
-    await ticketRepo.update({ id: ticket.id, guildId }, { status: 'closed' });
+    // Mark closed immediately — conditional so a concurrent close (button
+    // click racing the dashboard) loses cleanly instead of both proceeding
+    // past the guard above.
+    const flip = await ticketRepo.update({ id: ticket.id, guildId, status: Not('closed') }, { status: 'closed' });
+    if (flip?.affected === 0) throw ApiError.conflict('Ticket already closed');
 
     // Get channel. Distinguish a genuinely-gone channel (Discord 10003 →
     // nothing to archive, terminal close) from a transient/permission fetch
@@ -57,13 +61,23 @@ export function registerTicketHandlers(
       return { success: true, ticketId: ticket.id, archived: false };
     }
 
-    const result = await archiveAndCloseTicket(
-      client,
-      ticket,
-      guildId,
-      channel as GuildTextBasedChannel,
-      archivedConfig.channelId,
-    );
+    let result: Awaited<ReturnType<typeof archiveAndCloseTicket>>;
+    try {
+      result = await archiveAndCloseTicket(
+        client,
+        ticket,
+        guildId,
+        channel as GuildTextBasedChannel,
+        archivedConfig.channelId,
+      );
+    } catch (error) {
+      // An unexpected throw escaped the workflow (its metadata region isn't
+      // inside its try blocks). The channel still exists — revert the status
+      // so the close can be retried instead of stranding it 'closed', then
+      // rethrow so the API reports the failure (mirrors events/ticket/close.ts).
+      await ticketRepo.update({ id: ticket.id, guildId }, { status: ticket.status });
+      throw error;
+    }
 
     if (!result.archived) {
       // Archive failed — the workflow preserved the channel; revert the status
