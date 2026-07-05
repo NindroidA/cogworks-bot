@@ -15,8 +15,15 @@ survive forever.
 - **Attachments are re-uploaded into the archive thread.** Pictures and videos
   render inline and stay viewable after the ticket channel is deleted — the old
   behavior linked to Discord CDN URLs, which expire. Files ride directly under
-  the message they belong to; anything over 10 MB (or a failed download) falls
-  back to a link.
+  the message they belong to, batched so no single post exceeds the upload
+  budget; a batch Discord still rejects is rescued file-by-file, and only a
+  file that can't upload at all falls back to its link. Anything over 10 MB
+  (or a failed/stalled download — 30s timeout) links instead of uploading.
+- **Transcript chrome can't be spoofed**: user lines that mimic the archive's
+  author lines or day dividers are neutralized with an invisible zero-width
+  space, so nobody can fabricate a staff message in the moderation archive.
+  Attachment/sticker names and poll questions are escaped so they can't break
+  the transcript markup.
 
 ### Changed
 
