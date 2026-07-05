@@ -5,6 +5,7 @@
  */
 
 import {
+  type AutocompleteInteraction,
   type CacheType,
   type ChatInputCommandInteraction,
   type Client,
@@ -256,6 +257,26 @@ export async function handleFromTemplate(
 // ============================================================================
 // Cancel
 // ============================================================================
+
+/**
+ * Autocomplete for the 'event' option on /event cancel + /event remind —
+ * suggests the guild's live scheduled events by name, resolving to the id
+ * the handlers fetch with.
+ */
+export async function scheduledEventAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  if (!interaction.guild) {
+    await interaction.respond([]);
+    return;
+  }
+  try {
+    const events = await interaction.guild.scheduledEvents.fetch();
+    const focused = interaction.options.getFocused().toLowerCase();
+    const filtered = focused ? events.filter(e => e.name.toLowerCase().includes(focused)) : events;
+    await interaction.respond([...filtered.values()].slice(0, 25).map(e => ({ name: e.name, value: e.id })));
+  } catch {
+    await interaction.respond([]).catch(() => null);
+  }
+}
 
 export async function handleEventCancel(
   _client: Client,

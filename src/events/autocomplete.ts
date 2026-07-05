@@ -5,7 +5,10 @@ import {
   applicationRemovableStatusAutocomplete,
   applicationWorkflowStatusAutocomplete,
 } from '../commands/handlers/application/workflow';
+import { handleAutomodAutocomplete } from '../commands/handlers/automod';
 import { handleKeywordAutocomplete } from '../commands/handlers/baitChannel/keywords';
+import { scheduledEventAutocomplete } from '../commands/handlers/event/create';
+import { eventTemplateAutocomplete } from '../commands/handlers/event/template';
 import { memoryAutocomplete } from '../commands/handlers/memory';
 import { memoryTagAutocomplete } from '../commands/handlers/memory/manageTags';
 import { reactionRoleMenuAutocomplete } from '../commands/handlers/reactionRole';
@@ -58,6 +61,16 @@ const AUTOCOMPLETE_ROUTES: Record<string, AutocompleteHandler> = {
   'memory-setup//tag-edit': memoryTagAutocomplete,
   // /baitchannel detection *
   'baitchannel/detection/keywords': handleKeywordAutocomplete,
+  // /event * — template-name options (never wired until v3.14.3)
+  'event//from-template': interaction =>
+    eventTemplateAutocomplete(interaction, choices => interaction.respond(choices)),
+  'event//recurring': interaction => eventTemplateAutocomplete(interaction, choices => interaction.respond(choices)),
+  'event/template/edit': interaction => eventTemplateAutocomplete(interaction, choices => interaction.respond(choices)),
+  'event/template/delete': interaction =>
+    eventTemplateAutocomplete(interaction, choices => interaction.respond(choices)),
+  // /event * — live scheduled-event options
+  'event//cancel': scheduledEventAutocomplete,
+  'event//remind': scheduledEventAutocomplete,
 };
 
 /**
@@ -67,6 +80,8 @@ const AUTOCOMPLETE_ROUTES: Record<string, AutocompleteHandler> = {
 const COMMAND_AUTOCOMPLETE_ROUTES: Record<string, AutocompleteHandler> = {
   reactionrole: reactionRoleMenuAutocomplete,
   announcement: interaction => templateAutocomplete(interaction, choices => interaction.respond(choices)),
+  // Every flagged /automod option is a 'rule' picker (never wired until v3.14.3)
+  automod: handleAutomodAutocomplete,
 };
 
 /** Handles autocomplete interactions for all commands. */
