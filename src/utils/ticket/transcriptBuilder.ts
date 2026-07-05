@@ -24,6 +24,7 @@
 
 import { TEXT_LIMITS } from '../constants';
 import { toUnixSeconds } from '../time';
+import { escapeDiscordMarkdown } from '../validation/inputSanitizer';
 
 /** Per-message shape the fetcher hands to the builder. */
 export interface TranscriptMessage {
@@ -185,20 +186,25 @@ export function buildHeaderData(
   };
 }
 
+/** Escape the chars that break a markdown link label (`[name](url)`). */
+function escapeLinkLabel(name: string): string {
+  return name.replace(/\\/g, '\\\\').replace(/([[\]])/g, '\\$1');
+}
+
 function formatAttachment(a: TranscriptAttachment): string {
-  if (!a.url) return `📎 ~~${a.name}~~ (unavailable)`;
+  if (!a.url) return `📎 ~~${escapeLinkLabel(a.name)}~~ (unavailable)`;
   // <url> suppresses Discord's link preview — the re-uploaded file on the
   // same chunk is the visible copy; the link is the fallback if that fails.
-  return `📎 [${a.name}](<${a.url}>)`;
+  return `📎 [${escapeLinkLabel(a.name)}](<${a.url}>)`;
 }
 
 function formatSticker(s: TranscriptSticker): string {
-  if (!s.url) return `🏷️ Sticker: ${s.name}`;
-  return `🏷️ Sticker: [${s.name}](${s.url})`;
+  if (!s.url) return `🏷️ Sticker: ${escapeLinkLabel(s.name)}`;
+  return `🏷️ Sticker: [${escapeLinkLabel(s.name)}](${s.url})`;
 }
 
 function formatPoll(poll: TranscriptPoll): string[] {
-  const lines = [`📊 **Poll:** ${poll.question}`];
+  const lines = [`📊 **Poll:** ${escapeDiscordMarkdown(poll.question)}`];
   for (const answer of poll.answers) {
     const votes = `${answer.voteCount} vote${answer.voteCount === 1 ? '' : 's'}`;
     lines.push(`• ${answer.text} — ${votes}`);
@@ -225,6 +231,31 @@ function formatEmbedBody(embed: TranscriptEmbed): string[] {
   return blockquote(parts.join('\n')).split('\n');
 }
 
+/** A user line masquerading as our author-line chrome: optional badge, bold name, · timestamp. */
+const AUTHOR_CHROME_SPOOF_RE = /^\s*(?:👤|🛡️|🤖)?\s*\*\*.+\*\*\s*·\s*<t:\d+:[a-zA-Z]>/;
+/** A user line masquerading as our `-# ` subtext chrome (day dividers). */
+const SUBTEXT_SPOOF_RE = /^-#\s/;
+
+/**
+ * Neutralize user content lines that mimic the transcript's own chrome
+ * (author lines, day dividers). Plain bodies made spoofing possible: a user
+ * could type '🛡️ **Admin** · <t:1:t>' and fabricate a staff message in the
+ * moderation archive. A zero-width space breaks the markdown while keeping
+ * the text readable; only chrome-shaped lines are touched — everything else
+ * stays a verbatim carbon copy.
+ */
+function neutralizeChromeSpoofs(content: string): string {
+  const ZWSP = '\u200B';
+  return content
+    .split('\n')
+    .map(line => {
+      if (SUBTEXT_SPOOF_RE.test(line)) return line.replace('-#', `-${ZWSP}#`);
+      if (AUTHOR_CHROME_SPOOF_RE.test(line)) return line.replace('**', `*${ZWSP}*`);
+      return line;
+    })
+    .join('\n');
+}
+
 /** Body lines only — used for both fresh messages and grouped continuations. */
 function formatMessageBody(msg: TranscriptMessage): string {
   const bodyLines: string[] = [];
@@ -232,7 +263,7 @@ function formatMessageBody(msg: TranscriptMessage): string {
   // Full content — never truncated. Oversized messages are split across
   // chunks by the chunker so nothing is ever lost.
   if (msg.content) {
-    bodyLines.push(msg.content);
+    bodyLines.push(neutralizeChromeSpoofs(msg.content));
   }
 
   for (const embed of msg.embeds) {
