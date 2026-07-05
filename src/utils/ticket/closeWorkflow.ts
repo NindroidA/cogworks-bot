@@ -12,6 +12,7 @@
 import type { Client, ForumChannel, ForumThreadChannel, GuildTextBasedChannel } from 'discord.js';
 import { ArchivedTicket } from '../../typeorm/entities/ticket/ArchivedTicket';
 import type { Ticket } from '../../typeorm/entities/ticket/Ticket';
+import { Colors } from '../colors';
 import { lazyRepo } from '../database/lazyRepo';
 import { verifiedChannelDelete } from '../discord/verifiedDelete';
 import { fetchMessagesAsTranscript } from '../fetchAllMessages';
@@ -19,7 +20,7 @@ import { applyForumTags, ensureForumTag } from '../forumTagManager';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { builtinTypeInfo, resolveTicketType } from './builtinTypes';
 import { buildTranscript, type TicketMetadata, type TranscriptMessage } from './transcriptBuilder';
-import { postTranscriptToThread } from './transcriptPoster';
+import { buildHeaderEmbed, postTranscriptToThread } from './transcriptPoster';
 
 const archivedTicketRepo = lazyRepo(ArchivedTicket);
 
@@ -135,8 +136,10 @@ async function findExistingArchive(
 }
 
 async function resolveArchiveThreadName(client: Client, ticket: Ticket): Promise<string> {
+  // Clamped to Discord's 100-char thread-name limit — emailSenderName is free
+  // text and an over-limit name fails the whole threads.create call.
   if (ticket.isEmailTicket && ticket.emailSender) {
-    return ticket.emailSenderName || ticket.emailSender.split('@')[0];
+    return (ticket.emailSenderName || ticket.emailSender.split('@')[0]).slice(0, 100);
   }
   const user = await client.users.fetch(ticket.createdBy).catch(() => null);
   return user?.username || 'Unknown';
@@ -198,6 +201,8 @@ export async function archiveAndCloseTicket(
     openedAt: ticket.lastActivityAt ? new Date(Math.min(ticket.lastActivityAt.getTime(), Date.now())) : new Date(),
     closedAt: new Date(),
     assignedToUsername: assignedUser?.username ?? null,
+    createdById: ticket.createdBy,
+    assignedToId: ticket.assignedTo ?? undefined,
   };
   // Prefer the channel's createdAt as a more accurate open time when available.
   if ('createdAt' in channel && channel.createdAt instanceof Date) {
@@ -205,6 +210,7 @@ export async function archiveAndCloseTicket(
   }
 
   const transcript = buildTranscript(transcriptMessages, metadata);
+  const headerEmbed = buildHeaderEmbed(transcript.headerData, Colors.ticket.created);
 
   let archived = true;
   try {
@@ -226,7 +232,7 @@ export async function archiveAndCloseTicket(
         name: threadName,
         // allowedMentions parse:[] — the transcript is historical content; it
         // must never ping anyone (@everyone/@here/user/role) when re-posted.
-        message: { content: transcript.header, allowedMentions: { parse: [] } },
+        message: { embeds: [headerEmbed], allowedMentions: { parse: [] } },
       });
 
       if (forumTagIds.length > 0) {
@@ -256,7 +262,7 @@ export async function archiveAndCloseTicket(
         guildId,
         channelId,
       });
-    } else if (existingArchive.messageId) {
+    } else {
       // Re-close for the same user. The archive thread is reused — but it may
       // have been deleted out from under us (manual delete, /archive cleanup).
       // Catch ONLY 10003 (Unknown Channel) and recreate so the transcript is
@@ -265,13 +271,16 @@ export async function archiveAndCloseTicket(
       // force:true bypasses the channel cache so a thread deleted while the bot
       // was offline (missed THREAD_DELETE) still surfaces as gone (10003 or a
       // null fetch) and engages the recreate path, instead of returning a stale
-      // cached object we'd post into the void.
-      const post = (await forumChannel.threads
-        .fetch(existingArchive.messageId, { force: true })
-        .catch((err: unknown) => {
-          if ((err as { code?: number })?.code === 10003) return null;
-          throw err;
-        })) as ForumThreadChannel | null;
+      // cached object we'd post into the void. A row with a NULL messageId
+      // (legacy/partial rows) also takes the recreate path — it previously
+      // matched neither branch, so the channel was deleted while the transcript
+      // was never posted anywhere (silent data loss).
+      const post = existingArchive.messageId
+        ? ((await forumChannel.threads.fetch(existingArchive.messageId, { force: true }).catch((err: unknown) => {
+            if ((err as { code?: number })?.code === 10003) return null;
+            throw err;
+          })) as ForumThreadChannel | null)
+        : null;
 
       if (!post) {
         // Thread gone: recreate it (header as the initial message), re-apply
@@ -280,7 +289,7 @@ export async function archiveAndCloseTicket(
         const newPost = await forumChannel.threads.create({
           name: threadName,
           message: {
-            content: transcript.header,
+            embeds: [headerEmbed],
             allowedMentions: { parse: [] },
           },
         });
@@ -298,11 +307,11 @@ export async function archiveAndCloseTicket(
           channelId,
         });
       } else {
-        // Normal append: separator + header + chunks into the existing thread.
+        // Normal append: a fresh header embed is the visual divider between
+        // this close and the previous ones, then the chunks follow.
         // Tags still accumulate — "Forum Tag System" per CLAUDE.md.
-        const separator = '\n━━━━━━━━━━━━━━━━━━━━━━━━\n';
         await post.send({
-          content: separator + transcript.header,
+          embeds: [headerEmbed],
           allowedMentions: { parse: [] },
         });
         await postTranscriptToThread(post, transcript.chunks, {
@@ -315,7 +324,7 @@ export async function archiveAndCloseTicket(
           const newTagId = forumTagIds[0];
           if (!existingTags.includes(newTagId)) {
             const mergedTags = [...existingTags, newTagId];
-            await deps.applyForumTags(forumChannel, existingArchive.messageId, mergedTags);
+            await deps.applyForumTags(forumChannel, post.id, mergedTags);
             existingArchive.forumTagIds = mergedTags;
             await deps.archivedTicketRepo.save(existingArchive);
           }

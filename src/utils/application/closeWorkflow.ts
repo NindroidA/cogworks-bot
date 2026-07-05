@@ -13,12 +13,13 @@
 import type { Client, ForumChannel, ForumThreadChannel, GuildTextBasedChannel } from 'discord.js';
 import type { Application } from '../../typeorm/entities/application/Application';
 import { ArchivedApplication } from '../../typeorm/entities/application/ArchivedApplication';
+import { Colors } from '../colors';
 import { lazyRepo } from '../database/lazyRepo';
 import { verifiedChannelDelete } from '../discord/verifiedDelete';
 import { fetchMessagesAsTranscript } from '../fetchAllMessages';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { buildTranscript, type TicketMetadata, type TranscriptMessage } from '../ticket/transcriptBuilder';
-import { postTranscriptToThread } from '../ticket/transcriptPoster';
+import { buildHeaderEmbed, postTranscriptToThread } from '../ticket/transcriptPoster';
 
 const archivedAppRepo = lazyRepo(ArchivedApplication);
 
@@ -85,15 +86,18 @@ export async function archiveAndCloseApplication(
   const creatorUser = await client.users.fetch(application.createdBy).catch(() => null);
   const threadName = creatorUser?.username || 'Unknown';
   const metadata: TicketMetadata = {
-    title: `Application: ${threadName}`,
+    title: `Application — ${threadName}`,
     type: 'Application',
     createdByUsername: threadName,
     openedAt: 'createdAt' in channel && channel.createdAt instanceof Date ? channel.createdAt : new Date(),
     closedAt: new Date(),
     assignedToUsername: null,
+    kind: 'application',
+    createdById: application.createdBy,
   };
 
   const transcript = buildTranscript(transcriptMessages, metadata);
+  const headerEmbed = buildHeaderEmbed(transcript.headerData, Colors.application.review);
 
   let archived = true;
   try {
@@ -107,7 +111,7 @@ export async function archiveAndCloseApplication(
       const newPost = await forumChannel.threads.create({
         name: threadName,
         // allowedMentions parse:[] — historical transcript, never ping anyone.
-        message: { content: transcript.header, allowedMentions: { parse: [] } },
+        message: { embeds: [headerEmbed], allowedMentions: { parse: [] } },
       });
 
       // Persist the archive row BEFORE posting chunks: a chunk failure then
@@ -122,22 +126,25 @@ export async function archiveAndCloseApplication(
       );
 
       await postTranscriptToThread(newPost, transcript.chunks, { guildId, channelId, label: 'Application transcript' });
-    } else if (existingArchive.messageId) {
+    } else {
       // Re-close: reuse the archive thread, but it may have been deleted out
       // from under us. force:true bypasses the cache; catch ONLY 10003 (Unknown
       // Channel) and recreate so the transcript is never lost — let other errors
       // bubble to the outer catch (marks archived:false, preserves the channel).
-      const post = (await forumChannel.threads
-        .fetch(existingArchive.messageId, { force: true })
-        .catch((err: unknown) => {
-          if ((err as { code?: number })?.code === 10003) return null;
-          throw err;
-        })) as ForumThreadChannel | null;
+      // A row with a NULL messageId also takes the recreate path — it previously
+      // matched neither branch, deleting the channel with the transcript never
+      // posted anywhere (silent data loss).
+      const post = existingArchive.messageId
+        ? ((await forumChannel.threads.fetch(existingArchive.messageId, { force: true }).catch((err: unknown) => {
+            if ((err as { code?: number })?.code === 10003) return null;
+            throw err;
+          })) as ForumThreadChannel | null)
+        : null;
 
       if (!post) {
         const newPost = await forumChannel.threads.create({
           name: threadName,
-          message: { content: transcript.header, allowedMentions: { parse: [] } },
+          message: { embeds: [headerEmbed], allowedMentions: { parse: [] } },
         });
         // Repoint + persist BEFORE chunks so a chunk failure can't orphan it.
         existingArchive.messageId = newPost.id;
@@ -148,9 +155,9 @@ export async function archiveAndCloseApplication(
           label: 'Application transcript',
         });
       } else {
-        const separator = '\n━━━━━━━━━━━━━━━━━━━━━━━━\n';
+        // A fresh header embed is the visual divider between closes.
         await post.send({
-          content: separator + transcript.header,
+          embeds: [headerEmbed],
           allowedMentions: { parse: [] },
         });
         await postTranscriptToThread(post, transcript.chunks, { guildId, channelId, label: 'Application transcript' });

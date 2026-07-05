@@ -165,9 +165,9 @@ describe('fetch → build integration', () => {
 
     const result = buildTranscript(transcriptMessages, META);
     for (const chunk of result.chunks) {
-      expect(chunk.length).toBeLessThanOrEqual(2000);
+      expect(chunk.content.length).toBeLessThanOrEqual(2000);
     }
-    const flat = result.chunks.join('\n').replace(/\n> /g, '').replace(/^> /gm, '');
+    const flat = result.chunks.map(c => c.content).join('\n');
     expect(flat).toContain('START-');
     expect(flat).toContain('-END');
     expect(flat.split('q').length - 1).toBe(5000);

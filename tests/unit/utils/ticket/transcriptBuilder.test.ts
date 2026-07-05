@@ -3,15 +3,15 @@
  *
  * The builder is pure over TranscriptMessage[] — no Discord client — so
  * these tests can drive it with synthetic arrays and assert on the exact
- * markdown output.
+ * markdown output (chat-style format, v3.14.0).
  */
 
 import { describe, expect, test } from "bun:test";
 import {
+  buildHeaderData,
   buildTranscript,
   chunkByMessageBoundary,
   formatDurationShort,
-  formatHeader,
   formatMessage,
   type TicketMetadata,
   type TranscriptMessage,
@@ -43,6 +43,11 @@ const META: TicketMetadata = {
   assignedToUsername: "staff_bob",
 };
 
+/** Joined text of all chunk contents — the "what does the archive say" view. */
+function joinedContent(result: ReturnType<typeof buildTranscript>): string {
+  return result.chunks.map((c) => c.content).join("\n");
+}
+
 describe("formatDurationShort()", () => {
   test("under a minute renders as <1m", () => {
     expect(formatDurationShort(5_000)).toBe("<1m");
@@ -71,52 +76,105 @@ describe("formatDurationShort()", () => {
   });
 });
 
-// truncateLongMessage was removed in v3.2.1 — content is split across chunks,
-// never truncated. The carbon-copy guarantees are covered by the formatMessage
-// and chunkByMessageBoundary suites below.
-
-describe("formatHeader()", () => {
-  test("contains all required metadata lines", () => {
-    const header = formatHeader(META, 5, 2);
-    expect(header).toContain("# 🎫 Ticket: Ban Appeal");
-    expect(header).toContain("**Created by:** alice");
-    expect(header).toContain("**Type:** Ban Appeal");
-    expect(header).toContain("**Assigned to:** staff_bob");
-    expect(header).toContain("**Messages:** 5");
-    expect(header).toContain("**Attachments:** 2");
-    expect(header).toContain("**Duration:** 2h 14m");
+describe("buildHeaderData()", () => {
+  test("ticket header carries all metadata fields", () => {
+    const header = buildHeaderData(META, 5, 2);
+    expect(header.title).toBe("🎫 Ban Appeal");
+    const byName = Object.fromEntries(
+      header.fields.map((f) => [f.name, f.value]),
+    );
+    expect(byName["Created by"]).toBe("alice");
+    expect(byName.Type).toBe("Ban Appeal");
+    expect(byName["Assigned to"]).toBe("staff_bob");
+    expect(byName.Duration).toBe("2h 14m");
+    expect(byName.Messages).toBe("5 · 2 📎");
+    expect(byName.Opened).toMatch(/^<t:\d+:f>$/);
+    expect(byName.Closed).toMatch(/^<t:\d+:f>$/);
   });
 
-  test("omits the attachments line when count is zero", () => {
-    const header = formatHeader(META, 3, 0);
-    expect(header).not.toContain("**Attachments:**");
+  test("messages field omits the attachment count when zero", () => {
+    const header = buildHeaderData(META, 3, 0);
+    const messages = header.fields.find((f) => f.name === "Messages");
+    expect(messages?.value).toBe("3");
   });
 
-  test("renders Unassigned when assigneeUsername is null", () => {
-    const header = formatHeader({ ...META, assignedToUsername: null }, 1, 0);
-    expect(header).toContain("**Assigned to:** Unassigned");
+  test("unassigned ticket renders Unassigned", () => {
+    const header = buildHeaderData({ ...META, assignedToUsername: null }, 1, 0);
+    const assigned = header.fields.find((f) => f.name === "Assigned to");
+    expect(assigned?.value).toBe("Unassigned");
+  });
+
+  test("application kind gets the 📋 emoji and omits the empty assignee row", () => {
+    const header = buildHeaderData(
+      { ...META, kind: "application", assignedToUsername: null },
+      1,
+      0,
+    );
+    expect(header.title).toBe("📋 Ban Appeal");
+    expect(header.fields.find((f) => f.name === "Assigned to")).toBeUndefined();
   });
 });
 
 describe("formatMessage()", () => {
-  test("plain text becomes a blockquote", () => {
+  test("plain text renders unquoted under a name + short-time line", () => {
     const out = formatMessage(makeMessage({ content: "Hello\nWorld" }));
-    expect(out).toContain("**alice**");
-    expect(out).toContain("> Hello");
-    expect(out).toContain("> World");
+    expect(out).toMatch(/^\*\*alice\*\* · <t:\d+:t>\nHello\nWorld$/);
   });
 
-  test("reply adds ↩️ suffix with original author", () => {
+  test("bot author gets a 🤖 badge", () => {
+    const out = formatMessage(
+      makeMessage({ author: { username: "cogworks", id: "999", bot: true } }),
+    );
+    expect(out).toContain("🤖 **cogworks** ·");
+  });
+
+  test("opener and assignee get 👤 / 🛡️ badges, others none", () => {
+    const badges = { createdById: "111", assignedToId: "222" };
+    expect(formatMessage(makeMessage(), badges)).toContain("👤 **alice**");
+    expect(
+      formatMessage(
+        makeMessage({ author: { username: "staff_bob", id: "222", bot: false } }),
+        badges,
+      ),
+    ).toContain("🛡️ **staff_bob**");
+    expect(
+      formatMessage(
+        makeMessage({ author: { username: "carol", id: "333", bot: false } }),
+        badges,
+      ),
+    ).toStartWith("**carol**");
+  });
+
+  test("reply adds ↳ marker with a context snippet", () => {
     const out = formatMessage(
       makeMessage({
         content: "got it",
         replyTo: { author: "staff_bob", content: "please confirm" },
       }),
     );
-    expect(out).toContain("↩️ *replying to staff_bob*");
+    expect(out).toContain('↳ *to staff_bob: "please confirm"*');
   });
 
-  test("multiple attachments render each on its own line", () => {
+  test("reply snippet strips markdown, collapses whitespace, and truncates", () => {
+    const out = formatMessage(
+      makeMessage({
+        content: "ok",
+        replyTo: { author: "bob", content: `**bold**\nand ${"x".repeat(80)}` },
+      }),
+    );
+    expect(out).toContain('↳ *to bob: "bold and x');
+    expect(out).toContain("…");
+    expect(out).not.toContain("**bold**");
+  });
+
+  test("reply to an empty-bodied message falls back to the bare marker", () => {
+    const out = formatMessage(
+      makeMessage({ content: "ok", replyTo: { author: "bob", content: "" } }),
+    );
+    expect(out).toContain("↳ *to bob*");
+  });
+
+  test("multiple attachments render each as a preview-suppressed link line", () => {
     const out = formatMessage(
       makeMessage({
         content: "",
@@ -130,8 +188,8 @@ describe("formatMessage()", () => {
         ],
       }),
     );
-    expect(out).toContain("> 📎 [img.png](https://cdn/img.png)");
-    expect(out).toContain("> 📎 [log.txt](https://cdn/log.txt)");
+    expect(out).toContain("📎 [img.png](<https://cdn/img.png>)");
+    expect(out).toContain("📎 [log.txt](<https://cdn/log.txt>)");
   });
 
   test("attachment with empty URL renders as unavailable", () => {
@@ -141,17 +199,16 @@ describe("formatMessage()", () => {
         attachments: [{ name: "gone.pdf", url: "" }],
       }),
     );
-    expect(out).toContain("> 📎 ~~gone.pdf~~ (unavailable)");
+    expect(out).toContain("📎 ~~gone.pdf~~ (unavailable)");
   });
 
-  test("code block content is preserved inside the blockquote", () => {
+  test("code block content is preserved verbatim", () => {
     const content = "```js\nconst x = 1;\n```";
     const out = formatMessage(makeMessage({ content }));
-    expect(out).toContain("> ```js");
-    expect(out).toContain("> const x = 1;");
+    expect(out).toContain("```js\nconst x = 1;\n```");
   });
 
-  test("embed with title + description renders indented under the message", () => {
+  test("embed with title + description renders blockquoted under the message", () => {
     const out = formatMessage(
       makeMessage({
         content: "",
@@ -160,8 +217,8 @@ describe("formatMessage()", () => {
         ],
       }),
     );
-    expect(out).toContain("**Heads up**");
-    expect(out).toContain("This is important");
+    expect(out).toContain("> **Heads up**");
+    expect(out).toContain("> This is important");
   });
 
   test("empty message falls back to placeholder so the header still lines up", () => {
@@ -173,8 +230,6 @@ describe("formatMessage()", () => {
     const body = "x".repeat(2000);
     const out = formatMessage(makeMessage({ content: body }));
     expect(out).not.toContain("… (truncated)");
-    // Every original character survives (blockquote prefixes add `> ` but the
-    // body text itself is intact).
     expect(out).toContain(body);
   });
 
@@ -185,7 +240,7 @@ describe("formatMessage()", () => {
         stickers: [{ name: "party", url: "https://cdn/sticker.png" }],
       }),
     );
-    expect(out).toContain("> 🏷️ Sticker: [party](https://cdn/sticker.png)");
+    expect(out).toContain("🏷️ Sticker: [party](https://cdn/sticker.png)");
   });
 
   test("renders a poll with question + per-answer vote counts", () => {
@@ -201,9 +256,9 @@ describe("formatMessage()", () => {
         },
       }),
     );
-    expect(out).toContain("> 📊 **Poll:** Best color?");
-    expect(out).toContain("> • Red — 3 votes");
-    expect(out).toContain("> • Blue — 1 vote");
+    expect(out).toContain("📊 **Poll:** Best color?");
+    expect(out).toContain("• Red — 3 votes");
+    expect(out).toContain("• Blue — 1 vote");
   });
 
   test("renders embed image + footer + author + linked title", () => {
@@ -253,7 +308,7 @@ describe("chunkByMessageBoundary()", () => {
     // must split across chunks with zero content loss.
     const lines = Array.from(
       { length: 30 },
-      (_, i) => `> line ${i} ${"y".repeat(190)}`,
+      (_, i) => `line ${i} ${"y".repeat(190)}`,
     );
     const oversize = lines.join("\n");
     const chunks = chunkByMessageBoundary([oversize], 1900, 2000);
@@ -283,11 +338,9 @@ describe("chunkByMessageBoundary()", () => {
     // Force a split mid-fence: a long fenced block as one formatted message.
     const codeLines = Array.from(
       { length: 40 },
-      (_, i) => `> const v${i} = ${"a".repeat(60)};`,
+      (_, i) => `const v${i} = ${"a".repeat(60)};`,
     );
-    const message = ["**alice** ts", "> ```js", ...codeLines, "> ```"].join(
-      "\n",
-    );
+    const message = ["**alice** ts", "```js", ...codeLines, "```"].join("\n");
     const chunks = chunkByMessageBoundary([message], 1900, 2000);
     expect(chunks.length).toBeGreaterThan(1);
     // Each chunk has a balanced number of ``` fences (so each renders cleanly).
@@ -297,19 +350,16 @@ describe("chunkByMessageBoundary()", () => {
     }
   });
 
-  test("balances a fence nested inside a double blockquote (embed code block)", () => {
-    // Embed bodies are double-quoted (`> > `). A fence there must still toggle
-    // and rebalance at the right depth (Copilot review finding).
+  test("balances a fence nested inside a blockquote (embed code block)", () => {
+    // Embed bodies are blockquoted (`> `). A fence there must still toggle
+    // and rebalance at the right depth.
     const codeLines = Array.from(
       { length: 40 },
-      (_, i) => `> > const v${i} = ${"b".repeat(60)};`,
+      (_, i) => `> const v${i} = ${"b".repeat(60)};`,
     );
-    const message = [
-      "**author** ts",
-      "> > ```js",
-      ...codeLines,
-      "> > ```",
-    ].join("\n");
+    const message = ["**author** ts", "> ```js", ...codeLines, "> ```"].join(
+      "\n",
+    );
     const chunks = chunkByMessageBoundary([message], 1900, 2000);
     expect(chunks.length).toBeGreaterThan(1);
     for (const chunk of chunks) {
@@ -319,9 +369,9 @@ describe("chunkByMessageBoundary()", () => {
   });
 
   test("hard-sliced long blockquoted line keeps its `> ` prefix on every continuation", () => {
-    // A 5000-char single blockquoted line (e.g. a long URL/base64). Each emitted
-    // segment must retain the `> ` prefix so continuations stay blockquoted, and
-    // nothing is dropped (Copilot review finding).
+    // A 5000-char single blockquoted line (e.g. inside an embed). Each emitted
+    // segment must retain the `> ` prefix so continuations stay blockquoted,
+    // and nothing is dropped.
     const longLine = `> ${"a".repeat(5000)}`;
     const chunks = chunkByMessageBoundary([longLine], 1900, 2000);
     const lines = chunks
@@ -354,8 +404,8 @@ describe("buildTranscript()", () => {
     ];
     const result = buildTranscript(messages, META);
     expect(result.messageCount).toBe(2);
-    expect(result.chunks.join("\n")).toContain("real message from alice");
-    expect(result.chunks.join("\n")).toContain("another real message");
+    expect(joinedContent(result)).toContain("real message from alice");
+    expect(joinedContent(result)).toContain("another real message");
   });
 
   test("counts attachments across surviving messages", () => {
@@ -380,7 +430,7 @@ describe("buildTranscript()", () => {
   test("empty ticket produces a placeholder chunk", () => {
     const result = buildTranscript([], META);
     expect(result.messageCount).toBe(0);
-    expect(result.chunks).toEqual(["*(No messages)*"]);
+    expect(result.chunks).toEqual([{ content: "*(No messages)*", files: [] }]);
   });
 
   test("bot-only ticket (only system/component noise) returns the human-empty placeholder", () => {
@@ -390,7 +440,9 @@ describe("buildTranscript()", () => {
     ];
     const result = buildTranscript(messages, META);
     expect(result.messageCount).toBe(0);
-    expect(result.chunks).toEqual(["*(No human messages)*"]);
+    expect(result.chunks).toEqual([
+      { content: "*(No human messages)*", files: [] },
+    ]);
   });
 
   test("preserves chronological ordering", () => {
@@ -410,9 +462,108 @@ describe("buildTranscript()", () => {
       }),
     ];
     const result = buildTranscript(messages, META);
-    const joined = result.chunks.join("\n");
+    const joined = joinedContent(result);
     expect(joined.indexOf("first")).toBeLessThan(joined.indexOf("second"));
     expect(joined.indexOf("second")).toBeLessThan(joined.indexOf("third"));
+  });
+
+  test("opens with a day divider and adds one per UTC day change", () => {
+    const messages: TranscriptMessage[] = [
+      makeMessage({
+        content: "day one",
+        timestamp: new Date("2026-04-01T12:00:00Z"),
+      }),
+      makeMessage({
+        content: "day two",
+        timestamp: new Date("2026-04-02T09:00:00Z"),
+      }),
+    ];
+    const result = buildTranscript(messages, META);
+    const joined = joinedContent(result);
+    expect(joined).toContain("-# ── Wednesday, April 1, 2026 ──");
+    expect(joined).toContain("-# ── Thursday, April 2, 2026 ──");
+    // Exactly two dividers — none repeated within a day.
+    expect(joined.split("-# ──").length - 1).toBe(2);
+  });
+
+  test("groups consecutive same-author messages under one name line", () => {
+    const messages: TranscriptMessage[] = [
+      makeMessage({
+        content: "part one",
+        timestamp: new Date("2026-04-01T12:00:00Z"),
+      }),
+      makeMessage({
+        content: "part two",
+        timestamp: new Date("2026-04-01T12:03:00Z"),
+      }),
+    ];
+    const result = buildTranscript(messages, META);
+    const joined = joinedContent(result);
+    expect(joined.split("**alice**").length - 1).toBe(1);
+    expect(joined).toContain("part one\npart two");
+  });
+
+  test("does NOT group across the 7-minute window, replies, or author changes", () => {
+    const messages: TranscriptMessage[] = [
+      makeMessage({
+        content: "one",
+        timestamp: new Date("2026-04-01T12:00:00Z"),
+      }),
+      makeMessage({
+        content: "fifteen minutes later",
+        timestamp: new Date("2026-04-01T12:15:00Z"),
+      }),
+      makeMessage({
+        content: "a reply",
+        timestamp: new Date("2026-04-01T12:16:00Z"),
+        replyTo: { author: "bob", content: "hi" },
+      }),
+    ];
+    const result = buildTranscript(messages, META);
+    const joined = joinedContent(result);
+    expect(joined.split("**alice**").length - 1).toBe(3);
+  });
+
+  test("attachments ride on the chunk holding their message", () => {
+    const messages: TranscriptMessage[] = [
+      makeMessage({ content: "look at this" }),
+      makeMessage({
+        content: "the screenshot",
+        timestamp: new Date("2026-04-01T12:20:00Z"),
+        attachments: [
+          { name: "a.png", url: "https://cdn/a.png", size: 100 },
+          { name: "gone.png", url: "" },
+        ],
+      }),
+      makeMessage({
+        author: { username: "bob", id: "222", bot: false },
+        content: "nice",
+        timestamp: new Date("2026-04-01T12:21:00Z"),
+      }),
+    ];
+    const result = buildTranscript(messages, META);
+    // The attachment-bearing chunk is flushed so files sit under their text.
+    const withFiles = result.chunks.filter((c) => c.files.length > 0);
+    expect(withFiles).toHaveLength(1);
+    expect(withFiles[0].content).toContain("the screenshot");
+    // Only uploadable (url-bearing) attachments become file payloads.
+    expect(withFiles[0].files).toEqual([
+      { name: "a.png", url: "https://cdn/a.png", size: 100 },
+    ]);
+  });
+
+  test("more than 10 attachments overflow into continued file-only chunks", () => {
+    const attachments = Array.from({ length: 13 }, (_, i) => ({
+      name: `f${i}.png`,
+      url: `https://cdn/f${i}.png`,
+    }));
+    const messages = [makeMessage({ content: "dump", attachments })];
+    const result = buildTranscript(messages, META);
+    const withFiles = result.chunks.filter((c) => c.files.length > 0);
+    expect(withFiles).toHaveLength(2);
+    expect(withFiles[0].files).toHaveLength(10);
+    expect(withFiles[1].files).toHaveLength(3);
+    expect(withFiles[1].content).toBe("-# 📎 (continued)");
   });
 
   test("keeps a sticker-only message (no longer filtered)", () => {
@@ -424,7 +575,7 @@ describe("buildTranscript()", () => {
     ];
     const result = buildTranscript(messages, META);
     expect(result.messageCount).toBe(1);
-    expect(result.chunks.join("\n")).toContain("Sticker: [wave]");
+    expect(joinedContent(result)).toContain("Sticker: [wave]");
   });
 
   test("keeps a poll-only message (no longer filtered)", () => {
@@ -436,7 +587,7 @@ describe("buildTranscript()", () => {
     ];
     const result = buildTranscript(messages, META);
     expect(result.messageCount).toBe(1);
-    expect(result.chunks.join("\n")).toContain("📊 **Poll:** Q?");
+    expect(joinedContent(result)).toContain("📊 **Poll:** Q?");
   });
 
   test("keeps an author/footer-only embed message (filter aligned with renderer)", () => {
@@ -448,7 +599,7 @@ describe("buildTranscript()", () => {
     ];
     const result = buildTranscript(messages, META);
     expect(result.messageCount).toBe(1);
-    const joined = result.chunks.join("\n");
+    const joined = joinedContent(result);
     expect(joined).toContain("ci-bot");
     expect(joined).toContain("v1.2.3");
   });
@@ -465,14 +616,9 @@ describe("buildTranscript()", () => {
     );
     const result = buildTranscript(messages, META);
     for (const chunk of result.chunks) {
-      expect(chunk.length).toBeLessThanOrEqual(2000);
+      expect(chunk.content.length).toBeLessThanOrEqual(2000);
     }
-    // Strip the `> ` blockquote prefixes and chunk joins, then assert every
-    // message's start and end markers survived.
-    const flat = result.chunks
-      .join("\n")
-      .replace(/\n> /g, "")
-      .replace(/^> /gm, "");
+    const flat = joinedContent(result);
     for (let i = 0; i < 8; i++) {
       expect(flat).toContain(`MSG${i}-`);
       expect(flat).toContain(`-END${i}`);
