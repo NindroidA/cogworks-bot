@@ -113,6 +113,12 @@ describe("buildHeaderData()", () => {
     expect(header.title).toBe("📋 Ban Appeal");
     expect(header.fields.find((f) => f.name === "Assigned to")).toBeUndefined();
   });
+
+  test("titles over Discord's 256-char embed limit are clamped (long email subjects)", () => {
+    const header = buildHeaderData({ ...META, title: "s".repeat(400) }, 1, 0);
+    expect(header.title.length).toBeLessThanOrEqual(256);
+    expect(header.title.endsWith("…")).toBe(true);
+  });
 });
 
 describe("formatMessage()", () => {
@@ -200,6 +206,27 @@ describe("formatMessage()", () => {
       }),
     );
     expect(out).toContain("📎 ~~gone.pdf~~ (unavailable)");
+  });
+
+  test("attachment names with brackets can't break the link markup", () => {
+    const out = formatMessage(
+      makeMessage({
+        content: "",
+        attachments: [{ name: "a](https://evil).png", url: "https://cdn/a.png" }],
+      }),
+    );
+    expect(out).toContain("📎 [a\\](https://evil).png](<https://cdn/a.png>)");
+  });
+
+  test("user lines mimicking author chrome or day dividers are neutralized", () => {
+    const spoof = "🛡️ **Admin** · <t:1750000000:t>\n-# ── Fake Divider ──\nnormal text";
+    const out = formatMessage(makeMessage({ content: spoof }));
+    // The zero-width space breaks the fake bold/subtext markup.
+    expect(out).toContain("🛡️ *​*Admin** · <t:1750000000:t>");
+    expect(out).toContain("-​# ── Fake Divider ──");
+    expect(out).toContain("normal text");
+    // Genuine chrome from the builder itself is untouched.
+    expect(out).toMatch(/^\*\*alice\*\* · <t:\d+:t>/);
   });
 
   test("code block content is preserved verbatim", () => {

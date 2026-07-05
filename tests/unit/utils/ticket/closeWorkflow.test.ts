@@ -406,6 +406,31 @@ describe("archiveAndCloseTicket", () => {
     });
   });
 
+  test("email ticket with an over-long sender name clamps the thread name to Discord's 100-char limit", async () => {
+    fakeBuiltinTypeInfo.mockReturnValue(null);
+    const client = makeFakeClient(forumChannel, () => null);
+    const channel = makeFakeChannel();
+    const ticket = makeTicket({
+      isEmailTicket: true,
+      emailSender: "verbose@example.com",
+      emailSenderName: "N".repeat(150),
+      emailSubject: "hi",
+    });
+
+    const result = await archiveAndCloseTicket(
+      client,
+      ticket,
+      "guild-1",
+      channel,
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
+    const createdName = forumChannel.threads.create.mock.calls[0][0].name;
+    expect(createdName).toHaveLength(100);
+  });
+
   test("regression: a normal ticket queries the createdBy namespace with isEmailTicket:false (never an email-import archive)", async () => {
     // The reported prod bug: an email-import archive's createdBy is the
     // importing admin. A normal ticket the admin opens must NOT match it —

@@ -232,6 +232,8 @@ export const TIMEOUTS = {
   COMPONENT: 60_000,
   /** Long-lived dashboards/wizards: 5 minutes */
   DASHBOARD: 300_000,
+  /** Per-attachment CDN download timeout during archiving: 30 seconds */
+  TRANSCRIPT_DOWNLOAD: 30_000,
 } as const;
 
 export const TEXT_LIMITS = {
