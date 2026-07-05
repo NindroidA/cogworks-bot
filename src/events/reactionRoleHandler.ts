@@ -1,5 +1,5 @@
 import type { Client, MessageReaction, PartialMessageReaction, PartialUser, User } from 'discord.js';
-import { enhancedLogger, getCachedMenu, getOptionByEmoji, LogCategory, lang } from '../utils';
+import { enhancedLogger, fetchPartial, getCachedMenu, getOptionByEmoji, LogCategory, lang } from '../utils';
 import { ReactionCooldown } from '../utils/reactionCooldown';
 
 const tl = lang.reactionRole.reaction;
@@ -25,20 +25,8 @@ export async function handleReactionRoleAdd(
 
   try {
     // Fetch partials
-    if (reaction.partial) {
-      try {
-        await reaction.fetch();
-      } catch {
-        return;
-      }
-    }
-    if (user.partial) {
-      try {
-        await user.fetch();
-      } catch {
-        return;
-      }
-    }
+    if (reaction.partial && !(await fetchPartial(reaction, 'reaction'))) return;
+    if (user.partial && !(await fetchPartial(user, 'user'))) return;
 
     const message = reaction.message;
     if (!message.guild) return;
@@ -144,20 +132,8 @@ export async function handleReactionRoleRemove(
 
   try {
     // Fetch partials
-    if (reaction.partial) {
-      try {
-        await reaction.fetch();
-      } catch {
-        return;
-      }
-    }
-    if (user.partial) {
-      try {
-        await user.fetch();
-      } catch {
-        return;
-      }
-    }
+    if (reaction.partial && !(await fetchPartial(reaction, 'reaction'))) return;
+    if (user.partial && !(await fetchPartial(user, 'user'))) return;
 
     const message = reaction.message;
     if (!message.guild) return;

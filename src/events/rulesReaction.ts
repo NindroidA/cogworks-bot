@@ -1,6 +1,6 @@
 import type { Client, MessageReaction, PartialMessageReaction, PartialUser, User } from 'discord.js';
 import { RulesConfig } from '../typeorm/entities/rules';
-import { enhancedLogger, LogCategory, lang } from '../utils';
+import { enhancedLogger, fetchPartial, LogCategory, lang } from '../utils';
 import { lazyRepo } from '../utils/database/lazyRepo';
 import { ReactionCooldown } from '../utils/reactionCooldown';
 import { getCachedRulesConfig, setCachedRulesConfig } from '../utils/rules/rulesCache';
@@ -43,20 +43,8 @@ export async function handleRulesReactionAdd(
 
   try {
     // Fetch partials if needed
-    if (reaction.partial) {
-      try {
-        await reaction.fetch();
-      } catch {
-        return;
-      }
-    }
-    if (user.partial) {
-      try {
-        await user.fetch();
-      } catch {
-        return;
-      }
-    }
+    if (reaction.partial && !(await fetchPartial(reaction, 'reaction'))) return;
+    if (user.partial && !(await fetchPartial(user, 'user'))) return;
 
     const message = reaction.message;
     if (!message.guild) return;
@@ -110,20 +98,8 @@ export async function handleRulesReactionRemove(
 
   try {
     // Fetch partials if needed
-    if (reaction.partial) {
-      try {
-        await reaction.fetch();
-      } catch {
-        return;
-      }
-    }
-    if (user.partial) {
-      try {
-        await user.fetch();
-      } catch {
-        return;
-      }
-    }
+    if (reaction.partial && !(await fetchPartial(reaction, 'reaction'))) return;
+    if (user.partial && !(await fetchPartial(user, 'user'))) return;
 
     const message = reaction.message;
     if (!message.guild) return;

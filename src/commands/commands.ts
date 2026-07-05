@@ -259,16 +259,11 @@ export const handleSlashCommand = async (client: Client, interaction: ChatInputC
       commandName,
     });
 
-    try {
-      await interaction.reply({
-        content: '❌ An error occurred while executing this command. Please try again later.',
-        flags: [MessageFlags.Ephemeral],
-      });
-    } catch (replyError) {
-      enhancedLogger.warn('Failed to send error reply to user', LogCategory.COMMAND_EXECUTION, {
-        reason: replyError instanceof Error ? replyError.message : String(replyError),
-      });
-    }
+    // State-aware: a handler that deferred/replied before throwing used to
+    // make a bare reply() here throw InteractionAlreadyReplied, leaving the
+    // user stranded on the "thinking" state forever. replyEphemeralError picks
+    // reply/editReply/followUp and swallows secondary delivery failures.
+    await replyEphemeralError(interaction, 'An error occurred while executing this command. Please try again later.');
   }
 };
 

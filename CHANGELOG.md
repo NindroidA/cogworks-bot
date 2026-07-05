@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.1] - 2026-07-04
+
+No interaction left hanging: errors that happen after the bot has already
+replied or deferred now always reach the user instead of leaving a frozen
+"thinking" state.
+
+### Fixed
+
+- **Global command error net** used a bare reply that failed whenever the
+  crashing command had already deferred/replied — exactly the case it exists
+  for. It now picks reply/edit/follow-up based on interaction state.
+- **No false failure messages either**: an announcement whose bookkeeping
+  fails *after* it posted no longer tells the operator "Failed to send"
+  (which invited a duplicate, double-pinging re-send), and an application
+  that breaks after "submitted!" now says so — instead of "please try again",
+  which caused duplicate applications.
+- **Field-editor buttons/menus/modals** (ticket types + application positions)
+  that hit an error used to swallow it entirely; they now show the standard
+  error message with a bug-report link.
+- **Announcement send**: a failure after you click Send in the preview (e.g.
+  the bot can't post in the target channel) is now reported instead of
+  freezing the preview. The error log also captures the actual stack again.
+- **Application submit**: failures after the "submitted!" confirmation (e.g.
+  the welcome message couldn't be posted) are now surfaced to the applicant.
+- **/bot-setup**: errors after the dashboard is shown are now reported, and a
+  system-configure flow that fails mid-way tells you instead of silently
+  redrawing the dashboard. Setup-thread pin failures are logged, not ignored.
+- **Context menus**: same fix as the global net — errors after a reply/defer
+  no longer disappear.
+- **Confirm dialogs** that time out now say "Operation timed out" like every
+  other helper, instead of silently removing the buttons.
+- **Reaction handlers** (reaction roles, rules, starboard) no longer silently
+  swallow partial-fetch failures — they log at debug level via a shared
+  `fetchPartial` helper.
+
 ## [3.14.0] - 2026-07-03
 
 Archive transcripts got a full readability overhaul — and attachments now

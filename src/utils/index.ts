@@ -25,6 +25,7 @@ export * from './database/ensureDefaultTicketTypes';
 export * from './database/guildQueries';
 export * from './database/legacyMigration';
 // Discord verified deletion utilities
+export * from './discord/partialFetch';
 export * from './discord/verifiedDelete';
 export * from './embedBuilders';
 export * from './emojis';

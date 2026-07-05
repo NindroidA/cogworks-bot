@@ -6,7 +6,7 @@ import {
   handleAppFieldSelectMenu,
   handleAppPreviewModal,
 } from '../commands/handlers/application/applicationFields';
-import { enhancedLogger, LogCategory } from '../utils';
+import { enhancedLogger, LogCategory, lang, replyEphemeralError } from '../utils';
 
 /**
  * Event handler for application field interactions (buttons, select menus, modals).
@@ -91,6 +91,12 @@ export const applicationFieldsInteraction = async (_client: Client, interaction:
       LogCategory.COMMAND_EXECUTION,
       { userId: interaction.user.id, guildId },
     );
+    // Returning true claims the interaction and disarms the router's
+    // safety-net reply — so surface the failure here, or the user is
+    // stranded on a stale loading state with no feedback.
+    if (interaction.isRepliable()) {
+      await replyEphemeralError(interaction, lang.general.fatalError, { bugReport: true });
+    }
     return true;
   }
 

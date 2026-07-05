@@ -73,6 +73,15 @@ import { buildApplicationMessage } from '../application/applicationPosition';
 
 const VALID_BAIT_ACTIONS: BaitActionType[] = ['ban', 'kick', 'timeout', 'log-only'];
 
+/** Best-effort thread pin — logs instead of silently swallowing (max pins / missing perms). */
+async function pinThreadBestEffort(thread: { pin: () => Promise<unknown> }): Promise<void> {
+  try {
+    await thread.pin();
+  } catch {
+    enhancedLogger.info('Could not pin setup welcome thread (max pins may be reached)', LogCategory.SYSTEM);
+  }
+}
+
 /**
  * Route a system selection to its configuration flow.
  * Returns updated system states after the flow completes.
@@ -83,7 +92,7 @@ export async function runSystemFlow(
   client: Client,
   guildId: string,
   setupState: SetupState,
-): Promise<{ updated: boolean; states: SystemStates }> {
+): Promise<{ updated: boolean; states: SystemStates; failed?: boolean }> {
   const states = { ...(setupState.systemStates || DEFAULT_SYSTEM_STATES) };
 
   try {
@@ -116,7 +125,9 @@ export async function runSystemFlow(
     }
   } catch (error) {
     enhancedLogger.error(`System flow failed: ${systemId}`, error as Error, LogCategory.COMMAND_EXECUTION, { guildId });
-    return { updated: false, states };
+    // failed:true lets the dashboard tell the user instead of silently
+    // redrawing as if nothing happened (e.g. Missing Permissions mid-flow).
+    return { updated: false, states, failed: true };
   }
 }
 
@@ -286,9 +297,7 @@ async function configureForumSystem(
           name: cfg.archiveThreadName,
           message: { content: cfg.archiveInitialMsg },
         });
-        try {
-          await thread.pin();
-        } catch {}
+        await pinThreadBestEffort(thread);
         data.archiveMessageId = thread.id;
       } catch (_error) {
         enhancedLogger.warn(
@@ -353,9 +362,7 @@ async function configureForumSystem(
         name: cfg.archiveThreadName,
         message: { content: cfg.archiveInitialMsg },
       });
-      try {
-        await thread.pin();
-      } catch {}
+      await pinThreadBestEffort(thread);
       data.archiveMessageId = thread.id;
     } catch {
       enhancedLogger.warn(
@@ -928,9 +935,7 @@ async function createMemoryWelcomeThread(forum: ForumChannel): Promise<string | 
       message: { embeds: [embed] },
     });
 
-    try {
-      await thread.pin();
-    } catch {}
+    await pinThreadBestEffort(thread);
 
     return thread.id;
   } catch {

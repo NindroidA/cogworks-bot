@@ -81,10 +81,18 @@ export async function announcementHandler(client: Client, interaction: ChatInput
 
     await replyEphemeralError(interaction, tlErr.unknownSubcommand);
   } catch (error) {
-    enhancedLogger.error(tl.error + error, undefined, LogCategory.COMMAND_EXECUTION);
-    if (!interaction.replied && !interaction.deferred) {
-      await replyEphemeralError(interaction, tl.fail);
-    }
+    enhancedLogger.error(
+      tl.error,
+      error instanceof Error ? error : new Error(String(error)),
+      LogCategory.COMMAND_EXECUTION,
+      {
+        guildId,
+      },
+    );
+    // Unconditional: replyEphemeralError follows up when the preview already
+    // replied — the old !replied && !deferred guard left the user stranded on
+    // the frozen preview when the send failed after they clicked Send.
+    await replyEphemeralError(interaction, tl.fail);
   }
 }
 
@@ -250,21 +258,37 @@ async function previewAndSend(
     }
   }
 
-  const newLog = new AnnouncementLog();
-  newLog.guildId = guildId;
-  newLog.channelId = targetChannel.id;
-  newLog.messageId = sentMessage.id;
-  newLog.type = template.name;
-  newLog.sentBy = interaction.user.id;
-  newLog.scheduledTime = params.time ? new Date(params.time * 1000) : null;
-  newLog.version = params.version || null;
-  await announcementLogRepo.save(newLog);
+  // Past this point the announcement IS live in the channel. Bookkeeping
+  // failures (log row, ack edit) must never bubble to the outer catch — its
+  // "Failed to send announcement" would tell the operator to re-send and
+  // double-ping the role.
+  try {
+    const newLog = new AnnouncementLog();
+    newLog.guildId = guildId;
+    newLog.channelId = targetChannel.id;
+    newLog.messageId = sentMessage.id;
+    newLog.type = template.name;
+    newLog.sentBy = interaction.user.id;
+    newLog.scheduledTime = params.time ? new Date(params.time * 1000) : null;
+    newLog.version = params.version || null;
+    await announcementLogRepo.save(newLog);
 
-  await result.interaction.editReply({
-    content: `Announcement sent to ${targetChannel}!`,
-    embeds: [],
-    components: [],
-  });
+    await result.interaction.editReply({
+      content: `Announcement sent to ${targetChannel}!`,
+      embeds: [],
+      components: [],
+    });
+  } catch (error) {
+    enhancedLogger.error(
+      'Announcement sent but post-send bookkeeping failed (log row / ack)',
+      error instanceof Error ? error : new Error(String(error)),
+      LogCategory.COMMAND_EXECUTION,
+      { guildId, channelId: targetChannel.id, messageId: sentMessage.id },
+    );
+    await result.interaction
+      .editReply({ content: `Announcement sent to ${targetChannel}!`, embeds: [], components: [] })
+      .catch(() => null);
+  }
 
   enhancedLogger.info(
     `User ${interaction.user.username} sent ${template.name} announcement`,
