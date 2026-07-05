@@ -65,8 +65,10 @@ const templateGroup = new SlashCommandSubcommandGroupBuilder()
           .setDescription(tl.template.apply.template)
           .setRequired(true)
           // Derived from the template catalog — a new template shows up here
-          // without hand-syncing this list.
-          .addChoices(...TEMPLATE_IDS.map(id => ({ name: AUTOMOD_TEMPLATES[id].name, value: id }))),
+          // without hand-syncing this list. slice(25): Discord caps choices at
+          // 25 per option, and an oversized list would crash command
+          // registration for the whole bot, not just this command.
+          .addChoices(...TEMPLATE_IDS.slice(0, 25).map(id => ({ name: AUTOMOD_TEMPLATES[id].name, value: id }))),
       ),
   );
 

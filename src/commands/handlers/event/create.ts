@@ -273,7 +273,14 @@ export async function scheduledEventAutocomplete(interaction: AutocompleteIntera
     const focused = interaction.options.getFocused().toLowerCase();
     const filtered = focused ? events.filter(e => e.name.toLowerCase().includes(focused)) : events;
     await interaction.respond([...filtered.values()].slice(0, 25).map(e => ({ name: e.name, value: e.id })));
-  } catch {
+  } catch (error) {
+    // Best-effort: an empty dropdown is the correct UX, but the failure is
+    // still worth a trace (debug — routine permission misses would spam
+    // anything louder).
+    enhancedLogger.debug('Scheduled-event autocomplete fetch failed', LogCategory.COMMAND_EXECUTION, {
+      guildId: interaction.guildId ?? undefined,
+      reason: error instanceof Error ? error.message : String(error),
+    });
     await interaction.respond([]).catch(() => null);
   }
 }
