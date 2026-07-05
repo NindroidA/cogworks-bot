@@ -156,9 +156,11 @@ function makeFakeThread(
   const state: FakeThreadState = { id, sentMessages: [] };
   return {
     ...state,
-    send: jest.fn(async ({ content }: { content: string }) => {
+    send: jest.fn(async ({ content, embeds }: { content?: string; embeds?: any[] }) => {
       if (sendError) throw sendError;
-      state.sentMessages.push(content);
+      // Embed-only sends (header cards) are recorded as a tagged title line so
+      // assertions can distinguish them from transcript text chunks.
+      state.sentMessages.push(content ?? `[embed] ${embeds?.[0]?.data?.title ?? ""}`);
       return { id: `${id}-msg-${state.sentMessages.length}` };
     }),
   };
@@ -305,10 +307,11 @@ describe("archiveAndCloseTicket", () => {
     expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
     expect(forumChannel.threads.create).toHaveBeenCalledTimes(1);
     expect(forumState.threadsCreated).toHaveLength(1);
-    // Header is the initial create message; transcript chunks (if any) are follow-ups.
+    // Header embed is the initial create message; transcript chunks (if any)
+    // are follow-ups.
     expect(
-      forumChannel.threads.create.mock.calls[0][0].message.content,
-    ).toContain("Ticket");
+      forumChannel.threads.create.mock.calls[0][0].message.embeds[0].data.title,
+    ).toContain("Support");
     // Forum tag ensured + applied
     expect(fakeEnsureForumTag).toHaveBeenCalledWith(
       forumChannel,
@@ -403,6 +406,31 @@ describe("archiveAndCloseTicket", () => {
     });
   });
 
+  test("email ticket with an over-long sender name clamps the thread name to Discord's 100-char limit", async () => {
+    fakeBuiltinTypeInfo.mockReturnValue(null);
+    const client = makeFakeClient(forumChannel, () => null);
+    const channel = makeFakeChannel();
+    const ticket = makeTicket({
+      isEmailTicket: true,
+      emailSender: "verbose@example.com",
+      emailSenderName: "N".repeat(150),
+      emailSubject: "hi",
+    });
+
+    const result = await archiveAndCloseTicket(
+      client,
+      ticket,
+      "guild-1",
+      channel,
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
+    const createdName = forumChannel.threads.create.mock.calls[0][0].name;
+    expect(createdName).toHaveLength(100);
+  });
+
   test("regression: a normal ticket queries the createdBy namespace with isEmailTicket:false (never an email-import archive)", async () => {
     // The reported prod bug: an email-import archive's createdBy is the
     // importing admin. A normal ticket the admin opens must NOT match it —
@@ -437,7 +465,7 @@ describe("archiveAndCloseTicket", () => {
     });
   });
 
-  test("re-close into existing archive: appends separator + posts to existing thread", async () => {
+  test("re-close into existing archive: appends header embed + posts to existing thread", async () => {
     fakeBuiltinTypeInfo.mockReturnValue({
       typeId: "general",
       displayName: "General",
@@ -471,8 +499,8 @@ describe("archiveAndCloseTicket", () => {
     );
     const existingThread = forumState.threadsFetched.get("existing-thread-9");
     expect(existingThread.sentMessages.length).toBeGreaterThan(0);
-    // First sent message starts with the separator
-    expect(existingThread.sentMessages[0]).toContain("━━━");
+    // First sent message is the header embed — the visual divider between closes
+    expect(existingThread.sentMessages[0]).toContain("[embed] 🎫");
     // Tag already in existing array — no extra applyForumTags or save
     expect(fakeApplyForumTags).not.toHaveBeenCalled();
     expect(fakeRepoState.saveCalls).toHaveLength(0);
@@ -670,6 +698,42 @@ describe("archiveAndCloseTicket", () => {
     expect(saved.forumTagIds).toEqual(["tag-old", "tag-123"]);
     // Recovery succeeded → channel deleted as normal.
     expect(fakeVerifiedChannelDelete).toHaveBeenCalledTimes(1);
+  });
+
+  test("re-close with a NULL messageId row: creates a thread and repoints (no silent loss)", async () => {
+    // Pre-fix, a row with messageId=null matched neither branch: `archived`
+    // stayed true and the channel was deleted with the transcript never
+    // posted anywhere. It must take the recreate path instead.
+    fakeBuiltinTypeInfo.mockReturnValue({
+      typeId: "general",
+      displayName: "General",
+      emoji: null,
+    });
+    fakeRepoState.findOneByResult = { messageId: null, forumTagIds: [] };
+    const client = makeFakeClient(forumChannel, () => ({
+      username: "creator",
+    }));
+    const channel = makeFakeChannel();
+    const ticket = makeTicket({ type: "general" });
+
+    const result = await archiveAndCloseTicket(
+      client,
+      ticket,
+      "guild-1",
+      channel,
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
+    expect(forumChannel.threads.fetch).not.toHaveBeenCalled();
+    expect(forumChannel.threads.create).toHaveBeenCalledTimes(1);
+    expect(fakeRepoState.saveCalls).toHaveLength(1);
+    expect(fakeRepoState.saveCalls[0].messageId).toBe(
+      forumState.threadsCreated[0].id,
+    );
+    // Transcript landed in the new thread (header embed + at least one chunk).
+    expect(forumState.threadsCreated[0].sentMessages.length).toBeGreaterThan(0);
   });
 
   test("re-close where thread fetch fails NON-10003: bubbles, archive fails, channel preserved", async () => {

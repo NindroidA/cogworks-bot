@@ -83,6 +83,12 @@ export const MAX = {
   JOIN_VELOCITY_ENTRIES: 1000,
   /** Internal API max request body size: 1 MB */
   API_BODY_SIZE: 1024 * 1024,
+  /**
+   * Largest attachment the archive poster re-uploads into a forum thread:
+   * 10 MB — Discord's baseline upload limit for non-boosted guilds. Bigger
+   * files fall back to the (eventually-expiring) CDN link in the chunk text.
+   */
+  TRANSCRIPT_REUPLOAD_BYTES: 10 * 1024 * 1024,
   /** Announcement templates per guild (Discord autocomplete limit) */
   ANNOUNCEMENT_TEMPLATES: 25,
   /** Embed fields per announcement template */
@@ -226,6 +232,8 @@ export const TIMEOUTS = {
   COMPONENT: 60_000,
   /** Long-lived dashboards/wizards: 5 minutes */
   DASHBOARD: 300_000,
+  /** Per-attachment CDN download timeout during archiving: 30 seconds */
+  TRANSCRIPT_DOWNLOAD: 30_000,
 } as const;
 
 export const TEXT_LIMITS = {

@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.0] - 2026-07-03
+
+Archive transcripts got a full readability overhaul — and attachments now
+survive forever.
+
+### Added
+
+- **Attachments are re-uploaded into the archive thread.** Pictures and videos
+  render inline and stay viewable after the ticket channel is deleted — the old
+  behavior linked to Discord CDN URLs, which expire. Files ride directly under
+  the message they belong to, batched so no single post exceeds the upload
+  budget; a batch Discord still rejects is rescued file-by-file, and only a
+  file that can't upload at all falls back to its link. Anything over 10 MB
+  (or a failed/stalled download — 30s timeout) links instead of uploading.
+- **Transcript chrome can't be spoofed**: user lines that mimic the archive's
+  author lines or day dividers are neutralized with an invisible zero-width
+  space, so nobody can fabricate a staff message in the moderation archive.
+  Attachment/sticker names and poll questions are escaped so they can't break
+  the transcript markup.
+
+### Changed
+
+- **Archive forum posts are now chat-style** (ticket + application closes):
+  a colored embed header card (opened / closed / duration / type / creator /
+  assignee / message count), day dividers, short time-only timestamps,
+  consecutive messages from one author grouped under a single name line, and
+  plain message bodies — only foreign-bot embeds stay blockquoted. Transcripts
+  read like the conversation they archive.
+- **Author lines carry role badges**: 👤 the ticket opener, 🛡️ the assignee,
+  🤖 bots — you can tell who's who at a glance.
+- **Replies show context**: `↳ to staff_bob: "which rank did you buy…"`
+  instead of just naming the author.
+- **Re-closes** into an existing archive thread are now separated by a fresh
+  header card instead of a thin line, so multiple tickets in one thread are
+  easy to tell apart.
+
+### Fixed
+
+- Application archive headers no longer render as "🎫 Ticket: Application:
+  name" — applications get their own 📋 card.
+- **Silent transcript loss on re-close**: an archive row with a missing
+  thread reference matched neither the create nor the append branch — the
+  ticket channel was deleted while the transcript was never posted anywhere.
+  Those rows now recreate the archive thread instead.
+- Email-import archive threads with very long sender names no longer fail to
+  create (thread names are clamped to Discord's 100-char limit); very long
+  email subjects no longer break the header card (256-char embed-title clamp).
+
 ## [3.13.2] - 2026-06-26
 
 Close-flow follow-ups + a release-notes drift guard.

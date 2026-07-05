@@ -1,21 +1,30 @@
 /**
  * Pure transcript builder. Takes a shape-checked `TranscriptMessage[]`
- * plus metadata and produces a markdown header + chunked follow-up
+ * plus metadata and produces embed-header data + chunked follow-up
  * messages sized to fit inside Discord's 2000-char message limit.
  *
  * No Discord client or I/O — all Discord-touching concerns stay in the
- * fetcher layer. That separation is what makes this testable without a
- * gateway connection.
+ * fetcher/poster layers. That separation is what makes this testable without
+ * a gateway connection.
  *
  * Fidelity contract (v3.2.1): the transcript is an exact carbon copy of the
  * conversation. Message content is NEVER truncated — a message longer than a
  * single Discord post is split across multiple chunks on line boundaries (the
  * pre-v3.2.1 builder hard-truncated at 500 chars and silently dropped the
  * tail). Stickers, polls, and embed media are captured too.
+ *
+ * Readability contract (v3.14.0): archive posts read like a real Discord
+ * conversation — day dividers, short time-only timestamps, consecutive
+ * messages from one author grouped under a single name line, plain (unquoted)
+ * bodies. Only foreign-embed content stays blockquoted, so bot output is
+ * visually distinct from what people actually said. Attachments ride on their
+ * chunk as re-uploadable payloads (`TranscriptChunk.files`) so the poster can
+ * attach the real files — CDN links die when the source channel is deleted.
  */
 
 import { TEXT_LIMITS } from '../constants';
 import { toUnixSeconds } from '../time';
+import { escapeDiscordMarkdown } from '../validation/inputSanitizer';
 
 /** Per-message shape the fetcher hands to the builder. */
 export interface TranscriptMessage {
@@ -35,6 +44,8 @@ export interface TranscriptAttachment {
   name: string;
   url: string;
   contentType?: string;
+  /** Byte size from Discord — lets the poster skip re-uploads over the limit. */
+  size?: number;
 }
 
 export interface TranscriptEmbed {
@@ -59,7 +70,7 @@ export interface TranscriptPoll {
   answers: { text: string; voteCount: number }[];
 }
 
-/** Ticket-level metadata rendered into the header. */
+/** Ticket-level metadata rendered into the header embed. */
 export interface TicketMetadata {
   title: string;
   type: string;
@@ -67,11 +78,35 @@ export interface TicketMetadata {
   openedAt: Date;
   closedAt: Date;
   assignedToUsername: string | null;
+  /** Picks the header emoji + field set. Defaults to 'ticket'. */
+  kind?: 'ticket' | 'application';
+  /** Discord user id of the opener — badges their author lines with 👤. */
+  createdById?: string;
+  /** Discord user id of the assignee — badges their author lines with 🛡️. */
+  assignedToId?: string;
+}
+
+/** Author-line badge context, derived from {@link TicketMetadata}. */
+export interface AuthorBadges {
+  createdById?: string;
+  assignedToId?: string;
+}
+
+/** Pure header-embed data — the poster turns this into an EmbedBuilder. */
+export interface TranscriptHeaderData {
+  title: string;
+  fields: { name: string; value: string; inline: boolean }[];
+}
+
+/** One postable archive message: text plus the files to re-upload with it. */
+export interface TranscriptChunk {
+  content: string;
+  files: TranscriptAttachment[];
 }
 
 export interface TranscriptResult {
-  header: string;
-  chunks: string[];
+  headerData: TranscriptHeaderData;
+  chunks: TranscriptChunk[];
   messageCount: number;
   attachmentCount: number;
 }
@@ -80,9 +115,21 @@ export interface TranscriptResult {
 const CHUNK_SOFT_LIMIT = TEXT_LIMITS.TRANSCRIPT_CHUNK_SOFT;
 /** Discord's hard per-message limit. No emitted chunk may exceed this. */
 const CHUNK_HARD_LIMIT = TEXT_LIMITS.TRANSCRIPT_CHUNK_HARD;
+/** Discord's hard per-message attachment limit. */
+const MAX_FILES_PER_MESSAGE = 10;
+/**
+ * Messages from the same author within this window collapse under one name
+ * line — mirrors Discord's own message-grouping behavior.
+ */
+const GROUP_WINDOW_MS = 7 * 60_000;
 
-/** `<t:unix:f>` — Discord renders this in the viewer's local timezone. */
-function formatDiscordTimestamp(date: Date): string {
+/** `<t:unix:t>` — short time-only stamp; the day divider carries the date. */
+function formatTimeStamp(date: Date): string {
+  return `<t:${toUnixSeconds(date)}:t>`;
+}
+
+/** `<t:unix:f>` — full date+time, used in the header embed fields. */
+function formatFullStamp(date: Date): string {
   return `<t:${toUnixSeconds(date)}:f>`;
 }
 
@@ -106,39 +153,61 @@ function blockquote(body: string): string {
     .join('\n');
 }
 
-export function formatHeader(metadata: TicketMetadata, messageCount: number, attachmentCount: number): string {
+/**
+ * Header data for the archive post's embed card. Applications omit the
+ * "Assigned to" row when there's no assignee (tickets show "Unassigned" —
+ * unassigned tickets are signal, unassigned applications are the norm).
+ */
+export function buildHeaderData(
+  metadata: TicketMetadata,
+  messageCount: number,
+  attachmentCount: number,
+): TranscriptHeaderData {
+  const kind = metadata.kind ?? 'ticket';
   const duration = formatDurationShort(metadata.closedAt.getTime() - metadata.openedAt.getTime());
-  const lines = [
-    `# 🎫 Ticket: ${metadata.title}`,
-    '',
-    `**Created by:** ${metadata.createdByUsername}`,
-    `**Opened:** ${formatDiscordTimestamp(metadata.openedAt)}`,
-    `**Closed:** ${formatDiscordTimestamp(metadata.closedAt)}`,
-    `**Duration:** ${duration}`,
-    `**Type:** ${metadata.type}`,
-    `**Assigned to:** ${metadata.assignedToUsername ?? 'Unassigned'}`,
-    `**Messages:** ${messageCount}`,
+  const fields: TranscriptHeaderData['fields'] = [
+    { name: 'Opened', value: formatFullStamp(metadata.openedAt), inline: true },
+    { name: 'Closed', value: formatFullStamp(metadata.closedAt), inline: true },
+    { name: 'Duration', value: duration, inline: true },
+    { name: 'Type', value: metadata.type, inline: true },
+    { name: 'Created by', value: metadata.createdByUsername, inline: true },
   ];
-  if (attachmentCount > 0) lines.push(`**Attachments:** ${attachmentCount}`);
-  lines.push('', '---');
-  return lines.join('\n');
+  if (metadata.assignedToUsername !== null || kind === 'ticket') {
+    fields.push({ name: 'Assigned to', value: metadata.assignedToUsername ?? 'Unassigned', inline: true });
+  }
+  const counts = attachmentCount > 0 ? `${messageCount} · ${attachmentCount} 📎` : `${messageCount}`;
+  fields.push({ name: 'Messages', value: counts, inline: true });
+  // Discord caps embed titles at 256 chars — an email-ticket subject can
+  // exceed that, and an over-limit title fails the whole archive post.
+  const title = `${kind === 'application' ? '📋' : '🎫'} ${metadata.title}`;
+  return {
+    title: title.length > 256 ? `${title.slice(0, 255)}…` : title,
+    fields,
+  };
+}
+
+/** Escape the chars that break a markdown link label (`[name](url)`). */
+function escapeLinkLabel(name: string): string {
+  return name.replace(/\\/g, '\\\\').replace(/([[\]])/g, '\\$1');
 }
 
 function formatAttachment(a: TranscriptAttachment): string {
-  if (!a.url) return `> 📎 ~~${a.name}~~ (unavailable)`;
-  return `> 📎 [${a.name}](${a.url})`;
+  if (!a.url) return `📎 ~~${escapeLinkLabel(a.name)}~~ (unavailable)`;
+  // <url> suppresses Discord's link preview — the re-uploaded file on the
+  // same chunk is the visible copy; the link is the fallback if that fails.
+  return `📎 [${escapeLinkLabel(a.name)}](<${a.url}>)`;
 }
 
 function formatSticker(s: TranscriptSticker): string {
-  if (!s.url) return `> 🏷️ Sticker: ${s.name}`;
-  return `> 🏷️ Sticker: [${s.name}](${s.url})`;
+  if (!s.url) return `🏷️ Sticker: ${escapeLinkLabel(s.name)}`;
+  return `🏷️ Sticker: [${escapeLinkLabel(s.name)}](${s.url})`;
 }
 
 function formatPoll(poll: TranscriptPoll): string[] {
-  const lines = [`> 📊 **Poll:** ${poll.question}`];
+  const lines = [`📊 **Poll:** ${escapeDiscordMarkdown(poll.question)}`];
   for (const answer of poll.answers) {
     const votes = `${answer.voteCount} vote${answer.voteCount === 1 ? '' : 's'}`;
-    lines.push(`> • ${answer.text} — ${votes}`);
+    lines.push(`• ${answer.text} — ${votes}`);
   }
   return lines;
 }
@@ -157,23 +226,44 @@ function formatEmbedBody(embed: TranscriptEmbed): string[] {
   if (embed.thumbnailUrl) parts.push(`🖼️ [thumbnail](${embed.thumbnailUrl})`);
   if (embed.footer) parts.push(`— ${embed.footer}`);
   if (parts.length === 0) return [];
-  // Indent the whole embed one level deeper than the message blockquote.
-  return blockquote(parts.join('\n'))
-    .split('\n')
-    .map(line => `> ${line}`);
+  // Blockquote the embed so foreign-bot output stays visually distinct from
+  // the plain-bodied human conversation around it.
+  return blockquote(parts.join('\n')).split('\n');
 }
 
-export function formatMessage(msg: TranscriptMessage): string {
-  const header = msg.replyTo
-    ? `**${msg.author.username}** ${formatDiscordTimestamp(msg.timestamp)}  ↩️ *replying to ${msg.replyTo.author}*`
-    : `**${msg.author.username}** ${formatDiscordTimestamp(msg.timestamp)}`;
+/** A user line masquerading as our author-line chrome: optional badge, bold name, · timestamp. */
+const AUTHOR_CHROME_SPOOF_RE = /^\s*(?:👤|🛡️|🤖)?\s*\*\*.+\*\*\s*·\s*<t:\d+:[a-zA-Z]>/;
+/** A user line masquerading as our `-# ` subtext chrome (day dividers). */
+const SUBTEXT_SPOOF_RE = /^-#\s/;
 
+/**
+ * Neutralize user content lines that mimic the transcript's own chrome
+ * (author lines, day dividers). Plain bodies made spoofing possible: a user
+ * could type '🛡️ **Admin** · <t:1:t>' and fabricate a staff message in the
+ * moderation archive. A zero-width space breaks the markdown while keeping
+ * the text readable; only chrome-shaped lines are touched — everything else
+ * stays a verbatim carbon copy.
+ */
+function neutralizeChromeSpoofs(content: string): string {
+  const ZWSP = '\u200B';
+  return content
+    .split('\n')
+    .map(line => {
+      if (SUBTEXT_SPOOF_RE.test(line)) return line.replace('-#', `-${ZWSP}#`);
+      if (AUTHOR_CHROME_SPOOF_RE.test(line)) return line.replace('**', `*${ZWSP}*`);
+      return line;
+    })
+    .join('\n');
+}
+
+/** Body lines only — used for both fresh messages and grouped continuations. */
+function formatMessageBody(msg: TranscriptMessage): string {
   const bodyLines: string[] = [];
 
   // Full content — never truncated. Oversized messages are split across
-  // chunks by chunkByMessageBoundary so nothing is ever lost.
+  // chunks by the chunker so nothing is ever lost.
   if (msg.content) {
-    bodyLines.push(blockquote(msg.content));
+    bodyLines.push(neutralizeChromeSpoofs(msg.content));
   }
 
   for (const embed of msg.embeds) {
@@ -193,12 +283,99 @@ export function formatMessage(msg: TranscriptMessage): string {
   }
 
   if (bodyLines.length === 0) {
-    // Message filtered from body content but kept because something referenced it
-    // (edge case: a reply chain anchor with empty body).
-    bodyLines.push('> *(no content)*');
+    // Message filtered from body content but kept because something referenced
+    // it (edge case: a reply chain anchor with empty body).
+    bodyLines.push('*(no content)*');
   }
 
-  return [header, ...bodyLines].join('\n');
+  return bodyLines.join('\n');
+}
+
+/** 🤖 bots, 👤 the ticket opener, 🛡️ the assignee — no badge for anyone else. */
+function authorBadge(msg: TranscriptMessage, badges?: AuthorBadges): string {
+  if (msg.author.bot) return '🤖 ';
+  if (badges?.createdById && msg.author.id === badges.createdById) return '👤 ';
+  if (badges?.assignedToId && msg.author.id === badges.assignedToId) return '🛡️ ';
+  return '';
+}
+
+/**
+ * Reply marker with a short context snippet — the full original message is
+ * elsewhere in the transcript, so the snippet trims markdown and truncates.
+ */
+function formatReplyMarker(replyTo: NonNullable<TranscriptMessage['replyTo']>): string {
+  const clean = replyTo.content
+    .replace(/[*_`|~]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!clean) return `↳ *to ${replyTo.author}*`;
+  const snippet = clean.length > 60 ? `${clean.slice(0, 59)}…` : clean;
+  return `↳ *to ${replyTo.author}: "${snippet}"*`;
+}
+
+export function formatMessage(msg: TranscriptMessage, badges?: AuthorBadges): string {
+  const stamp = `${authorBadge(msg, badges)}**${msg.author.username}** · ${formatTimeStamp(msg.timestamp)}`;
+  const header = msg.replyTo ? `${stamp}  ${formatReplyMarker(msg.replyTo)}` : stamp;
+  return `${header}\n${formatMessageBody(msg)}`;
+}
+
+/** UTC calendar-day key for divider bucketing. */
+function utcDayKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** `-# ── Wednesday, April 1, 2026 ──` — small grey subtext divider (UTC). */
+function formatDayDivider(date: Date): string {
+  const label = date.toLocaleDateString('en-US', {
+    timeZone: 'UTC',
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  return `-# ── ${label} ──`;
+}
+
+/** One packable unit: a formatted message (or author-group) plus its files. */
+interface TranscriptUnit {
+  text: string;
+  files: TranscriptAttachment[];
+}
+
+/**
+ * Format kept messages into units: day dividers are prepended to the first
+ * message of each UTC day, and consecutive messages from the same author
+ * within {@link GROUP_WINDOW_MS} merge under one name line. A message that
+ * carries attachments ends its unit so the chunker can pin the files directly
+ * beneath its text.
+ */
+function buildUnits(kept: TranscriptMessage[], badges?: AuthorBadges): TranscriptUnit[] {
+  const units: TranscriptUnit[] = [];
+  let prev: TranscriptMessage | null = null;
+
+  for (const msg of kept) {
+    const uploadable = msg.attachments.filter(a => a.url);
+    const newDay = !prev || utcDayKey(prev.timestamp) !== utcDayKey(msg.timestamp);
+    const canGroup =
+      prev !== null &&
+      !newDay &&
+      prev.author.id === msg.author.id &&
+      !msg.replyTo &&
+      prev.attachments.length === 0 &&
+      msg.timestamp.getTime() - prev.timestamp.getTime() <= GROUP_WINDOW_MS;
+
+    if (canGroup) {
+      const unit = units[units.length - 1];
+      unit.text += `\n${formatMessageBody(msg)}`;
+      unit.files.push(...uploadable);
+    } else {
+      const divider = newDay ? `${formatDayDivider(msg.timestamp)}\n` : '';
+      units.push({ text: divider + formatMessage(msg, badges), files: [...uploadable] });
+    }
+    prev = msg;
+  }
+
+  return units;
 }
 
 /** Hard-slice a string into ≤`limit` segments. Last resort — never drops content. */
@@ -219,7 +396,7 @@ const QUOTE_PREFIX_RE = /^((?:> )+)/;
  * closed on the current piece and reopened on the next — at the SAME blockquote
  * depth the fence was opened — so each resulting Discord message renders as
  * valid markdown. A single line longer than `limit` is hard-sliced on its
- * content while preserving its `> ` prefix on every segment, so continuation
+ * content while preserving any `> ` prefix on every segment, so continuation
  * pieces stay blockquoted. Content is never dropped.
  */
 function splitFormattedMessage(message: string, limit: number): string[] {
@@ -228,8 +405,8 @@ function splitFormattedMessage(message: string, limit: number): string[] {
   let bufLen = 0;
   let inFence = false;
   // The blockquote depth the active fence was opened at — close/reopen must
-  // match it (a fence inside an embed body is double-quoted: `> > ```).
-  let fencePrefix = '> ';
+  // match it (a fence inside an embed body is quoted: `> ```).
+  let fencePrefix = '';
   const fenceLine = () => `${fencePrefix}\`\`\``;
 
   const flush = (willContinue: boolean) => {
@@ -260,8 +437,8 @@ function splitFormattedMessage(message: string, limit: number): string[] {
 
     if (line.length > limit) {
       // Pathological single line (a long URL / base64 blob with no newline).
-      // Hard-slice the CONTENT and re-apply the quote prefix to every segment so
-      // continuation pieces stay blockquoted; reserve headroom for a fence
+      // Hard-slice the CONTENT and re-apply any quote prefix to every segment
+      // so continuation pieces stay blockquoted; reserve headroom for a fence
       // close/reopen wrapper so every emitted piece stays ≤ limit. A fence
       // marker is short and never lands here, so fence state is unaffected.
       const reserve = fenceLine().length + 1;
@@ -282,38 +459,79 @@ function splitFormattedMessage(message: string, limit: number): string[] {
   return pieces;
 }
 
+/** Split files into ≤10-per-message batches (Discord's attachment cap). */
+function batchFiles(files: TranscriptAttachment[]): TranscriptAttachment[][] {
+  const batches: TranscriptAttachment[][] = [];
+  for (let i = 0; i < files.length; i += MAX_FILES_PER_MESSAGE) {
+    batches.push(files.slice(i, i + MAX_FILES_PER_MESSAGE));
+  }
+  return batches;
+}
+
 /**
- * Pack already-formatted messages into chunks, each guaranteed ≤ `hardLimit`
- * characters, never dropping content. Whole messages stay together when they
- * fit; a single message larger than `softLimit` is split on line boundaries
- * (see {@link splitFormattedMessage}). A final defensive pass hard-slices any
- * chunk still over `hardLimit` — silent loss here is the exact failure mode the
- * carbon-copy fix exists to prevent.
+ * Pack formatted units into chunks, each guaranteed ≤ `hardLimit` characters
+ * and ≤ 10 files, never dropping content. Whole units stay together when they
+ * fit; a single unit larger than `softLimit` is split on line boundaries (see
+ * {@link splitFormattedMessage}). A unit with files forces a flush right after
+ * its text so the re-uploaded attachments render directly beneath the message
+ * they belong to. A final defensive pass hard-slices any chunk still over
+ * `hardLimit` — silent loss here is the exact failure mode the carbon-copy fix
+ * exists to prevent.
+ */
+function chunkUnits(units: TranscriptUnit[], softLimit: number, hardLimit: number): TranscriptChunk[] {
+  const chunks: TranscriptChunk[] = [];
+  let buffer = '';
+  const flush = () => {
+    if (buffer) {
+      chunks.push({ content: buffer, files: [] });
+      buffer = '';
+    }
+  };
+
+  for (const unit of units) {
+    const pieces = unit.text.length <= softLimit ? [unit.text] : splitFormattedMessage(unit.text, softLimit);
+    for (const piece of pieces) {
+      if (buffer && buffer.length + 2 + piece.length > softLimit) flush();
+      buffer = buffer ? `${buffer}\n\n${piece}` : piece;
+    }
+    if (unit.files.length > 0) {
+      // Pin files under their message: flush the text, attach the first batch
+      // to it, and overflow extra batches into marker-only follow-up chunks.
+      flush();
+      const batches = batchFiles(unit.files);
+      chunks[chunks.length - 1].files = batches[0];
+      for (let b = 1; b < batches.length; b++) {
+        chunks.push({ content: '-# 📎 (continued)', files: batches[b] });
+      }
+    }
+  }
+  flush();
+
+  return chunks.flatMap(chunk => {
+    if (chunk.content.length <= hardLimit) return [chunk];
+    const slices = hardSlice(chunk.content, hardLimit);
+    return slices.map((content, i) => ({
+      content,
+      files: i === slices.length - 1 ? chunk.files : [],
+    }));
+  });
+}
+
+/**
+ * Pack already-formatted text messages into ≤`hardLimit` strings. Text-only
+ * spine of {@link chunkUnits}, kept for callers that chunk plain markdown
+ * (e.g. ticket-create answer posts).
  */
 export function chunkByMessageBoundary(
   formattedMessages: string[],
   softLimit: number = CHUNK_SOFT_LIMIT,
   hardLimit: number = CHUNK_HARD_LIMIT,
 ): string[] {
-  const chunks: string[] = [];
-  let buffer = '';
-  const flush = () => {
-    if (buffer) {
-      chunks.push(buffer);
-      buffer = '';
-    }
-  };
-
-  for (const message of formattedMessages) {
-    const pieces = message.length <= softLimit ? [message] : splitFormattedMessage(message, softLimit);
-    for (const piece of pieces) {
-      if (buffer && buffer.length + 2 + piece.length > softLimit) flush();
-      buffer = buffer ? `${buffer}\n\n${piece}` : piece;
-    }
-  }
-  flush();
-
-  return chunks.flatMap(chunk => (chunk.length <= hardLimit ? [chunk] : hardSlice(chunk, hardLimit)));
+  return chunkUnits(
+    formattedMessages.map(text => ({ text, files: [] })),
+    softLimit,
+    hardLimit,
+  ).map(chunk => chunk.content);
 }
 
 function shouldIncludeMessage(msg: TranscriptMessage): boolean {
@@ -340,29 +558,30 @@ function shouldIncludeMessage(msg: TranscriptMessage): boolean {
 }
 
 /**
- * End-to-end builder. Filters out system/UI noise, formats survivors,
- * and chunks them to fit Discord's per-message limit.
+ * End-to-end builder. Filters out system/UI noise, formats survivors
+ * chat-style, and chunks them (text + attachment payloads) to fit Discord's
+ * per-message limits.
  */
 export function buildTranscript(messages: TranscriptMessage[], metadata: TicketMetadata): TranscriptResult {
   const kept = messages.filter(shouldIncludeMessage);
   const attachmentCount = kept.reduce((sum, m) => sum + m.attachments.length, 0);
-  const header = formatHeader(metadata, kept.length, attachmentCount);
+  const headerData = buildHeaderData(metadata, kept.length, attachmentCount);
 
   if (kept.length === 0) {
     const hadAny = messages.length > 0;
     return {
-      header,
-      chunks: [hadAny ? '*(No human messages)*' : '*(No messages)*'],
+      headerData,
+      chunks: [{ content: hadAny ? '*(No human messages)*' : '*(No messages)*', files: [] }],
       messageCount: 0,
       attachmentCount: 0,
     };
   }
 
-  const formatted = kept.map(formatMessage);
-  const chunks = chunkByMessageBoundary(formatted);
+  const units = buildUnits(kept, { createdById: metadata.createdById, assignedToId: metadata.assignedToId });
+  const chunks = chunkUnits(units, CHUNK_SOFT_LIMIT, CHUNK_HARD_LIMIT);
 
   return {
-    header,
+    headerData,
     chunks,
     messageCount: kept.length,
     attachmentCount,

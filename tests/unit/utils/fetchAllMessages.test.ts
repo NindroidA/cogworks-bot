@@ -156,6 +156,22 @@ describe('fetchMessagesAsTranscript mapping', () => {
   });
 });
 
+describe('attachment mapping', () => {
+  test('maps name, url, contentType, and size (the size gates the re-upload cap)', async () => {
+    const msg = makeMsg({
+      attachments: new Map([
+        ['1', { name: 'shot.png', url: 'https://cdn/shot.png', contentType: 'image/png', size: 12345 }],
+        ['2', { name: 'clip.mp4', url: 'https://cdn/clip.mp4', contentType: null, size: 999 }],
+      ]),
+    });
+    const [out] = await fetchMessagesAsTranscript(makeChannel([msg]), 'bot-id');
+    expect(out.attachments).toEqual([
+      { name: 'shot.png', url: 'https://cdn/shot.png', contentType: 'image/png', size: 12345 },
+      { name: 'clip.mp4', url: 'https://cdn/clip.mp4', contentType: undefined, size: 999 },
+    ]);
+  });
+});
+
 describe('fetch → build integration', () => {
   test('a single >2000-char message survives end-to-end with every chunk <= 2000', async () => {
     const body = `START-${'q'.repeat(5000)}-END`;
@@ -165,9 +181,9 @@ describe('fetch → build integration', () => {
 
     const result = buildTranscript(transcriptMessages, META);
     for (const chunk of result.chunks) {
-      expect(chunk.length).toBeLessThanOrEqual(2000);
+      expect(chunk.content.length).toBeLessThanOrEqual(2000);
     }
-    const flat = result.chunks.join('\n').replace(/\n> /g, '').replace(/^> /gm, '');
+    const flat = result.chunks.map(c => c.content).join('\n');
     expect(flat).toContain('START-');
     expect(flat).toContain('-END');
     expect(flat.split('q').length - 1).toBe(5000);

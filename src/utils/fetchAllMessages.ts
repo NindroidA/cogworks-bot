@@ -60,6 +60,7 @@ function toTranscriptMessage(m: Message, byId: Map<string, Message>, botClientId
       name: a.name,
       url: a.url,
       contentType: a.contentType ?? undefined,
+      size: a.size,
     })),
     embeds: m.embeds.map(e => ({
       title: e.title ?? undefined,

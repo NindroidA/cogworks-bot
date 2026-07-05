@@ -68,8 +68,10 @@ function makeFakeThread(id = "new-thread-1") {
   const state = { id, sentMessages: [] as string[] };
   return {
     ...state,
-    send: jest.fn(async ({ content }: { content: string }) => {
-      state.sentMessages.push(content);
+    send: jest.fn(async ({ content, embeds }: { content?: string; embeds?: any[] }) => {
+      // Embed-only sends (header cards) are recorded as a tagged title line so
+      // assertions can distinguish them from transcript text chunks.
+      state.sentMessages.push(content ?? `[embed] ${embeds?.[0]?.data?.title ?? ""}`);
       return { id: `${id}-msg-${state.sentMessages.length}` };
     }),
   };
@@ -162,7 +164,7 @@ describe("archiveAndCloseApplication", () => {
     expect(fakeVerifiedChannelDelete).toHaveBeenCalledTimes(1);
   });
 
-  test("re-close append: posts separator into the existing thread, no new thread", async () => {
+  test("re-close append: posts header embed into the existing thread, no new thread", async () => {
     fakeRepoState.findOneByResult = { messageId: "existing-app-thread" };
     const client = makeFakeClient(forumChannel);
     const result = await archiveAndCloseApplication(
@@ -178,7 +180,31 @@ describe("archiveAndCloseApplication", () => {
     expect(forumChannel.threads.create).not.toHaveBeenCalled();
     expect(forumChannel.threads.fetch).toHaveBeenCalledWith("existing-app-thread", { force: true });
     const thread = forumState.threadsFetched.get("existing-app-thread");
-    expect(thread.sentMessages[0]).toContain("━━━");
+    expect(thread.sentMessages[0]).toContain("[embed] 📋");
+    expect(fakeVerifiedChannelDelete).toHaveBeenCalledTimes(1);
+  });
+
+  test("re-close with a NULL messageId row: creates a thread and repoints (no silent loss)", async () => {
+    // Pre-fix, a row with messageId=null matched neither branch: `archived`
+    // stayed true and the channel was deleted with the transcript never
+    // posted anywhere. It must take the recreate path instead.
+    fakeRepoState.findOneByResult = { messageId: null };
+    const client = makeFakeClient(forumChannel);
+
+    const result = await archiveAndCloseApplication(
+      client,
+      makeApplication(),
+      "guild-1",
+      makeChannel(),
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
+    expect(forumChannel.threads.fetch).not.toHaveBeenCalled();
+    expect(forumChannel.threads.create).toHaveBeenCalledTimes(1);
+    expect(fakeRepoState.saveCalls).toHaveLength(1);
+    expect(fakeRepoState.saveCalls[0].messageId).toBe(forumState.threadsCreated[0].id);
     expect(fakeVerifiedChannelDelete).toHaveBeenCalledTimes(1);
   });
 
