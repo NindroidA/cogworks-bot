@@ -1,6 +1,6 @@
 {
   "name": "cogworks-bot",
-  "version": "3.14.2",
+  "version": "3.14.3",
   "description": "A modular Discord server management bot built with TypeScript and Discord.js",
   "main": "index.js",
   "scripts": {

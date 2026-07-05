@@ -1,5 +1,6 @@
 import { PermissionFlagsBits, SlashCommandBuilder, SlashCommandSubcommandGroupBuilder } from 'discord.js';
 import { lang } from '../../utils';
+import { AUTOMOD_TEMPLATES, TEMPLATE_IDS } from '../../utils/automod/templates';
 
 const tl = lang.automod.builder;
 
@@ -63,12 +64,11 @@ const templateGroup = new SlashCommandSubcommandGroupBuilder()
           .setName('template')
           .setDescription(tl.template.apply.template)
           .setRequired(true)
-          .addChoices(
-            { name: 'Anti-Spam', value: 'anti-spam' },
-            { name: 'Anti-Phishing', value: 'anti-phishing' },
-            { name: 'Family-Friendly', value: 'family-friendly' },
-            { name: 'Gaming', value: 'gaming' },
-          ),
+          // Derived from the template catalog — a new template shows up here
+          // without hand-syncing this list. slice(25): Discord caps choices at
+          // 25 per option, and an oversized list would crash command
+          // registration for the whole bot, not just this command.
+          .addChoices(...TEMPLATE_IDS.slice(0, 25).map(id => ({ name: AUTOMOD_TEMPLATES[id].name, value: id }))),
       ),
   );
 

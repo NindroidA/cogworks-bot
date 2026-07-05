@@ -389,10 +389,16 @@ export async function eventTemplateAutocomplete(
   const filtered = templates
     .filter(t => t.name.includes(focused) || t.title.toLowerCase().includes(focused))
     .slice(0, 25)
-    .map(t => ({
-      name: `${t.title} (${t.entityType})`,
-      value: t.name,
-    }));
+    .map(t => {
+      // Discord caps autocomplete choice names at 100 chars; titles alone can
+      // be 100 (modal max) and the suffix pushes past — one over-long template
+      // would make Discord reject the whole payload and blank the dropdown.
+      const name = `${t.title} (${t.entityType})`;
+      return {
+        name: name.length > 100 ? `${name.slice(0, 99)}…` : name,
+        value: t.name,
+      };
+    });
 
   await respond(filtered);
 }

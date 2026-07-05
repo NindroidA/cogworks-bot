@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.3] - 2026-07-05
+
+Autocomplete that never worked, now wired.
+
+### Fixed
+
+- **/automod autocomplete works**: all eight rule-picker options (rule
+  edit/delete, keyword add/remove, regex add/remove, exempt add/remove)
+  declared autocomplete but the handler was never registered — the dropdown
+  silently never responded. It now suggests the guild's AutoMod rules by name.
+- **/event autocomplete works** (broken since v3.0.0): template names now
+  autocomplete on `from-template`, `recurring`, and `template edit/delete`,
+  and `cancel`/`remind` suggest the server's live scheduled events by name.
+- **/automod template choices** are now derived from the template catalog
+  instead of a hand-synced list, so new templates appear automatically.
+
 ## [3.14.2] - 2026-07-05
 
 Archive close-path bugs from the audit deep-dive.
