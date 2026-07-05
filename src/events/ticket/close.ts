@@ -7,10 +7,9 @@ import {
   type GuildTextBasedChannel,
   MessageFlags,
 } from 'discord.js';
-import { Not } from 'typeorm';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
-import { enhancedLogger, LogCategory, lang, replyEphemeralError } from '../../utils';
+import { claimClose, enhancedLogger, LogCategory, lang, releaseClose, replyEphemeralError } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
 import { type ArchiveTicketResult, archiveAndCloseTicket } from '../../utils/ticket/closeWorkflow';
 
@@ -79,10 +78,9 @@ export const ticketCloseEvent = async (
 
   // Immediately mark as closed to prevent concurrent close attempts. The
   // status guard above is check-then-set — two near-simultaneous confirms
-  // could both pass it — so the flip itself is conditional: whoever loses
-  // the UPDATE gets affected=0 and bails as a duplicate.
-  const flip = await deps.ticketRepo.update({ id: ticket.id, guildId, status: Not('closed') }, { status: 'closed' });
-  if (flip?.affected === 0) {
+  // could both pass it — so the flip itself is atomic (claimClose): whoever
+  // loses the UPDATE bails as a duplicate.
+  if (!(await claimClose(deps.ticketRepo, ticket.id, guildId))) {
     enhancedLogger.warn('Ticket close lost the flip race — concurrent close already in progress', LogCategory.SYSTEM, {
       guildId,
       channelId,
@@ -101,7 +99,7 @@ export const ticketCloseEvent = async (
     // channel still exists, so revert the status (otherwise the dup-close guard
     // strands it permanently) and tell the user instead of leaving them on
     // "Closing ticket...".
-    await deps.ticketRepo.update({ id: ticket.id, guildId }, { status: ticket.status });
+    await releaseClose(deps.ticketRepo, ticket.id, guildId, ticket.status);
     enhancedLogger.error(
       'Ticket close threw unexpectedly — status reverted, channel preserved for retry',
       error instanceof Error ? error : undefined,
@@ -117,7 +115,7 @@ export const ticketCloseEvent = async (
     // workflow deliberately preserved the channel, so revert the status —
     // otherwise the ticket is stranded 'closed' with a live channel and the
     // dup-close guard blocks any retry.
-    await deps.ticketRepo.update({ id: ticket.id, guildId }, { status: ticket.status });
+    await releaseClose(deps.ticketRepo, ticket.id, guildId, ticket.status);
     enhancedLogger.warn(
       'Ticket close reverted — archive failed, channel + ticket preserved for retry',
       LogCategory.SYSTEM,

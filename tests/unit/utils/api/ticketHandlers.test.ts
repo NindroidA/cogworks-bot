@@ -264,10 +264,11 @@ describe("POST /tickets/:id/close", () => {
       getCloseHandler()("guild-1", {}, "/tickets/42/close"),
     ).rejects.toThrow("transient DB error");
 
-    // Flip to closed, then revert to the original status.
+    // Flip to closed, then a CONDITIONAL revert to the original status (only
+    // while still 'closed' — a concurrent status change must not be clobbered).
     expect(ticketRepoState.updateCalls).toHaveLength(2);
     expect(ticketRepoState.updateCalls[1]).toEqual({
-      criteria: { id: 42, guildId: "guild-1" },
+      criteria: { id: 42, guildId: "guild-1", status: "closed" },
       partial: { status: "open" },
     });
     expect(fakeWriteAuditAction).not.toHaveBeenCalled();

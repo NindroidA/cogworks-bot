@@ -4,6 +4,7 @@ import { Application } from '../../../typeorm/entities/application/Application';
 import { ArchivedApplicationConfig } from '../../../typeorm/entities/application/ArchivedApplicationConfig';
 import { archiveAndCloseApplication as defaultArchiveAndCloseApplication } from '../../application/closeWorkflow';
 import { lazyRepo } from '../../database/lazyRepo';
+import { claimClose, releaseClose } from '../../database/statusFlip';
 import { ApiError } from '../apiError';
 import { getAndValidateEntity, optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
@@ -33,7 +34,10 @@ export function registerApplicationHandlers(
     });
     if (app.status === 'closed') throw ApiError.conflict('Application already closed');
 
-    await applicationRepo.update({ id: app.id, guildId }, { status: 'accepted' });
+    // Conditional — an approve racing a concurrent archive must not overwrite
+    // 'closed' and resurrect an application that is mid-archive.
+    const flip = await applicationRepo.update({ id: app.id, guildId, status: Not('closed') }, { status: 'accepted' });
+    if (flip?.affected === 0) throw ApiError.conflict('Application already closed');
 
     // Send approval message in channel if accessible
     const channel = app.channelId ? await client.channels.fetch(app.channelId).catch(() => null) : null;
@@ -57,7 +61,10 @@ export function registerApplicationHandlers(
     });
     if (app.status === 'closed') throw ApiError.conflict('Application already closed');
 
-    await applicationRepo.update({ id: app.id, guildId }, { status: 'rejected' });
+    // Conditional — a deny racing a concurrent archive must not overwrite
+    // 'closed' (see approve above).
+    const flip = await applicationRepo.update({ id: app.id, guildId, status: Not('closed') }, { status: 'rejected' });
+    if (flip?.affected === 0) throw ApiError.conflict('Application already closed');
 
     const channel = app.channelId ? await client.channels.fetch(app.channelId).catch(() => null) : null;
     if (channel?.isTextBased()) {
@@ -80,10 +87,11 @@ export function registerApplicationHandlers(
     const archivedConfig = await archivedAppConfigRepo.findOneBy({ guildId });
     if (!archivedConfig) throw ApiError.notFound('Archive config not found');
 
-    // Mark closed — conditional so a concurrent close loses cleanly instead
-    // of both proceeding.
-    const flip = await applicationRepo.update({ id: app.id, guildId, status: Not('closed') }, { status: 'closed' });
-    if (flip?.affected === 0) throw ApiError.conflict('Application already closed');
+    // Mark closed — atomic flip so a concurrent close (or the Discord close
+    // button) loses cleanly instead of both proceeding.
+    if (!(await claimClose(applicationRepo, app.id, guildId))) {
+      throw ApiError.conflict('Application already closed');
+    }
 
     // Distinguish a genuinely-gone channel (10003 → nothing to archive, terminal
     // close) from a transient/permission fetch failure (→ revert so a retry can
@@ -96,7 +104,7 @@ export function registerApplicationHandlers(
         })
       : null;
     if (channelFetchFailed) {
-      await applicationRepo.update({ id: app.id, guildId }, { status: app.status });
+      await releaseClose(applicationRepo, app.id, guildId, app.status);
       return { success: false, archived: false };
     }
     if (!channel?.isTextBased()) {
@@ -116,14 +124,14 @@ export function registerApplicationHandlers(
       // Unexpected throw — the channel still exists; revert so the archive can
       // be retried, then rethrow so the API reports the failure (mirrors the
       // ticket close handler + events/application/close.ts).
-      await applicationRepo.update({ id: app.id, guildId }, { status: app.status });
+      await releaseClose(applicationRepo, app.id, guildId, app.status);
       throw error;
     }
 
     if (!result.archived) {
       // Archive failed — the workflow preserved the channel; revert the status
       // so the archive can be retried instead of stranding it 'closed'.
-      await applicationRepo.update({ id: app.id, guildId }, { status: app.status });
+      await releaseClose(applicationRepo, app.id, guildId, app.status);
       return { success: false, archived: false };
     }
 

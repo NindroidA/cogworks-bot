@@ -105,7 +105,13 @@ describe('ticketCloseEvent', () => {
       { id: 7, guildId: 'guild1', status: Not('closed') },
       { status: 'closed' },
     );
-    expect(ticketRepo.update).toHaveBeenNthCalledWith(2, { id: 7, guildId: 'guild1' }, { status: 'opened' });
+    // Revert is conditional too — only un-closes the row while it's still
+    // 'closed' (a concurrent status change must not be clobbered).
+    expect(ticketRepo.update).toHaveBeenNthCalledWith(
+      2,
+      { id: 7, guildId: 'guild1', status: 'closed' },
+      { status: 'opened' },
+    );
     expect(replyEphemeralError).toHaveBeenCalledTimes(1);
     expect(replyEphemeralError).toHaveBeenCalledWith(expect.anything(), tl.transcriptCreate.error);
   });
@@ -117,7 +123,11 @@ describe('ticketCloseEvent', () => {
     await ticketCloseEvent(client, makeInteraction(), deps);
 
     expect(ticketRepo.update).toHaveBeenCalledTimes(2);
-    expect(ticketRepo.update).toHaveBeenNthCalledWith(2, { id: 7, guildId: 'guild1' }, { status: 'opened' });
+    expect(ticketRepo.update).toHaveBeenNthCalledWith(
+      2,
+      { id: 7, guildId: 'guild1', status: 'closed' },
+      { status: 'opened' },
+    );
     expect(replyEphemeralError).toHaveBeenCalledWith(expect.anything(), tl.transcriptCreate.error);
   });
 

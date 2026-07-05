@@ -113,17 +113,25 @@ export async function ensureForumTag(
  * @param forumChannel - The forum channel containing the thread
  * @param threadId - The thread/post ID to apply tags to
  * @param tagIds - Array of tag IDs to add (order-preserving, deduped)
+ * @returns The tag ids actually applied to the thread, or null on failure /
+ * no-op. Callers that persist tag state must check this — the 5-tag Discord
+ * cap can drop an incoming tag, and persisting it anyway makes the DB claim
+ * a tag the thread will never show.
  */
-export async function applyForumTags(forumChannel: ForumChannel, threadId: string, tagIds: string[]): Promise<void> {
+export async function applyForumTags(
+  forumChannel: ForumChannel,
+  threadId: string,
+  tagIds: string[],
+): Promise<string[] | null> {
   try {
     const incoming = tagIds.filter(id => id.length > 0);
     if (incoming.length === 0) {
       enhancedLogger.info('No valid tags to apply to forum post', LogCategory.SYSTEM, { threadId });
-      return;
+      return null;
     }
 
     const thread = await forumChannel.threads.fetch(threadId);
-    if (!thread) return;
+    if (!thread) return null;
 
     // Live thread tags first (manual additions survive), then new ones.
     const merged = [...(thread.appliedTags ?? [])];
@@ -145,10 +153,12 @@ export async function applyForumTags(forumChannel: ForumChannel, threadId: strin
       threadId,
       tagCount: applied.length,
     });
+    return applied;
   } catch (error) {
     enhancedLogger.error('Failed to apply forum tags to post', error as Error, LogCategory.ERROR, {
       threadId,
       tagIds,
     });
+    return null;
   }
 }

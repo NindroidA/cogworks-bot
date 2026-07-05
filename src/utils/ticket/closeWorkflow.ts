@@ -327,9 +327,14 @@ export async function archiveAndCloseTicket(
           const newTagId = forumTagIds[0];
           if (!existingTags.includes(newTagId)) {
             const mergedTags = [...existingTags, newTagId];
-            await deps.applyForumTags(forumChannel, post.id, mergedTags);
-            existingArchive.forumTagIds = mergedTags;
-            await deps.archivedTicketRepo.save(existingArchive);
+            const applied = await deps.applyForumTags(forumChannel, post.id, mergedTags);
+            // Persist only if the tag actually reached the thread — the 5-tag
+            // cap can drop it, and recording it anyway would make this guard
+            // skip every future attempt while the thread never shows the tag.
+            if (applied?.includes(newTagId)) {
+              existingArchive.forumTagIds = mergedTags;
+              await deps.archivedTicketRepo.save(existingArchive);
+            }
           }
         }
       }

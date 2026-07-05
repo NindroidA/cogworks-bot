@@ -24,6 +24,7 @@ import {
   test,
 } from "bun:test";
 import type { Client } from "discord.js";
+import { Not } from "typeorm";
 
 // Injected into registerApplicationHandlers (3rd arg) — NOT mock.module'd.
 // Mocking the shared application/closeWorkflow module here would leak
@@ -177,7 +178,7 @@ describe("POST /applications/:id/approve", () => {
 
     expect(result).toEqual({ success: true, applicationId: 7 });
     expect(applicationRepoState.updateCalls[0]).toEqual({
-      criteria: { id: 7, guildId: "guild-1" },
+      criteria: { id: 7, guildId: "guild-1", status: Not("closed") },
       partial: { status: "accepted" },
     });
     expect(fakeChannelSend).toHaveBeenCalledTimes(1);
@@ -344,8 +345,10 @@ describe("POST /applications/:id/archive", () => {
     );
 
     expect(result).toEqual({ success: true, archived: true });
-    expect(applicationRepoState.updateCalls[0].partial).toEqual({
-      status: "closed",
+    // Atomic flip (claimClose): conditional on not-already-closed
+    expect(applicationRepoState.updateCalls[0]).toEqual({
+      criteria: { id: 7, guildId: "guild-1", status: Not("closed") },
+      partial: { status: "closed" },
     });
     expect(fakeArchiveAndCloseApp).toHaveBeenCalledTimes(1);
     expect(fakeArchiveAndCloseApp.mock.calls[0][4]).toBe("archive-forum-1");
@@ -355,6 +358,62 @@ describe("POST /applications/:id/archive", () => {
       "application.archive",
       { applicationId: 7 },
     );
+  });
+
+  test("flip race lost (affected=0) → 409, no archive attempt", async () => {
+    applicationRepoState.findOneByResult = {
+      id: 7,
+      guildId: "guild-1",
+      status: "pending",
+      channelId: "app-channel-1",
+    };
+    archivedAppConfigRepoState.findOneByResult = {
+      guildId: "guild-1",
+      channelId: "archive-forum-1",
+    };
+    applicationRepo.update.mockResolvedValueOnce({ affected: 0 });
+
+    await expect(
+      getRoute("POST /applications/:id/archive")(
+        "guild-1",
+        {},
+        "/applications/7/archive",
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: "Application already closed",
+    });
+    expect(fakeArchiveAndCloseApp).not.toHaveBeenCalled();
+  });
+
+  test("workflow throws unexpectedly → status conditionally reverted, error propagates", async () => {
+    applicationRepoState.findOneByResult = {
+      id: 7,
+      guildId: "guild-1",
+      status: "pending",
+      channelId: "app-channel-1",
+    };
+    archivedAppConfigRepoState.findOneByResult = {
+      guildId: "guild-1",
+      channelId: "archive-forum-1",
+    };
+    fakeArchiveAndCloseApp.mockRejectedValueOnce(new Error("transient DB error"));
+
+    await expect(
+      getRoute("POST /applications/:id/archive")(
+        "guild-1",
+        {},
+        "/applications/7/archive",
+      ),
+    ).rejects.toThrow("transient DB error");
+
+    // Flip to closed, then a CONDITIONAL revert (only while still 'closed').
+    expect(applicationRepoState.updateCalls).toHaveLength(2);
+    expect(applicationRepoState.updateCalls[1]).toEqual({
+      criteria: { id: 7, guildId: "guild-1", status: "closed" },
+      partial: { status: "pending" },
+    });
+    expect(fakeWriteAuditAction).not.toHaveBeenCalled();
   });
 
   test("returns 404 when archive config missing", async () => {

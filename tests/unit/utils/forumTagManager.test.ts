@@ -29,10 +29,11 @@ function makeForum(liveTags: string[] | null, opts: { threadMissing?: boolean } 
 }
 
 describe('applyForumTags', () => {
-  test('accumulates onto the thread\'s live tags (manual tags survive)', async () => {
+  test("accumulates onto the thread's live tags (manual tags survive) and returns what was applied", async () => {
     const { forum, applied } = makeForum(['manual-1']);
-    await applyForumTags(forum, 't1', ['db-1', 'db-2']);
+    const result = await applyForumTags(forum, 't1', ['db-1', 'db-2']);
     expect(applied).toEqual([['manual-1', 'db-1', 'db-2']]);
+    expect(result).toEqual(['manual-1', 'db-1', 'db-2']);
   });
 
   test('dedupes incoming tags already on the thread', async () => {
@@ -41,21 +42,23 @@ describe('applyForumTags', () => {
     expect(applied).toEqual([['a', 'b', 'c']]);
   });
 
-  test('caps at 5 tags, keeping live tags first and dropping the overflow', async () => {
+  test('caps at 5 tags, keeping live tags first — the return value reveals the drop', async () => {
     const { forum, applied } = makeForum(['l1', 'l2', 'l3', 'l4']);
-    await applyForumTags(forum, 't1', ['n1', 'n2']);
+    const result = await applyForumTags(forum, 't1', ['n1', 'n2']);
     expect(applied).toEqual([['l1', 'l2', 'l3', 'l4', 'n1']]);
+    expect(result).toEqual(['l1', 'l2', 'l3', 'l4', 'n1']);
+    expect(result).not.toContain('n2');
   });
 
-  test('empty/blank incoming tags are a no-op (no fetch, no write)', async () => {
+  test('empty/blank incoming tags are a no-op returning null (no fetch, no write)', async () => {
     const { forum, applied } = makeForum(['a']);
-    await applyForumTags(forum, 't1', ['']);
+    expect(await applyForumTags(forum, 't1', [''])).toBeNull();
     expect(applied).toHaveLength(0);
   });
 
-  test('missing thread is a silent no-op', async () => {
+  test('missing thread is a silent no-op returning null', async () => {
     const { forum, applied } = makeForum(null, { threadMissing: true });
-    await applyForumTags(forum, 't1', ['a']);
+    expect(await applyForumTags(forum, 't1', ['a'])).toBeNull();
     expect(applied).toHaveLength(0);
   });
 

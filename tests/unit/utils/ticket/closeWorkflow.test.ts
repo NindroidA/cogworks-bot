@@ -81,7 +81,7 @@ const fakeVerifiedChannelDelete = jest.fn(async () => ({
 const fakeFetchMessages = jest.fn(async () => [] as any[]);
 
 const fakeEnsureForumTag = jest.fn(async () => "tag-123");
-const fakeApplyForumTags = jest.fn(async () => undefined);
+const fakeApplyForumTags = jest.fn(async (_forum: unknown, _threadId: unknown, tags: string[]) => tags);
 
 const fakeResolveTicketType = jest.fn();
 // Default implementation = real `builtinTypeInfo` shape so other test files
@@ -264,7 +264,9 @@ describe("archiveAndCloseTicket", () => {
     fakeEnsureForumTag.mockClear();
     fakeEnsureForumTag.mockImplementation(async () => "tag-123");
     fakeApplyForumTags.mockClear();
-    fakeApplyForumTags.mockImplementation(async () => undefined);
+    // New contract: returns the tags actually applied (callers only persist
+    // tags that reached the thread). Default = everything applied.
+    fakeApplyForumTags.mockImplementation(async (_forum: unknown, _threadId: unknown, tags: string[]) => tags);
     fakeResolveTicketType.mockReset();
     fakeBuiltinTypeInfo.mockReset();
     // Restore the real-impl default so cross-suite imports get correct
@@ -545,6 +547,39 @@ describe("archiveAndCloseTicket", () => {
       "tag-old-support",
       "tag-bug",
     ]);
+  });
+
+  test("re-close: tag dropped by the 5-tag cap is NOT persisted (retryable next re-close)", async () => {
+    fakeBuiltinTypeInfo.mockReturnValue({
+      typeId: "bug",
+      displayName: "Bug Report",
+      emoji: "🐛",
+    });
+    fakeEnsureForumTag.mockResolvedValue("tag-bug");
+    // applyForumTags reports the new tag did NOT reach the thread (cap/failure).
+    fakeApplyForumTags.mockResolvedValue(["manual-1", "manual-2", "manual-3", "manual-4", "tag-old-support"]);
+    fakeRepoState.findOneByResult = {
+      messageId: "existing-thread-9",
+      forumTagIds: ["tag-old-support"],
+    };
+    const client = makeFakeClient(forumChannel, () => ({
+      username: "creator",
+    }));
+
+    const result = await archiveAndCloseTicket(
+      client,
+      makeTicket({ type: "bug" }),
+      "guild-1",
+      makeFakeChannel(),
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
+    expect(fakeApplyForumTags).toHaveBeenCalledTimes(1);
+    // Persisting the dropped tag would make the includes-guard skip every
+    // future attempt while the thread never shows it — so no save.
+    expect(fakeRepoState.saveCalls).toHaveLength(0);
   });
 
   test("transcript fetch failure: short-circuits before any forum write or channel delete", async () => {

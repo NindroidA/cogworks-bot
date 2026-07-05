@@ -108,13 +108,18 @@ export async function migrateTicketTagsHandler(interaction: ChatInputCommandInte
             skipped++;
             continue;
           }
-          await applyForumTags(forumChannel, archived.messageId, mergedTags);
+          const applied = await applyForumTags(forumChannel, archived.messageId, mergedTags);
 
-          // Update database with merged tags
-          archived.forumTagIds = mergedTags;
-          await archivedTicketRepo.save(archived);
-
-          updated++;
+          // Persist only if the tag actually reached the thread — otherwise the
+          // includes-guard above would skip every future attempt while the
+          // thread never shows the tag (5-tag cap / apply failure).
+          if (applied?.includes(tagId)) {
+            archived.forumTagIds = mergedTags;
+            await archivedTicketRepo.save(archived);
+            updated++;
+          } else {
+            skipped++;
+          }
         }
       } catch (error) {
         enhancedLogger.error(`Error migrating ticket ${archived.id}`, error as Error, LogCategory.DATABASE);

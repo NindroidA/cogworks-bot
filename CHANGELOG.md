@@ -19,10 +19,16 @@ Archive close-path bugs from the audit deep-dive.
   the close workflow now reverts the ticket/application status (channel
   preserved for retry) instead of leaving it marked closed with a live channel
   — the API paths now match what the Discord close button already did.
-- **Double-close race fixed**: two near-simultaneous closes (double-click, or
-  button racing the dashboard) could both pass the "already closed" guard.
-  The status flip is now atomic — the loser is told the ticket is already
-  closed instead of both attempting to archive.
+- **Double-close race fixed** in all four close paths (ticket + application,
+  Discord button + dashboard API): two near-simultaneous closes could both
+  pass the "already closed" guard. The status flip is now atomic (shared
+  `claimClose` helper) — the loser is told it's already closed instead of both
+  archiving. Reverts after a failed close are conditional too (`releaseClose`),
+  so they can't clobber a status a concurrent request wrote in between, and
+  approve/deny can no longer overwrite `closed` mid-archive.
+- **Dropped forum tags stay retryable**: when the 5-tag cap keeps an archive
+  tag off the thread, it's no longer recorded as applied — the next re-close
+  tries again instead of skipping it forever.
 
 ## [3.14.1] - 2026-07-04
 
