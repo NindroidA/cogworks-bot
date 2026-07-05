@@ -746,6 +746,7 @@ export interface LangTicket {
 export interface LangApplication {
   error: string;
   failCreate: string;
+  failPostCreate: string;
   setup: {
     cmdDescrp: string;
     options: {

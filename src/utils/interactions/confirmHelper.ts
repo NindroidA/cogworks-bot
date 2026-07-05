@@ -113,9 +113,10 @@ export async function awaitConfirmation(
     });
     return { interaction: btn as ButtonInteraction, response };
   } catch {
-    // Timeout — silently remove buttons
+    // Timeout — tell the user, matching the sibling helpers
+    // (awaitSelectMenuChoice / notifyModalTimeout), and remove the buttons.
     try {
-      await interaction.editReply({ components: [] });
+      await interaction.editReply({ content: lang.errors.timeout, embeds: [], components: [] });
     } catch {
       /* expired */
     }

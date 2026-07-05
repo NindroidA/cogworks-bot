@@ -335,8 +335,12 @@ export const submitApplicationModal = async (_client: Client, interaction: Modal
       },
     );
 
-    if (!interaction.replied && !interaction.deferred) {
-      await replyEphemeralError(interaction, tl.failCreate);
-    }
+    // Unconditional: a failure AFTER the "submitted!" reply (welcome/header
+    // sends, the status update) used to be invisible to the applicant —
+    // replyEphemeralError follows up when already replied. Post-submit
+    // failures get their own message: the application row + channel already
+    // exist, so "please try again" would cause duplicate applications and
+    // burn the applicant's rate-limit allowance.
+    await replyEphemeralError(interaction, interaction.replied ? tl.failPostCreate : tl.failCreate);
   }
 };

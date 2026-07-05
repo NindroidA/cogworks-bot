@@ -2,7 +2,7 @@ import type { Client, MessageReaction, PartialMessageReaction, PartialUser, Text
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { StarboardConfig } from '../typeorm/entities/starboard/StarboardConfig';
 import { StarboardEntry } from '../typeorm/entities/starboard/StarboardEntry';
-import { enhancedLogger, LogCategory } from '../utils';
+import { enhancedLogger, fetchPartial, LogCategory } from '../utils';
 import { CACHE_TTL } from '../utils/constants';
 import { lazyRepo } from '../utils/database/lazyRepo';
 
@@ -86,20 +86,8 @@ export async function handleStarboardReactionAdd(
 
   try {
     // Fetch partials if needed
-    if (reaction.partial) {
-      try {
-        await reaction.fetch();
-      } catch {
-        return;
-      }
-    }
-    if (reaction.message.partial) {
-      try {
-        await reaction.message.fetch();
-      } catch {
-        return;
-      }
-    }
+    if (reaction.partial && !(await fetchPartial(reaction, 'reaction'))) return;
+    if (reaction.message.partial && !(await fetchPartial(reaction.message, 'message'))) return;
 
     const message = reaction.message;
     if (!message.guild) return;
@@ -230,20 +218,8 @@ export async function handleStarboardReactionRemove(
 
   try {
     // Fetch partials if needed
-    if (reaction.partial) {
-      try {
-        await reaction.fetch();
-      } catch {
-        return;
-      }
-    }
-    if (reaction.message.partial) {
-      try {
-        await reaction.message.fetch();
-      } catch {
-        return;
-      }
-    }
+    if (reaction.partial && !(await fetchPartial(reaction, 'reaction'))) return;
+    if (reaction.message.partial && !(await fetchPartial(reaction.message, 'message'))) return;
 
     const message = reaction.message;
     if (!message.guild) return;

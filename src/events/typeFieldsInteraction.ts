@@ -5,7 +5,7 @@ import {
   handleFieldSelectMenu,
   handlePreviewModal,
 } from '../commands/handlers/ticket/typeFields';
-import { enhancedLogger, LogCategory } from '../utils';
+import { enhancedLogger, LogCategory, lang, replyEphemeralError } from '../utils';
 
 /**
  * Event handler for type-fields interactions (buttons, select menus, modals).
@@ -100,6 +100,12 @@ export const typeFieldsInteraction = async (_client: Client, interaction: Intera
       LogCategory.COMMAND_EXECUTION,
       { userId: interaction.user.id, guildId },
     );
+    // Returning true claims the interaction and disarms the router's
+    // safety-net reply — so surface the failure here, or the user is
+    // stranded on a stale loading state with no feedback.
+    if (interaction.isRepliable()) {
+      await replyEphemeralError(interaction, lang.general.fatalError, { bugReport: true });
+    }
     return true; // we tried; don't fall through to other handlers
   }
 
