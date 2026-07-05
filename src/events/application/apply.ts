@@ -335,8 +335,9 @@ export const submitApplicationModal = async (_client: Client, interaction: Modal
       },
     );
 
-    if (!interaction.replied && !interaction.deferred) {
-      await replyEphemeralError(interaction, tl.failCreate);
-    }
+    // Unconditional: a failure AFTER the "submitted!" reply (welcome/header
+    // sends, the status update) used to be invisible to the applicant —
+    // replyEphemeralError follows up when already replied.
+    await replyEphemeralError(interaction, tl.failCreate);
   }
 };

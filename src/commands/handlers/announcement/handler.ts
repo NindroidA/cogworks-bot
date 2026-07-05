@@ -81,10 +81,18 @@ export async function announcementHandler(client: Client, interaction: ChatInput
 
     await replyEphemeralError(interaction, tlErr.unknownSubcommand);
   } catch (error) {
-    enhancedLogger.error(tl.error + error, undefined, LogCategory.COMMAND_EXECUTION);
-    if (!interaction.replied && !interaction.deferred) {
-      await replyEphemeralError(interaction, tl.fail);
-    }
+    enhancedLogger.error(
+      tl.error,
+      error instanceof Error ? error : new Error(String(error)),
+      LogCategory.COMMAND_EXECUTION,
+      {
+        guildId,
+      },
+    );
+    // Unconditional: replyEphemeralError follows up when the preview already
+    // replied — the old !replied && !deferred guard left the user stranded on
+    // the frozen preview when the send failed after they clicked Send.
+    await replyEphemeralError(interaction, tl.fail);
   }
 }
 

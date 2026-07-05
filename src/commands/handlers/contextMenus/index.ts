@@ -10,7 +10,7 @@ import {
   MessageFlags,
   type UserContextMenuCommandInteraction,
 } from 'discord.js';
-import { enhancedLogger, LogCategory } from '../../../utils';
+import { enhancedLogger, LogCategory, lang, replyEphemeralError } from '../../../utils';
 import { captureToMemoryHandler } from './captureToMemory';
 import { manageRestrictionsHandler } from './manageRestrictions';
 import { openTicketForUserHandler } from './openTicketForUser';
@@ -74,12 +74,8 @@ export async function handleContextMenuCommand(
       guildId: interaction.guildId,
     });
 
-    try {
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: 'An error occurred. Please try again.', flags: [MessageFlags.Ephemeral] });
-      }
-    } catch {
-      // Interaction may have expired
-    }
+    // Unconditional + state-aware: a handler that replied/deferred before
+    // throwing used to leave the user with no feedback at all.
+    await replyEphemeralError(interaction, lang.general.fatalError, { bugReport: true });
   }
 }

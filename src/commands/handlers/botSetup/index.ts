@@ -13,12 +13,12 @@ import { BotConfig } from '../../../typeorm/entities/BotConfig';
 import { SetupState, type SystemStates } from '../../../typeorm/entities/SetupState';
 import {
   createButtonCollector,
-  createErrorEmbed,
   enhancedLogger,
   extractModalField,
   guardAdminRateLimit,
   LogCategory,
   RateLimits,
+  replyEphemeralError,
   showAndAwaitModal,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -91,12 +91,9 @@ export async function botSetupHandler(
     await showDashboard(interaction, client, guildId, setupState);
   } catch (error) {
     enhancedLogger.error('Bot setup handler failed', error as Error, LogCategory.COMMAND_EXECUTION, { guildId });
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({
-        embeds: [createErrorEmbed('Setup failed. Please try again.')],
-        flags: [MessageFlags.Ephemeral],
-      });
-    }
+    // Unconditional + state-aware: an error thrown after the dashboard was
+    // shown used to be invisible (the !replied && !deferred guard skipped it).
+    await replyEphemeralError(interaction, 'Setup failed. Please try again.');
   }
 }
 
@@ -236,6 +233,15 @@ async function collectDashboardInteractions(
   selectCollector.on('collect', async (selectInteraction: any) => {
     const systemId = selectInteraction.values[0];
     const result = await runSystemFlow(systemId, selectInteraction, client, guildId, setupState);
+
+    if (result.failed) {
+      // Surface on the dashboard's own interaction — the select interaction may
+      // only have been acknowledged via showModal, where a reply can't land.
+      await replyEphemeralError(
+        interaction,
+        `Configuring **${systemId}** failed — check the bot's permissions and try again.`,
+      );
+    }
 
     // Always refresh the dashboard (restores it from any intermediate state)
     setupState.systemStates = result.states;
