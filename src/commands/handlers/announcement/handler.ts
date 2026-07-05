@@ -258,21 +258,37 @@ async function previewAndSend(
     }
   }
 
-  const newLog = new AnnouncementLog();
-  newLog.guildId = guildId;
-  newLog.channelId = targetChannel.id;
-  newLog.messageId = sentMessage.id;
-  newLog.type = template.name;
-  newLog.sentBy = interaction.user.id;
-  newLog.scheduledTime = params.time ? new Date(params.time * 1000) : null;
-  newLog.version = params.version || null;
-  await announcementLogRepo.save(newLog);
+  // Past this point the announcement IS live in the channel. Bookkeeping
+  // failures (log row, ack edit) must never bubble to the outer catch — its
+  // "Failed to send announcement" would tell the operator to re-send and
+  // double-ping the role.
+  try {
+    const newLog = new AnnouncementLog();
+    newLog.guildId = guildId;
+    newLog.channelId = targetChannel.id;
+    newLog.messageId = sentMessage.id;
+    newLog.type = template.name;
+    newLog.sentBy = interaction.user.id;
+    newLog.scheduledTime = params.time ? new Date(params.time * 1000) : null;
+    newLog.version = params.version || null;
+    await announcementLogRepo.save(newLog);
 
-  await result.interaction.editReply({
-    content: `Announcement sent to ${targetChannel}!`,
-    embeds: [],
-    components: [],
-  });
+    await result.interaction.editReply({
+      content: `Announcement sent to ${targetChannel}!`,
+      embeds: [],
+      components: [],
+    });
+  } catch (error) {
+    enhancedLogger.error(
+      'Announcement sent but post-send bookkeeping failed (log row / ack)',
+      error instanceof Error ? error : new Error(String(error)),
+      LogCategory.COMMAND_EXECUTION,
+      { guildId, channelId: targetChannel.id, messageId: sentMessage.id },
+    );
+    await result.interaction
+      .editReply({ content: `Announcement sent to ${targetChannel}!`, embeds: [], components: [] })
+      .catch(() => null);
+  }
 
   enhancedLogger.info(
     `User ${interaction.user.username} sent ${template.name} announcement`,

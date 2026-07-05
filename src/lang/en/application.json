@@ -1,6 +1,7 @@
 {
   "error": "Could not create create application!",
   "failCreate": "Could not create application! Please try again.",
+  "failPostCreate": "Your application was submitted, but something went wrong while setting up your channel. Please contact staff instead of re-applying.",
   "applicationConfigNotFound": "Application Config does not exist!",
   "applicationCategoryNotFound": "Application Category does not exist!",
   "archiveApplicationConfigNotFound": "Archived Application Config does not exist!",

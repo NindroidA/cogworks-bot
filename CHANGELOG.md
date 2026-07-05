@@ -16,6 +16,11 @@ replied or deferred now always reach the user instead of leaving a frozen
 - **Global command error net** used a bare reply that failed whenever the
   crashing command had already deferred/replied — exactly the case it exists
   for. It now picks reply/edit/follow-up based on interaction state.
+- **No false failure messages either**: an announcement whose bookkeeping
+  fails *after* it posted no longer tells the operator "Failed to send"
+  (which invited a duplicate, double-pinging re-send), and an application
+  that breaks after "submitted!" now says so — instead of "please try again",
+  which caused duplicate applications.
 - **Field-editor buttons/menus/modals** (ticket types + application positions)
   that hit an error used to swallow it entirely; they now show the standard
   error message with a bug-report link.
