@@ -198,6 +198,9 @@ export async function archiveAndCloseTicket(
     type: typeInfo?.displayName || ticket.type || 'Unknown',
     createdByUsername:
       (ticket.isEmailTicket && ticket.emailSenderName) || creatorUser?.username || ticket.emailSender || 'Unknown',
+    // Fallback only — the channel's createdAt (set below when available) is the
+    // real open time. Ticket has no createdAt column, so lastActivityAt is the
+    // closest approximation when the channel object can't provide one.
     openedAt: ticket.lastActivityAt ? new Date(Math.min(ticket.lastActivityAt.getTime(), Date.now())) : new Date(),
     closedAt: new Date(),
     assignedToUsername: assignedUser?.username ?? null,
@@ -324,9 +327,14 @@ export async function archiveAndCloseTicket(
           const newTagId = forumTagIds[0];
           if (!existingTags.includes(newTagId)) {
             const mergedTags = [...existingTags, newTagId];
-            await deps.applyForumTags(forumChannel, post.id, mergedTags);
-            existingArchive.forumTagIds = mergedTags;
-            await deps.archivedTicketRepo.save(existingArchive);
+            const applied = await deps.applyForumTags(forumChannel, post.id, mergedTags);
+            // Persist only if the tag actually reached the thread — the 5-tag
+            // cap can drop it, and recording it anyway would make this guard
+            // skip every future attempt while the thread never shows the tag.
+            if (applied?.includes(newTagId)) {
+              existingArchive.forumTagIds = mergedTags;
+              await deps.archivedTicketRepo.save(existingArchive);
+            }
           }
         }
       }

@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.2] - 2026-07-05
+
+Archive close-path bugs from the audit deep-dive.
+
+### Fixed
+
+- **Forum tags accumulate again**: applying archive tags used to REPLACE a
+  thread's tags, wiping anything a moderator had added by hand. Tags now merge
+  with what's live on the thread, and when the 5-tag Discord cap drops one,
+  it's logged instead of vanishing silently.
+- **Dashboard close/archive can't strand tickets**: an unexpected error inside
+  the close workflow now reverts the ticket/application status (channel
+  preserved for retry) instead of leaving it marked closed with a live channel
+  — the API paths now match what the Discord close button already did.
+- **Double-close race fixed** in all four close paths (ticket + application,
+  Discord button + dashboard API): two near-simultaneous closes could both
+  pass the "already closed" guard. The status flip is now atomic (shared
+  `claimClose` helper) — the loser is told it's already closed instead of both
+  archiving. Reverts after a failed close are conditional too (`releaseClose`),
+  so they can't clobber a status a concurrent request wrote in between, and
+  approve/deny can no longer overwrite `closed` mid-archive.
+- **Dropped forum tags stay retryable**: when the 5-tag cap keeps an archive
+  tag off the thread, it's no longer recorded as applied — the next re-close
+  tries again instead of skipping it forever.
+
 ## [3.14.1] - 2026-07-04
 
 No interaction left hanging: errors that happen after the bot has already

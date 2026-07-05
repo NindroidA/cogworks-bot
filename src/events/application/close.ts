@@ -9,7 +9,7 @@ import {
 } from 'discord.js';
 import { Application } from '../../typeorm/entities/application/Application';
 import { ArchivedApplicationConfig } from '../../typeorm/entities/application/ArchivedApplicationConfig';
-import { enhancedLogger, LogCategory, lang, replyEphemeralError } from '../../utils';
+import { claimClose, enhancedLogger, LogCategory, lang, releaseClose, replyEphemeralError } from '../../utils';
 import { type ArchiveApplicationResult, archiveAndCloseApplication } from '../../utils/application/closeWorkflow';
 import { lazyRepo } from '../../utils/database/lazyRepo';
 
@@ -53,7 +53,19 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
     return;
   }
 
-  await applicationRepo.update({ id: application.id, guildId }, { status: 'closed' });
+  // Atomic flip — the status guard above is check-then-set, so a button
+  // confirm racing the dashboard's archive (or a double-click) could pass it;
+  // whoever loses the conditional UPDATE bails as a duplicate. Mirrors
+  // events/ticket/close.ts.
+  if (!(await claimClose(applicationRepo, application.id, guildId))) {
+    enhancedLogger.warn(
+      'Application close lost the flip race — concurrent close already in progress',
+      LogCategory.SYSTEM,
+      { guildId, channelId },
+    );
+    await replyEphemeralError(interaction, tl.alreadyClosed);
+    return;
+  }
 
   let result: ArchiveApplicationResult;
   try {
@@ -62,7 +74,7 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
     // Unexpected throw escaped the workflow. Status was flipped to 'closed'
     // above but the channel still exists — revert (otherwise the dup-close guard
     // strands it) and tell the user instead of leaving "Closing application...".
-    await applicationRepo.update({ id: application.id, guildId }, { status: application.status });
+    await releaseClose(applicationRepo, application.id, guildId, application.status);
     enhancedLogger.error(
       'Application close threw unexpectedly — status reverted, channel preserved for retry',
       error instanceof Error ? error : undefined,
@@ -77,7 +89,7 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
     // Close did not complete (transcript fetch or forum post failed). The
     // workflow preserved the channel; revert the status so the close can be
     // retried instead of stranding a 'closed' application with a live channel.
-    await applicationRepo.update({ id: application.id, guildId }, { status: application.status });
+    await releaseClose(applicationRepo, application.id, guildId, application.status);
     enhancedLogger.warn(
       'Application close reverted — archive failed, channel + application preserved for retry',
       LogCategory.SYSTEM,

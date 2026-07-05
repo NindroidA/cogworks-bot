@@ -27,6 +27,7 @@ import {
   test,
 } from "bun:test";
 import type { Client } from "discord.js";
+import { Not } from "typeorm";
 
 // ---------------------------------------------------------------------------
 // Mocks for non-repo deps
@@ -197,9 +198,9 @@ describe("POST /tickets/:id/close", () => {
       guildId: "guild-1",
       id: 42,
     });
-    // Status flip happens BEFORE the archive call
+    // Status flip happens BEFORE the archive call, conditionally (race fix)
     expect(ticketRepoState.updateCalls[0]).toEqual({
-      criteria: { id: 42, guildId: "guild-1" },
+      criteria: { id: 42, guildId: "guild-1", status: Not("closed") },
       partial: { status: "closed" },
     });
     // Archive helper called with the right channel + archive config
@@ -244,6 +245,33 @@ describe("POST /tickets/:id/close", () => {
     });
     expect(ticketRepoState.updateCalls).toHaveLength(0);
     expect(fakeArchiveAndClose).not.toHaveBeenCalled();
+  });
+
+  test("workflow throws unexpectedly → status reverted, error propagates (no stranded close)", async () => {
+    ticketRepoState.findOneByResult = {
+      id: 42,
+      guildId: "guild-1",
+      status: "open",
+      channelId: "ticket-channel-1",
+    };
+    archivedTicketConfigRepoState.findOneByResult = {
+      guildId: "guild-1",
+      channelId: "archive-forum-1",
+    };
+    fakeArchiveAndClose.mockRejectedValueOnce(new Error("transient DB error"));
+
+    await expect(
+      getCloseHandler()("guild-1", {}, "/tickets/42/close"),
+    ).rejects.toThrow("transient DB error");
+
+    // Flip to closed, then a CONDITIONAL revert to the original status (only
+    // while still 'closed' — a concurrent status change must not be clobbered).
+    expect(ticketRepoState.updateCalls).toHaveLength(2);
+    expect(ticketRepoState.updateCalls[1]).toEqual({
+      criteria: { id: 42, guildId: "guild-1", status: "closed" },
+      partial: { status: "open" },
+    });
+    expect(fakeWriteAuditAction).not.toHaveBeenCalled();
   });
 
   test("returns 404 when archive config missing — no status flip, no archive call", async () => {

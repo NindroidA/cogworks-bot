@@ -2,6 +2,7 @@ import type { Client, GuildTextBasedChannel } from 'discord.js';
 import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { lazyRepo } from '../../database/lazyRepo';
+import { claimClose, releaseClose } from '../../database/statusFlip';
 import { archiveAndCloseTicket as defaultArchiveAndCloseTicket } from '../../ticket/closeWorkflow';
 import { ApiError } from '../apiError';
 import { getAndValidateEntity, isValidSnowflake, requireString } from '../helpers';
@@ -35,8 +36,12 @@ export function registerTicketHandlers(
     });
     if (!archivedConfig) throw ApiError.notFound('Archive config not found');
 
-    // Mark closed immediately
-    await ticketRepo.update({ id: ticket.id, guildId }, { status: 'closed' });
+    // Mark closed immediately — atomic flip so a concurrent close (button
+    // click racing the dashboard) loses cleanly instead of both proceeding
+    // past the guard above.
+    if (!(await claimClose(ticketRepo, ticket.id, guildId))) {
+      throw ApiError.conflict('Ticket already closed');
+    }
 
     // Get channel. Distinguish a genuinely-gone channel (Discord 10003 →
     // nothing to archive, terminal close) from a transient/permission fetch
@@ -50,25 +55,35 @@ export function registerTicketHandlers(
         })
       : null;
     if (channelFetchFailed) {
-      await ticketRepo.update({ id: ticket.id, guildId }, { status: ticket.status });
+      await releaseClose(ticketRepo, ticket.id, guildId, ticket.status);
       return { success: false, ticketId: ticket.id, archived: false };
     }
     if (!channel?.isTextBased()) {
       return { success: true, ticketId: ticket.id, archived: false };
     }
 
-    const result = await archiveAndCloseTicket(
-      client,
-      ticket,
-      guildId,
-      channel as GuildTextBasedChannel,
-      archivedConfig.channelId,
-    );
+    let result: Awaited<ReturnType<typeof archiveAndCloseTicket>>;
+    try {
+      result = await archiveAndCloseTicket(
+        client,
+        ticket,
+        guildId,
+        channel as GuildTextBasedChannel,
+        archivedConfig.channelId,
+      );
+    } catch (error) {
+      // An unexpected throw escaped the workflow (its metadata region isn't
+      // inside its try blocks). The channel still exists — revert the status
+      // so the close can be retried instead of stranding it 'closed', then
+      // rethrow so the API reports the failure (mirrors events/ticket/close.ts).
+      await releaseClose(ticketRepo, ticket.id, guildId, ticket.status);
+      throw error;
+    }
 
     if (!result.archived) {
       // Archive failed — the workflow preserved the channel; revert the status
       // so the close can be retried instead of stranding it 'closed'.
-      await ticketRepo.update({ id: ticket.id, guildId }, { status: ticket.status });
+      await releaseClose(ticketRepo, ticket.id, guildId, ticket.status);
       return { success: false, ticketId: ticket.id, archived: false };
     }
 
