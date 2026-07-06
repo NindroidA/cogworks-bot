@@ -19,7 +19,7 @@ import {
   Colors,
   E,
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   LogCategory,
   lang,
   RateLimits,
@@ -51,7 +51,9 @@ const DEFAULT_STATUS_TAGS = [
 ];
 
 export async function memorySetupHandler(client: Client, interaction: ChatInputCommandInteraction) {
-  const guard = await guardAdminRateLimit(interaction, {
+  // 'memory' is in the FEATURES catalog — all eight handlers in memory/ are
+  // already feature-guarded; this was the odd one out.
+  const guard = await guardFeatureRateLimit(interaction, 'memory', 'manage', {
     action: 'memory-setup',
     limit: RateLimits.BOT_SETUP,
     scope: 'guild',

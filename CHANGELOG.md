@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.5] - 2026-07-06
+
+Permission-guard and API-validation consistency.
+
+### Changed
+
+- **`/ticket-setup` and `/memory-setup` now honor webapp permissions**: both
+  used the legacy admin-only guard even though their features are in the
+  permission catalog — a webapp-granted tickets/memory manager couldn't run
+  them. Behavior for guilds without permission overrides is unchanged
+  (admin-only fallback).
+- **`/dev` archive-deletion commands** (bulk-close tickets, delete archived
+  tickets/applications) moved to feature-scoped `admin`-level guards, so the
+  webapp permission UI governs them like every other destructive action.
+
+### Fixed
+
+- **Internal API validation**: the announcement send route validated its
+  `params` object instead of blind-casting it (a non-object now returns 400),
+  and reaction-role `mode` is checked against `normal`/`unique`/`lock` — a
+  garbage mode used to be persisted verbatim and then silently never match at
+  reaction time. New `optionalRecord`/`optionalEnum` helpers with tests.
+- **Bait-channel pending-ban cleanup is always guild-scoped**: the delete
+  criteria's guild filter was optional; it's now required (data-isolation
+  invariant).
+
 ## [3.14.4] - 2026-07-06
 
 Documentation catch-up — no code changes.

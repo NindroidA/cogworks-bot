@@ -8,7 +8,7 @@ import { MAX } from '../../constants';
 import { lazyRepo } from '../../database/lazyRepo';
 import { sanitizeUserInput } from '../../validation/inputSanitizer';
 import { ApiError } from '../apiError';
-import { isValidSnowflake, optionalString, requireString, validateHexColor } from '../helpers';
+import { isValidSnowflake, optionalRecord, optionalString, requireString, validateHexColor } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditAction } from './auditHelper';
 
@@ -43,7 +43,7 @@ export function registerAnnouncementHandlers(client: Client, routes: Map<string,
       const roleId = config?.defaultRoleId;
 
       const params: TemplatePlaceholderParams = {};
-      const bodyParams = (body.params as Record<string, unknown>) || {};
+      const bodyParams = optionalRecord(body, 'params') ?? {};
       if (bodyParams.version) params.version = String(bodyParams.version);
       if (bodyParams.duration) params.duration = String(bodyParams.duration);
       if (bodyParams.time) params.time = Number(bodyParams.time);
