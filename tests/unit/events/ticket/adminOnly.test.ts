@@ -104,13 +104,16 @@ describe('ticketAdminOnlyEvent', () => {
 
   test('creator request with NO configured staff role never pings a literal "undefined"', async () => {
     const { deps, getBotConfig } = makeDeps();
-    getBotConfig.mockResolvedValue({ enableGlobalStaffRole: true, globalStaffRole: null });
+    // No globalStaffRole key at all — the historical bug interpolated the
+    // missing value, so the regression renders the literal string "undefined".
+    getBotConfig.mockResolvedValue({ enableGlobalStaffRole: true });
     const { interaction, sent } = makeInteraction('creator-1');
 
     await ticketAdminOnlyEvent(client, interaction, deps);
 
     expect(sent).toHaveLength(1);
     expect(sent[0].content).not.toContain('undefined');
+    expect(sent[0].content).not.toContain('null');
     expect(sent[0].content.startsWith(tl.modsAlert)).toBe(true);
   });
 

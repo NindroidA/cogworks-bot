@@ -50,6 +50,8 @@ function main() {
 // Only run the gate when executed directly — importing the module for tests
 // must not exit the process. (argv check instead of import.meta.main: the
 // project tsconfig targets a module mode where import.meta is unavailable.)
-if (process.argv[1]?.includes('checkChangelog')) {
+// endsWith, not includes: under `bun test` argv[1] is the test file path
+// (checkChangelog.test.ts), which a substring match would wrongly trigger on.
+if (process.argv[1]?.endsWith('/checkChangelog.ts')) {
   main();
 }
