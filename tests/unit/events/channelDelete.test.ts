@@ -362,6 +362,75 @@ describe('channelDelete event handler', () => {
     expect(mockClient.baitChannelManager.clearConfigCache).toHaveBeenCalledWith('guild-1');
   });
 
+  test('BaitChannelConfig: deleting the PRIMARY of several bait channels keeps detection enabled', async () => {
+    const channel = makeFakeChannel('bait-1', 'guild-1');
+    fakeRepos.BaitChannelConfig.rows.set('1', {
+      id: 1,
+      guildId: 'guild-1',
+      channelId: 'bait-1',
+      channelMessageId: 'warn-msg',
+      channelIds: ['bait-1', 'bait-2'],
+      logChannelId: null,
+      summaryChannelId: null,
+      enabled: true,
+    });
+
+    await channelDeleteHandler.execute(channel, mockClient);
+
+    expect(fakeRepos.BaitChannelConfig.saveCalls.length).toBe(1);
+    const saved = fakeRepos.BaitChannelConfig.saveCalls[0];
+    expect(saved.enabled).toBe(true); // survivors keep working
+    expect(saved.channelIds).toEqual(['bait-2']);
+    expect(saved.channelId).toBe('bait-2'); // legacy column re-pointed at new primary
+    expect(saved.channelMessageId).toBe(null); // warning message died with the channel
+  });
+
+  test('BaitChannelConfig: deleting a NON-primary bait channel keeps primary and warning message', async () => {
+    const channel = makeFakeChannel('bait-2', 'guild-1');
+    fakeRepos.BaitChannelConfig.rows.set('1', {
+      id: 1,
+      guildId: 'guild-1',
+      channelId: 'bait-1',
+      channelMessageId: 'warn-msg',
+      channelIds: ['bait-1', 'bait-2'],
+      logChannelId: null,
+      summaryChannelId: null,
+      enabled: true,
+    });
+
+    await channelDeleteHandler.execute(channel, mockClient);
+
+    expect(fakeRepos.BaitChannelConfig.saveCalls.length).toBe(1);
+    const saved = fakeRepos.BaitChannelConfig.saveCalls[0];
+    expect(saved.enabled).toBe(true);
+    expect(saved.channelIds).toEqual(['bait-1']);
+    expect(saved.channelId).toBe('bait-1');
+    expect(saved.channelMessageId).toBe('warn-msg');
+  });
+
+  test('BaitChannelConfig: deleting the LAST bait channel disables the system', async () => {
+    const channel = makeFakeChannel('bait-only', 'guild-1');
+    fakeRepos.BaitChannelConfig.rows.set('1', {
+      id: 1,
+      guildId: 'guild-1',
+      channelId: 'bait-only',
+      channelMessageId: 'warn-msg',
+      channelIds: ['bait-only'],
+      logChannelId: null,
+      summaryChannelId: null,
+      enabled: true,
+    });
+
+    await channelDeleteHandler.execute(channel, mockClient);
+
+    expect(fakeRepos.BaitChannelConfig.saveCalls.length).toBe(1);
+    const saved = fakeRepos.BaitChannelConfig.saveCalls[0];
+    expect(saved.enabled).toBe(false);
+    expect(saved.channelIds).toBe(null); // normalized, not []
+    expect(saved.channelId).toBe('');
+    expect(saved.channelMessageId).toBe(null);
+  });
+
   test('XPConfig: removes channel from ignoredChannels array', async () => {
     const channel = makeFakeChannel('chan-skip', 'guild-1');
     fakeRepos.XPConfig.rows.set('1', {

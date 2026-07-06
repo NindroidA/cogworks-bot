@@ -16,6 +16,7 @@ export {
 // Core utilities
 export * from './apiConnector';
 export * from './baitChannel/baitChannelManager';
+export * from './baitChannel/channelList';
 export * from './collectors';
 export * from './colors';
 // Constants

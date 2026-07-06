@@ -59,6 +59,7 @@ import {
   extractModalField,
   LogCategory,
   lang,
+  setBaitChannels,
   showAndAwaitModal,
   TIMEOUTS,
 } from '../../../utils';
@@ -768,15 +769,14 @@ const baitConfig: SimpleSystemConfig<BaitData, 'baitchannel'> = {
   apply: async (guildId, data, { guild, client }) => {
     const repo = AppDataSource.getRepository(BaitChannelConfig);
     let config = await repo.findOneBy({ guildId });
-    if (!config) config = repo.create({ guildId, channelId: data.channelId });
+    if (!config) config = repo.create({ guildId });
     // Re-running setup via the always-visible /bot-setup dashboard must yield a
     // functional (enabled) config. An existing row may carry enabled=false from
     // /baitchannel toggle or a deleted bait channel (channelDelete auto-disables);
     // without this, command-gating would keep /baitchannel hidden with no
     // in-Discord way back. This makes the dashboard the guaranteed re-enable path.
     config.enabled = true;
-    config.channelId = data.channelId;
-    config.channelIds = [data.channelId];
+    setBaitChannels(config, [data.channelId]);
     config.actionType = data.actionType;
     // Only set testMode when the auto-create path explicitly opts in. Manual
     // path leaves the column at whatever it was (default false on create).

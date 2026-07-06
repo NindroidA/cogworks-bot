@@ -15,6 +15,7 @@ import { TicketConfig } from '../typeorm/entities/ticket/TicketConfig';
 import { XPConfig } from '../typeorm/entities/xp/XPConfig';
 import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';
+import { getBaitChannelIds, setBaitChannels } from '../utils/baitChannel/channelList';
 import { invalidateGuildMenuCache } from '../utils/reactionRole/menuCache';
 import { invalidateRulesCache } from '../utils/rules/rulesCache';
 import { requestGuildCommandRefresh } from '../utils/setup/commandGating';
@@ -125,14 +126,15 @@ const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
       if (!config) return;
 
       let changed = false;
-      if (config.channelId === channelId) {
-        config.enabled = false;
-        config.channelId = '';
-        config.channelMessageId = null;
-        changed = true;
-      }
-      if (config.channelIds?.includes(channelId)) {
-        config.channelIds = config.channelIds.filter(id => id !== channelId);
+      const currentChannels = getBaitChannelIds(config);
+      if (currentChannels.includes(channelId) || config.channelId === channelId) {
+        // The warning message lives in the legacy-primary channel — gone with it
+        if (config.channelId === channelId) config.channelMessageId = null;
+        const remaining = currentChannels.filter(id => id !== channelId);
+        setBaitChannels(config, remaining);
+        // Only disable when NO bait channels remain — deleting one of several
+        // must not silently kill detection on the survivors
+        if (remaining.length === 0) config.enabled = false;
         changed = true;
       }
       if (config.logChannelId === channelId) {

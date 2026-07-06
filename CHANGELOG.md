@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.3] - 2026-07-06
+
+Bait channel configuration fixes — the `channelId → channelIds` migration
+left setup writing only the legacy column while detection reads the new one.
+
+### Fixed
+
+- **`/baitchannel setup` changes take effect again**: setup wrote only the
+  legacy `channelId` column, but detection prefers `channelIds` — once the
+  startup backfill had populated `channelIds`, changing the bait channel via
+  setup silently had no effect. Both columns are now written through a single
+  helper (`getBaitChannelIds`/`setBaitChannels`), which every reader and
+  writer of the pair now goes through. Re-running setup also repairs rows the
+  old bug left divergent. (The dashboard's PUT route in ninsys-api has the
+  same bug and is tracked separately; the bot now tolerates its legacy-only
+  writes via the uniform fallback.)
+- **Deleting one of several bait channels no longer disables the system**:
+  the channel-delete cleanup disabled detection whenever the legacy primary
+  channel was deleted, even with other bait channels still configured. It now
+  re-points the primary at a surviving channel and only disables when none
+  remain.
+- **Raid-mode lockdown exempts legacy-configured bait channels**: the
+  lockdown sweep read only `channelIds`, so a legacy-only config would lock
+  its own bait channel during a raid.
+- Setup-dashboard completion state for the bait system now recognizes
+  multi-channel configs instead of only the legacy column.
+
 ## [3.15.2] - 2026-07-06
 
 Test hardening — the audit's confirmed coverage holes, closing out the

@@ -30,6 +30,7 @@ import { truncateWithNotice } from '../validation/inputSanitizer';
 import { buildAppealUrl } from './appealToken';
 import { buildAuditReason, flagsTriggered } from './auditReason';
 import { type BanExecutorAction, type BanExecutorResult, executeBanAction } from './banExecutor';
+import { getBaitChannelIds } from './channelList';
 import { getContentBurstDetector } from './contentBurstDetector';
 import type { JoinVelocityTracker } from './joinVelocityTracker';
 import { getRaidModeManager } from './raidModeManager';
@@ -272,7 +273,7 @@ export class BaitChannelManager {
       }
 
       // Multi-channel support: check channelIds array with legacy channelId fallback
-      const baitChannels = config.channelIds?.length ? config.channelIds : config.channelId ? [config.channelId] : [];
+      const baitChannels = getBaitChannelIds(config);
       if (!baitChannels.includes(message.channelId)) {
         enhancedLogger.debug(
           `Message in ${message.channelId}, bait channels are [${baitChannels.join(', ')}]`,

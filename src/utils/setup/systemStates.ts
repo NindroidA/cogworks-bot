@@ -20,6 +20,7 @@ import { RulesConfig } from '../../typeorm/entities/rules';
 import { DEFAULT_SYSTEM_STATES, type SystemStates } from '../../typeorm/entities/SetupState';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
+import { getBaitChannelIds } from '../baitChannel/channelList';
 
 /**
  * Inspect the DB and return per-system status (`not_started` / `partial` /
@@ -60,7 +61,7 @@ export async function detectSystemStates(guildId: string): Promise<SystemStates>
     if (appConfig && archivedApp) states.application = 'complete';
     else if (appConfig) states.application = 'partial';
     if (annConfig?.defaultRoleId && annConfig.defaultChannelId) states.announcement = 'complete';
-    if (baitConfig?.channelId) states.baitchannel = 'complete';
+    if (baitConfig && getBaitChannelIds(baitConfig).length > 0) states.baitchannel = 'complete';
     if (memoryConfig) states.memory = 'complete';
     if (rulesConfig?.channelId && rulesConfig.roleId) states.rules = 'complete';
     if (reactionMenuCount > 0) states.reactionRole = 'complete';

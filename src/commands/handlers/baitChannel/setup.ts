@@ -12,11 +12,13 @@ import type { ExtendedClient } from '../../../types/ExtendedClient';
 import {
   enhancedLogger,
   formatLang,
+  getBaitChannelIds,
   handleInteractionError,
   LogCategory,
   lang,
   replyEphemeralError,
   safeDbOperation,
+  setBaitChannels,
 } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
@@ -43,18 +45,20 @@ export async function setupHandler(client: Client, interaction: ChatInputCommand
     if (!config) {
       config = configRepo.create({
         guildId: interaction.guildId!,
-        channelId: channel.id,
         gracePeriodSeconds: gracePeriod,
         actionType: action as BaitActionType,
         logChannelId: logChannel?.id ?? null,
       });
+      setBaitChannels(config, [channel.id]);
     } else {
       // Check if channel is changing - if so, delete old message
-      isChannelChange = config.channelId !== channel.id;
+      const currentChannels = getBaitChannelIds(config);
+      const oldPrimary = currentChannels[0];
+      isChannelChange = oldPrimary !== channel.id;
 
-      if (isChannelChange && config.channelId && config.channelMessageId) {
+      if (isChannelChange && oldPrimary && config.channelMessageId) {
         try {
-          const oldChannel = await interaction.guild!.channels.fetch(config.channelId);
+          const oldChannel = await interaction.guild!.channels.fetch(oldPrimary);
           if (oldChannel?.isTextBased()) {
             const oldMessage = await (oldChannel as TextChannel).messages.fetch(config.channelMessageId);
             await oldMessage.delete();
@@ -66,7 +70,9 @@ export async function setupHandler(client: Client, interaction: ChatInputCommand
         config.channelMessageId = null;
       }
 
-      config.channelId = channel.id;
+      // Replace the primary but preserve any extra channels added via
+      // `/baitchannel channels add` (dedupe, max 3 enforced by add handler)
+      setBaitChannels(config, [channel.id, ...currentChannels.filter(id => id !== oldPrimary)].slice(0, 3));
       config.gracePeriodSeconds = gracePeriod;
       config.actionType = action as BaitActionType;
       if (logChannel) config.logChannelId = logChannel.id;
@@ -178,12 +184,7 @@ export async function handleBaitChannelAddChannel(client: Client, interaction: C
       return;
     }
 
-    // Build current channel list from channelIds or legacy channelId
-    const currentChannels: string[] = config.channelIds?.length
-      ? [...config.channelIds]
-      : config.channelId
-        ? [config.channelId]
-        : [];
+    const currentChannels = getBaitChannelIds(config);
 
     // Validate max 3 channels
     if (currentChannels.length >= 3) {
@@ -199,9 +200,7 @@ export async function handleBaitChannelAddChannel(client: Client, interaction: C
 
     // Add channel
     currentChannels.push(channel.id);
-    config.channelIds = currentChannels;
-    // Keep legacy channelId in sync with first channel
-    config.channelId = currentChannels[0];
+    setBaitChannels(config, currentChannels);
 
     await safeDbOperation(() => configRepo.save(config), 'Save bait channel config');
 
@@ -245,12 +244,7 @@ export async function handleBaitChannelRemoveChannel(client: Client, interaction
       return;
     }
 
-    // Build current channel list
-    const currentChannels: string[] = config.channelIds?.length
-      ? [...config.channelIds]
-      : config.channelId
-        ? [config.channelId]
-        : [];
+    const currentChannels = getBaitChannelIds(config);
 
     // Must keep at least 1 channel
     if (currentChannels.length <= 1) {
@@ -266,9 +260,7 @@ export async function handleBaitChannelRemoveChannel(client: Client, interaction
 
     // Remove channel
     const updatedChannels = currentChannels.filter(id => id !== channel.id);
-    config.channelIds = updatedChannels;
-    // Keep legacy channelId in sync with first channel
-    config.channelId = updatedChannels[0];
+    setBaitChannels(config, updatedChannels);
 
     await safeDbOperation(() => configRepo.save(config), 'Save bait channel config');
 

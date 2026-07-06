@@ -34,6 +34,7 @@ import { Colors } from '../colors';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { toUnixSeconds } from '../time';
+import { getBaitChannelIds } from './channelList';
 
 /** Maximum duration of an auto-entered raid lockdown — admin must release earlier or wait. */
 const RAID_MODE_MAX_DURATION_MS = 4 * 60 * 60 * 1000; // 4 hours
@@ -285,7 +286,7 @@ export class RaidModeManager {
   private async applyChannelLockdown(guild: Guild, config: BaitChannelConfig, lockdown: boolean): Promise<void> {
     const everyone = guild.roles.everyone;
     const exemptChannelIds = new Set<string>(
-      [config.logChannelId, config.summaryChannelId, ...(config.channelIds ?? [])].filter(
+      [config.logChannelId, config.summaryChannelId, ...getBaitChannelIds(config)].filter(
         (v): v is string => typeof v === 'string',
       ),
     );

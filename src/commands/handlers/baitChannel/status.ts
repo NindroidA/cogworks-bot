@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
-import { handleInteractionError, lang, replyEphemeralError, safeDbOperation } from '../../../utils';
+import { getBaitChannelIds, handleInteractionError, lang, replyEphemeralError, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
@@ -18,8 +18,7 @@ export async function statusHandler(_client: Client, interaction: ChatInputComma
       return;
     }
 
-    // Build channel list from channelIds or legacy channelId
-    const baitChannelIds = config.channelIds?.length ? config.channelIds : config.channelId ? [config.channelId] : [];
+    const baitChannelIds = getBaitChannelIds(config);
     const channelMentions = baitChannelIds.map(id => `<#${id}>`).join(', ') || tl.status.channelNotFound;
 
     const logChannel = config.logChannelId

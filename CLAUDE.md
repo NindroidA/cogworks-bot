@@ -467,6 +467,7 @@ GuildAuditLogEntryCreate event (separate)
 
 Module map (`src/utils/baitChannel/`):
 - `baitChannelManager.ts` — orchestrator; per-guild config cache; grace timers
+- `channelList.ts` — `getBaitChannelIds`/`setBaitChannels`: single owner of the `channelIds`/legacy `channelId` column pair (v3.15.3) — never read or write either column directly
 - `banExecutor.ts` — REST executor + idempotency claim (use this, never `member.ban()` directly)
 - `auditReason.ts` — structured `cogworks:bait score=N ch=#X flags=[…]` reason
 - `retryQueue.ts` — 5s/30s/5min backoff + dead-letter; orphaned grace row sweep
