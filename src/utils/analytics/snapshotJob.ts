@@ -18,8 +18,6 @@ import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { activityTracker } from './activityTracker';
 import { sendDigest } from './digestBuilder';
 
-/** Retention period for analytics snapshots */
-
 /** Interval handle for cleanup (so it can be cleared on shutdown) */
 let snapshotInterval: ReturnType<typeof setInterval> | null = null;
 
