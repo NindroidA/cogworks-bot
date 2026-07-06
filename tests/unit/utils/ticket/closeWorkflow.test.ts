@@ -930,4 +930,75 @@ describe("archiveAndCloseTicket", () => {
     // builtinTypeInfo NOT consulted because customTypeId branch already returned null
     expect(fakeBuiltinTypeInfo).not.toHaveBeenCalled();
   });
+
+  // -------------------------------------------------------------------------
+  // Archival enrichment (v3.16.0): closedBy / Ticket # / SLA header rows
+  // -------------------------------------------------------------------------
+
+  /** Header-embed fields of the first thread created, keyed by name. */
+  function createdHeaderFields(forum: any): Record<string, string> {
+    const embed = forum.threads.create.mock.calls[0][0].message.embeds[0];
+    return Object.fromEntries(embed.data.fields.map((f: any) => [f.name, f.value]));
+  }
+
+  test("closedBy actor (button path: id + username) renders a Closed by row without a user fetch", async () => {
+    const client = makeFakeClient(forumChannel, (id) => ({ username: `resolved-${id}` }));
+    const ticket = makeTicket({ type: "general", id: 42 });
+
+    const result = await archiveAndCloseTicket(
+      client,
+      ticket,
+      "guild-1",
+      makeFakeChannel(),
+      "forum-archive-1",
+      deps,
+      { id: "staff-9", username: "closer" },
+    );
+
+    expect(result.archived).toBe(true);
+    const fields = createdHeaderFields(forumChannel);
+    expect(fields["Closed by"]).toBe("closer (`staff-9`)");
+    expect(fields["Ticket #"]).toBe("42");
+    // Username was supplied — no extra fetch for the closer
+    const fetchedIds = client.users.fetch.mock.calls.map((c: any[]) => c[0]);
+    expect(fetchedIds).not.toContain("staff-9");
+  });
+
+  test("closedBy actor (API path: id only) resolves the username via client.users.fetch", async () => {
+    const client = makeFakeClient(forumChannel, (id) => ({ username: `resolved-${id}` }));
+    const ticket = makeTicket({ type: "general" });
+
+    await archiveAndCloseTicket(client, ticket, "guild-1", makeFakeChannel(), "forum-archive-1", deps, {
+      id: "dash-actor-1",
+    });
+
+    const fields = createdHeaderFields(forumChannel);
+    expect(fields["Closed by"]).toBe("resolved-dash-actor-1 (`dash-actor-1`)");
+  });
+
+  test("firstResponseAt + slaBreached render a First response row with the breach badge", async () => {
+    const client = makeFakeClient(forumChannel, () => ({ username: "creator" }));
+    const ticket = makeTicket({
+      type: "general",
+      firstResponseAt: new Date("2026-04-20T11:30:00Z"),
+      slaBreached: true,
+    });
+
+    await archiveAndCloseTicket(client, ticket, "guild-1", makeFakeChannel(), "forum-archive-1", deps);
+
+    const fields = createdHeaderFields(forumChannel);
+    expect(fields["First response"]).toMatch(/^<t:\d+:f>\n⚠️ SLA breached$/);
+  });
+
+  test("no closedBy / no SLA data → the enrichment rows are absent (old archives unchanged)", async () => {
+    const client = makeFakeClient(forumChannel, () => ({ username: "creator" }));
+    const ticket = makeTicket({ type: "general" });
+
+    await archiveAndCloseTicket(client, ticket, "guild-1", makeFakeChannel(), "forum-archive-1", deps);
+
+    const fields = createdHeaderFields(forumChannel);
+    expect(fields["Closed by"]).toBeUndefined();
+    expect(fields["First response"]).toBeUndefined();
+    expect(fields["Ticket #"]).toBe("1"); // makeTicket default id — always present
+  });
 });

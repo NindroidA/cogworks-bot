@@ -13,15 +13,18 @@
 import type { Client, ForumChannel, ForumThreadChannel, GuildTextBasedChannel } from 'discord.js';
 import type { Application } from '../../typeorm/entities/application/Application';
 import { ArchivedApplication } from '../../typeorm/entities/application/ArchivedApplication';
+import { Position } from '../../typeorm/entities/application/Position';
 import { Colors } from '../colors';
 import { lazyRepo } from '../database/lazyRepo';
 import { verifiedChannelDelete } from '../discord/verifiedDelete';
 import { fetchMessagesAsTranscript } from '../fetchAllMessages';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+import type { CloseActor } from '../ticket/closeWorkflow';
 import { buildTranscript, type TicketMetadata, type TranscriptMessage } from '../ticket/transcriptBuilder';
 import { buildHeaderEmbed, postTranscriptToThread } from '../ticket/transcriptPoster';
 
 const archivedAppRepo = lazyRepo(ArchivedApplication);
+const positionRepo = lazyRepo(Position);
 
 export interface ArchiveApplicationResult {
   success: boolean;
@@ -47,13 +50,58 @@ export interface CloseApplicationWorkflowDeps {
   fetchMessagesAsTranscript: typeof fetchMessagesAsTranscript;
   verifiedChannelDelete: typeof verifiedChannelDelete;
   archivedAppRepo: typeof archivedAppRepo;
+  positionRepo: typeof positionRepo;
 }
 
 const defaultDeps: CloseApplicationWorkflowDeps = {
   fetchMessagesAsTranscript,
   verifiedChannelDelete,
   archivedAppRepo,
+  positionRepo,
 };
+
+/**
+ * Resolve the Position row an application was submitted for. `type` carries
+ * `position_<id>` (see events/application/apply.ts); the row may have been
+ * deleted since — return null and let the header fall back to the generic
+ * "Application" label rather than throwing in the un-try'd metadata region
+ * (the v3.14.2 bug class).
+ */
+async function resolveApplicationPosition(
+  application: Application,
+  guildId: string,
+  deps: CloseApplicationWorkflowDeps,
+): Promise<Position | null> {
+  const raw = application.type?.startsWith('position_') ? Number(application.type.slice('position_'.length)) : NaN;
+  if (!Number.isInteger(raw)) return null;
+  return deps.positionRepo.findOneBy({ id: raw, guildId }).catch(() => null);
+}
+
+/**
+ * Outcome label from the application's terminal state. Two vocabularies
+ * exist: the API approve/deny routes set `status` to 'accepted'/'rejected',
+ * while the Discord workflow writes 'approved'/'denied' status-history
+ * entries. `claimClose` flips only the DB row, so the in-memory entity still
+ * carries the pre-close status; fall back to the newest decisive history
+ * entry when the current status isn't itself an outcome.
+ */
+const OUTCOME_LABELS: Record<string, string> = {
+  accepted: 'Accepted',
+  approved: 'Accepted',
+  rejected: 'Rejected',
+  denied: 'Rejected',
+};
+
+function resolveApplicationOutcome(application: Application): string | null {
+  const current = OUTCOME_LABELS[application.status];
+  if (current) return current;
+  const history = application.statusHistory ?? [];
+  for (let i = history.length - 1; i >= 0; i--) {
+    const label = OUTCOME_LABELS[history[i].status];
+    if (label) return label;
+  }
+  return null;
+}
 
 /**
  * Archive an application to the forum channel and clean up.
@@ -69,6 +117,7 @@ export async function archiveAndCloseApplication(
   channel: GuildTextBasedChannel,
   archiveForumChannelId: string,
   deps: CloseApplicationWorkflowDeps = defaultDeps,
+  closedBy?: CloseActor,
 ): Promise<ArchiveApplicationResult> {
   const channelId = application.channelId || channel.id;
 
@@ -83,17 +132,32 @@ export async function archiveAndCloseApplication(
     return { success: false, archived: false, transcriptFailed: true };
   }
 
-  const creatorUser = await client.users.fetch(application.createdBy).catch(() => null);
+  // Independent lookups — run concurrently (mirrors ticket closeWorkflow).
+  const [creatorUser, position, reviewedByUser, closedByUser] = await Promise.all([
+    client.users.fetch(application.createdBy).catch(() => null),
+    resolveApplicationPosition(application, guildId, deps),
+    application.reviewedBy ? client.users.fetch(application.reviewedBy).catch(() => null) : Promise.resolve(null),
+    // API closes only carry the actor's id — resolve the username here.
+    closedBy?.id && !closedBy.username ? client.users.fetch(closedBy.id).catch(() => null) : Promise.resolve(null),
+  ]);
+
   const threadName = creatorUser?.username || 'Unknown';
+  const positionLabel = position ? `${position.emoji ? `${position.emoji} ` : ''}${position.title}` : null;
   const metadata: TicketMetadata = {
-    title: `Application — ${threadName}`,
-    type: 'Application',
+    title: positionLabel ? `${positionLabel} — ${threadName}` : `Application — ${threadName}`,
+    type: position?.title ?? 'Application',
     createdByUsername: threadName,
     openedAt: 'createdAt' in channel && channel.createdAt instanceof Date ? channel.createdAt : new Date(),
     closedAt: new Date(),
     assignedToUsername: null,
     kind: 'application',
     createdById: application.createdBy,
+    entityId: application.id,
+    closedByUsername: closedBy?.username ?? closedByUser?.username ?? null,
+    closedById: closedBy?.id ?? null,
+    outcome: resolveApplicationOutcome(application),
+    reviewedByUsername: reviewedByUser?.username ?? null,
+    reviewedById: application.reviewedBy ?? null,
   };
 
   const transcript = buildTranscript(transcriptMessages, metadata);

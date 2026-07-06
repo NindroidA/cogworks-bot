@@ -111,6 +111,10 @@ export function registerApplicationHandlers(
       return { success: true, archived: false };
     }
 
+    // ninsys-api sends the dashboard actor's id as `triggeredBy` — the
+    // workflow resolves the username for the "Closed by" archive row.
+    const triggeredBy = optionalString(body, 'triggeredBy');
+
     let result: Awaited<ReturnType<typeof archiveAndCloseApplication>>;
     try {
       result = await archiveAndCloseApplication(
@@ -119,6 +123,8 @@ export function registerApplicationHandlers(
         guildId,
         channel as GuildTextBasedChannel,
         archivedConfig.channelId,
+        undefined,
+        triggeredBy ? { id: triggeredBy } : undefined,
       );
     } catch (error) {
       // Unexpected throw — the channel still exists; revert so the archive can

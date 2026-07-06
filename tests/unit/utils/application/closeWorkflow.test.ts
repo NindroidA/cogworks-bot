@@ -51,10 +51,16 @@ const fakeVerifiedChannelDelete = jest.fn(async () => ({
 }));
 const fakeFetchMessages = jest.fn(async () => [] as any[]);
 
+/** Position lookup seam — findOneBy result set per test (null = orphaned). */
+const fakePositionRepo = {
+  findOneBy: jest.fn(async () => null as any),
+};
+
 const deps = {
   fetchMessagesAsTranscript: fakeFetchMessages,
   verifiedChannelDelete: fakeVerifiedChannelDelete,
   archivedAppRepo: fakeRepo,
+  positionRepo: fakePositionRepo,
 } as unknown as CloseApplicationWorkflowDeps;
 
 interface FakeForumState {
@@ -136,6 +142,8 @@ describe("archiveAndCloseApplication", () => {
     fakeVerifiedChannelDelete.mockImplementation(async () => ({ success: true, alreadyGone: false }));
     fakeFetchMessages.mockClear();
     fakeFetchMessages.mockImplementation(async () => []);
+    fakePositionRepo.findOneBy.mockClear();
+    fakePositionRepo.findOneBy.mockImplementation(async () => null);
     forumState = { threadsCreated: [], threadsFetched: new Map() };
     forumChannel = makeFakeForumChannel(forumState);
   });
@@ -299,5 +307,146 @@ describe("archiveAndCloseApplication", () => {
     expect(result).toEqual({ success: false, archived: false, transcriptFailed: true });
     expect(forumChannel.threads.create).not.toHaveBeenCalled();
     expect(fakeVerifiedChannelDelete).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Archival enrichment (v3.16.0): position / outcome / reviewer / closedBy
+  // -------------------------------------------------------------------------
+
+  /** Header embed of the first thread created (title + fields-by-name). */
+  function createdHeader(forum: any): { title: string; fields: Record<string, string> } {
+    const embed = forum.threads.create.mock.calls[0][0].message.embeds[0];
+    return {
+      title: embed.data.title,
+      fields: Object.fromEntries(embed.data.fields.map((f: any) => [f.name, f.value])),
+    };
+  }
+
+  test("position resolved from type='position_<id>' → emoji+title in header title, title in Type row", async () => {
+    fakePositionRepo.findOneBy.mockResolvedValue({ id: 7, title: "Moderator", emoji: "🛡️" });
+    const client = makeFakeClient(forumChannel);
+
+    await archiveAndCloseApplication(
+      client,
+      makeApplication({ type: "position_7" }),
+      "guild-1",
+      makeChannel(),
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(fakePositionRepo.findOneBy).toHaveBeenCalledWith({ id: 7, guildId: "guild-1" });
+    const header = createdHeader(forumChannel);
+    expect(header.title).toBe("📋 🛡️ Moderator — applicant");
+    expect(header.fields.Type).toBe("Moderator");
+  });
+
+  test("orphaned position (row deleted) falls back to the generic Application header — close survives", async () => {
+    fakePositionRepo.findOneBy.mockResolvedValue(null);
+    const client = makeFakeClient(forumChannel);
+
+    const result = await archiveAndCloseApplication(
+      client,
+      makeApplication({ type: "position_99" }),
+      "guild-1",
+      makeChannel(),
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(result.archived).toBe(true);
+    const header = createdHeader(forumChannel);
+    expect(header.title).toBe("📋 Application — applicant");
+    expect(header.fields.Type).toBe("Application");
+  });
+
+  test("position lookup DB error is swallowed (orphan fallback), not thrown from the un-try'd metadata region", async () => {
+    fakePositionRepo.findOneBy.mockRejectedValue(new Error("transient DB error"));
+    const client = makeFakeClient(forumChannel);
+
+    const result = await archiveAndCloseApplication(
+      client,
+      makeApplication({ type: "position_7" }),
+      "guild-1",
+      makeChannel(),
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(result.archived).toBe(true);
+    expect(createdHeader(forumChannel).title).toBe("📋 Application — applicant");
+  });
+
+  test("outcome from the in-memory pre-close status ('accepted' — API approve path)", async () => {
+    const client = makeFakeClient(forumChannel);
+
+    await archiveAndCloseApplication(
+      client,
+      makeApplication({ status: "accepted" }),
+      "guild-1",
+      makeChannel(),
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(createdHeader(forumChannel).fields.Outcome).toBe("Accepted");
+  });
+
+  test("outcome from the newest decisive statusHistory entry ('denied' — Discord workflow vocabulary)", async () => {
+    const client = makeFakeClient(forumChannel);
+
+    await archiveAndCloseApplication(
+      client,
+      makeApplication({
+        status: "closed",
+        statusHistory: [
+          { status: "submitted", changedBy: "u1", changedAt: "2026-04-20T10:00:00Z" },
+          { status: "denied", changedBy: "rev-1", changedAt: "2026-04-21T10:00:00Z" },
+          { status: "closed", changedBy: "rev-1", changedAt: "2026-04-22T10:00:00Z" },
+        ],
+      }),
+      "guild-1",
+      makeChannel(),
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(createdHeader(forumChannel).fields.Outcome).toBe("Rejected");
+  });
+
+  test("no decisive status anywhere → no Outcome row", async () => {
+    const client = makeFakeClient(forumChannel);
+
+    await archiveAndCloseApplication(
+      client,
+      makeApplication({ status: "closed", statusHistory: [] }),
+      "guild-1",
+      makeChannel(),
+      "forum-archive-1",
+      deps,
+    );
+
+    expect(createdHeader(forumChannel).fields.Outcome).toBeUndefined();
+  });
+
+  test("reviewedBy resolves to a Reviewed by row; closedBy actor renders Closed by; Application # present", async () => {
+    const client = makeFakeClient(forumChannel, (id: string) =>
+      id === "rev-1" ? { username: "reviewer" } : { username: "applicant" },
+    );
+
+    await archiveAndCloseApplication(
+      client,
+      makeApplication({ id: 55, reviewedBy: "rev-1" }),
+      "guild-1",
+      makeChannel(),
+      "forum-archive-1",
+      deps,
+      { id: "staff-2", username: "closer" },
+    );
+
+    const { fields } = createdHeader(forumChannel);
+    expect(fields["Reviewed by"]).toBe("reviewer (`rev-1`)");
+    expect(fields["Closed by"]).toBe("closer (`staff-2`)");
+    expect(fields["Application #"]).toBe("55");
   });
 });

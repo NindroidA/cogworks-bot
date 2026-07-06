@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.0] - 2026-07-06
+
+Archival enrichment — ticket and application archive headers now carry the
+context that was already in the database but never rendered, and the SLA
+subsystem finally has a data source.
+
+### Added
+
+- **Richer archive headers** (tickets and applications): "Ticket #"/
+  "Application #", "Closed by" (who clicked the button or triggered the
+  dashboard close, with raw id), and a "Participants" row tallying each
+  human's messages (bots excluded, capped to Discord's field limit). Every
+  new row renders only when its data exists — old archives are unchanged.
+- **Application archives identify the position**: the header title and Type
+  row now show the position's emoji and title (guild-scoped lookup with a
+  safe fallback when the position row was deleted), plus an "Outcome" row
+  (Accepted/Rejected — resolved from either the API's accepted/rejected
+  status or the workflow's approved/denied history) and a "Reviewed by" row.
+- **Tickets render SLA data**: "First response" timestamp with an
+  "⚠️ SLA breached" badge when applicable.
+
+### Fixed
+
+- **The SLA checker finally has real data**: `Ticket.firstResponseAt` had no
+  production write path (dev seeding only), so `/ticket sla` stats and
+  breach alerts ran on an always-null column. The message handler now
+  records the first response from anyone other than the opener via a
+  lightweight conditional update — the same silent-fail pattern as the
+  activity bump.
+
 ## [3.15.3] - 2026-07-06
 
 Bait channel configuration fixes — the `channelId → channelIds` migration

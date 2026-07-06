@@ -121,6 +121,80 @@ describe("buildHeaderData()", () => {
   });
 });
 
+describe("buildHeaderData() enrichment rows (v3.16.0)", () => {
+  const byName = (header: ReturnType<typeof buildHeaderData>) =>
+    Object.fromEntries(header.fields.map((f) => [f.name, f.value]));
+
+  test("bare metadata renders NO enrichment rows (absent data shows nothing)", () => {
+    const fields = byName(buildHeaderData(META, 1, 0));
+    for (const name of ["Ticket #", "Application #", "Closed by", "First response", "Outcome", "Reviewed by", "Participants"]) {
+      expect(fields[name]).toBeUndefined();
+    }
+  });
+
+  test("entityId renders Ticket # for tickets and Application # for applications", () => {
+    expect(byName(buildHeaderData({ ...META, entityId: 42 }, 1, 0))["Ticket #"]).toBe("42");
+    expect(byName(buildHeaderData({ ...META, entityId: 7, kind: "application" }, 1, 0))["Application #"]).toBe("7");
+  });
+
+  test("Closed by renders `username (`id`)` with both, and degrades to whichever exists", () => {
+    expect(
+      byName(buildHeaderData({ ...META, closedByUsername: "closer", closedById: "999" }, 1, 0))["Closed by"],
+    ).toBe("closer (`999`)");
+    expect(byName(buildHeaderData({ ...META, closedByUsername: "closer" }, 1, 0))["Closed by"]).toBe("closer");
+    expect(byName(buildHeaderData({ ...META, closedById: "999" }, 1, 0))["Closed by"]).toBe("`999`");
+  });
+
+  test("First response renders the stamp; the SLA badge appends only when breached", () => {
+    const when = new Date("2026-04-01T13:00:00Z");
+    expect(byName(buildHeaderData({ ...META, firstResponseAt: when }, 1, 0))["First response"]).toMatch(
+      /^<t:\d+:f>$/,
+    );
+    expect(
+      byName(buildHeaderData({ ...META, firstResponseAt: when, slaBreached: true }, 1, 0))["First response"],
+    ).toMatch(/^<t:\d+:f>\n⚠️ SLA breached$/);
+  });
+
+  test("breached with NO first response renders 'None' + badge (never answered)", () => {
+    expect(byName(buildHeaderData({ ...META, slaBreached: true }, 1, 0))["First response"]).toBe(
+      "None\n⚠️ SLA breached",
+    );
+  });
+
+  test("Outcome and Reviewed by rows render for applications", () => {
+    const fields = byName(
+      buildHeaderData(
+        { ...META, kind: "application", outcome: "Accepted", reviewedByUsername: "rev", reviewedById: "5" },
+        1,
+        0,
+      ),
+    );
+    expect(fields.Outcome).toBe("Accepted");
+    expect(fields["Reviewed by"]).toBe("rev (`5`)");
+  });
+
+  test("participants render as `name (count)` sorted, non-inline", () => {
+    const header = buildHeaderData(META, 3, 0, [
+      { username: "alice", count: 12 },
+      { username: "bob", count: 5 },
+    ]);
+    const field = header.fields.find((f) => f.name === "Participants");
+    expect(field?.value).toBe("alice (12), bob (5)");
+    expect(field?.inline).toBe(false);
+  });
+
+  test("participants over the 1024-char field cap collapse the tail into '+N more'", () => {
+    const many = Array.from({ length: 60 }, (_, i) => ({
+      username: `participant-with-a-rather-long-name-${String(i).padStart(2, "0")}`,
+      count: 60 - i,
+    }));
+    const field = buildHeaderData(META, 3, 0, many).fields.find((f) => f.name === "Participants");
+    expect(field).toBeDefined();
+    expect(field!.value.length).toBeLessThanOrEqual(1024);
+    expect(field!.value).toMatch(/\+\d+ more$/);
+  });
+});
+
 describe("formatMessage()", () => {
   test("plain text renders unquoted under a name + short-time line", () => {
     const out = formatMessage(makeMessage({ content: "Hello\nWorld" }));
@@ -654,5 +728,41 @@ describe("buildTranscript()", () => {
     // must survive. Boundary-marker checks alone would still pass if an entire
     // interior chunk were silently dropped — this count would not.
     expect(flat.split("w").length - 1).toBe(8 * 3000);
+  });
+});
+
+describe("buildTranscript() participants aggregation (v3.16.0)", () => {
+  test("tallies kept messages per human author, bots excluded, most active first", () => {
+    const messages = [
+      makeMessage({ author: { username: "alice", id: "1", bot: false } }),
+      makeMessage({ author: { username: "bob", id: "2", bot: false } }),
+      makeMessage({ author: { username: "alice", id: "1", bot: false } }),
+      makeMessage({ author: { username: "helper-bot", id: "3", bot: true } }),
+      makeMessage({ author: { username: "alice", id: "1", bot: false } }),
+    ];
+    const result = buildTranscript(messages, META);
+    const field = result.headerData.fields.find((f) => f.name === "Participants");
+    expect(field?.value).toBe("alice (3), bob (1)");
+  });
+
+  test("filtered-out messages (system/UI noise) do not count toward participant tallies", () => {
+    const messages = [
+      makeMessage({ author: { username: "alice", id: "1", bot: false } }),
+      makeMessage({
+        author: { username: "alice", id: "1", bot: false },
+        isSystem: true,
+      }),
+    ];
+    const result = buildTranscript(messages, META);
+    const field = result.headerData.fields.find((f) => f.name === "Participants");
+    expect(field?.value).toBe("alice (1)");
+  });
+
+  test("bot-only conversation renders no Participants row", () => {
+    const messages = [
+      makeMessage({ author: { username: "helper-bot", id: "3", bot: true } }),
+    ];
+    const result = buildTranscript(messages, META);
+    expect(result.headerData.fields.find((f) => f.name === "Participants")).toBeUndefined();
   });
 });

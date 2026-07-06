@@ -93,7 +93,15 @@ export const applicationCloseEvent = async (
 
   let result: ArchiveApplicationResult;
   try {
-    result = await deps.archiveAndCloseApplication(client, application, guildId, channel, archivedConfig.channelId);
+    result = await deps.archiveAndCloseApplication(
+      client,
+      application,
+      guildId,
+      channel,
+      archivedConfig.channelId,
+      undefined,
+      { id: interaction.user.id, username: interaction.user.username },
+    );
   } catch (error) {
     // Unexpected throw escaped the workflow. Status was flipped to 'closed'
     // above but the channel still exists — revert (otherwise the dup-close guard

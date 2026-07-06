@@ -51,5 +51,25 @@ export default {
     } catch {
       // Silently fail — this is a non-critical update
     }
+
+    // Capture the FIRST response from someone other than the opener — the
+    // SLA subsystem's data source (slaChecker queries firstResponseAt IS
+    // NULL; before v3.16.0 nothing in production ever wrote it). Bot authors
+    // never reach here (early return above). Conditional WHERE means this is
+    // a 0-row no-op for everything but the one first-response message.
+    try {
+      await ticketRepo
+        .createQueryBuilder()
+        .update(Ticket)
+        .set({ firstResponseAt: new Date() })
+        .where('guildId = :guildId', { guildId: message.guild.id })
+        .andWhere('channelId = :channelId', { channelId: message.channelId })
+        .andWhere('status != :closed', { closed: 'closed' })
+        .andWhere('firstResponseAt IS NULL')
+        .andWhere('createdBy != :author', { author: message.author.id })
+        .execute();
+    } catch {
+      // Silently fail — this is a non-critical update
+    }
   },
 };
