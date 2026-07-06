@@ -20,6 +20,7 @@ import {
   RateLimits,
   replyEphemeralError,
   showAndAwaitModal,
+  TIMEOUTS,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { checkboxGroup, labelWrap, radioGroup, rawModal } from '../../../utils/modalComponents';
@@ -225,10 +226,10 @@ async function collectDashboardInteractions(
   const selectCollector = reply.createMessageComponentCollector({
     componentType: ComponentType.StringSelect,
     filter: (i: any) => i.user.id === interaction.user.id && i.customId === 'setup_system_select',
-    time: 300_000,
+    time: TIMEOUTS.DASHBOARD,
   });
 
-  const buttonCollector = createButtonCollector(reply, 300_000);
+  const buttonCollector = createButtonCollector(reply, TIMEOUTS.DASHBOARD);
 
   selectCollector.on('collect', async (selectInteraction: any) => {
     const systemId = selectInteraction.values[0];

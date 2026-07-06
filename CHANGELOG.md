@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.7] - 2026-07-06
+
+Constants dedup — every magic number the audit confirmed as a drifted or
+duplicated copy now reads from the single catalog in `constants.ts`.
+
+### Fixed
+
+- **AutoMod keyword limit corrected**: the constants catalog said 100 keywords
+  per rule while the feature (correctly) enforced Discord's 1000 — the two
+  copies are now one, with the right value.
+- **Data-export join-event window** now matches the actual 7-day retention
+  sweep instead of a hardcoded 90 days whose comment claimed a retention that
+  didn't exist.
+- **Event templates** get their own 25-cap constant instead of borrowing the
+  announcement one.
+
+### Changed
+
+- Bait-channel idempotency TTL defined once (executor exports it), analytics
+  retention/interval and the XP config-cache TTL read the catalog, collector
+  timeouts (30s/60s/5min) use the TIMEOUTS catalog across nine handlers,
+  health-monitor intervals use INTERVALS, and bait log-embed truncation uses
+  the shared `truncateWithNotice` helper.
+
 ## [3.14.6] - 2026-07-06
 
 Internal cleanup: the unification helpers introduced in v3.11–v3.13 now cover

@@ -24,6 +24,7 @@ import {
   RateLimits,
   replyEphemeralError,
   showAndAwaitModal,
+  TIMEOUTS,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { resolveMemoryConfig } from './channelPicker';
@@ -210,7 +211,7 @@ async function handleEditTag(
     flags: [MessageFlags.Ephemeral],
   });
 
-  const collector = response.createMessageComponentCollector({ time: 60000 });
+  const collector = response.createMessageComponentCollector({ time: TIMEOUTS.COMPONENT });
 
   collector.on('collect', async i => {
     if (i.user.id !== interaction.user.id) {
@@ -362,7 +363,7 @@ async function handleRemoveTag(
     flags: [MessageFlags.Ephemeral],
   });
 
-  const collector = response.createMessageComponentCollector({ time: 60000 });
+  const collector = response.createMessageComponentCollector({ time: TIMEOUTS.COMPONENT });
 
   collector.on('collect', async i => {
     if (i.user.id !== interaction.user.id) {
@@ -419,7 +420,7 @@ async function confirmRemoveTag(interaction: StringSelectMenuInteraction, guildI
   });
 
   const collector = interaction.message.createMessageComponentCollector({
-    time: 30000,
+    time: TIMEOUTS.CONFIRMATION,
   });
 
   collector.on('collect', async i => {

@@ -13,12 +13,12 @@ import { LessThan } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
 import { AnalyticsConfig } from '../../typeorm/entities/analytics/AnalyticsConfig';
 import { AnalyticsSnapshot } from '../../typeorm/entities/analytics/AnalyticsSnapshot';
+import { INTERVALS, RETENTION_DAYS } from '../constants';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { activityTracker } from './activityTracker';
 import { sendDigest } from './digestBuilder';
 
 /** Retention period for analytics snapshots */
-const ANALYTICS_RETENTION_DAYS = 90;
 
 /** Interval handle for cleanup (so it can be cleared on shutdown) */
 let snapshotInterval: ReturnType<typeof setInterval> | null = null;
@@ -75,7 +75,7 @@ async function runDailySnapshot(client: Client): Promise<void> {
 
     // Clean old snapshots (90+ days)
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - ANALYTICS_RETENTION_DAYS);
+    cutoffDate.setDate(cutoffDate.getDate() - RETENTION_DAYS.ANALYTICS_SNAPSHOT);
 
     const deleteResult = await snapshotRepo.delete({
       date: LessThan(cutoffDate),
@@ -125,7 +125,7 @@ export function startSnapshotJob(client: Client): void {
     void runDailySnapshot(client);
 
     // Then repeat every 24 hours
-    snapshotInterval = setInterval(() => void runDailySnapshot(client), 24 * 60 * 60 * 1000);
+    snapshotInterval = setInterval(() => void runDailySnapshot(client), INTERVALS.ANALYTICS_SNAPSHOT);
   }, msToMidnight);
 
   // Store timeout reference for cleanup

@@ -26,6 +26,7 @@ import {
   logHandlerError,
   RateLimits,
   replyEphemeralError,
+  TIMEOUTS,
 } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
 
@@ -321,7 +322,7 @@ async function handleRemoveChannel(client: Client, interaction: ChatInputCommand
 
     const confirmI = await i.message.awaitMessageComponent({
       filter: ci => ci.user.id === interaction.user.id,
-      time: 30000,
+      time: TIMEOUTS.CONFIRMATION,
     });
 
     if (confirmI.customId === 'memory_remove_cancel') {

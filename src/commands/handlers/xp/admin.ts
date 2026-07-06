@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import xpLang from '../../../lang/en/xp.json';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
-import { enhancedLogger, handleInteractionError, LogCategory, replyEphemeralError } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LogCategory, replyEphemeralError, TIMEOUTS } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { calculateLevel } from '../../../utils/xp/xpCalculator';
 
@@ -110,7 +110,7 @@ async function handleResetAll(interaction: ChatInputCommandInteraction, guildId:
     const collected = await channel.awaitMessages({
       filter: m => m.author.id === interaction.user.id,
       max: 1,
-      time: 30_000,
+      time: TIMEOUTS.CONFIRMATION,
     });
 
     const response = collected.first();

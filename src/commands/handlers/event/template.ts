@@ -34,7 +34,7 @@ import { lazyRepo } from '../../../utils/database/lazyRepo';
 const templateRepo = lazyRepo(EventTemplate);
 
 const TEMPLATE_NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
-const MAX_EVENT_TEMPLATES = MAX.ANNOUNCEMENT_TEMPLATES; // reuse 25 limit
+const MAX_EVENT_TEMPLATES = MAX.EVENT_TEMPLATES;
 
 const tl = eventLang.template;
 

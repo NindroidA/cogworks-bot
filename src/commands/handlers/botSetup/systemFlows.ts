@@ -60,6 +60,7 @@ import {
   LogCategory,
   lang,
   showAndAwaitModal,
+  TIMEOUTS,
 } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { upsertGuildEntity } from '../../../utils/database/guildQueries';
@@ -213,7 +214,7 @@ async function askChannelChoice(
     ?.awaitMessageComponent({
       filter: i => i.user.id === interaction.user.id && i.customId.startsWith('setup_ch_'),
       componentType: ComponentType.Button,
-      time: 60_000,
+      time: TIMEOUTS.COMPONENT,
     })
     .catch(() => null);
 

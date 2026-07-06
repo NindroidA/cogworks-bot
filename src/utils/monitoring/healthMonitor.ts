@@ -15,6 +15,7 @@
 import type { Client } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
+import { INTERVALS } from '../constants';
 import type { StatusManager } from '../status/statusManager';
 import { enhancedLogger, LogCategory } from './enhancedLogger';
 
@@ -139,14 +140,14 @@ class HealthMonitor {
     this.periodicCheckIntervals.push(
       setInterval(() => {
         void this.checkDatabaseHealth();
-      }, 300000),
+      }, INTERVALS.HEALTH_STATUS),
     );
 
     // Clean up old errors every 5 minutes
     this.periodicCheckIntervals.push(
       setInterval(() => {
         this.cleanupOldErrors();
-      }, 300000),
+      }, INTERVALS.HEALTH_STATUS),
     );
   }
 

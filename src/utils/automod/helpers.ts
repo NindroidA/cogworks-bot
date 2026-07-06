@@ -13,17 +13,16 @@ import type {
   Guild,
 } from 'discord.js';
 import { AutoModerationActionType, AutoModerationRuleTriggerType, type Collection } from 'discord.js';
+import { MAX } from '../constants';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import type { AutoModRuleConfig } from './templates';
 
-/** Discord's maximum AutoMod rules per guild */
-export const MAX_AUTOMOD_RULES = 6;
-/** Discord's maximum keywords per rule */
-export const MAX_KEYWORDS_PER_RULE = 1000;
-/** Discord's maximum regex patterns per rule */
-export const MAX_REGEX_PER_RULE = 10;
-/** Discord's maximum regex pattern length */
-export const MAX_REGEX_LENGTH = 75;
+// Discord AutoMod limits — sourced from the MAX catalog in constants.ts
+// (these aliases keep the feature-local names its seven importers use).
+export const MAX_AUTOMOD_RULES = MAX.AUTOMOD_RULES;
+export const MAX_KEYWORDS_PER_RULE = MAX.AUTOMOD_KEYWORDS_PER_RULE;
+export const MAX_REGEX_PER_RULE = MAX.AUTOMOD_REGEX_PER_RULE;
+export const MAX_REGEX_LENGTH = MAX.AUTOMOD_REGEX_MAX_LENGTH;
 
 /**
  * Fetch all AutoMod rules for a guild.

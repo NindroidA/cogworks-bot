@@ -8,13 +8,13 @@
  */
 
 import { XPConfig } from '../../typeorm/entities/xp/XPConfig';
+import { CACHE_TTL } from '../constants';
 import { createTtlCache } from '../database/configCache';
 import { lazyRepo } from '../database/lazyRepo';
 
 const configRepo = lazyRepo(XPConfig);
 
-const CONFIG_CACHE_TTL = 5 * 60 * 1000;
-const configCache = createTtlCache<string, XPConfig>(CONFIG_CACHE_TTL);
+const configCache = createTtlCache<string, XPConfig>(CACHE_TTL.XP_CONFIG);
 
 /** Get XP config for a guild with 5-minute caching. Returns null when not configured. */
 export async function getXPConfig(guildId: string): Promise<XPConfig | null> {

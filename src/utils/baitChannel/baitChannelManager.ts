@@ -26,6 +26,7 @@ import { createTtlCache } from '../database/configCache';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { toUnixSeconds } from '../time';
+import { truncateWithNotice } from '../validation/inputSanitizer';
 import { buildAppealUrl } from './appealToken';
 import { buildAuditReason, flagsTriggered } from './auditReason';
 import { type BanExecutorAction, type BanExecutorResult, executeBanAction } from './banExecutor';
@@ -1501,14 +1502,14 @@ export class BaitChannelManager {
       if (actionResult === 'failed' && failureReason) {
         embed.addFields({
           name: '⚠️ Failure Reason',
-          value: failureReason.length > 1024 ? `${failureReason.substring(0, 1021)}...` : failureReason,
+          value: truncateWithNotice(failureReason, 1024),
         });
       }
 
       if (message.content) {
         embed.addFields({
           name: '💬 Message Content',
-          value: message.content.length > 1024 ? `${message.content.substring(0, 1021)}...` : message.content,
+          value: truncateWithNotice(message.content, 1024),
         });
       }
 
@@ -1667,7 +1668,7 @@ export class BaitChannelManager {
       if (message.content) {
         embed.addFields({
           name: '💬 Message Content',
-          value: message.content.length > 1024 ? `${message.content.substring(0, 1021)}...` : message.content,
+          value: truncateWithNotice(message.content, 1024),
         });
       }
 
