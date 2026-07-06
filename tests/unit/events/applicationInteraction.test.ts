@@ -25,6 +25,7 @@
  * (applicationCloseEvent) are replaced via Bun's mock.module().
  */
 
+import * as realApplicationCloseModule from "../../../src/events/application/close";
 import {
   afterEach,
   beforeEach,
@@ -44,7 +45,11 @@ import { rateLimiter } from "../../../src/utils/security/rateLimiter";
 
 const mockApplicationCloseEvent = jest.fn().mockResolvedValue(undefined);
 
+// Spread the REAL module so sibling exports (buttons, the *Impl alias used by
+// events/application/close.test.ts) pass through — mock.module is process-
+// global in bun, and a stub-only factory clobbers them for every other suite.
 mock.module("../../../src/events/application/close", () => ({
+  ...realApplicationCloseModule,
   applicationCloseEvent: (...args: unknown[]) =>
     mockApplicationCloseEvent(...args),
 }));

@@ -22,6 +22,7 @@
  * are replaced via Bun's mock.module() before the handler is imported.
  */
 
+import * as realAdminOnlyModule from "../../../src/events/ticket/adminOnly";
 import {
   afterEach,
   beforeEach,
@@ -48,7 +49,11 @@ const mockEmailImportModalHandler = jest.fn().mockResolvedValue(undefined);
 // deps seam) and broke it. confirmClose/closeButton/cancelClose run for real
 // here; routing into ticketCloseEvent is verified via the DB lookup it performs
 // (findOneBySpy) rather than a spy on the function itself.
+// Spread the REAL module so sibling exports (buttons, the *Impl alias used by
+// events/ticket/adminOnly.test.ts) pass through — see the close-module NOTE
+// above for why stub-only factories are hazardous.
 mock.module("../../../src/events/ticket/adminOnly", () => ({
+  ...realAdminOnlyModule,
   ticketAdminOnlyEvent: (...args: unknown[]) =>
     mockTicketAdminOnlyEvent(...args),
 }));

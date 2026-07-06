@@ -20,22 +20,52 @@ const ticketRepo = lazyRepo(Ticket);
 const staffRoleRepo = lazyRepo(StaffRole);
 const ticketConfigRepo = lazyRepo(TicketConfig);
 
-export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonInteraction) => {
+/**
+ * Injectable seam for {@link ticketAdminOnlyEvent} — the deterministic
+ * direct-injection pattern shared with the ticket/application close events.
+ * The bot-config and staff-role lookups are wrapped as functions so tests
+ * don't need AppDataSource or a query-builder fake.
+ */
+export interface AdminOnlyDeps {
+  ticketRepo: typeof ticketRepo;
+  ticketConfigRepo: typeof ticketConfigRepo;
+  getBotConfig: (guildId: string) => Promise<BotConfig | null>;
+  getStaffRoles: (guildId: string) => Promise<Array<{ role: string }>>;
+  replyEphemeralError: typeof replyEphemeralError;
+}
+
+const defaultAdminOnlyDeps: AdminOnlyDeps = {
+  ticketRepo,
+  ticketConfigRepo,
+  getBotConfig: guildId => AppDataSource.getRepository(BotConfig).findOneBy({ guildId }),
+  getStaffRoles: guildId =>
+    staffRoleRepo
+      .createQueryBuilder()
+      .select(['role'])
+      .where('guildId = :guildId', { guildId })
+      .andWhere('type = :type', { type: 'staff' })
+      .getRawMany(),
+  replyEphemeralError,
+};
+
+export const ticketAdminOnlyEvent = async (
+  _client: Client,
+  interaction: ButtonInteraction,
+  deps: AdminOnlyDeps = defaultAdminOnlyDeps,
+) => {
   const channel = interaction.channel as TextChannel;
   const channelId = interaction.channelId;
   const guildId = interaction.guildId;
   const user = interaction.user.displayName;
   const userId = interaction.user.id;
   if (!guildId) {
-    await replyEphemeralError(interaction, lang.general.cmdGuildNotFound);
+    await deps.replyEphemeralError(interaction, lang.general.cmdGuildNotFound);
     return;
   }
 
-  const ticket = await ticketRepo.findOneBy({ guildId, channelId: channelId });
+  const ticket = await deps.ticketRepo.findOneBy({ guildId, channelId: channelId });
 
-  // get the bot config repo
-  const botConfigRepo = AppDataSource.getRepository(BotConfig);
-  const botConfig = await botConfigRepo.findOneBy({ guildId });
+  const botConfig = await deps.getBotConfig(guildId);
   const gsrFlag = botConfig?.enableGlobalStaffRole;
   const globalStaffRole = botConfig?.globalStaffRole;
 
@@ -44,14 +74,14 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
     enhancedLogger.error(lang.general.fatalError, undefined, LogCategory.COMMAND_EXECUTION, { guildId, channelId });
     // confirmAdminOnly already showed "Changing to Admin Only..." — surface the
     // failure instead of leaving the user on a frozen ack.
-    await replyEphemeralError(interaction, lang.general.fatalError, { bugReport: true });
+    await deps.replyEphemeralError(interaction, lang.general.fatalError, { bugReport: true });
     return;
   }
 
   // check if the person hitting the button is the ticket creator
   if (userId === ticket.createdBy) {
     // Get ticket config to check admin-only mention setting
-    const ticketConfig = await ticketConfigRepo.findOneBy({ guildId });
+    const ticketConfig = await deps.ticketConfigRepo.findOneBy({ guildId });
     const shouldMentionStaff = ticketConfig?.adminOnlyMentionStaff ?? true;
 
     // Only mention staff if the setting is enabled AND a staff role is actually
@@ -73,12 +103,7 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
     return;
   }
 
-  const savedRoles = await staffRoleRepo
-    .createQueryBuilder()
-    .select(['role'])
-    .where('guildId = :guildId', { guildId })
-    .andWhere('type = :type', { type: 'staff' })
-    .getRawMany();
+  const savedRoles = await deps.getStaffRoles(guildId);
 
   // Remove each staff role's view access. Await sequentially (forEach does NOT
   // await async callbacks — the old fire-and-forget edits raced and could throw
@@ -120,11 +145,18 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
   }
 
   // update the ticket status
-  await ticketRepo.update({ id: ticket.id, guildId }, { status: 'adminOnly' });
+  await deps.ticketRepo.update({ id: ticket.id, guildId }, { status: 'adminOnly' });
 
   // Resolve the "Changing to Admin Only..." ack so it isn't left frozen.
   await interaction.editReply({ content: tl.success }).catch(() => {});
 };
+
+/**
+ * Untouched alias for suites that test the REAL implementation (see
+ * applicationCloseEventImpl in events/application/close.ts for the pattern —
+ * ticketInteraction.test.ts mocks this module process-globally).
+ */
+export const ticketAdminOnlyEventImpl = ticketAdminOnlyEvent;
 
 export const adminOnlyButton = async (_client: Client, interaction: ButtonInteraction) => {
   enhancedLogger.debug(`Button: admin_only_ticket`, LogCategory.COMMAND_EXECUTION, {

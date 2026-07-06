@@ -17,15 +17,39 @@ const tl = lang.application.close;
 const applicationRepo = lazyRepo(Application);
 const archivedApplicationConfigRepo = lazyRepo(ArchivedApplicationConfig);
 
-export const applicationCloseEvent = async (client: Client, interaction: ButtonInteraction) => {
+/**
+ * Injectable seam for {@link applicationCloseEvent}. Production callers omit
+ * it (the defaults bind the real repos + workflow). Tests pass fakes directly
+ * rather than relying on `mock.module()` — the same deterministic-injection
+ * pattern as events/ticket/close.ts (its TicketCloseDeps twin).
+ */
+export interface ApplicationCloseDeps {
+  applicationRepo: typeof applicationRepo;
+  archivedApplicationConfigRepo: typeof archivedApplicationConfigRepo;
+  archiveAndCloseApplication: typeof archiveAndCloseApplication;
+  replyEphemeralError: typeof replyEphemeralError;
+}
+
+const defaultApplicationCloseDeps: ApplicationCloseDeps = {
+  applicationRepo,
+  archivedApplicationConfigRepo,
+  archiveAndCloseApplication,
+  replyEphemeralError,
+};
+
+export const applicationCloseEvent = async (
+  client: Client,
+  interaction: ButtonInteraction,
+  deps: ApplicationCloseDeps = defaultApplicationCloseDeps,
+) => {
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
   const channel = interaction.channel as GuildTextBasedChannel;
   const channelId = interaction.channelId || '';
-  const archivedConfig = await archivedApplicationConfigRepo.findOneBy({
+  const archivedConfig = await deps.archivedApplicationConfigRepo.findOneBy({
     guildId,
   });
-  const application = await applicationRepo.findOneBy({ guildId, channelId });
+  const application = await deps.applicationRepo.findOneBy({ guildId, channelId });
 
   // Every early return below runs AFTER confirmCloseApplication already showed
   // "Closing application..." (interaction.update). A bare return freezes that
@@ -33,13 +57,13 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
   // followUp before bailing — mirrors the ticket close flow.
   if (!archivedConfig) {
     enhancedLogger.warn(lang.application.applicationConfigNotFound, LogCategory.SYSTEM, { guildId });
-    await replyEphemeralError(interaction, tl.notConfigured);
+    await deps.replyEphemeralError(interaction, tl.notConfigured);
     return;
   }
 
   if (!application) {
     enhancedLogger.error(lang.general.fatalError, undefined, LogCategory.SYSTEM, { guildId, channelId });
-    await replyEphemeralError(interaction, tl.notFound);
+    await deps.replyEphemeralError(interaction, tl.notFound);
     return;
   }
 
@@ -49,7 +73,7 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
       guildId,
       channelId,
     });
-    await replyEphemeralError(interaction, tl.alreadyClosed);
+    await deps.replyEphemeralError(interaction, tl.alreadyClosed);
     return;
   }
 
@@ -57,31 +81,31 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
   // confirm racing the dashboard's archive (or a double-click) could pass it;
   // whoever loses the conditional UPDATE bails as a duplicate. Mirrors
   // events/ticket/close.ts.
-  if (!(await claimClose(applicationRepo, application.id, guildId))) {
+  if (!(await claimClose(deps.applicationRepo, application.id, guildId))) {
     enhancedLogger.warn(
       'Application close lost the flip race — concurrent close already in progress',
       LogCategory.SYSTEM,
       { guildId, channelId },
     );
-    await replyEphemeralError(interaction, tl.alreadyClosed);
+    await deps.replyEphemeralError(interaction, tl.alreadyClosed);
     return;
   }
 
   let result: ArchiveApplicationResult;
   try {
-    result = await archiveAndCloseApplication(client, application, guildId, channel, archivedConfig.channelId);
+    result = await deps.archiveAndCloseApplication(client, application, guildId, channel, archivedConfig.channelId);
   } catch (error) {
     // Unexpected throw escaped the workflow. Status was flipped to 'closed'
     // above but the channel still exists — revert (otherwise the dup-close guard
     // strands it) and tell the user instead of leaving "Closing application...".
-    await releaseClose(applicationRepo, application.id, guildId, application.status);
+    await releaseClose(deps.applicationRepo, application.id, guildId, application.status);
     enhancedLogger.error(
       'Application close threw unexpectedly — status reverted, channel preserved for retry',
       error instanceof Error ? error : undefined,
       LogCategory.ERROR,
       { guildId, channelId, applicationId: application.id },
     );
-    await replyEphemeralError(interaction, tl.transcriptCreate.error).catch(() => {});
+    await deps.replyEphemeralError(interaction, tl.transcriptCreate.error).catch(() => {});
     return;
   }
 
@@ -89,7 +113,7 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
     // Close did not complete (transcript fetch or forum post failed). The
     // workflow preserved the channel; revert the status so the close can be
     // retried instead of stranding a 'closed' application with a live channel.
-    await releaseClose(applicationRepo, application.id, guildId, application.status);
+    await releaseClose(deps.applicationRepo, application.id, guildId, application.status);
     enhancedLogger.warn(
       'Application close reverted — archive failed, channel + application preserved for retry',
       LogCategory.SYSTEM,
@@ -102,7 +126,7 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
     );
     // replyEphemeralError picks reply/editReply/followUp from the interaction
     // state internally, so no branch on replied/deferred is needed.
-    await replyEphemeralError(interaction, tl.transcriptCreate.error).catch((err: unknown) => {
+    await deps.replyEphemeralError(interaction, tl.transcriptCreate.error).catch((err: unknown) => {
       enhancedLogger.error(
         'Failed to deliver application-close failure notice to the user',
         err instanceof Error ? err : undefined,
@@ -118,9 +142,17 @@ export const applicationCloseEvent = async (client: Client, interaction: ButtonI
       channelId,
       applicationId: application.id,
     });
-    await replyEphemeralError(interaction, tl.archivedChannelRemains, { bugReport: true }).catch(() => {});
+    await deps.replyEphemeralError(interaction, tl.archivedChannelRemains, { bugReport: true }).catch(() => {});
   }
 };
+
+/**
+ * Untouched alias for suites that test the REAL implementation.
+ * applicationInteraction.test.ts mock.module()s this module (process-global
+ * in bun) to isolate the dispatcher; its factory spreads the real module, so
+ * this alias passes through unmocked.
+ */
+export const applicationCloseEventImpl = applicationCloseEvent;
 
 export const closeApplicationButton = async (_client: Client, interaction: ButtonInteraction) => {
   enhancedLogger.debug(`Button: close_application`, LogCategory.COMMAND_EXECUTION, {

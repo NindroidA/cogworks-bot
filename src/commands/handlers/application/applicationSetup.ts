@@ -22,6 +22,7 @@ import {
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import type { ConfigItem } from '../../../utils/setup/configStatusEmbed';
+import { closeNeedsArchiveWarning } from '../../../utils/setup/configStatusEmbed';
 import { buildApplicationMessage } from './applicationPosition';
 
 const tl = lang.application.setup;
@@ -205,7 +206,10 @@ export async function applicationSetupHandler(_client: Client, interaction: Chat
 
     // Closing an application requires an archive forum; warn when creation is
     // enabled but the archive is missing (mirrors ticket setup).
-    const closeNeedsArchive = !!applicationConfig?.channelId && !archivedApplicationConfig?.channelId;
+    const closeNeedsArchive = closeNeedsArchiveWarning(
+      applicationConfig?.channelId,
+      archivedApplicationConfig?.channelId,
+    );
 
     await interaction.reply({
       content: closeNeedsArchive ? tl.closeNeedsArchive : undefined,

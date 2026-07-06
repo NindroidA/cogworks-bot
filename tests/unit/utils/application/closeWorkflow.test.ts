@@ -164,6 +164,23 @@ describe("archiveAndCloseApplication", () => {
     expect(fakeVerifiedChannelDelete).toHaveBeenCalledTimes(1);
   });
 
+  test("channel delete refused → archived:true but channelDeleted:false (caller must tell the user)", async () => {
+    fakeVerifiedChannelDelete.mockResolvedValueOnce({ success: false, alreadyGone: false, error: "Missing Permissions" });
+    const client = makeFakeClient(forumChannel);
+
+    const result = await archiveAndCloseApplication(
+      client,
+      makeApplication(),
+      "guild-1",
+      makeChannel(),
+      "forum-archive-1",
+      deps,
+    );
+
+    // The transcript is safe, but the caller must NOT report a clean close.
+    expect(result).toEqual({ success: true, archived: true, channelDeleted: false });
+  });
+
   test("re-close append: posts header embed into the existing thread, no new thread", async () => {
     fakeRepoState.findOneByResult = { messageId: "existing-app-thread" };
     const client = makeFakeClient(forumChannel);
