@@ -50,10 +50,12 @@ export interface ConfirmationResult {
 /**
  * Show confirm/cancel buttons and await the user's response.
  * Automatically handles cancel (updates message to "Cancelled") and timeout
- * (removes components). Returns the confirmed ButtonInteraction or null.
+ * (shows the standard timeout message). Returns the confirmed
+ * ButtonInteraction or null.
  *
- * The interaction is replied to with the confirmation message.
- * Only use with interactions that haven't been replied to or deferred yet.
+ * Fresh interactions get an ephemeral reply; interactions that already
+ * deferred get the buttons via editReply (v3.14.6). Do not use after a
+ * plain reply().
  *
  * @example
  * const result = await awaitConfirmation(interaction, {
@@ -83,12 +85,14 @@ export async function awaitConfirmation(
       .setStyle(ButtonStyle.Secondary),
   );
 
-  const response = await interaction.reply({
+  const payload = {
     content: options.message,
     embeds: options.embeds ?? [],
     components: [row],
-    flags: [MessageFlags.Ephemeral],
-  });
+  };
+  const response = interaction.deferred
+    ? await interaction.editReply(payload)
+    : await interaction.reply({ ...payload, flags: [MessageFlags.Ephemeral] });
 
   try {
     const btn = await response.awaitMessageComponent({

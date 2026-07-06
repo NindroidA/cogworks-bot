@@ -5,20 +5,18 @@
  */
 
 import {
-  ActionRowBuilder,
   AttachmentBuilder,
   type AutoModerationActionType,
   type AutoModerationRuleEventType,
   type AutoModerationRuleTriggerType,
-  ButtonBuilder,
   ButtonStyle,
   type ChatInputCommandInteraction,
   type Client,
-  ComponentType,
   EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
 import {
+  awaitConfirmation,
   enhancedLogger,
   formatLang,
   handleInteractionError,
@@ -134,93 +132,67 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
       return;
     }
 
-    // Confirmation
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId('automod_restore_confirm')
-        .setLabel('Confirm Restore')
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId('automod_restore_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
-    );
+    // Confirmation — awaitConfirmation owns the cancel/timeout handling and
+    // works post-deferReply since v3.14.6 (this flow escaped the v3.0.4 and
+    // v3.1.34 consolidations because the helper couldn't edit a deferred reply).
+    const result = await awaitConfirmation(interaction, {
+      message: formatLang(tl.restore.confirmMessage, backup.rules.length),
+      confirmLabel: 'Confirm Restore',
+      confirmStyle: ButtonStyle.Primary,
+      idPrefix: 'automod_restore',
+    });
+    if (!result) return;
 
-    const confirmReply = await interaction.editReply({
-      content: formatLang(tl.restore.confirmMessage, backup.rules.length),
-      components: [row],
+    let created = 0;
+    for (const serializedRule of backup.rules) {
+      try {
+        const ruleConfig: AutoModRuleConfig = {
+          name: serializedRule.name,
+          eventType: serializedRule.eventType as AutoModerationRuleEventType,
+          triggerType: serializedRule.triggerType as AutoModerationRuleTriggerType,
+          triggerMetadata: {
+            keywordFilter: serializedRule.triggerMetadata?.keywordFilter,
+            regexPatterns: serializedRule.triggerMetadata?.regexPatterns,
+            mentionTotalLimit: serializedRule.triggerMetadata?.mentionTotalLimit,
+            mentionRaidProtectionEnabled: serializedRule.triggerMetadata?.mentionRaidProtectionEnabled,
+          },
+          actions: serializedRule.actions.map(a => ({
+            type: a.type as AutoModerationActionType,
+            metadata: a.metadata
+              ? {
+                  durationSeconds: a.metadata.durationSeconds,
+                  customMessage: a.metadata.customMessage,
+                }
+              : undefined,
+          })),
+          enabled: serializedRule.enabled,
+        };
+
+        await createAutoModRule(guild, ruleConfig);
+        created++;
+      } catch (error) {
+        enhancedLogger.warn(`Failed to restore rule: ${serializedRule.name}`, LogCategory.COMMAND_EXECUTION, {
+          guildId: guild.id,
+          error: String(error),
+        });
+      }
+    }
+
+    enhancedLogger.info(`AutoMod rules restored: ${created}/${backup.rules.length}`, LogCategory.COMMAND_EXECUTION, {
+      guildId: guild.id,
+      userId: interaction.user.id,
     });
 
-    try {
-      const buttonInteraction = await confirmReply.awaitMessageComponent({
-        componentType: ComponentType.Button,
-        filter: i => i.user.id === interaction.user.id,
-        time: 30_000,
-      });
+    const embed = new EmbedBuilder()
+      .setColor('#00FF00')
+      .setTitle(tl.restore.title)
+      .setDescription(formatLang(tl.restore.success, created));
 
-      if (buttonInteraction.customId === 'automod_restore_cancel') {
-        await buttonInteraction.update({
-          content: lang.errors.cancelled,
-          components: [],
-        });
-        return;
-      }
-
-      await buttonInteraction.deferUpdate();
-
-      let created = 0;
-      for (const serializedRule of backup.rules) {
-        try {
-          const ruleConfig: AutoModRuleConfig = {
-            name: serializedRule.name,
-            eventType: serializedRule.eventType as AutoModerationRuleEventType,
-            triggerType: serializedRule.triggerType as AutoModerationRuleTriggerType,
-            triggerMetadata: {
-              keywordFilter: serializedRule.triggerMetadata?.keywordFilter,
-              regexPatterns: serializedRule.triggerMetadata?.regexPatterns,
-              mentionTotalLimit: serializedRule.triggerMetadata?.mentionTotalLimit,
-              mentionRaidProtectionEnabled: serializedRule.triggerMetadata?.mentionRaidProtectionEnabled,
-            },
-            actions: serializedRule.actions.map(a => ({
-              type: a.type as AutoModerationActionType,
-              metadata: a.metadata
-                ? {
-                    durationSeconds: a.metadata.durationSeconds,
-                    customMessage: a.metadata.customMessage,
-                  }
-                : undefined,
-            })),
-            enabled: serializedRule.enabled,
-          };
-
-          await createAutoModRule(guild, ruleConfig);
-          created++;
-        } catch (error) {
-          enhancedLogger.warn(`Failed to restore rule: ${serializedRule.name}`, LogCategory.COMMAND_EXECUTION, {
-            guildId: guild.id,
-            error: String(error),
-          });
-        }
-      }
-
-      enhancedLogger.info(`AutoMod rules restored: ${created}/${backup.rules.length}`, LogCategory.COMMAND_EXECUTION, {
-        guildId: guild.id,
-        userId: interaction.user.id,
-      });
-
-      const embed = new EmbedBuilder()
-        .setColor('#00FF00')
-        .setTitle(tl.restore.title)
-        .setDescription(formatLang(tl.restore.success, created));
-
-      await interaction.editReply({
-        content: '',
-        embeds: [embed],
-        components: [],
-      });
-    } catch {
-      await interaction.editReply({
-        content: lang.errors.cancelled,
-        components: [],
-      });
-    }
+    await result.interaction.editReply({
+      content: '',
+      embeds: [embed],
+      components: [],
+    });
   } catch (error) {
     await handleInteractionError(interaction, error, tl.restore.error);
   }

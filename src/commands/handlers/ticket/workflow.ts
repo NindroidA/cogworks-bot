@@ -28,6 +28,7 @@ import {
   REQUIRED_WORKFLOW_STATUSES,
   replyEphemeralError,
   sanitizeUserInput,
+  toUnixSeconds,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { findStatusById, appendStatusHistory as sharedAppendHistory } from '../../../utils/workflow/workflowHelpers';
@@ -325,7 +326,7 @@ export async function ticketInfoHandler(interaction: ChatInputCommandInteraction
   if (ticket.lastActivityAt) {
     embed.addFields({
       name: tlInfo.lastActivity,
-      value: `<t:${Math.floor(new Date(ticket.lastActivityAt).getTime() / 1000)}:R>`,
+      value: `<t:${toUnixSeconds(new Date(ticket.lastActivityAt))}:R>`,
       inline: true,
     });
   }
@@ -337,7 +338,7 @@ export async function ticketInfoHandler(interaction: ChatInputCommandInteraction
       .map((entry: TicketStatusHistoryEntry) => {
         const entryStatusDef = findStatusById(statuses, entry.status);
         const label = entryStatusDef ? `${entryStatusDef.emoji} ${entryStatusDef.label}` : entry.status;
-        const timestamp = Math.floor(new Date(entry.changedAt).getTime() / 1000);
+        const timestamp = toUnixSeconds(new Date(entry.changedAt));
         return `${label} by <@${entry.changedBy}> <t:${timestamp}:R>`;
       })
       .join('\n');

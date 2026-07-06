@@ -19,6 +19,7 @@ import {
   type ApplicationWorkflowStatus,
 } from '../../../typeorm/entities/application/ApplicationConfig';
 import {
+  createToggleHandler,
   DEFAULT_APPLICATION_STATUSES,
   enhancedLogger,
   formatLang,
@@ -29,6 +30,7 @@ import {
   REQUIRED_APPLICATION_STATUSES,
   replyEphemeralError,
   sanitizeUserInput,
+  toUnixSeconds,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { findStatusById, appendStatusHistory as sharedAppendHistory } from '../../../utils/workflow/workflowHelpers';
@@ -320,7 +322,7 @@ export async function applicationInfoHandler(interaction: ChatInputCommandIntera
     const recentNotes = application.internalNotes.slice(-5).reverse();
     const notesText = recentNotes
       .map(n => {
-        const timestamp = Math.floor(new Date(n.addedAt).getTime() / 1000);
+        const timestamp = toUnixSeconds(new Date(n.addedAt));
         return formatLang(tlInfo.noteEntry, n.note, n.addedBy, timestamp.toString());
       })
       .join('\n');
@@ -338,7 +340,7 @@ export async function applicationInfoHandler(interaction: ChatInputCommandIntera
       .map((entry: ApplicationStatusHistoryEntry) => {
         const entryStatusDef = findStatusById(statuses, entry.status);
         const label = entryStatusDef ? `${entryStatusDef.emoji} ${entryStatusDef.label}` : entry.status;
-        const timestamp = Math.floor(new Date(entry.changedAt).getTime() / 1000);
+        const timestamp = toUnixSeconds(new Date(entry.changedAt));
         return `${label} by <@${entry.changedBy}> <t:${timestamp}:R>`;
       })
       .join('\n');
@@ -407,35 +409,31 @@ export async function applicationCheckHandler(interaction: ChatInputCommandInter
 // /application workflow-enable
 // ============================================================================
 
+const workflowToggle = createToggleHandler({
+  repo: applicationConfigRepo,
+  field: 'enableWorkflow',
+  messages: {
+    alreadyEnabled: tl.alreadyEnabled,
+    alreadyDisabled: tl.alreadyDisabled,
+    enabled: tl.enabled,
+    disabled: tl.disabled,
+  },
+  requireExisting: { notConfigured: lang.application.applicationConfigNotFound },
+  onEnable: config => {
+    if (!config.workflowStatuses || config.workflowStatuses.length === 0) {
+      config.workflowStatuses = [...DEFAULT_APPLICATION_STATUSES];
+    }
+  },
+  onToggled: (_interaction, guildId, enabled) =>
+    enhancedLogger.info(`Application workflow ${enabled ? 'enabled' : 'disabled'}`, LogCategory.COMMAND_EXECUTION, {
+      guildId,
+    }),
+});
+
 export async function applicationWorkflowEnableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardFeatureAccess(interaction, 'applications', 'manage');
   if (!guard.allowed) return;
-
-  const guildId = interaction.guildId!;
-  const config = await applicationConfigRepo.findOneBy({ guildId });
-
-  if (!config) {
-    await replyEphemeralError(interaction, lang.application.applicationConfigNotFound);
-    return;
-  }
-
-  if (config.enableWorkflow) {
-    await replyEphemeralError(interaction, tl.alreadyEnabled);
-    return;
-  }
-
-  config.enableWorkflow = true;
-  if (!config.workflowStatuses || config.workflowStatuses.length === 0) {
-    config.workflowStatuses = [...DEFAULT_APPLICATION_STATUSES];
-  }
-  await applicationConfigRepo.save(config);
-
-  await interaction.reply({
-    content: tl.enabled,
-    flags: [MessageFlags.Ephemeral],
-  });
-
-  enhancedLogger.info('Application workflow enabled', LogCategory.COMMAND_EXECUTION, { guildId });
+  await workflowToggle.enable(interaction, interaction.guildId!);
 }
 
 // ============================================================================
@@ -445,29 +443,7 @@ export async function applicationWorkflowEnableHandler(interaction: ChatInputCom
 export async function applicationWorkflowDisableHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardFeatureAccess(interaction, 'applications', 'manage');
   if (!guard.allowed) return;
-
-  const guildId = interaction.guildId!;
-  const config = await applicationConfigRepo.findOneBy({ guildId });
-
-  if (!config) {
-    await replyEphemeralError(interaction, lang.application.applicationConfigNotFound);
-    return;
-  }
-
-  if (!config.enableWorkflow) {
-    await replyEphemeralError(interaction, tl.alreadyDisabled);
-    return;
-  }
-
-  config.enableWorkflow = false;
-  await applicationConfigRepo.save(config);
-
-  await interaction.reply({
-    content: tl.disabled,
-    flags: [MessageFlags.Ephemeral],
-  });
-
-  enhancedLogger.info('Application workflow disabled', LogCategory.COMMAND_EXECUTION, { guildId });
+  await workflowToggle.disable(interaction, interaction.guildId!);
 }
 
 // ============================================================================

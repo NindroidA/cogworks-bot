@@ -5,6 +5,7 @@ import {
   type ChatInputCommandInteraction,
   EmbedBuilder,
   type Interaction,
+  type InteractionCallbackResponse,
   MessageFlags,
   StringSelectMenuBuilder,
   type StringSelectMenuInteraction,
@@ -12,7 +13,6 @@ import {
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import {
-  buildErrorMessage,
   enhancedLogger,
   guardFeatureAccess,
   handleInteractionError,
@@ -79,26 +79,31 @@ export async function renderInteractiveTypeView(
     }
 
     // Initial render — summary or jump-to-detail.
+    let response: InteractionCallbackResponse;
     if (options.startWith === 'detail') {
       const target = types.find(t => t.typeId === options.typeId);
       if (!target) {
         await replyEphemeralError(interaction, lang.ticket.customTypes.typeEdit.notFound);
         return;
       }
-      await interaction.reply({
+      response = await interaction.reply({
         embeds: [buildDetailEmbed(target)],
         components: buildDetailComponents(target),
         flags: [MessageFlags.Ephemeral],
+        withResponse: true,
       });
     } else {
-      await interaction.reply({
+      response = await interaction.reply({
         embeds: [buildSummaryEmbed(types)],
         components: buildSummaryComponents(types),
         flags: [MessageFlags.Ephemeral],
+        withResponse: true,
       });
     }
 
-    const message = await interaction.fetchReply();
+    // withResponse avoids the extra fetchReply REST roundtrip (repo convention).
+    const message = response.resource?.message;
+    if (!message) return;
     const collector = message.createMessageComponentCollector({
       time: COLLECTOR_TIMEOUT_MS,
       filter: (i: Interaction) => i.user.id === interaction.user.id,
@@ -250,16 +255,12 @@ export async function renderInteractiveTypeView(
           guildId,
           userId: i.user.id,
         });
-        // If we threw before acknowledging the interaction, give the user
-        // visible feedback instead of letting Discord render "Interaction
-        // failed" with no clue why. The .catch swallows secondary failures
-        // (interaction expired, already replied) so the collector keeps
-        // running for the rest of the 5-min window.
-        if (!i.replied && !i.deferred) {
-          await replyEphemeralError(i, buildErrorMessage('Something went wrong while processing this action.')).catch(
-            () => undefined,
-          );
-        }
+        // Give the user visible feedback instead of letting Discord render
+        // "Interaction failed" with no clue why. replyEphemeralError is
+        // state-aware (reply/editReply/followUp) and swallows secondary
+        // delivery failures itself, and bugReport appends the report link —
+        // no need to pre-wrap with buildErrorMessage or guard on state.
+        await replyEphemeralError(i, 'Something went wrong while processing this action.', { bugReport: true });
       }
     });
 
