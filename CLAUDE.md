@@ -5,7 +5,7 @@
 - **Runtime**: Bun
 - **Deployment**: Docker containers
 - **Branches**: `main` (production)
-- **Version**: 3.14.0 (see `package.json` — this line drifts; trust the package)
+- **Version**: 3.14.4 (see `package.json` — this line drifts; trust the package)
 
 ## Critical Rules
 
@@ -80,7 +80,7 @@ const group = interaction.options.getSubcommandGroup(true);
 const subcommand = interaction.options.getSubcommand();
 const handler = TICKET_GROUP_ROUTES[group]?.[subcommand];
 ```
-Commands using groups: `ticket` (5 groups), `baitchannel` (5 groups), `application`, `event`, `announcement`, `automod`, `role`.
+Commands using groups: `ticket` (5 groups), `baitchannel` (6 groups), `application`, `event`, `announcement`, `automod`, `role`.
 
 ### Language System
 Use centralized `lang` module (NOT hardcoded strings):
@@ -89,7 +89,7 @@ import { lang } from '../utils';
 lang.ticket.created;          // Direct access
 lang.ticketSetup.createTicket; // Setup strings are under ticketSetup/applicationSetup keys
 ```
-Translation files: `src/lang/*.json` with types in `src/lang/types.ts`.
+Translation files: per-locale dirs `src/lang/<locale>/*.json` (en, es, fr, de, pt-BR — English is the Proxy fallback) with types in `src/lang/types.ts`.
 
 ### Error Handling
 ```typescript
@@ -293,19 +293,28 @@ await runner.runAll(guildIds);
 ### Environment Variables
 - `RELEASE=dev` → `DEV_BOT_TOKEN` + `DEV_CLIENT_ID` (separate bot)
 - `RELEASE=prod` → `BOT_TOKEN` + `CLIENT_ID` (production)
+- `MYSQL_DB_HOST` / `MYSQL_DB_PORT` / `MYSQL_DB_USERNAME` / `MYSQL_DB_PASSWORD` / `MYSQL_DB_DATABASE` — DataSource connection
 - `MAINTENANCE_MODE=true` — Lightweight mode, no DB, replies with maintenance message (see `src/maintenance.ts`)
 - `BOT_OWNER_ID` — Required for `/status` commands
 - `DEV_GUILD_ID` — Skips API webhooks and join velocity for this guild
 - `COGWORKS_INTERNAL_API_TOKEN` — Bearer token for internal API
 - `BOT_INTERNAL_PORT` — Internal API port (default: 3002)
+- `HEALTH_PORT` — Health server port
 - `APPEAL_HMAC_SECRET` — 32+ byte random secret (v3.2.0). Required only when any guild has `BaitChannelConfig.enableAppealLink=true`; signed appeal URLs are silently omitted from DMs when missing.
+- `ERROR_WEBHOOK_URL` / `ERROR_REPORTING_ENABLED` — Discord error-reporter webhook (v3.1.1; default on in prod, off in dev)
+- `STATUS_CHANNEL_ID` — Channel for the status manager's persistent embed
+- `MEMORY_ALERT_CHANNEL_ID` — Memory watchdog alert channel (falls back to `STATUS_CHANNEL_ID`); tunables: `MEMORY_WARN_HEAP_PCT`, `MEMORY_CRIT_HEAP_PCT`, `MEMORY_MAP_WARN_SIZE`
+- `MEMORY_THRESHOLD_MB` — Health-check memory threshold (healthMonitor/healthServer, default 512)
+- `API_URL` — External dashboard API endpoint (apiConnector + guild webhooks)
+- `DASHBOARD_URL` — Base URL for user-facing dashboard links (`/dashboard` command, profile embeds)
+- `NODE_ENV` — Log level / file logging / colorization (enhancedLogger)
 
 ### Build & Run
 ```bash
 bun run dev        # Development with watch mode
 bun run build      # Compile TypeScript to dist/
 bun run start      # Production: run directly with Bun
-bun test           # Jest unit tests
+bun test           # Unit tests (Bun test runner)
 ```
 
 ### Linting & Formatting (Biome)
@@ -379,10 +388,11 @@ src/
 │   ├── analytics/          # activityTracker, snapshot query helpers
 │   ├── announcement/       # preview builders, send orchestration
 │   ├── api/                # Internal API server, router, handlers, guildWebhook, helpers
+│   ├── application/        # closeWorkflow (archiveAndCloseApplication)
 │   ├── archive/            # archiveExporter (export + delete archived data)
 │   ├── automod/            # automod rules + feature setup
 │   ├── baitChannel/        # BaitChannelManager + whitelist + keyword helpers
-│   ├── database/           # guildQueries, logCleanup, legacyMigration, lazyRepo, safeDbOperation
+│   ├── database/           # guildQueries, logCleanup, legacyMigration, lazyRepo, statusFlip, configCache
 │   ├── discord/            # verifiedDelete (deletion with verification + bug report)
 │   ├── event/              # event template + reminder helpers
 │   ├── import/             # mee6 / bot-import helpers (some deferred)
@@ -392,11 +402,11 @@ src/
 │   ├── onboarding/         # onboarding flow helpers
 │   ├── reactionRole/       # menu + option persistence helpers
 │   ├── rules/              # rulesCache (invalidateRulesCache lives here — v3.1.6)
-│   ├── security/           # rateLimiter, featurePermission (v3.1.3)
+│   ├── security/           # rateLimiter
 │   ├── setup/              # channelCreator, channelDefaults, channelFormatDetector, configStatusEmbed
 │   ├── status/             # statusManager (client-attached)
-│   ├── ticket/             # autoClose, slaChecker, smartRouter, closeWorkflow, builtinTypes, routingTypes, transcriptBuilder
-│   ├── validation/         # permissionValidator, inputSanitizer, validators
+│   ├── ticket/             # autoClose, slaChecker, smartRouter, closeWorkflow, builtinTypes, transcriptBuilder, transcriptPoster
+│   ├── validation/         # permissionValidator, featurePermission, inputSanitizer, validators
 │   ├── workflow/           # cross-feature workflow helpers
 │   ├── xp/                 # xp calc + role reward helpers
 │   ├── apiConnector.ts     # External API client (dashboard sync)
@@ -408,7 +418,7 @@ src/
 │   ├── errorHandler.ts     # classifyError, handleInteractionError
 │   ├── fetchAllMessages.ts # fetchMessagesAsTranscript (v3.1.8)
 │   ├── forumTagManager.ts  # ensureForumTag helpers
-│   ├── logger.ts           # Direct logger (breaks utils/index.ts cycle)
+│   ├── time.ts             # sleep, toUnixSeconds, nowUnixSeconds (v3.11.1)
 │   ├── modalComponents.ts  # Shared modal field helpers
 │   ├── profileFunctions.ts # Per-request performance profiling
 │   ├── reactionCooldown.ts # Reaction add throttling
@@ -479,7 +489,7 @@ thread.edit({ appliedTags: mergedTags });
 ### Internal API (v3.0.0)
 HTTP server on port 3002 for dashboard. Auth: Bearer token with timing-safe comparison.
 - Pattern: `POST /internal/guilds/:guildId/<feature>/<action>`
-- Handlers: `src/utils/api/handlers/` — tickets, applications, announcements, memory, rules, reactionRoles, guilds, config, setup
+- Handlers: `src/utils/api/handlers/` — tickets, applications, announcements, memory, rules, reactionRoles, guilds, config, setup, analytics, baitChannel, commands, maintenance, permissions, status
 - **Body field validation**: Use helpers from `src/utils/api/helpers.ts` — never use `as string` casts on `body` fields:
 ```typescript
 import { requireString, optionalString, requireNumber, optionalNumber, requireBoolean, optionalStringArray } from '../helpers';
@@ -522,9 +532,9 @@ const triggeredBy = optionalString(body, 'triggeredBy');   // for audit logs
 
 ## Testing
 
-- Runner: `bun test` (no separate config). Setup: `tests/setup.ts` (`import 'reflect-metadata'`).
+- Runner: `bun test` (no separate config or preload — `tests/setup.ts` exists but is not wired).
 - Run: `bun test` or `bun run test:watch`
-- Tests: `tests/unit/` — events, utils, handlers
+- Tests: `tests/unit/` — commands, contract, events, handlers, utils (plus `tests/integration/` and `tests/manual/`)
 - Imports: use `from 'bun:test'` (NOT `from '@jest/globals'` — Jest was removed in v3.1.35).
 - Mocking: prefer hand-rolled fakes / `mock.module(...)` from `bun:test`. `jest.fn()` / `jest.spyOn()` work via Bun's compatibility shim. `jest.mock()` is NOT supported — use `mock.module()` instead.
 
