@@ -16,7 +16,7 @@ import {
   buildConfigStatusEmbed,
   cleanupOldMessage,
   enhancedLogger,
-  guardAdminRateLimit,
+  guardFeatureRateLimit,
   LogCategory,
   lang,
   RateLimits,
@@ -170,7 +170,9 @@ function buildTicketStatusEmbed(
 }
 
 export async function ticketSetupHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardAdminRateLimit(interaction, {
+  // 'tickets' is in the FEATURES catalog — feature-scoped guard so the webapp
+  // permission UI is load-bearing (matches every sibling setup handler).
+  const guard = await guardFeatureRateLimit(interaction, 'tickets', 'manage', {
     action: 'ticket-setup',
     limit: RateLimits.TICKET_SETUP,
     scope: 'guild',

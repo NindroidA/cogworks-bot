@@ -147,3 +147,21 @@ export function optionalStringArray(body: Body, field: string): string[] | undef
   }
   return v as string[];
 }
+
+/** Extract an optional plain-object field. Returns undefined if absent/null. Throws 400 if not an object. */
+export function optionalRecord(body: Body, field: string): Record<string, unknown> | undefined {
+  const v = body[field];
+  if (v === undefined || v === null) return undefined;
+  if (typeof v !== 'object' || Array.isArray(v)) throw ApiError.badRequest(`${field} must be an object`);
+  return v as Record<string, unknown>;
+}
+
+/** Extract an optional string field constrained to a fixed set of values. Throws 400 on anything else. */
+export function optionalEnum<T extends string>(body: Body, field: string, allowed: readonly T[]): T | undefined {
+  const v = optionalString(body, field);
+  if (v === undefined) return undefined;
+  if (!(allowed as readonly string[]).includes(v)) {
+    throw ApiError.badRequest(`${field} must be one of: ${allowed.join(', ')}`);
+  }
+  return v as T;
+}

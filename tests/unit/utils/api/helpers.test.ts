@@ -11,6 +11,8 @@ import {
   optionalNumber,
   requireBoolean,
   optionalStringArray,
+  optionalRecord,
+  optionalEnum,
 } from "../../../../src/utils/api/helpers";
 
 // ===========================================================================
@@ -553,5 +555,56 @@ describe("optionalStringArray", () => {
       return;
     }
     throw new Error("Expected to throw");
+  });
+});
+
+// ===========================================================================
+// optionalRecord (v3.14.5)
+// ===========================================================================
+describe("optionalRecord", () => {
+  test("returns the object when present", () => {
+    expect(optionalRecord({ params: { a: 1 } }, "params")).toEqual({ a: 1 });
+  });
+
+  test("returns undefined when absent or null", () => {
+    expect(optionalRecord({}, "params")).toBeUndefined();
+    expect(optionalRecord({ params: null }, "params")).toBeUndefined();
+  });
+
+  test("throws 400 for arrays and primitives", () => {
+    for (const bad of [[], "x", 42, true]) {
+      try {
+        optionalRecord({ params: bad }, "params");
+        throw new Error("Expected to throw");
+      } catch (e) {
+        expect(e).toBeInstanceOf(ApiError);
+        expect((e as ApiError).statusCode).toBe(400);
+      }
+    }
+  });
+});
+
+// ===========================================================================
+// optionalEnum (v3.14.5)
+// ===========================================================================
+describe("optionalEnum", () => {
+  const MODES = ["normal", "unique", "lock"] as const;
+
+  test("returns an allowed value", () => {
+    expect(optionalEnum({ mode: "unique" }, "mode", MODES)).toBe("unique");
+  });
+
+  test("returns undefined when absent", () => {
+    expect(optionalEnum({}, "mode", MODES)).toBeUndefined();
+  });
+
+  test("throws 400 for a value outside the set (the old as-cast persisted garbage)", () => {
+    try {
+      optionalEnum({ mode: "chaos" }, "mode", MODES);
+      throw new Error("Expected to throw");
+    } catch (e) {
+      expect(e).toBeInstanceOf(ApiError);
+      expect((e as ApiError).statusCode).toBe(400);
+    }
   });
 });

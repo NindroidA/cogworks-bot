@@ -5,7 +5,7 @@ import { lazyRepo } from '../../database/lazyRepo';
 import { buildMenuEmbed, updateMenuMessage } from '../../reactionRole/menuBuilder';
 import { invalidateGuildMenuCache } from '../../reactionRole/menuCache';
 import { ApiError } from '../apiError';
-import { getAndValidateEntity, isValidSnowflake, optionalString, requireString } from '../helpers';
+import { getAndValidateEntity, isValidSnowflake, optionalEnum, optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditAction } from './auditHelper';
 
@@ -27,7 +27,9 @@ export function registerReactionRoleHandlers(client: Client, routes: Map<string,
       throw ApiError.notFound('Channel not found or not a text channel');
     }
 
-    const mode = (optionalString(body, 'mode') as ReactionRoleMode) || 'normal';
+    // Validated union — a garbage mode used to be persisted verbatim and then
+    // silently never match the 'unique'/'lock' comparisons at reaction time.
+    const mode: ReactionRoleMode = optionalEnum(body, 'mode', ['normal', 'unique', 'lock'] as const) ?? 'normal';
     const description = optionalString(body, 'description') ?? null;
 
     // Create menu entity first (need ID for options)

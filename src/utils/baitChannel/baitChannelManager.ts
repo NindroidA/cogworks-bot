@@ -215,12 +215,13 @@ export class BaitChannelManager {
     }
   }
 
-  private async removePendingBanFromDb(userId: string, messageId: string, guildId?: string): Promise<void> {
+  // guildId is REQUIRED — an unscoped {userId, messageId} delete would cross
+  // guild boundaries, and guild scoping is the project's data-isolation
+  // invariant (CLAUDE.md Critical Rules), not an optional refinement.
+  private async removePendingBanFromDb(userId: string, messageId: string, guildId: string): Promise<void> {
     if (!this.pendingActionRepo) return;
     try {
-      const where: Record<string, string> = { userId, messageId };
-      if (guildId) where.guildId = guildId;
-      await this.pendingActionRepo.delete(where);
+      await this.pendingActionRepo.delete({ userId, messageId, guildId });
     } catch (error) {
       logError({
         category: ErrorCategory.DATABASE,
@@ -790,7 +791,7 @@ export class BaitChannelManager {
 
         // Message still exists - remove from pending and execute action
         this.pendingBans.delete(key);
-        await this.removePendingBanFromDb(member.id, message.id, message.guild?.id);
+        await this.removePendingBanFromDb(member.id, message.id, member.guild.id);
         await this.executeAction(member, message, config, analysis, 'Grace period expired');
 
         // Delete the bot's warning message
@@ -812,7 +813,7 @@ export class BaitChannelManager {
         // Check again in case handleMessageDelete ran between our check and here
         if (this.pendingBans.has(key)) {
           this.pendingBans.delete(key);
-          await this.removePendingBanFromDb(member.id, message.id, message.guild?.id);
+          await this.removePendingBanFromDb(member.id, message.id, member.guild.id);
           await this.logAction(message, member, 'deleted-in-time', config, analysis);
 
           // Delete the bot's warning message since the user complied

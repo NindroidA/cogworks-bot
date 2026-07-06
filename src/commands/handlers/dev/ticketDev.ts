@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { ArchivedTicket } from '../../../typeorm/entities/ticket/ArchivedTicket';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
-import { enhancedLogger, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, guardFeatureAccess, handleInteractionError, LogCategory, lang } from '../../../utils';
 import { findManyByGuild } from '../../../utils/database/guildQueries';
 
 /**
@@ -11,7 +11,7 @@ import { findManyByGuild } from '../../../utils/database/guildQueries';
  */
 export async function bulkCloseTicketsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'admin');
     if (!guard.allowed) return;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
@@ -72,7 +72,7 @@ export async function bulkCloseTicketsHandler(interaction: ChatInputCommandInter
  */
 export async function deleteArchivedTicketHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'admin');
     if (!guard.allowed) return;
 
     const user = interaction.options.getUser('user', true);
@@ -125,7 +125,7 @@ export async function deleteArchivedTicketHandler(interaction: ChatInputCommandI
  */
 export async function deleteAllArchivedTicketsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'admin');
     if (!guard.allowed) return;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });

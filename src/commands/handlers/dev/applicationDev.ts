@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { ArchivedApplication } from '../../../typeorm/entities/application/ArchivedApplication';
-import { enhancedLogger, guardAdmin, handleInteractionError, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, guardFeatureAccess, handleInteractionError, LogCategory, lang } from '../../../utils';
 
 /**
  * Delete a specific archived application by user
@@ -9,7 +9,7 @@ import { enhancedLogger, guardAdmin, handleInteractionError, LogCategory, lang }
  */
 export async function deleteArchivedApplicationHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'applications', 'admin');
     if (!guard.allowed) return;
 
     const user = interaction.options.getUser('user', true);
@@ -62,7 +62,7 @@ export async function deleteArchivedApplicationHandler(interaction: ChatInputCom
  */
 export async function deleteAllArchivedApplicationsHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    const guard = await guardAdmin(interaction);
+    const guard = await guardFeatureAccess(interaction, 'applications', 'admin');
     if (!guard.allowed) return;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
