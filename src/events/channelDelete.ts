@@ -15,6 +15,7 @@ import { TicketConfig } from '../typeorm/entities/ticket/TicketConfig';
 import { XPConfig } from '../typeorm/entities/xp/XPConfig';
 import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';
+import { getBaitChannelIds, setBaitChannels } from '../utils/baitChannel/channelList';
 import { invalidateGuildMenuCache } from '../utils/reactionRole/menuCache';
 import { invalidateRulesCache } from '../utils/rules/rulesCache';
 import { requestGuildCommandRefresh } from '../utils/setup/commandGating';
@@ -125,14 +126,23 @@ const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
       if (!config) return;
 
       let changed = false;
-      if (config.channelId === channelId) {
-        config.enabled = false;
-        config.channelId = '';
-        config.channelMessageId = null;
-        changed = true;
-      }
-      if (config.channelIds?.includes(channelId)) {
-        config.channelIds = config.channelIds.filter(id => id !== channelId);
+      // Union of the effective list and the legacy channelId column: on rows
+      // the pre-v3.15.3 dual-write bug left divergent, the legacy column is
+      // the admin's most recent explicit choice — deleting the stale
+      // channelIds entry must fall back to it, not disable the system.
+      const currentChannels = getBaitChannelIds(config);
+      const allChannels =
+        config.channelId && !currentChannels.includes(config.channelId)
+          ? [...currentChannels, config.channelId]
+          : currentChannels;
+      if (allChannels.includes(channelId)) {
+        // The warning banner lives in the legacy-column channel — gone with it
+        if (config.channelId === channelId) config.channelMessageId = null;
+        const remaining = allChannels.filter(id => id !== channelId);
+        setBaitChannels(config, remaining);
+        // Only disable when NO bait channels remain — deleting one of several
+        // must not silently kill detection on the survivors
+        if (remaining.length === 0) config.enabled = false;
         changed = true;
       }
       if (config.logChannelId === channelId) {

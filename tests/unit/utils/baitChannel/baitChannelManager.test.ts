@@ -466,3 +466,100 @@ describe("logAction (null-safety)", () => {
     expect(saved.actionTaken).toBe("whitelisted");
   });
 });
+
+// ---------------------------------------------------------------------------
+// handleMessage channel matching (v3.15.3 — getBaitChannelIds fallback)
+//
+// Detection prefers `channelIds` and falls back to legacy `channelId`. The
+// dual-write bug meant setup could leave the two columns divergent; these
+// tests pin the read-side precedence either way.
+// ---------------------------------------------------------------------------
+
+function makeDetectionMember(id = "owner-1") {
+  return {
+    id,
+    guild: { ownerId: id }, // server owner → whitelisted, cheap terminal path
+    user: {
+      tag: `${id}#0001`,
+      createdTimestamp: Date.now() - 24 * 60 * 60 * 1000,
+    },
+    joinedTimestamp: Date.now() - 60_000,
+    roles: {
+      cache: {
+        find: (_p: (r: any) => boolean) => undefined,
+        some: (_p: (r: any) => boolean) => false,
+        size: 1,
+      },
+    },
+    permissions: { has: () => false },
+  } as any;
+}
+
+function makeDetectionMessage(channelId: string, member: any) {
+  return {
+    id: "msg-1",
+    content: "bait post",
+    channelId,
+    guild: { id: "guild-1" },
+    guildId: "guild-1",
+    author: { id: member.id, bot: false },
+    system: false,
+    member,
+    delete: jest.fn(async () => {}),
+  } as any;
+}
+
+function makeDetectionConfig(overrides: Partial<any> = {}) {
+  return {
+    guildId: "guild-1",
+    enabled: true,
+    channelId: "",
+    channelIds: null,
+    logChannelId: null, // whitelisted log-to-channel becomes a no-op
+    whitelistedRoles: null,
+    whitelistedUsers: null,
+    disableAdminWhitelist: false,
+    ...overrides,
+  };
+}
+
+describe("handleMessage channel matching", () => {
+  test("legacy-only config (channelIds null) still routes messages into detection", async () => {
+    const { manager } = makeManager({
+      configState: {
+        findOneResult: makeDetectionConfig({ channelId: "bait-legacy" }),
+        findResults: [],
+      },
+    });
+    const member = makeDetectionMember();
+    const message = makeDetectionMessage("bait-legacy", member);
+
+    await manager.handleMessage(message);
+
+    // Owner is whitelisted → message deleted + whitelisted action logged
+    expect(message.delete).toHaveBeenCalledTimes(1);
+    const logRepo = (manager as any).logRepo;
+    expect(logRepo.create.mock.calls[0][0].actionTaken).toBe("whitelisted");
+  });
+
+  test("channelIds takes precedence over a stale legacy channelId (divergent row)", async () => {
+    const config = makeDetectionConfig({
+      channelId: "stale-old",
+      channelIds: ["bait-new"],
+    });
+    const { manager } = makeManager({
+      configState: { findOneResult: config, findResults: [] },
+    });
+    const member = makeDetectionMember();
+
+    // Message in the stale legacy channel: NOT a bait channel anymore
+    const staleMessage = makeDetectionMessage("stale-old", member);
+    await manager.handleMessage(staleMessage);
+    expect(staleMessage.delete).not.toHaveBeenCalled();
+
+    // Message in the channelIds channel: detected
+    const liveMessage = makeDetectionMessage("bait-new", member);
+    await manager.handleMessage(liveMessage);
+    expect(liveMessage.delete).toHaveBeenCalledTimes(1);
+  });
+});
