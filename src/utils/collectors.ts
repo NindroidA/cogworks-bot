@@ -7,7 +7,6 @@ import {
   type Message,
   type MessageComponentInteraction,
   MessageFlags,
-  type RoleSelectMenuInteraction,
 } from 'discord.js';
 import { lang } from '../lang';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
@@ -20,8 +19,6 @@ export interface CollectorOptions {
 }
 
 export type ButtonCollectorCallback = (interaction: ButtonInteraction) => Promise<void> | void;
-
-export type RoleSelectCollectorCallback = (interaction: RoleSelectMenuInteraction) => Promise<void> | void;
 
 /**
  * Creates a button collector with standard configuration

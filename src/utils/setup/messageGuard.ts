@@ -1,4 +1,4 @@
-import type { Guild, GuildBasedChannel, Message } from 'discord.js';
+import type { Guild, GuildBasedChannel } from 'discord.js';
 import { verifiedMessageDeleteById } from '../discord/verifiedDelete';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
@@ -12,22 +12,6 @@ export async function safeChannelFetch(guild: Guild, channelId: string): Promise
     enhancedLogger.debug('Channel not found or inaccessible', LogCategory.SYSTEM, {
       guildId: guild.id,
       channelId,
-    });
-    return null;
-  }
-}
-
-/**
- * Safely fetch a message from a text-based channel, returning null if not found.
- */
-export async function safeMessageFetch(channel: GuildBasedChannel, messageId: string): Promise<Message | null> {
-  try {
-    if (!channel.isTextBased()) return null;
-    return await channel.messages.fetch(messageId);
-  } catch {
-    enhancedLogger.debug('Message not found or inaccessible', LogCategory.SYSTEM, {
-      channelId: channel.id,
-      messageId,
     });
     return null;
   }

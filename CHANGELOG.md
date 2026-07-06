@@ -24,7 +24,10 @@ changes.
 
 - Starboard's hand-rolled config cache now uses the shared `createTtlCache`
   (the one v3.7.0 outlier), and setup's old-message cleanup delegates to the
-  verified-deletion helper instead of reimplementing it.
+  verified-deletion helper instead of reimplementing it. One deliberate edge
+  change: `/rules remove` now reports honestly when the old rules message
+  couldn't be verified as deleted (e.g. missing permissions) instead of
+  claiming success.
 - Four stale `as any` casts dropped now that discord.js types the fields
   involved, and two outdated workaround comments corrected.
 
