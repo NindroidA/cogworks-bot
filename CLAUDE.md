@@ -303,8 +303,11 @@ await runner.runAll(guildIds);
 - `APPEAL_HMAC_SECRET` — 32+ byte random secret (v3.2.0). Required only when any guild has `BaitChannelConfig.enableAppealLink=true`; signed appeal URLs are silently omitted from DMs when missing.
 - `ERROR_WEBHOOK_URL` / `ERROR_REPORTING_ENABLED` — Discord error-reporter webhook (v3.1.1; default on in prod, off in dev)
 - `STATUS_CHANNEL_ID` — Channel for the status manager's persistent embed
-- `MEMORY_ALERT_CHANNEL_ID` / `MEMORY_THRESHOLD_MB` — Memory watchdog alerts
-- `API_URL` / `DASHBOARD_URL` — External dashboard endpoints (apiConnector)
+- `MEMORY_ALERT_CHANNEL_ID` — Memory watchdog alert channel (falls back to `STATUS_CHANNEL_ID`); tunables: `MEMORY_WARN_HEAP_PCT`, `MEMORY_CRIT_HEAP_PCT`, `MEMORY_MAP_WARN_SIZE`
+- `MEMORY_THRESHOLD_MB` — Health-check memory threshold (healthMonitor/healthServer, default 512)
+- `API_URL` — External dashboard API endpoint (apiConnector + guild webhooks)
+- `DASHBOARD_URL` — Base URL for user-facing dashboard links (`/dashboard` command, profile embeds)
+- `NODE_ENV` — Log level / file logging / colorization (enhancedLogger)
 
 ### Build & Run
 ```bash
