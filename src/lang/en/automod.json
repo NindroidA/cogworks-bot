@@ -155,7 +155,8 @@
     "invalidFormat": "The backup file format is invalid. Please use a backup file created with `/automod backup`.",
     "wouldExceedLimit": "Restoring would create {0} rule(s), but you only have {1} slot(s) available. Delete some rules first.",
     "confirmTitle": "Confirm AutoMod Restore",
-    "confirmMessage": "This will create {0} new AutoMod rule(s). Existing rules will NOT be deleted. Continue?"
+    "confirmMessage": "This will create {0} new AutoMod rule(s). Existing rules will NOT be deleted. Continue?",
+    "confirmLabel": "Confirm Restore"
   },
   "keyword": {
     "add": {

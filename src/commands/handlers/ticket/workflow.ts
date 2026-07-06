@@ -51,7 +51,7 @@ const workflowToggle = createToggleHandler<TicketConfig>({
   // Seed the default status set on first enable; preserved across a later disable.
   onEnable: config => {
     if (!config.workflowStatuses || config.workflowStatuses.length === 0) {
-      config.workflowStatuses = [...DEFAULT_TICKET_STATUSES];
+      config.workflowStatuses = DEFAULT_TICKET_STATUSES.map(s => ({ ...s }));
     }
   },
   onToggled: (_interaction, guildId, enabled) => {

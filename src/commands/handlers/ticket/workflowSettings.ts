@@ -61,7 +61,7 @@ export async function workflowSettingsHandler(interaction: ChatInputCommandInter
     if (enableWorkflow !== undefined) {
       config.enableWorkflow = enableWorkflow;
       if (enableWorkflow && (!config.workflowStatuses || config.workflowStatuses.length === 0)) {
-        config.workflowStatuses = [...DEFAULT_TICKET_STATUSES];
+        config.workflowStatuses = DEFAULT_TICKET_STATUSES.map(s => ({ ...s }));
       }
     }
 

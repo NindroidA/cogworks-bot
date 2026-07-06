@@ -421,7 +421,7 @@ const workflowToggle = createToggleHandler({
   requireExisting: { notConfigured: lang.application.applicationConfigNotFound },
   onEnable: config => {
     if (!config.workflowStatuses || config.workflowStatuses.length === 0) {
-      config.workflowStatuses = [...DEFAULT_APPLICATION_STATUSES];
+      config.workflowStatuses = DEFAULT_APPLICATION_STATUSES.map(s => ({ ...s }));
     }
   },
   onToggled: (_interaction, guildId, enabled) =>

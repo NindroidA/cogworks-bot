@@ -137,7 +137,7 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
     // v3.1.34 consolidations because the helper couldn't edit a deferred reply).
     const result = await awaitConfirmation(interaction, {
       message: formatLang(tl.restore.confirmMessage, backup.rules.length),
-      confirmLabel: 'Confirm Restore',
+      confirmLabel: tl.restore.confirmLabel,
       confirmStyle: ButtonStyle.Primary,
       idPrefix: 'automod_restore',
     });
