@@ -97,6 +97,7 @@
     "skipL": "Skip",
     "rolesPlaceholder": "Select your roles...",
     "confirmSelectionL": "Confirm Selection",
-    "gotItL": "Got it!"
+    "gotItL": "Got it!",
+    "rolesSelectedHint": "Selected {0} role(s). Click **{1}** to continue."
   }
 }

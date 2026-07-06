@@ -28,6 +28,7 @@ import { lang } from '../../lang';
 import { AppDataSource } from '../../typeorm';
 import { OnboardingCompletion } from '../../typeorm/entities/onboarding/OnboardingCompletion';
 import { OnboardingConfig } from '../../typeorm/entities/onboarding/OnboardingConfig';
+import { formatLang } from '../../utils';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import type { OnboardingStepDef } from './types';
 
@@ -366,7 +367,7 @@ async function waitForStepInteraction(
           if (interaction.isStringSelectMenu() && customId.startsWith('onboarding_roleselect_')) {
             selectedRoles = interaction.values;
             await interaction.reply({
-              content: `Selected ${selectedRoles.length} role(s). Click **Confirm Selection** to continue.`,
+              content: formatLang(tlEngine.rolesSelectedHint, selectedRoles.length, tlEngine.confirmSelectionL),
               flags: [MessageFlags.Ephemeral],
             });
             return;
