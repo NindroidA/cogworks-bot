@@ -94,61 +94,6 @@ export function createButtonCollector(
 }
 
 /**
- * Creates a role select menu collector with standard configuration
- * @param message - The message to collect interactions from
- * @param options - Collector configuration
- * @param onCollect - Callback when role is selected
- * @param onTimeout - Optional callback when collector times out
- * @returns The collector for further customization if needed
- * @example
- * createRoleSelectCollector(
- *   message,
- *   { userId: '123456', timeout: 60000 },
- *   async (interaction) => {
- *     const roles = interaction.values;
- *     await interaction.reply(`Selected ${roles.length} roles`);
- *   },
- *   async () => {
- *     await message.edit('Selection timed out');
- *   }
- * );
- */
-export function createRoleSelectCollector(
-  message: Message | InteractionResponse,
-  options: CollectorOptions,
-  onCollect: RoleSelectCollectorCallback,
-  onTimeout?: () => Promise<void> | void,
-) {
-  const collector = message.createMessageComponentCollector({
-    componentType: ComponentType.RoleSelect,
-    time: options.timeout || 60_000,
-    filter: i => i.user.id === options.userId,
-  });
-
-  collector.on('collect', async i => {
-    try {
-      await onCollect(i);
-    } catch (error) {
-      enhancedLogger.error('Role select collector callback failed', error as Error, LogCategory.ERROR);
-    }
-  });
-
-  if (onTimeout) {
-    collector.on('end', async (_collected, reason) => {
-      if (reason === 'time') {
-        try {
-          await onTimeout();
-        } catch (error) {
-          enhancedLogger.error('Role select collector timeout callback failed', error as Error, LogCategory.ERROR);
-        }
-      }
-    });
-  }
-
-  return collector;
-}
-
-/**
  * Notify the user that a modal/form timed out.
  * Safe to call on any interaction state (replied, deferred, or fresh).
  * Use in awaitModalSubmit catch blocks to replace silent failures.

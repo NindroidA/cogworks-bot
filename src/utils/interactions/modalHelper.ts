@@ -28,7 +28,8 @@ type ModalSourceInteraction =
 /**
  * Raw modal object shape produced by `rawModal()` in `utils/modalComponents.ts`.
  * Required for new component types (label/radio/checkbox) that discord.js
- * v14.25.1's `ModalBuilder` does not yet type.
+ * discord.js (14.26.4) types on the SUBMIT side but still ships no
+ * builders for — so the modal payload is built as a raw API object.
  */
 interface RawModalObject {
   custom_id: string;
@@ -55,7 +56,7 @@ export async function showAndAwaitModal(
   modal: ModalBuilder | RawModalObject,
   timeout = TIMEOUTS.MODAL,
 ): Promise<ModalSubmitInteraction | null> {
-  // discord.js v14.25.1 doesn't yet type the new label/radio/checkbox
+  // discord.js (14.26.4) still has no builders for the new label/radio/checkbox
   // components; the runtime accepts the raw shape so we cast internally
   // and present a clean typed signature to callers.
   await interaction.showModal(modal as ModalBuilder);

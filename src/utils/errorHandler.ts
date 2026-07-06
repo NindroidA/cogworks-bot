@@ -249,33 +249,6 @@ export async function handleInteractionError(
   }
 }
 
-export function withErrorHandling<T extends Array<unknown>>(
-  handler: (...args: T) => Promise<void>,
-  handlerName: string,
-): (...args: T) => Promise<void> {
-  return async (...args: T) => {
-    try {
-      await handler(...args);
-    } catch (error) {
-      // Check if first arg is an interaction
-      const firstArg = args[0];
-      if (firstArg && typeof firstArg === 'object' && 'reply' in firstArg) {
-        await handleInteractionError(firstArg as ChatInputCommandInteraction, error, `Error in ${handlerName}`);
-      } else {
-        // Non-interaction error - just log it
-        const { category, severity } = classifyError(error);
-        logError({
-          category,
-          severity,
-          message: `Error in ${handlerName}`,
-          error,
-          context: { handler: handlerName },
-        });
-      }
-    }
-  };
-}
-
 /**
  * Detects the transient @discordjs/ws gateway error that crash-loops the bot
  * under Bun. The library's `WebSocketShard.onError` runs `"code" in error`,

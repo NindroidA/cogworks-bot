@@ -4,35 +4,24 @@ import { StarboardConfig } from '../typeorm/entities/starboard/StarboardConfig';
 import { StarboardEntry } from '../typeorm/entities/starboard/StarboardEntry';
 import { enhancedLogger, fetchPartial, LogCategory } from '../utils';
 import { CACHE_TTL } from '../utils/constants';
+import { createTtlCache } from '../utils/database/configCache';
 import { lazyRepo } from '../utils/database/lazyRepo';
 
 const configRepo = lazyRepo(StarboardConfig);
 const entryRepo = lazyRepo(StarboardEntry);
 
-// In-memory config cache: Map<guildId, { config, cachedAt }>
-const configCache = new Map<string, { config: StarboardConfig; cachedAt: number }>();
+// Guild-config TTL cache — the same createTtlCache the other six config
+// caches adopted in v3.7.0 (this was the surviving hand-rolled outlier).
+const configCache = createTtlCache<string, StarboardConfig>(CACHE_TTL.STARBOARD_CONFIG);
 
 /** Invalidate starboard cache for a guild (call on config change or guild leave) */
 export function invalidateStarboardCache(guildId: string): void {
-  configCache.delete(guildId);
+  configCache.invalidate(guildId);
 }
 
-/** Get starboard config with TTL cache */
-async function getStarboardConfig(guildId: string): Promise<StarboardConfig | null> {
-  const cached = configCache.get(guildId);
-  if (cached) {
-    if (Date.now() - cached.cachedAt > CACHE_TTL.STARBOARD_CONFIG) {
-      configCache.delete(guildId);
-    } else {
-      return cached.config;
-    }
-  }
-
-  const config = await configRepo.findOneBy({ guildId });
-  if (config) {
-    configCache.set(guildId, { config, cachedAt: Date.now() });
-  }
-  return config;
+/** Get starboard config with TTL cache (getOrLoad never caches misses) */
+function getStarboardConfig(guildId: string): Promise<StarboardConfig | null> {
+  return configCache.getOrLoad(guildId, id => configRepo.findOneBy({ guildId: id }));
 }
 
 /** Get gold-gradient color based on star count */

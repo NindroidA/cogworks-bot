@@ -455,7 +455,3 @@ export function initRaidModeManager(deps: RaidModeManagerDeps): RaidModeManager 
 export function getRaidModeManager(): RaidModeManager | null {
   return _instance;
 }
-
-export function clearRaidModeManager(): void {
-  _instance = null;
-}

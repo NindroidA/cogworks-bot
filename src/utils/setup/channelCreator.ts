@@ -10,7 +10,7 @@
 
 import { ChannelType, type Guild, PermissionFlagsBits } from 'discord.js';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
-import { type ChannelTemplate, SYSTEM_CHANNELS, type SystemType } from './channelDefaults';
+import { SYSTEM_CHANNELS, type SystemType } from './channelDefaults';
 import { type ChannelFormat, formatCategoryName, formatChannelName } from './channelFormatDetector';
 
 // Re-export types from channelDefaults so existing imports still work
@@ -142,20 +142,4 @@ export async function createSystemChannels(
   }
 
   return created;
-}
-
-/**
- * Get the default channel templates for a system.
- * Useful for showing the user what channels will be created.
- */
-export function getSystemChannelTemplates(system: SystemType): Record<string, ChannelTemplate> {
-  return SYSTEM_CHANNELS[system] || {};
-}
-
-/**
- * Check if the guild has room for more channels.
- * Discord limit: 500 channels per guild.
- */
-export function hasChannelCapacity(guild: Guild, neededCount: number): boolean {
-  return guild.channels.cache.size + neededCount <= 500;
 }

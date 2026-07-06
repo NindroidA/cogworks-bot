@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.8] - 2026-07-06
+
+Dead-code removal — everything the audit confirmed as having zero callers,
+plus two hand-rolled duplicates folded into their shared helpers. No behavior
+changes.
+
+### Removed
+
+- `embedBuilders.ts` (all five builders unused since v3.14.1), the unused
+  `withErrorHandling` wrapper, `createRoleSelectCollector`,
+  `clearXPConfigCache`, `clearRaidModeManager`, `verifyGuildExists`,
+  `getSystemChannelTemplates`/`hasChannelCapacity`, `getSystemInfo`,
+  `cleanupExpiredIdempotencyKeys` (logCleanup already owns that sweep), and a
+  backwards-compat re-export nothing imported.
+
+### Changed
+
+- Starboard's hand-rolled config cache now uses the shared `createTtlCache`
+  (the one v3.7.0 outlier), and setup's old-message cleanup delegates to the
+  verified-deletion helper instead of reimplementing it.
+- Four stale `as any` casts dropped now that discord.js types the fields
+  involved, and two outdated workaround comments corrected.
+
 ## [3.14.7] - 2026-07-06
 
 Constants dedup — every magic number the audit confirmed as a drifted or
