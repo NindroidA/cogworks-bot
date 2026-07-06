@@ -16,6 +16,7 @@ import {
   logHandlerError,
   RateLimits,
   replyEphemeralError,
+  TIMEOUTS,
   verifiedThreadDelete,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -119,7 +120,7 @@ export async function memoryDeleteHandler(interaction: ChatInputCommandInteracti
   });
 
   const collector = response.createMessageComponentCollector({
-    time: 60000,
+    time: TIMEOUTS.COMPONENT,
   });
 
   collector.on('collect', async i => {

@@ -77,7 +77,7 @@ export interface BanExecutorResult {
 }
 
 const DEFAULT_SOFTBAN_DELAY_MS = 500;
-const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+export const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000; // 24h — auditLogEntryCreate imports this so the two can never drift
 
 /**
  * Compute today's UTC midnight as the dayBucket. Same-day retries dedup;

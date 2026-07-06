@@ -128,8 +128,8 @@ export const MAX = {
   ONBOARDING_STEPS: 10,
   /** Discord AutoMod rules per guild */
   AUTOMOD_RULES: 6,
-  /** AutoMod keywords per rule */
-  AUTOMOD_KEYWORDS_PER_RULE: 100,
+  /** AutoMod keywords per rule (Discord limit) */
+  AUTOMOD_KEYWORDS_PER_RULE: 1000,
   /** AutoMod regex patterns per rule */
   AUTOMOD_REGEX_PER_RULE: 10,
   /** AutoMod regex pattern max length */
@@ -144,8 +144,6 @@ export const MAX = {
   STATUS_INCIDENTS: 100,
   /** CSV import max rows */
   IMPORT_CSV_MAX_ROWS: 10000,
-  /** Analytics snapshots retention: 90 days */
-  ANALYTICS_SNAPSHOT_DAYS: 90,
 } as const;
 
 export const JOIN_VELOCITY = {

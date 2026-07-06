@@ -24,7 +24,7 @@ import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedT
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
-import { enhancedLogger, handleInteractionError, LogCategory, sleep } from '../../../utils';
+import { enhancedLogger, handleInteractionError, LogCategory, sleep, TIMEOUTS } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -1203,7 +1203,7 @@ export async function handleWalkthrough(
     const collector = reply.createMessageComponentCollector({
       componentType: ComponentType.Button,
       filter: i => i.user.id === interaction.user.id,
-      time: 300_000,
+      time: TIMEOUTS.DASHBOARD,
     });
 
     collector.on('collect', async btnInteraction => {

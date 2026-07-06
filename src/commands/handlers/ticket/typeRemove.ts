@@ -16,6 +16,7 @@ import {
   LogCategory,
   lang,
   replyEphemeralError,
+  TIMEOUTS,
 } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeRemove;
@@ -79,7 +80,7 @@ export async function typeRemoveHandler(interaction: ChatInputCommandInteraction
     const collector = interaction.channel?.createMessageComponentCollector({
       filter,
       componentType: ComponentType.Button,
-      time: 30000,
+      time: TIMEOUTS.CONFIRMATION,
     });
 
     collector?.on('collect', async i => {

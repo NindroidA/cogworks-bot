@@ -37,6 +37,7 @@ import { AppDataSource } from '../typeorm';
 import { BaitChannelLog } from '../typeorm/entities/bait/BaitChannelLog';
 import { IdempotencyKey } from '../typeorm/entities/bait/IdempotencyKey';
 import { PendingAction } from '../typeorm/entities/bait/PendingAction';
+import { IDEMPOTENCY_TTL_MS } from '../utils/baitChannel/banExecutor';
 import { ErrorCategory, ErrorSeverity, logError } from '../utils/errorHandler';
 import { enhancedLogger, LogCategory } from '../utils/monitoring/enhancedLogger';
 
@@ -52,7 +53,6 @@ const RECENT_LOG_WINDOW_MS = 5 * 60 * 1000;
  * Idempotency key TTL for mod-superseded rows. Matches the executor's
  * 24h TTL so duplicate detection windows align.
  */
-const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 
 function todayUtc(): Date {
   const now = new Date();

@@ -20,6 +20,7 @@ import {
   lang,
   replyEphemeralError,
   showAndAwaitModal,
+  TIMEOUTS,
 } from '../../../utils';
 import { checkboxGroup, labelWrap, rawModal } from '../../../utils/modalComponents';
 
@@ -148,7 +149,7 @@ async function handleSingleTypeToggle(
   const collector = interaction.channel?.createMessageComponentCollector({
     filter,
     componentType: ComponentType.Button,
-    time: 30000,
+    time: TIMEOUTS.CONFIRMATION,
     max: 1,
   });
 

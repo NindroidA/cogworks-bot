@@ -62,6 +62,7 @@ import {
   LogCategory,
   lang,
   RateLimits,
+  RETENTION_DAYS,
   replyEphemeralError,
 } from '../../utils';
 
@@ -177,13 +178,14 @@ const EXPORT_ENTITIES: ExportEntity[] = [
   { name: 'baitKeywords', entity: BaitKeyword, buildFindOptions: guildScoped },
   { name: 'importLogs', entity: ImportLog, buildFindOptions: guildScoped },
   {
-    // 90-day retention applies to JoinEvent rows
+    // Export window matches the JoinEvent retention sweep (RETENTION_DAYS.JOIN_EVENT)
+    // — older rows are already purged, so a wider window would only mislead.
     name: 'joinEvents',
     entity: JoinEvent,
     buildFindOptions: guildId => ({
       where: {
         guildId,
-        joinedAt: MoreThanOrEqual(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)),
+        joinedAt: MoreThanOrEqual(new Date(Date.now() - RETENTION_DAYS.JOIN_EVENT * 24 * 60 * 60 * 1000)),
       },
     }),
   },
