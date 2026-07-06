@@ -165,7 +165,7 @@ describe("archiveAndCloseApplication", () => {
   });
 
   test("channel delete refused → archived:true but channelDeleted:false (caller must tell the user)", async () => {
-    fakeVerifiedChannelDelete.mockResolvedValue({ success: false, alreadyGone: false, error: "Missing Permissions" });
+    fakeVerifiedChannelDelete.mockResolvedValueOnce({ success: false, alreadyGone: false, error: "Missing Permissions" });
     const client = makeFakeClient(forumChannel);
 
     const result = await archiveAndCloseApplication(
