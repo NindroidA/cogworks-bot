@@ -104,6 +104,9 @@ export async function handleStarboardReactionAdd(
 
     // Count reactions (excluding self-star if disabled)
     let reactionCount = reaction.count ?? 0;
+    // A raw count below the threshold can never pass — skip the users.fetch
+    // REST call (this fired on EVERY matching reaction before the check).
+    if (reactionCount < config.threshold) return;
     if (!config.selfStar && message.author) {
       // Check if the author reacted — if so, subtract 1
       const users = await reaction.users.fetch();

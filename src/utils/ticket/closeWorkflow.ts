@@ -135,14 +135,14 @@ async function findExistingArchive(
   });
 }
 
-async function resolveArchiveThreadName(client: Client, ticket: Ticket): Promise<string> {
+function resolveArchiveThreadName(ticket: Ticket, creatorUser: { username: string } | null): string {
   // Clamped to Discord's 100-char thread-name limit — emailSenderName is free
-  // text and an over-limit name fails the whole threads.create call.
+  // text and an over-limit name fails the whole threads.create call. The
+  // creator was already fetched for the header metadata — no second REST call.
   if (ticket.isEmailTicket && ticket.emailSender) {
     return (ticket.emailSenderName || ticket.emailSender.split('@')[0]).slice(0, 100);
   }
-  const user = await client.users.fetch(ticket.createdBy).catch(() => null);
-  return user?.username || 'Unknown';
+  return creatorUser?.username || 'Unknown';
 }
 
 /** Union of existing + incoming forum tag ids, order-preserving, deduped. */
@@ -189,9 +189,13 @@ export async function archiveAndCloseTicket(
 
   // Build header + chunks. Ticket metadata is resolved locally — type info
   // falls back to the ticket's stored type name when the custom row is gone.
-  const typeInfo = await resolveTicketTypeInfo(ticket, guildId, deps);
-  const creatorUser = await client.users.fetch(ticket.createdBy).catch(() => null);
-  const assignedUser = ticket.assignedTo ? await client.users.fetch(ticket.assignedTo).catch(() => null) : null;
+  // Independent lookups — run them concurrently instead of three sequential
+  // round-trips on every close.
+  const [typeInfo, creatorUser, assignedUser] = await Promise.all([
+    resolveTicketTypeInfo(ticket, guildId, deps),
+    client.users.fetch(ticket.createdBy).catch(() => null),
+    ticket.assignedTo ? client.users.fetch(ticket.assignedTo).catch(() => null) : Promise.resolve(null),
+  ]);
 
   const metadata: TicketMetadata = {
     title: ticket.isEmailTicket && ticket.emailSubject ? ticket.emailSubject : typeInfo?.displayName || 'Ticket',
@@ -230,7 +234,7 @@ export async function archiveAndCloseTicket(
     if (!existingArchive) {
       // First-time close: create a new forum thread with the header as
       // the initial message, then post chunks as follow-ups.
-      const threadName = await resolveArchiveThreadName(client, ticket);
+      const threadName = resolveArchiveThreadName(ticket, creatorUser);
       const newPost = await forumChannel.threads.create({
         name: threadName,
         // allowedMentions parse:[] — the transcript is historical content; it
@@ -288,7 +292,7 @@ export async function archiveAndCloseTicket(
       if (!post) {
         // Thread gone: recreate it (header as the initial message), re-apply
         // the accumulated tags, repoint the archive row, and post the chunks.
-        const threadName = await resolveArchiveThreadName(client, ticket);
+        const threadName = resolveArchiveThreadName(ticket, creatorUser);
         const newPost = await forumChannel.threads.create({
           name: threadName,
           message: {

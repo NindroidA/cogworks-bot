@@ -9,6 +9,7 @@ import {
   MessageFlags,
   type User,
 } from 'discord.js';
+import { In } from 'typeorm';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { UserTicketRestriction } from '../../../typeorm/entities/ticket/UserTicketRestriction';
@@ -270,9 +271,10 @@ async function showRestrictionsModal(
   const toAdd = [...newRestrictedSet].filter(id => !restrictedTypeIds.has(id));
   const toRemove = [...restrictedTypeIds].filter(id => !newRestrictedSet.has(id));
 
-  // Batch: remove lifted restrictions
-  for (const typeId of toRemove) {
-    await restrictionRepo.delete({ guildId, userId: targetUser.id, typeId });
+  // Batch: remove lifted restrictions in one query (the additions below were
+  // already batched via save(array))
+  if (toRemove.length > 0) {
+    await restrictionRepo.delete({ guildId, userId: targetUser.id, typeId: In(toRemove) });
   }
 
   // Batch: add new restrictions

@@ -67,8 +67,10 @@ export default {
         const cooldownMs = config.xpCooldownSeconds * 1000;
         const elapsed = now.getTime() - xpUser.lastXpAt.getTime();
         if (elapsed < cooldownMs) {
-          // Still on cooldown — save message count but no XP
-          await userRepo.save(xpUser);
+          // Still on cooldown — bump the message counter with a single-column
+          // UPDATE instead of a full-entity save (this is the common path for
+          // every message in an XP-enabled guild).
+          await userRepo.increment({ guildId, userId: message.author.id }, 'messages', 1);
           return;
         }
       }
