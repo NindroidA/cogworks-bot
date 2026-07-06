@@ -376,13 +376,22 @@ async function handleView(interaction: ChatInputCommandInteraction, guildId: str
 
   const embed = new EmbedBuilder().setTitle(`${E.memory} ${tl.setup.viewTitle}`).setColor(Colors.brand.primary);
 
+  // Two grouped queries instead of two COUNTs per configured channel.
+  const countsByConfig = async (repo: typeof memoryTagRepo | typeof memoryItemRepo) => {
+    const rows: Array<{ cid: string | number; n: string }> = await repo
+      .createQueryBuilder('r')
+      .select('r.memoryConfigId', 'cid')
+      .addSelect('COUNT(*)', 'n')
+      .where('r.guildId = :guildId', { guildId })
+      .groupBy('r.memoryConfigId')
+      .getRawMany();
+    return new Map(rows.map(r => [Number(r.cid), Number(r.n)]));
+  };
+  const [tagCounts, itemCounts] = await Promise.all([countsByConfig(memoryTagRepo), countsByConfig(memoryItemRepo)]);
+
   for (const config of configs) {
-    const tagCount = await memoryTagRepo.count({
-      where: { guildId, memoryConfigId: config.id },
-    });
-    const itemCount = await memoryItemRepo.count({
-      where: { guildId, memoryConfigId: config.id },
-    });
+    const tagCount = tagCounts.get(config.id) ?? 0;
+    const itemCount = itemCounts.get(config.id) ?? 0;
 
     embed.addFields({
       name: config.channelName,

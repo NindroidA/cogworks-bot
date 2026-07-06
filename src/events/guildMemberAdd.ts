@@ -19,16 +19,22 @@ export default {
 
       const extClient = client;
 
-      // Only track joins for guilds with bait channel enabled
-      const configRepo = AppDataSource.getRepository(BaitChannelConfig);
+      // Only track joins for guilds with bait channel enabled. Use the
+      // manager's TTL cache — an uncached DB query per member join was a raid
+      // amplifier (hammering the DB exactly when joins spike). Falls back to a
+      // direct query only if the manager isn't attached yet (startup window).
       let config: BaitChannelConfig | null;
-      try {
-        config = await configRepo.findOne({
-          where: { guildId: member.guild.id },
-        });
-      } catch (error) {
-        enhancedLogger.error('guildMemberAdd handler failed', error as Error, LogCategory.ERROR);
-        return;
+      if (extClient.baitChannelManager) {
+        config = await extClient.baitChannelManager.getCachedConfig(member.guild.id);
+      } else {
+        try {
+          config = await AppDataSource.getRepository(BaitChannelConfig).findOne({
+            where: { guildId: member.guild.id },
+          });
+        } catch (error) {
+          enhancedLogger.error('guildMemberAdd handler failed', error as Error, LogCategory.ERROR);
+          return;
+        }
       }
 
       if (!config?.enabled) return;

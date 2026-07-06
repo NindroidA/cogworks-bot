@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.1] - 2026-07-06
+
+Performance pass — the audit's confirmed hot-path findings.
+
+### Changed
+
+- **Message-heavy paths lightened**: XP cooldown hits (the common case for
+  every message in an XP-enabled guild) now issue a single-column counter
+  update instead of a full row save; starboard skips its reaction-members
+  fetch entirely when the raw count can't reach the threshold; bait-channel
+  activity flushes batch-load and bulk-save instead of two queries per user.
+- **Join raids no longer hammer the database**: the per-join bait-channel
+  config lookup now uses the manager's cache — the uncached query spiked
+  exactly when joins spiked.
+- **Ticket closes** run their three metadata lookups concurrently and reuse
+  the creator fetch for the archive thread name.
+- **Faster startup on many guilds**: default ticket-type seeding runs
+  concurrently instead of guild-by-guild.
+- New database index for bait-channel audit-log correlation lookups
+  (`guildId, userId, createdAt`), plus batched restriction removals and a
+  batched memory-setup overview.
+
 ## [3.15.0] - 2026-07-06
 
 The i18n sweep: user-facing text that bypassed the language system is now in

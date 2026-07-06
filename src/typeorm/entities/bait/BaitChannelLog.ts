@@ -4,6 +4,10 @@ export type DmFailureReason = 'closed' | 'no_shared_guild' | 'timeout' | 'unknow
 
 @Entity('bait_channel_logs')
 @Index(['guildId', 'createdAt'])
+// Audit-log correlation queries (confirmSelfAction / handleModSupersedes /
+// handleUnban) filter by guildId + userId + createdAt on every relevant
+// audit-log event — without this index they scan the guild's whole log.
+@Index('IDX_bait_logs_guild_user_created', ['guildId', 'userId', 'createdAt'])
 export class BaitChannelLog {
   @PrimaryGeneratedColumn()
   id: number;

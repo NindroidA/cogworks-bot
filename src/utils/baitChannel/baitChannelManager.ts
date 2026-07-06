@@ -1737,6 +1737,15 @@ export class BaitChannelManager {
     this.configCache.invalidate(guildId);
   }
 
+  /**
+   * Cached config lookup for event handlers outside the manager (e.g.
+   * guildMemberAdd) — the raw repo query per member join was a raid
+   * amplifier, hammering the DB exactly when joins spike.
+   */
+  public getCachedConfig(guildId: string): Promise<BaitChannelConfig | null> {
+    return this.getConfig(guildId);
+  }
+
   // Track user activity in-memory, flushed to DB periodically
   async trackMessage(message: Message): Promise<void> {
     if (!message.guild || message.author.bot) return;
@@ -1770,37 +1779,49 @@ export class BaitChannelManager {
     const toFlush = this.activityBuffer;
     this.activityBuffer = new Map();
 
-    for (const [key, buffered] of toFlush) {
-      try {
+    try {
+      // Batch-load every buffered row in ONE query (this used to be a findOne
+      // + save pair per user — 2N sequential queries per flush across all
+      // bait-enabled guilds), then bulk-save the merged results.
+      const wherePairs = [...toFlush.keys()].map(key => {
         const [guildId, userId] = key.split(':');
-        let activity = await this.activityRepo.findOne({
-          where: { guildId, userId },
-        });
+        return { guildId, userId };
+      });
+      const existing = await this.activityRepo.find({ where: wherePairs });
+      const byKey = new Map(existing.map(a => [`${a.guildId}:${a.userId}`, a]));
 
+      const toSave = [];
+      for (const [key, buffered] of toFlush) {
+        const [guildId, userId] = key.split(':');
+        const activity = byKey.get(key);
         if (!activity) {
-          activity = this.activityRepo.create({
-            guildId,
-            userId,
-            messageCount: buffered.messageCount,
-            firstMessageAt: buffered.firstMessageAt,
-            lastMessageAt: buffered.lastMessageAt,
-            joinedAt: buffered.joinedAt,
-          });
+          toSave.push(
+            this.activityRepo.create({
+              guildId,
+              userId,
+              messageCount: buffered.messageCount,
+              firstMessageAt: buffered.firstMessageAt,
+              lastMessageAt: buffered.lastMessageAt,
+              joinedAt: buffered.joinedAt,
+            }),
+          );
         } else {
           activity.messageCount += buffered.messageCount;
           activity.lastMessageAt = buffered.lastMessageAt;
+          toSave.push(activity);
         }
-
-        await this.activityRepo.save(activity);
-      } catch (error) {
-        logError({
-          category: ErrorCategory.DATABASE,
-          severity: ErrorSeverity.LOW,
-          message: 'Failed to flush user activity buffer',
-          error,
-          context: { key },
-        });
       }
+      await this.activityRepo.save(toSave);
+    } catch (error) {
+      // Activity stats are advisory — losing one flush is acceptable, matching
+      // the old per-key LOW-severity swallow.
+      logError({
+        category: ErrorCategory.DATABASE,
+        severity: ErrorSeverity.LOW,
+        message: 'Failed to flush user activity buffer',
+        error,
+        context: { bufferedUsers: toFlush.size },
+      });
     }
   }
 

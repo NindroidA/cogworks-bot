@@ -534,21 +534,23 @@ async function main() {
     const botConfigRepo = AppDataSource.getRepository(BotConfig);
     const botConfigs = await botConfigRepo.find();
 
-    // ensure default ticket types for all guilds (migration)
-    for (const config of botConfigs) {
-      try {
-        await ensureDefaultTicketTypes(config.guildId);
-      } catch (error) {
-        enhancedLogger.error(
-          `Failed to ensure default ticket types for guild ${config.guildId}`,
-          error as Error,
-          LogCategory.DATABASE,
-          {
-            guildId: config.guildId,
-          },
-        );
-      }
-    }
+    // ensure default ticket types for all guilds (migration) — concurrent so
+    // startup cost doesn't grow linearly with guild count; one guild failing
+    // still doesn't block the others.
+    await Promise.allSettled(
+      botConfigs.map(config =>
+        ensureDefaultTicketTypes(config.guildId).catch(error => {
+          enhancedLogger.error(
+            `Failed to ensure default ticket types for guild ${config.guildId}`,
+            error as Error,
+            LogCategory.DATABASE,
+            {
+              guildId: config.guildId,
+            },
+          );
+        }),
+      ),
+    );
 
     // Run legacy data migrations (after TypeORM sync, before command registration)
     const guildIds = botConfigs.map(c => c.guildId);

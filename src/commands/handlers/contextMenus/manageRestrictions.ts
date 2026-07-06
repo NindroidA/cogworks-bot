@@ -5,6 +5,7 @@
  */
 
 import { EmbedBuilder, MessageFlags, type UserContextMenuCommandInteraction } from 'discord.js';
+import { In } from 'typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import { UserTicketRestriction } from '../../../typeorm/entities/ticket/UserTicketRestriction';
@@ -91,9 +92,9 @@ export async function manageRestrictionsHandler(interaction: UserContextMenuComm
     const toAdd = [...newRestrictedSet].filter(id => !restrictedTypeIds.has(id));
     const toRemove = [...restrictedTypeIds].filter(id => !newRestrictedSet.has(id));
 
-    // Apply changes
-    for (const typeId of toRemove) {
-      await restrictionRepo.delete({ guildId, userId: targetUser.id, typeId });
+    // Apply changes — removals in one query, mirroring the batched adds
+    if (toRemove.length > 0) {
+      await restrictionRepo.delete({ guildId, userId: targetUser.id, typeId: In(toRemove) });
     }
     if (toAdd.length > 0) {
       const newRestrictions = toAdd.map(typeId =>
