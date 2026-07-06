@@ -13,7 +13,10 @@
     "cancel": "Change to Admin Only canceled.",
     "request": "has requested to make this ticket Admin Only.",
     "requestSent": "Your request to make this ticket Admin Only has been sent to the staff team.",
-    "success": "This ticket is now Admin Only — staff roles can no longer view it."
+    "success": "This ticket is now Admin Only — staff roles can no longer view it.",
+    "confirmL": "Confirm",
+    "cancelL": "Cancel",
+    "modsAlert": "❗Oh, Mods!❗"
   },
   "close": {
     "confirm": "Are you sure you want to close this ticket?",
@@ -34,7 +37,9 @@
       "error1": "Error deleting the transcript txt file!",
       "error2": "Could not properly send transcript!",
       "attachmentError": "Error deleting transcript attachments zip file!"
-    }
+    },
+    "confirmL": "Confirm Close",
+    "cancelL": "Cancel"
   },
   "setup": {
     "cmdDescrp": "Configure the ticket system channels and category",
@@ -102,7 +107,7 @@
       "activeLabel": "Active",
       "inactiveLabel": "Inactive",
       "defaultLabel": " [DEFAULT]",
-      "fieldValue": "**ID:** `{0}`\n**Color:** {1}\n**Status:** {2}{3}\n{4}\n\u200B"
+      "fieldValue": "**ID:** `{0}`\n**Color:** {1}\n**Status:** {2}{3}\n{4}\n​"
     },
     "typeToggle": {
       "cmdDescrp": "Activate or deactivate a custom ticket type",
@@ -326,5 +331,13 @@
     "routingRoleOption": "Staff role to route tickets to",
     "routingMaxOpenOption": "Max open tickets per staff (optional, 1-50)",
     "routingStrategyOption": "The routing strategy to use"
+  },
+  "buttons": {
+    "adminOnly": "Admin Only",
+    "closeTicket": "Close Ticket"
+  },
+  "createModal": {
+    "descriptionLabel": "Please describe your issue",
+    "descriptionPlaceholder": "Provide details about your ticket..."
   }
 }

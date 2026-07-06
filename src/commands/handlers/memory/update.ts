@@ -61,7 +61,7 @@ async function validateUpdateContext(interaction: ChatInputCommandInteraction) {
   });
 
   if (statusTags.length === 0) {
-    await replyEphemeralError(interaction, 'No status tags configured. Run /memory-setup first.');
+    await replyEphemeralError(interaction, lang.memory.update.noStatusTags);
     return null;
   }
 
@@ -88,8 +88,14 @@ function buildStatusSelectRow(statusTags: MemoryTag[], selectedId: string) {
 /** Build the confirm/cancel button row. */
 function buildUpdateButtonRow() {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('memory_update_confirm').setLabel('Update').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('memory_update_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('memory_update_confirm')
+      .setLabel(lang.memory.update.updateL)
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId('memory_update_cancel')
+      .setLabel(lang.memory.update.cancelL)
+      .setStyle(ButtonStyle.Secondary),
   );
 }
 

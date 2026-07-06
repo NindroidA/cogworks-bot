@@ -13,7 +13,7 @@ import {
   GuildScheduledEventPrivacyLevel,
   MessageFlags,
 } from 'discord.js';
-import eventLang from '../../../lang/en/event.json';
+import { lang } from '../../../lang';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
 import type { RecurringPattern } from '../../../typeorm/entities/event/EventTemplate';
@@ -29,6 +29,9 @@ import {
   toUnixSeconds,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+
+// Locale-aware (Proxy fallback) — was a direct en JSON import that bypassed i18n.
+const eventLang = lang.event;
 
 const eventConfigRepo = lazyRepo(EventConfig);
 const eventTemplateRepo = lazyRepo(EventTemplate);

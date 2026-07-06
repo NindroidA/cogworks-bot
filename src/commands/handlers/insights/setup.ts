@@ -1,5 +1,6 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AnalyticsConfig } from '../../../typeorm/entities/analytics/AnalyticsConfig';
+import { formatLang, lang } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { guardFeatureAccess } from '../../../utils/interactions/guardHelper';
@@ -21,7 +22,7 @@ async function handleEnableAction(
 ) {
   if (config?.enabled) {
     await interaction.reply({
-      content: 'Analytics are already enabled.',
+      content: lang.analytics.setup.alreadyEnabled,
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -35,7 +36,7 @@ async function handleEnableAction(
   await configRepo.save(config);
 
   await interaction.reply({
-    content: 'Analytics have been **enabled** for this server. Data collection will begin now.',
+    content: lang.analytics.setup.enabled,
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -50,7 +51,7 @@ async function handleDisableAction(
 ) {
   if (!config?.enabled) {
     await interaction.reply({
-      content: 'Analytics are already disabled.',
+      content: lang.analytics.setup.alreadyDisabled,
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -60,7 +61,7 @@ async function handleDisableAction(
   await configRepo.save(config);
 
   await interaction.reply({
-    content: 'Analytics have been **disabled**. Existing data is preserved.',
+    content: lang.analytics.setup.disabled,
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -83,14 +84,14 @@ async function handleChannelAction(
     config.digestChannelId = channel.id;
     await configRepo.save(config);
     await interaction.reply({
-      content: `Digest channel set to <#${channel.id}>.`,
+      content: formatLang(lang.analytics.setup.channelSet, `<#${channel.id}>`),
       flags: [MessageFlags.Ephemeral],
     });
   } else {
     config.digestChannelId = null;
     await configRepo.save(config);
     await interaction.reply({
-      content: 'Digest channel has been cleared. No digests will be sent.',
+      content: lang.analytics.setup.channelCleared,
       flags: [MessageFlags.Ephemeral],
     });
   }
@@ -109,7 +110,7 @@ async function handleFrequencyAction(
 
   if (!frequency) {
     await interaction.reply({
-      content: 'Please specify a frequency using the `frequency` option.',
+      content: lang.analytics.setup.specifyFrequency,
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -117,7 +118,7 @@ async function handleFrequencyAction(
 
   if (!['weekly', 'monthly', 'both'].includes(frequency)) {
     await interaction.reply({
-      content: 'Invalid frequency. Choose `weekly`, `monthly`, or `both`.',
+      content: lang.analytics.setup.invalidFrequency,
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -126,14 +127,14 @@ async function handleFrequencyAction(
   if (day !== null) {
     if (frequency === 'weekly' && (day < 0 || day > 6)) {
       await interaction.reply({
-        content: 'Invalid day value. Use 0-6 for weekly (Sun-Sat).',
+        content: lang.analytics.setup.invalidDayWeekly,
         flags: [MessageFlags.Ephemeral],
       });
       return;
     }
     if (frequency === 'monthly' && (day < 1 || day > 28)) {
       await interaction.reply({
-        content: 'Invalid day value. Use 1-28 for monthly.',
+        content: lang.analytics.setup.invalidDayMonthly,
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -153,7 +154,7 @@ async function handleFrequencyAction(
   const dayLabel = formatDayLabel(frequency, config.digestDay);
 
   await interaction.reply({
-    content: `Digest frequency set to **${frequency}** (day: ${dayLabel}).`,
+    content: formatLang(lang.analytics.setup.frequencySet, frequency, dayLabel),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -162,26 +163,30 @@ async function handleFrequencyAction(
 
 /** Handle the "status" action: show current analytics configuration. */
 async function handleStatusAction(interaction: ChatInputCommandInteraction<CacheType>, config: AnalyticsConfig | null) {
-  const embed = new EmbedBuilder().setTitle('Analytics Configuration').setColor(Colors.brand.primary);
+  const embed = new EmbedBuilder().setTitle(lang.analytics.setup.statusTitle).setColor(Colors.brand.primary);
   if (!config) {
-    embed.setDescription('Analytics have not been configured for this server.');
-    embed.addFields({ name: 'Status', value: 'Disabled', inline: true });
+    embed.setDescription(lang.analytics.setup.notConfigured);
+    embed.addFields({
+      name: lang.analytics.setup.statusField,
+      value: lang.analytics.setup.statusDisabled,
+      inline: true,
+    });
   } else {
     const dayLabel = formatDayLabel(config.digestFrequency, config.digestDay);
 
     embed.addFields(
       {
-        name: 'Status',
-        value: config.enabled ? 'Enabled' : 'Disabled',
+        name: lang.analytics.setup.statusField,
+        value: config.enabled ? lang.analytics.setup.statusEnabled : lang.analytics.setup.statusDisabled,
         inline: true,
       },
       {
-        name: 'Digest Channel',
-        value: config.digestChannelId ? `<#${config.digestChannelId}>` : 'Not set',
+        name: lang.analytics.setup.digestChannelField,
+        value: config.digestChannelId ? `<#${config.digestChannelId}>` : lang.analytics.setup.notSet,
         inline: true,
       },
-      { name: 'Frequency', value: config.digestFrequency, inline: true },
-      { name: 'Digest Day', value: dayLabel, inline: true },
+      { name: lang.analytics.setup.frequencyField, value: config.digestFrequency, inline: true },
+      { name: lang.analytics.setup.digestDayField, value: dayLabel, inline: true },
     );
   }
 
@@ -226,7 +231,7 @@ export async function insightsSetupHandler(_client: Client, interaction: ChatInp
       action,
     });
     await interaction.reply({
-      content: 'Failed to update analytics configuration.',
+      content: lang.analytics.setup.error,
       flags: [MessageFlags.Ephemeral],
     });
   }

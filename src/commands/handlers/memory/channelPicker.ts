@@ -32,7 +32,7 @@ export async function resolveMemoryConfig(
         configs.map(c => ({
           label: c.channelName,
           value: c.id.toString(),
-          description: `Forum: <#${c.forumChannelId}>`,
+          description: `${lang.memory.channelPicker.forumPrefix} <#${c.forumChannelId}>`,
         })),
       ),
   );
@@ -51,7 +51,7 @@ export async function resolveMemoryConfig(
 
   const selectedId = Number.parseInt(choice.values[0], 10);
   const config = configs.find(c => c.id === selectedId);
-  await choice.update({ content: `${E.loading} Processing...`, components: [] });
+  await choice.update({ content: `${E.loading} ${lang.memory.channelPicker.processing}`, components: [] });
   return config || null;
 }
 

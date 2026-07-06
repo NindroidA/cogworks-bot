@@ -109,5 +109,20 @@
     "invalidMultiplier": "Multiplier must be between 0.1 and 10.",
     "invalidCooldown": "Cooldown must be between 0 and 3600 seconds.",
     "maxRoleRewards": "Maximum of 25 role rewards per server."
+  },
+  "config": {
+    "currentRate": "Current XP rate: **{0}-{1}** per message.",
+    "rateFormat": "Format: `min-max` (e.g. `15-25`)",
+    "currentCooldown": "Current cooldown: **{0}** seconds.",
+    "currentVoiceXp": "Current voice XP: **{0}** per minute.",
+    "voiceXpRange": "Voice XP must be between 0 and 100.",
+    "currentLevelUpChannel": "Current level-up channel: {0}. Use the channel option or type `none` to clear.",
+    "sameChannel": "Same channel as message",
+    "currentLevelUpMessage": "Current level-up message: {0}\nPlaceholders: `{user}`, `{level}`",
+    "currentVoiceXpEnabled": "Voice XP is currently **{0}**.",
+    "currentStackMultipliers": "Stack multipliers is currently **{0}**.",
+    "enabled": "enabled",
+    "disabled": "disabled",
+    "unknownSetting": "Unknown setting."
   }
 }

@@ -54,13 +54,13 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
 
   if (dryRun) {
     const embed = new EmbedBuilder()
-      .setTitle('MEE6 Import — Dry Run')
+      .setTitle(lang.import.results.mee6DryRunTitle)
       .setDescription(formatLang(tl.dryRunComplete, result.imported, result.skipped, result.failed))
       .setColor(0x3498db);
 
     if (result.errors.length > 0) {
       embed.addFields({
-        name: 'Errors',
+        name: lang.import.results.errorsField,
         value: result.errors.slice(0, 10).join('\n').substring(0, 1024),
       });
     }
@@ -71,25 +71,25 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
 
   if (result.success) {
     const embed = new EmbedBuilder()
-      .setTitle('MEE6 Import Complete')
+      .setTitle(lang.import.results.mee6CompleteTitle)
       .setDescription(formatLang(tl.importComplete, result.imported, result.skipped, result.failed))
       .setColor(0x2ecc71)
       .addFields({
-        name: 'Duration',
+        name: lang.import.results.durationField,
         value: `${(result.durationMs / 1000).toFixed(1)}s`,
         inline: true,
       });
 
     if (result.errors.length > 0) {
       embed.addFields({
-        name: 'Warnings',
+        name: lang.import.results.warningsField,
         value: result.errors.slice(0, 10).join('\n').substring(0, 1024),
       });
     }
 
     await interaction.editReply({ content: '', embeds: [embed] });
   } else {
-    const errorMsg = result.errors.length > 0 ? result.errors[0] : 'Unknown error';
+    const errorMsg = result.errors.length > 0 ? result.errors[0] : lang.import.results.unknownError;
     await replyEphemeralError(interaction, formatLang(tl.importFailed, errorMsg));
   }
 }

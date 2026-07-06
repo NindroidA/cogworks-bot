@@ -82,7 +82,7 @@ async function handleTagAdd(interaction: ChatInputCommandInteraction, guildId: s
   // Sanitize tag name
   const name = sanitizeUserInput(rawName, { maxLength: MAX.MEMORY_TAG_NAME_LENGTH }) || '';
   if (!name) {
-    await replyEphemeralError(interaction, 'Tag name is required.');
+    await replyEphemeralError(interaction, lang.memory.tags.add.nameRequired);
     return;
   }
 

@@ -1,10 +1,13 @@
 import type { ColorResolvable } from 'discord.js';
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
-import xpLang from '../../../lang/en/xp.json';
+import { lang } from '../../../lang';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
 import { handleInteractionError, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { getXPConfig } from '../../../utils/xp/configCache';
+
+// Locale-aware (Proxy fallback) — was a direct en JSON import that bypassed i18n.
+const xpLang = lang.xp;
 
 const LEADERBOARD_COLOR = '#FFD700' as ColorResolvable;
 const PAGE_SIZE = 10;

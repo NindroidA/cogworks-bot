@@ -1,10 +1,11 @@
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
-import xpLang from '../../../lang/en/xp.json';
+import { lang } from '../../../lang';
 import { XPConfig } from '../../../typeorm/entities/xp/XPConfig';
 import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
 import {
   createToggleHandler,
   enhancedLogger,
+  formatLang,
   handleInteractionError,
   LogCategory,
   replyEphemeralError,
@@ -13,7 +14,11 @@ import { Colors } from '../../../utils/colors';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { invalidateXPConfigCache } from '../../../utils/xp/configCache';
 
+// Locale-aware (Proxy fallback) — was a direct en JSON import that bypassed i18n.
+const xpLang = lang.xp;
+
 const configRepo = lazyRepo(XPConfig);
+const tlConfig = xpLang.config;
 const rewardRepo = lazyRepo(XPRoleReward);
 
 const xpToggle = createToggleHandler({
@@ -100,14 +105,14 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     case 'xp-rate': {
       if (!value) {
         await interaction.reply({
-          content: `Current XP rate: **${config.xpPerMessageMin}-${config.xpPerMessageMax}** per message.`,
+          content: formatLang(tlConfig.currentRate, config.xpPerMessageMin, config.xpPerMessageMax),
           flags: [MessageFlags.Ephemeral],
         });
         return;
       }
       const parts = value.split('-').map(Number);
       if (parts.length !== 2 || Number.isNaN(parts[0]) || Number.isNaN(parts[1])) {
-        await replyEphemeralError(interaction, 'Format: `min-max` (e.g. `15-25`)');
+        await replyEphemeralError(interaction, tlConfig.rateFormat);
         return;
       }
       const [min, max] = parts;
@@ -122,7 +127,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     case 'cooldown': {
       if (!value) {
         await interaction.reply({
-          content: `Current cooldown: **${config.xpCooldownSeconds}** seconds.`,
+          content: formatLang(tlConfig.currentCooldown, config.xpCooldownSeconds),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -138,14 +143,14 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     case 'voice-xp': {
       if (!value) {
         await interaction.reply({
-          content: `Current voice XP: **${config.xpPerVoiceMinute}** per minute.`,
+          content: formatLang(tlConfig.currentVoiceXp, config.xpPerVoiceMinute),
           flags: [MessageFlags.Ephemeral],
         });
         return;
       }
       const voiceXp = Number(value);
       if (Number.isNaN(voiceXp) || voiceXp < 0 || voiceXp > 100) {
-        await replyEphemeralError(interaction, 'Voice XP must be between 0 and 100.');
+        await replyEphemeralError(interaction, tlConfig.voiceXpRange);
         return;
       }
       config.xpPerVoiceMinute = voiceXp;
@@ -158,7 +163,10 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
         config.levelUpChannelId = null;
       } else {
         await interaction.reply({
-          content: `Current level-up channel: ${config.levelUpChannelId ? `<#${config.levelUpChannelId}>` : 'Same channel as message'}. Use the channel option or type \`none\` to clear.`,
+          content: formatLang(
+            tlConfig.currentLevelUpChannel,
+            config.levelUpChannelId ? `<#${config.levelUpChannelId}>` : tlConfig.sameChannel,
+          ),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -168,7 +176,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     case 'level-up-message': {
       if (!value) {
         await interaction.reply({
-          content: `Current level-up message: ${config.levelUpMessage}\nPlaceholders: \`{user}\`, \`{level}\``,
+          content: formatLang(tlConfig.currentLevelUpMessage, config.levelUpMessage),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -179,7 +187,10 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     case 'voice-xp-enabled': {
       if (!value) {
         await interaction.reply({
-          content: `Voice XP is currently **${config.voiceXpEnabled ? 'enabled' : 'disabled'}**.`,
+          content: formatLang(
+            tlConfig.currentVoiceXpEnabled,
+            config.voiceXpEnabled ? tlConfig.enabled : tlConfig.disabled,
+          ),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -190,7 +201,10 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     case 'stack-multipliers': {
       if (!value) {
         await interaction.reply({
-          content: `Stack multipliers is currently **${config.stackMultipliers ? 'enabled' : 'disabled'}**.`,
+          content: formatLang(
+            tlConfig.currentStackMultipliers,
+            config.stackMultipliers ? tlConfig.enabled : tlConfig.disabled,
+          ),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -199,7 +213,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
       break;
     }
     default:
-      await replyEphemeralError(interaction, 'Unknown setting.');
+      await replyEphemeralError(interaction, tlConfig.unknownSetting);
       return;
   }
 

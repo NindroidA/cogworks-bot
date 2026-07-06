@@ -1,8 +1,11 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import onboardingLang from '../../../lang/en/onboarding.json';
+import { lang } from '../../../lang';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
 import { createToggleHandler, enhancedLogger, formatLang } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+
+// Locale-aware (Proxy fallback) — was a direct en JSON import that bypassed i18n.
+const onboardingLang = lang.onboarding;
 
 const configRepo = lazyRepo(OnboardingConfig);
 const tl = onboardingLang;

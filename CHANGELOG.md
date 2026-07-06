@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.0] - 2026-07-06
+
+The i18n sweep: user-facing text that bypassed the language system is now in
+it — groundwork for the es/fr/de/pt-BR translations to actually cover these
+surfaces.
+
+### Changed
+
+- **Three whole features rejoined the locale system**: the XP, onboarding, and
+  event handlers imported the English JSON directly, bypassing the per-locale
+  fallback entirely. They now read through the language module like everything
+  else.
+- **Insights finally uses its own language file**: every string in
+  `/insights` (setup, overview, growth, channels, hours) was hardcoded even
+  though `analytics.json` already contained most of them.
+- **Ticket buttons and modals localized**: Close/Admin-Only/Confirm/Cancel
+  labels, the "Oh, Mods!" staff alert, and the ticket-creation modal prompt.
+- **`/baitchannel raid` fully localized** (it was hardcoded end to end), plus
+  the onboarding DM buttons, XP config replies, import result embeds, the
+  announcement send confirmation, and assorted memory/bait validation strings.
+
 ## [3.14.8] - 2026-07-06
 
 Dead-code removal — everything the audit confirmed as having zero callers,

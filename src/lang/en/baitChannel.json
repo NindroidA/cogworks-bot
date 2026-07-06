@@ -121,7 +121,8 @@
   "setup": {
     "title": "Bait Channel Configured",
     "titleUpdated": "Bait Channel Updated",
-    "footer": "Use /baitchannel detection to configure smart detection"
+    "footer": "Use /baitchannel detection to configure smart detection",
+    "textChannelRequired": "Please select a text channel."
   },
   "stats": {
     "title": "Bait Channel Statistics",
@@ -268,5 +269,21 @@
     "addChannel": "Failed to add bait channel",
     "removeChannel": "Failed to remove bait channel",
     "weeklySummary": "Failed to update weekly summary settings"
+  },
+  "raid": {
+    "notInitialized": "❌ Raid mode manager is not initialized (bot may still be starting up).",
+    "statusActive": "🚨 Raid mode is ACTIVE",
+    "statusInactive": "✅ Raid mode is inactive",
+    "recentTriggers": "Recent triggers",
+    "withinWindow": "{0} within window",
+    "distinctOffenders": "Distinct offenders",
+    "autoReleaseAt": "Auto-release at",
+    "notConfigured": "❌ Bait channel is not configured for this guild. Run `/baitchannel setup` first.",
+    "alreadyActive": "⚠️ Raid mode is already active. Use `/baitchannel raid release` first to reset.",
+    "activated": "✅ Raid mode activated. Reason: {0}",
+    "released": "✅ Raid mode released. Channel permissions restored.",
+    "notActive": "ℹ️ Raid mode was not active.",
+    "unknownSubcommand": "Unknown raid subcommand.",
+    "error": "Failed to handle raid command"
   }
 }

@@ -163,7 +163,7 @@ export async function handleBaitChannelAddChannel(client: Client, interaction: C
 
     // Validate text channel
     if (channel.type !== ChannelType.GuildText) {
-      await replyEphemeralError(interaction, 'Please select a text channel.');
+      await replyEphemeralError(interaction, lang.baitChannel.setup.textChannelRequired);
       return;
     }
 

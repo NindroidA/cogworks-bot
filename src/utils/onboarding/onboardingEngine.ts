@@ -13,7 +13,6 @@
  *
  * Each phase is independently testable; the orchestration just chains them.
  */
-
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -25,11 +24,14 @@ import {
   MessageFlags,
   StringSelectMenuBuilder,
 } from 'discord.js';
+import { lang } from '../../lang';
 import { AppDataSource } from '../../typeorm';
 import { OnboardingCompletion } from '../../typeorm/entities/onboarding/OnboardingCompletion';
 import { OnboardingConfig } from '../../typeorm/entities/onboarding/OnboardingConfig';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import type { OnboardingStepDef } from './types';
+
+const tlEngine = lang.onboarding.engine;
 
 /** 24 hours in milliseconds */
 const COLLECTOR_TTL = 24 * 60 * 60 * 1000;
@@ -221,14 +223,14 @@ async function sendStep(
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder()
             .setCustomId(`onboarding_continue_${step.id}`)
-            .setLabel('Continue')
+            .setLabel(tlEngine.continueL)
             .setStyle(ButtonStyle.Primary),
         );
         if (!step.required) {
           row.addComponents(
             new ButtonBuilder()
               .setCustomId(`onboarding_skip_${step.id}`)
-              .setLabel('Skip')
+              .setLabel(tlEngine.skipL)
               .setStyle(ButtonStyle.Secondary),
           );
         }
@@ -244,7 +246,7 @@ async function sendStep(
 
         const selectMenu = new StringSelectMenuBuilder()
           .setCustomId(`onboarding_roleselect_${step.id}`)
-          .setPlaceholder('Select your roles...')
+          .setPlaceholder(tlEngine.rolesPlaceholder)
           .setMinValues(step.required ? 1 : 0)
           .setMaxValues(step.options.length)
           .addOptions(
@@ -259,14 +261,14 @@ async function sendStep(
         const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder()
             .setCustomId(`onboarding_confirmrole_${step.id}`)
-            .setLabel('Confirm Selection')
+            .setLabel(tlEngine.confirmSelectionL)
             .setStyle(ButtonStyle.Primary),
         );
         if (!step.required) {
           buttonRow.addComponents(
             new ButtonBuilder()
               .setCustomId(`onboarding_skip_${step.id}`)
-              .setLabel('Skip')
+              .setLabel(tlEngine.skipL)
               .setStyle(ButtonStyle.Secondary),
           );
         }
@@ -282,14 +284,14 @@ async function sendStep(
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder()
             .setCustomId(`onboarding_continue_${step.id}`)
-            .setLabel('Got it!')
+            .setLabel(tlEngine.gotItL)
             .setStyle(ButtonStyle.Primary),
         );
         if (!step.required) {
           row.addComponents(
             new ButtonBuilder()
               .setCustomId(`onboarding_skip_${step.id}`)
-              .setLabel('Skip')
+              .setLabel(tlEngine.skipL)
               .setStyle(ButtonStyle.Secondary),
           );
         }
@@ -320,7 +322,7 @@ async function sendStep(
           row.addComponents(
             new ButtonBuilder()
               .setCustomId(`onboarding_skip_${step.id}`)
-              .setLabel('Skip')
+              .setLabel(tlEngine.skipL)
               .setStyle(ButtonStyle.Secondary),
           );
         }

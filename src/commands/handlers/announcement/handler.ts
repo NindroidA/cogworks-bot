@@ -274,7 +274,7 @@ async function previewAndSend(
     await announcementLogRepo.save(newLog);
 
     await result.interaction.editReply({
-      content: `Announcement sent to ${targetChannel}!`,
+      content: `${lang.announcement.success} ${targetChannel}!`,
       embeds: [],
       components: [],
     });
@@ -286,7 +286,7 @@ async function previewAndSend(
       { guildId, channelId: targetChannel.id, messageId: sentMessage.id },
     );
     await result.interaction
-      .editReply({ content: `Announcement sent to ${targetChannel}!`, embeds: [], components: [] })
+      .editReply({ content: `${lang.announcement.success} ${targetChannel}!`, embeds: [], components: [] })
       .catch(() => null);
   }
 

@@ -7,9 +7,11 @@
  */
 
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
-import { guardFeatureAccess, handleInteractionError, toUnixSeconds } from '../../../utils';
+import { formatLang, guardFeatureAccess, handleInteractionError, lang, toUnixSeconds } from '../../../utils';
 import { getRaidModeManager } from '../../../utils/baitChannel/raidModeManager';
 import { Colors } from '../../../utils/colors';
+
+const tl = lang.baitChannel.raid;
 
 export async function raidHandler(_client: Client, interaction: ChatInputCommandInteraction): Promise<void> {
   const subcommand = interaction.options.getSubcommand();
@@ -23,7 +25,7 @@ export async function raidHandler(_client: Client, interaction: ChatInputCommand
   const mgr = getRaidModeManager();
   if (!mgr) {
     await interaction.reply({
-      content: '❌ Raid mode manager is not initialized (bot may still be starting up).',
+      content: tl.notInitialized,
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -37,22 +39,22 @@ export async function raidHandler(_client: Client, interaction: ChatInputCommand
         const status = await mgr.getStatus(interaction.guildId!);
         const embed = new EmbedBuilder()
           .setColor(status.active ? Colors.status.error : Colors.status.success)
-          .setTitle(status.active ? '🚨 Raid mode is ACTIVE' : '✅ Raid mode is inactive')
+          .setTitle(status.active ? tl.statusActive : tl.statusInactive)
           .addFields(
             {
-              name: 'Recent triggers',
-              value: `${status.triggerCount} within window`,
+              name: tl.recentTriggers,
+              value: formatLang(tl.withinWindow, status.triggerCount),
               inline: true,
             },
             {
-              name: 'Distinct offenders',
+              name: tl.distinctOffenders,
               value: `${status.recentOffenderIds.length}`,
               inline: true,
             },
           );
         if (status.active && status.until) {
           embed.addFields({
-            name: 'Auto-release at',
+            name: tl.autoReleaseAt,
             value: `<t:${toUnixSeconds(status.until)}:f>`,
             inline: false,
           });
@@ -72,17 +74,15 @@ export async function raidHandler(_client: Client, interaction: ChatInputCommand
           where: { guildId: interaction.guildId! },
         });
         if (!config) {
-          await interaction.editReply(
-            '❌ Bait channel is not configured for this guild. Run `/baitchannel setup` first.',
-          );
+          await interaction.editReply(tl.notConfigured);
           return;
         }
         if (config.currentRaidModeUntil && config.currentRaidModeUntil.getTime() > Date.now()) {
-          await interaction.editReply('⚠️ Raid mode is already active. Use `/baitchannel raid release` first to reset.');
+          await interaction.editReply(tl.alreadyActive);
           return;
         }
         await mgr.enterRaidMode(interaction.guild, config);
-        await interaction.editReply(`✅ Raid mode activated. Reason: ${reason}`);
+        await interaction.editReply(formatLang(tl.activated, reason));
         return;
       }
 
@@ -93,16 +93,14 @@ export async function raidHandler(_client: Client, interaction: ChatInputCommand
           interaction.user.id,
           'manual release via slash command',
         );
-        await interaction.editReply(
-          released ? '✅ Raid mode released. Channel permissions restored.' : 'ℹ️ Raid mode was not active.',
-        );
+        await interaction.editReply(released ? tl.released : tl.notActive);
         return;
       }
 
       default:
-        await interaction.reply({ content: 'Unknown raid subcommand.', flags: [MessageFlags.Ephemeral] });
+        await interaction.reply({ content: tl.unknownSubcommand, flags: [MessageFlags.Ephemeral] });
     }
   } catch (error) {
-    await handleInteractionError(interaction, error, 'Failed to handle raid command');
+    await handleInteractionError(interaction, error, tl.error);
   }
 }
