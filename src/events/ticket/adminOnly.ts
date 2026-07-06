@@ -60,11 +60,11 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
     // ping a literal "undefined".
     if (gsrFlag && globalStaffRole && shouldMentionStaff) {
       await channel.send({
-        content: `${globalStaffRole}\n❗Oh, Mods!❗ ${user} ${tl.request}`,
+        content: `${globalStaffRole}\n${tl.modsAlert} ${user} ${tl.request}`,
       });
     } else {
       await channel.send({
-        content: `❗Oh, Mods!❗ ${user} ${tl.request}`,
+        content: `${tl.modsAlert} ${user} ${tl.request}`,
       });
     }
     // Resolve the "Changing to Admin Only..." ack: the creator is *requesting*
@@ -106,7 +106,10 @@ export const ticketAdminOnlyEvent = async (_client: Client, interaction: ButtonI
   const messageId = ticket.messageId;
   if (messageId) {
     const closeButton = new ActionRowBuilder<ButtonBuilder>().setComponents(
-      new ButtonBuilder().setCustomId('close_ticket').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId('close_ticket')
+        .setLabel(lang.ticket.buttons.closeTicket)
+        .setStyle(ButtonStyle.Danger),
     );
     const msg = await channel.messages.fetch(messageId).catch(() => null);
     await msg?.edit({ components: [closeButton] }).catch((error: unknown) => {
@@ -130,8 +133,8 @@ export const adminOnlyButton = async (_client: Client, interaction: ButtonIntera
   });
 
   const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('confirm_admin_only_ticket').setLabel('Confirm').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('cancel_admin_only_ticket').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('confirm_admin_only_ticket').setLabel(tl.confirmL).setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('cancel_admin_only_ticket').setLabel(tl.cancelL).setStyle(ButtonStyle.Secondary),
   );
 
   await interaction.reply({

@@ -23,5 +23,15 @@
     "overwriteOption": "Overwrite existing data (default: skip existing)",
     "dryRunOption": "Preview what would be imported without writing data",
     "attachmentOption": "CSV file to import (userId,xp,level,messages)"
+  },
+  "results": {
+    "csvDryRunTitle": "CSV Import — Dry Run",
+    "csvCompleteTitle": "CSV Import Complete",
+    "mee6DryRunTitle": "MEE6 Import — Dry Run",
+    "mee6CompleteTitle": "MEE6 Import Complete",
+    "errorsField": "Errors",
+    "durationField": "Duration",
+    "warningsField": "Warnings",
+    "unknownError": "Unknown error"
   }
 }

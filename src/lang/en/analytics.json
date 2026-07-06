@@ -73,7 +73,15 @@
     "digestFrequency": "Digest Frequency",
     "digestDay": "Digest Day",
     "notSet": "Not set",
-    "error": "Failed to update analytics configuration."
+    "error": "Failed to update analytics configuration.",
+    "specifyFrequency": "Please specify a frequency using the `frequency` option.",
+    "invalidDayWeekly": "Invalid day value. Use 0-6 for weekly (Sun-Sat).",
+    "invalidDayMonthly": "Invalid day value. Use 1-28 for monthly.",
+    "notConfigured": "Analytics have not been configured for this server.",
+    "statusField": "Status",
+    "digestChannelField": "Digest Channel",
+    "frequencyField": "Frequency",
+    "digestDayField": "Digest Day"
   },
   "digest": {
     "weeklyTitle": "Weekly Server Digest",

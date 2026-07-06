@@ -16,7 +16,6 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import eventLang from '../../../lang/en/event.json';
 import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
 import {
   awaitConfirmation,
@@ -30,6 +29,9 @@ import {
 } from '../../../utils';
 import { MAX } from '../../../utils/constants';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+
+// Locale-aware (Proxy fallback) — was a direct en JSON import that bypassed i18n.
+const eventLang = lang.event;
 
 const templateRepo = lazyRepo(EventTemplate);
 

@@ -1,9 +1,12 @@
 import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import xpLang from '../../../lang/en/xp.json';
+import { lang } from '../../../lang';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
 import { enhancedLogger, handleInteractionError, LogCategory, replyEphemeralError, TIMEOUTS } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { calculateLevel } from '../../../utils/xp/xpCalculator';
+
+// Locale-aware (Proxy fallback) — was a direct en JSON import that bypassed i18n.
+const xpLang = lang.xp;
 
 const userRepo = lazyRepo(XPUser);
 

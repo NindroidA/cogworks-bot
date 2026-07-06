@@ -163,8 +163,8 @@ export const closeButton = async (_client: Client, interaction: ButtonInteractio
   });
 
   const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('confirm_close_ticket').setLabel('Confirm Close').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('cancel_close_ticket').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('confirm_close_ticket').setLabel(tl.confirmL).setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('cancel_close_ticket').setLabel(tl.cancelL).setStyle(ButtonStyle.Secondary),
   );
 
   await interaction.reply({

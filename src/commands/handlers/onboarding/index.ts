@@ -4,7 +4,6 @@
  */
 
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import onboardingLang from '../../../lang/en/onboarding.json';
 import { AppDataSource } from '../../../typeorm';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
 import {
@@ -20,6 +19,9 @@ import { sendOnboardingFlow } from '../../../utils/onboarding/onboardingEngine';
 import { completionRoleHandler, disableHandler, enableHandler, welcomeMessageHandler } from './setup';
 import { onboardingStatsHandler } from './stats';
 import { stepAddHandler, stepListHandler, stepRemoveHandler } from './steps';
+
+// Locale-aware (Proxy fallback) — was a direct en JSON import that bypassed i18n.
+const onboardingLang = lang.onboarding;
 
 const tl = onboardingLang;
 

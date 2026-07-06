@@ -1,5 +1,6 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import { MoreThanOrEqual } from 'typeorm';
+import { lang } from '../../../lang';
 import { AnalyticsConfig } from '../../../typeorm/entities/analytics/AnalyticsConfig';
 import { AnalyticsSnapshot } from '../../../typeorm/entities/analytics/AnalyticsSnapshot';
 import { buildGrowthEmbed } from '../../../utils/analytics/digestBuilder';
@@ -17,7 +18,7 @@ export async function growthHandler(_client: Client, interaction: ChatInputComma
     const config = await configRepo.findOneBy({ guildId });
     if (!config?.enabled) {
       await interaction.reply({
-        content: 'Analytics are not enabled for this server. An admin can enable them with `/insights setup`.',
+        content: lang.analytics.errors.notEnabled,
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -42,7 +43,7 @@ export async function growthHandler(_client: Client, interaction: ChatInputComma
       guildId,
     });
     await interaction.reply({
-      content: 'Failed to fetch analytics data.',
+      content: lang.analytics.errors.fetchFailed,
       flags: [MessageFlags.Ephemeral],
     });
   }

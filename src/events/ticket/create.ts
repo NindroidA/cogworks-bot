@@ -104,9 +104,9 @@ function buildCustomTicketModal(ticketType: CustomTicketType): ModalBuilder {
   } else {
     const descriptionInput = new TextInputBuilder()
       .setCustomId('ticket_description')
-      .setLabel('Please describe your issue')
+      .setLabel(lang.ticket.createModal.descriptionLabel)
       .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder(ticketType.description || 'Provide details about your ticket...')
+      .setPlaceholder(ticketType.description || lang.ticket.createModal.descriptionPlaceholder)
       .setRequired(true)
       .setMaxLength(2000);
 
@@ -450,8 +450,14 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
 
     const welcomeMsg = `<@${member.user.id}>\n\n${lang.ticket.welcomeMsg}`;
     const buttonOptions = new ActionRowBuilder<ButtonBuilder>().setComponents(
-      new ButtonBuilder().setCustomId('admin_only_ticket').setLabel('Admin Only').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('close_ticket').setLabel('Close Ticket').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId('admin_only_ticket')
+        .setLabel(lang.ticket.buttons.adminOnly)
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId('close_ticket')
+        .setLabel(lang.ticket.buttons.closeTicket)
+        .setStyle(ButtonStyle.Danger),
     );
     const newChannel = channel as TextChannel;
 

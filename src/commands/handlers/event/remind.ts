@@ -5,11 +5,14 @@
  */
 
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import eventLang from '../../../lang/en/event.json';
+import { lang } from '../../../lang';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
 import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+
+// Locale-aware (Proxy fallback) — was a direct en JSON import that bypassed i18n.
+const eventLang = lang.event;
 
 const eventConfigRepo = lazyRepo(EventConfig);
 const eventReminderRepo = lazyRepo(EventReminder);

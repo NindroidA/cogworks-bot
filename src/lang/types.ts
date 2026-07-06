@@ -437,6 +437,14 @@ export interface LangTicket {
   archiveTicketConfigNotFound: string;
   selectTicketType: string;
   created: string;
+  buttons: {
+    adminOnly: string;
+    closeTicket: string;
+  };
+  createModal: {
+    descriptionLabel: string;
+    descriptionPlaceholder: string;
+  };
   welcomeMsg: string;
   cancelled: string;
   adminOnly: {
@@ -446,11 +454,16 @@ export interface LangTicket {
     request: string;
     requestSent: string;
     success: string;
+    confirmL: string;
+    cancelL: string;
+    modsAlert: string;
   };
   close: {
     confirm: string;
     closing: string;
     cancel: string;
+    confirmL: string;
+    cancelL: string;
     byUser: string;
     notConfigured: string;
     notFound: string;
@@ -1038,6 +1051,22 @@ export interface LangAnnouncement {
 }
 
 export interface LangBaitChannel {
+  raid: {
+    notInitialized: string;
+    statusActive: string;
+    statusInactive: string;
+    recentTriggers: string;
+    withinWindow: string;
+    distinctOffenders: string;
+    autoReleaseAt: string;
+    notConfigured: string;
+    alreadyActive: string;
+    activated: string;
+    released: string;
+    notActive: string;
+    unknownSubcommand: string;
+    error: string;
+  };
   notConfigured: string;
   setupFirst: string;
   specifyRoleOrUser: string;
@@ -1161,6 +1190,7 @@ export interface LangBaitChannel {
     title: string;
     titleUpdated: string;
     footer: string;
+    textChannelRequired: string;
   };
   stats: {
     title: string;
@@ -1416,6 +1446,8 @@ export interface LangMemory {
     title: string;
     description: string;
     placeholder: string;
+    processing: string;
+    forumPrefix: string;
   };
   tagSelection: {
     categoryField: string;
@@ -1455,6 +1487,9 @@ export interface LangMemory {
   update: {
     title: string;
     selectStatus: string;
+    noStatusTags: string;
+    updateL: string;
+    cancelL: string;
     success: string;
     error: string;
     notInForum: string;
@@ -1488,6 +1523,7 @@ export interface LangMemory {
     statusTags: string;
     noTags: string;
     add: {
+      nameRequired: string;
       modalTitle: string;
       nameLabel: string;
       namePlaceholder: string;
@@ -2034,6 +2070,16 @@ export type LangEvent = Record<string, any>;
 export type LangAnalytics = Record<string, any>;
 
 export interface LangImport {
+  results: {
+    csvDryRunTitle: string;
+    csvCompleteTitle: string;
+    mee6DryRunTitle: string;
+    mee6CompleteTitle: string;
+    errorsField: string;
+    durationField: string;
+    warningsField: string;
+    unknownError: string;
+  };
   commands: {
     importStarted: string;
     importComplete: string;

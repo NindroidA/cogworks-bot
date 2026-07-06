@@ -91,5 +91,13 @@
     "notConfigured": "Onboarding is not configured for this server.",
     "general": "An error occurred while processing the onboarding command.",
     "dmsClosed": "Could not DM the user. They may have DMs disabled for this server."
+  },
+  "engine": {
+    "continueL": "Continue",
+    "skipL": "Skip",
+    "rolesPlaceholder": "Select your roles...",
+    "confirmSelectionL": "Confirm Selection",
+    "gotItL": "Got it!",
+    "rolesSelectedHint": "Selected {0} role(s). Click **{1}** to continue."
   }
 }
