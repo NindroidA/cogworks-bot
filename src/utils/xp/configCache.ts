@@ -27,8 +27,3 @@ export async function getXPConfig(guildId: string): Promise<XPConfig | null> {
 export function invalidateXPConfigCache(guildId: string): void {
   configCache.invalidate(guildId);
 }
-
-/** Drop the entire XP config cache. Used by tests + bot-reset. */
-export function clearXPConfigCache(): void {
-  configCache.clear();
-}

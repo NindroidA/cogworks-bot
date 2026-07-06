@@ -19,9 +19,6 @@ import { DEFAULT_KEYWORDS } from '../../../utils/baitChannel/defaultKeywords';
 import { MAX } from '../../../utils/constants';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
-// Re-export for backwards compatibility
-export { DEFAULT_KEYWORDS } from '../../../utils/baitChannel/defaultKeywords';
-
 const keywordRepo = lazyRepo(BaitKeyword);
 const tl = lang.baitChannel;
 

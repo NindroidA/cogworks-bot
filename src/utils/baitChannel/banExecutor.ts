@@ -277,9 +277,10 @@ export async function executeBanAction(
 
       case 'kick': {
         // Kick path used only when bot lacks BAN_MEMBERS (caller checks).
-        // Requires a live member ref — Discord has no REST kick-by-id endpoint
-        // (well, technically `DELETE /guilds/:id/members/:id` exists, but
-        // discord.js exposes it only via `member.kick()`).
+        // Still requires a live member ref for now. discord.js DOES expose
+        // kick-by-id (guild.members.kick(userId)) — switching to it would make
+        // this arm leave-tolerant like the ban arm, but that's a deliberate
+        // behavior change, tracked separately.
         if (!member) {
           return {
             status: 'failed',

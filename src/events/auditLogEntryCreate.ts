@@ -32,7 +32,7 @@
  */
 
 import { AuditLogEvent, type Client, Events, type GuildAuditLogsEntry } from 'discord.js';
-import { IsNull, LessThan, MoreThanOrEqual } from 'typeorm';
+import { IsNull, MoreThanOrEqual } from 'typeorm';
 import { AppDataSource } from '../typeorm';
 import { BaitChannelLog } from '../typeorm/entities/bait/BaitChannelLog';
 import { IdempotencyKey } from '../typeorm/entities/bait/IdempotencyKey';
@@ -313,28 +313,4 @@ async function handleUnban(guildId: string, userId: string, executorId: string, 
     unbannedBy: executorId,
     originalLogId: log.id,
   });
-}
-
-/**
- * Cleanup hook for legacy idempotency rows. Runs on the same cadence as
- * other cleanup jobs (Phase 10 will integrate with `logCleanup`); exposed
- * here so the audit handler module owns its own table maintenance.
- *
- * Removes rows where `expiresAt < now()` — keeps the table small.
- */
-export async function cleanupExpiredIdempotencyKeys(): Promise<number> {
-  try {
-    const repo = AppDataSource.getRepository(IdempotencyKey);
-    const result = await repo.delete({ expiresAt: LessThan(new Date()) });
-    return result.affected ?? 0;
-  } catch (error) {
-    logError({
-      category: ErrorCategory.DATABASE,
-      severity: ErrorSeverity.LOW,
-      message: 'Failed to clean expired idempotency keys',
-      error,
-      context: {},
-    });
-    return 0;
-  }
 }

@@ -413,7 +413,6 @@ src/
 │   ├── collectors.ts       # createButtonCollector, createSelectMenuCollector
 │   ├── colors.ts           # Brand color constants
 │   ├── constants.ts        # CACHE_TTL, INTERVALS, RETENTION_DAYS, MAX, TEXT_LIMITS
-│   ├── embedBuilders.ts    # Shared embed templates
 │   ├── emojis.ts           # Emoji constants
 │   ├── errorHandler.ts     # classifyError, handleInteractionError
 │   ├── fetchAllMessages.ts # fetchMessagesAsTranscript (v3.1.8)

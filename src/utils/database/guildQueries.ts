@@ -397,26 +397,3 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     };
   }
 }
-
-/**
- * Verify that a guild ID is valid and exists in bot configs. Propagates DB errors.
- *
- * @param guildId - Guild ID to verify
- * @returns True if guild exists in database
- *
- * @example
- * if (!await verifyGuildExists(guildId)) {
- *   await interaction.reply('This server is not configured. Run /botsetup first.');
- *   return;
- * }
- */
-export async function verifyGuildExists(guildId: string): Promise<boolean> {
-  const { AppDataSource } = await import('../../typeorm');
-  const { BotConfig } = await import('../../typeorm/entities/BotConfig');
-
-  const config = await AppDataSource.getRepository(BotConfig).findOne({
-    where: { guildId },
-  });
-
-  return config !== null;
-}

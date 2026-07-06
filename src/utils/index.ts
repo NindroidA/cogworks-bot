@@ -28,7 +28,6 @@ export * from './database/statusFlip';
 // Discord verified deletion utilities
 export * from './discord/partialFetch';
 export * from './discord/verifiedDelete';
-export * from './embedBuilders';
 export * from './emojis';
 export * from './errorHandler';
 // Forum utilities

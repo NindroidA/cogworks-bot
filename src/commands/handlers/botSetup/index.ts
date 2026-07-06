@@ -125,7 +125,9 @@ async function showSystemSelection(
   const submit = await showAndAwaitModal(interaction, modal);
   if (!submit) return;
 
-  const selectedSystems: string[] = (submit.fields as any).getField('setup_systems')?.values ?? [];
+  const systemsField = submit.fields.getField('setup_systems');
+  // Narrow the typed modal-data union — only checkbox groups carry `values`.
+  const selectedSystems: string[] = systemsField && 'values' in systemsField ? [...(systemsField.values ?? [])] : [];
 
   // Create SetupState
   const setupState = setupStateRepo.create({

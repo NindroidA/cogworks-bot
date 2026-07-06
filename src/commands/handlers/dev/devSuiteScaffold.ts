@@ -924,7 +924,7 @@ async function teardownTickets(
       for (const entry of entries) {
         if (!entry.messageId) continue;
         try {
-          const thread = await (forumChannel as any).threads.fetch(entry.messageId).catch(() => null);
+          const thread = await forumChannel.threads.fetch(entry.messageId).catch(() => null);
           if (thread) {
             await thread.delete('Dev suite teardown');
             threadsDeleted++;

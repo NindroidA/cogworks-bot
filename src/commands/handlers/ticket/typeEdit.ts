@@ -78,12 +78,11 @@ export interface TypeEditFields {
  * or a user-facing error message — caller handles reply.
  */
 export function parseTypeEditSubmit(submit: ModalSubmitInteraction): { fields: TypeEditFields } | { error: string } {
-  const fields = submit.fields as any;
   const rawDisplayName = extractModalField(submit.fields, 'displayName') ?? '';
   const rawEmoji = (extractModalField(submit.fields, 'emoji') ?? '').trim();
   const rawColor = (extractModalField(submit.fields, 'color') ?? '').trim();
   const rawDescription = extractModalField(submit.fields, 'description') ?? '';
-  const pingStaffOnCreate = extractModalBoolean(fields, 'pingStaffOnCreate');
+  const pingStaffOnCreate = extractModalBoolean(submit.fields, 'pingStaffOnCreate');
 
   const displayName = sanitizeUserInput(rawDisplayName);
   const embedColor = rawColor || '#0099ff';

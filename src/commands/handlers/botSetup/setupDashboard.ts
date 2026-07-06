@@ -171,11 +171,4 @@ export function buildSystemSelector(
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
 }
 
-/**
- * Get system info by ID.
- */
-export function getSystemInfo(systemId: string): SystemInfo | undefined {
-  return SYSTEMS.find(s => s.id === systemId);
-}
-
 export { SYSTEMS };
