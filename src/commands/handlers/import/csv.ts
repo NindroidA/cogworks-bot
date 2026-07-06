@@ -7,7 +7,15 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
-import { enhancedLogger, formatLang, LogCategory, lang, replyEphemeralError, toUnixSeconds } from '../../../utils';
+import {
+  enhancedLogger,
+  formatLang,
+  LogCategory,
+  lang,
+  logHandlerError,
+  replyEphemeralError,
+  toUnixSeconds,
+} from '../../../utils';
 import type { CsvImporter } from '../../../utils/import/csvImporter';
 import { importManager } from '../../../utils/import/importManager';
 
@@ -55,12 +63,7 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
     }
     csvContent = await response.text();
   } catch (error) {
-    enhancedLogger.error(
-      'Failed to download CSV attachment',
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    logHandlerError('CSV attachment download', error, { guildId });
     await replyEphemeralError(interaction, formatLang(tl.importFailed, 'Failed to download CSV file.'));
     return;
   }

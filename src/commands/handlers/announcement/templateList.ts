@@ -22,7 +22,6 @@ import { AnnouncementConfig } from '../../../typeorm/entities/announcement/Annou
 import { AnnouncementTemplate } from '../../../typeorm/entities/announcement/AnnouncementTemplate';
 import {
   awaitConfirmation,
-  buildErrorMessage,
   enhancedLogger,
   guardFeatureAccess,
   handleInteractionError,
@@ -65,13 +64,16 @@ export async function templateListHandler(interaction: ChatInputCommandInteracti
       return;
     }
 
-    await interaction.reply({
+    const response = await interaction.reply({
       embeds: [buildSummaryEmbed(templates)],
       components: buildSummaryComponents(templates),
       flags: [MessageFlags.Ephemeral],
+      withResponse: true,
     });
 
-    const message = await interaction.fetchReply();
+    // withResponse avoids the extra fetchReply REST roundtrip (repo convention).
+    const message = response.resource?.message;
+    if (!message) return;
     const collector = message.createMessageComponentCollector({
       time: COLLECTOR_TIMEOUT_MS,
       filter: (i: Interaction) => i.user.id === interaction.user.id,
@@ -195,14 +197,8 @@ export async function templateListHandler(interaction: ChatInputCommandInteracti
           guildId,
           userId: i.user.id,
         });
-        if (!i.replied && !i.deferred) {
-          await i
-            .reply({
-              content: buildErrorMessage('Something went wrong while managing templates.'),
-              flags: [MessageFlags.Ephemeral],
-            })
-            .catch(() => undefined);
-        }
+        // State-aware + swallow-safe — matches the typeList collector.
+        await replyEphemeralError(i, 'Something went wrong while managing templates.', { bugReport: true });
       }
     });
 

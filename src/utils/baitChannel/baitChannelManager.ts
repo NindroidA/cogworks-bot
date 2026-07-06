@@ -1474,12 +1474,12 @@ export class BaitChannelManager {
           { name: '⚡ Reason', value: reason, inline: false },
           {
             name: '📅 Account Created',
-            value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`,
+            value: `<t:${toUnixSeconds(new Date(member.user.createdTimestamp))}:R>`,
             inline: true,
           },
           {
             name: '📥 Joined Server',
-            value: `<t:${Math.floor(member.joinedTimestamp! / 1000)}:R>`,
+            value: `<t:${toUnixSeconds(new Date(member.joinedTimestamp!))}:R>`,
             inline: true,
           },
           {
@@ -1653,12 +1653,12 @@ export class BaitChannelManager {
           },
           {
             name: '📅 Account Created',
-            value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`,
+            value: `<t:${toUnixSeconds(new Date(member.user.createdTimestamp))}:R>`,
             inline: true,
           },
           {
             name: '📥 Joined Server',
-            value: `<t:${Math.floor(member.joinedTimestamp! / 1000)}:R>`,
+            value: `<t:${toUnixSeconds(new Date(member.joinedTimestamp!))}:R>`,
             inline: true,
           },
         )

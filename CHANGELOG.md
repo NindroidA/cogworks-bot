@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.6] - 2026-07-06
+
+Internal cleanup: the unification helpers introduced in v3.11–v3.13 now cover
+the call sites that had been left behind. No user-facing behavior changes
+beyond two small consistency wins.
+
+### Changed
+
+- Application workflow enable/disable, the memory-setup channel picker, and
+  the AutoMod restore confirmation now use the shared toggle/select/confirm
+  helpers (the confirm helper learned to work after a deferred reply).
+- Remaining hand-rolled `<t:…>` timestamp conversions and error-log blocks
+  migrated to the shared `toUnixSeconds`/`logHandlerError` utilities; two
+  handlers dropped the deprecated `fetchReply()` roundtrip for `withResponse`.
+
+### Fixed
+
+- The ticket-type and announcement-template list dashboards now always surface
+  an error message when a button action fails mid-collector (the old guard
+  skipped feedback if the interaction had already been acknowledged), and the
+  import command no longer double-logs every failure.
+
 ## [3.14.5] - 2026-07-06
 
 Permission-guard and API-validation consistency.

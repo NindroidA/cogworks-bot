@@ -16,12 +16,14 @@ import {
 } from 'discord.js';
 import { MemoryConfig, MemoryItem, MemoryTag, type MemoryTagType } from '../../typeorm/entities/memory';
 import {
+  awaitSelectMenuChoice,
   Colors,
   E,
   enhancedLogger,
   guardFeatureRateLimit,
   LogCategory,
   lang,
+  logHandlerError,
   RateLimits,
   replyEphemeralError,
 } from '../../utils';
@@ -201,12 +203,7 @@ async function handleSetup(client: Client, interaction: ChatInputCommandInteract
       }
     });
   } catch (error) {
-    enhancedLogger.error(
-      `Memory setup error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    logHandlerError('Memory setup', error, { guildId });
     await interaction.editReply({
       content: `${E.error} ${tl.setup.error}`,
       embeds: [],
@@ -254,14 +251,7 @@ async function handleAddChannel(_client: Client, interaction: ChatInputCommandIn
       content: `${E.success} ${tl.setup.channelAdded}\n${tl.setup.forumChannel}: <#${channel.id}>`,
     });
   } catch (error) {
-    enhancedLogger.error(
-      `Memory add-channel error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        guildId,
-      },
-    );
+    logHandlerError('Memory add-channel', error, { guildId });
     await replyEphemeralError(interaction, tl.setup.error);
   }
 }
@@ -296,14 +286,14 @@ async function handleRemoveChannel(client: Client, interaction: ChatInputCommand
     flags: [MessageFlags.Ephemeral],
   });
 
+  // One-shot picker — the helper owns the filter + timeout-message handling.
+  const i = await awaitSelectMenuChoice(interaction, response, {
+    userId: interaction.user.id,
+    customId: 'memory_remove_channel_select',
+  });
+  if (!i) return;
+
   try {
-    const i = await response.awaitMessageComponent({
-      filter: i => i.user.id === interaction.user.id && i.customId === 'memory_remove_channel_select',
-      time: 30000,
-    });
-
-    if (!i.isStringSelectMenu()) return;
-
     const selectedId = Number.parseInt(i.values[0], 10);
     const config = configs.find(c => c.id === selectedId);
     if (!config) return;
@@ -355,14 +345,7 @@ async function handleRemoveChannel(client: Client, interaction: ChatInputCommand
           content: `${E.success} ${tl.setup.channelRemoved}`,
         });
       } catch (error) {
-        enhancedLogger.error(
-          `Memory remove-channel error: ${error}`,
-          error instanceof Error ? error : undefined,
-          LogCategory.COMMAND_EXECUTION,
-          {
-            guildId,
-          },
-        );
+        logHandlerError('Memory remove-channel', error, { guildId });
         await replyEphemeralError(confirmI, tl.setup.error);
       }
     }
@@ -464,11 +447,7 @@ async function postWelcomeThread(forum: ForumChannel): Promise<string | null> {
 
     return thread.id;
   } catch (error) {
-    enhancedLogger.error(
-      `Failed to create memory welcome thread: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-    );
+    logHandlerError('Memory welcome-thread create', error);
     return null;
   }
 }
@@ -503,12 +482,7 @@ async function setupWithChannel(
       await interaction.reply({ content, flags: [MessageFlags.Ephemeral] });
     }
   } catch (error) {
-    enhancedLogger.error(
-      `Memory setup error: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      { guildId },
-    );
+    logHandlerError('Memory setup', error, { guildId });
     const content = `${E.error} ${tl.setup.error}`;
     if (componentInteraction) {
       await componentInteraction.editReply({ content });
@@ -548,14 +522,7 @@ async function createMemoryForum(
 
     return forum;
   } catch (error) {
-    enhancedLogger.error(
-      `Failed to create memory forum: ${error}`,
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-      {
-        guildId,
-      },
-    );
+    logHandlerError('Memory forum create', error, { guildId });
     await replyEphemeralError(interaction, tl.setup.error);
     return null;
   }

@@ -3,14 +3,7 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import {
-  enhancedLogger,
-  guardAdmin,
-  handleInteractionError,
-  LogCategory,
-  lang,
-  replyEphemeralError,
-} from '../../../utils';
+import { guardAdmin, handleInteractionError, lang, replyEphemeralError } from '../../../utils';
 import { csvImportHandler } from './csv';
 import { mee6ImportHandler } from './mee6';
 import { importStatusHandler } from './status';
@@ -38,11 +31,8 @@ export async function importHandler(interaction: ChatInputCommandInteraction): P
         await replyEphemeralError(interaction, lang.errors.unknownSubcommand);
     }
   } catch (error) {
-    enhancedLogger.error(
-      'Error in import command handler',
-      error instanceof Error ? error : undefined,
-      LogCategory.COMMAND_EXECUTION,
-    );
+    // handleInteractionError logs AND replies — the extra enhancedLogger.error
+    // here double-logged every failure.
     await handleInteractionError(interaction, error as Error, 'Import command failed');
   }
 }
