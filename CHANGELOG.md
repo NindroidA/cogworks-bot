@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.2] - 2026-07-06
+
+Test hardening — the audit's confirmed coverage holes, closing out the
+cleanup roadmap. No user-facing changes.
+
+### Added
+
+- The application close button and the ticket admin-only flow gained
+  injectable test seams and full regression suites (the v3.13.x close-hang
+  and "undefined"-ping fixes were shipping unguarded).
+- The changelog drift gate's failure branch, the close-needs-archive setup
+  warning, and the archived-but-channel-remains path are now pinned by tests;
+  the contract test compares against the live feature catalog instead of a
+  hardcoded count; the select-menu test double now actually exercises its
+  user/customId filter.
+
 ## [3.15.1] - 2026-07-06
 
 Performance pass — the audit's confirmed hot-path findings.

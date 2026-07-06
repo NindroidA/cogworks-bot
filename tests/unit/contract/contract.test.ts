@@ -7,6 +7,7 @@
  * including the actionType-enum tie-in from the Phase 0 fix.
  */
 
+import { FEATURES } from '../../../src/utils/validation/featurePermission';
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -23,7 +24,10 @@ describe('cogworks-contract.json', () => {
 
   test('carries the full feature + level catalog', () => {
     expect(contract.features.keys).toContain('baitchannel');
-    expect(contract.features.keys.length).toBe(13);
+    // Compare against the live catalog, not a hardcoded count — a legitimate
+    // feature addition must not break this test (it grew as recently as
+    // v3.1.29); only real drift between generator and catalog should.
+    expect([...contract.features.keys].sort()).toEqual([...FEATURES].sort());
     expect(contract.features.levels).toEqual(['use', 'manage', 'admin']);
   });
 

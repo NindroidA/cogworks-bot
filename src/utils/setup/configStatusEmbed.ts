@@ -81,3 +81,16 @@ export function buildConfigStatusEmbed(options: ConfigStatusOptions): EmbedBuild
 
   return embed;
 }
+
+/**
+ * Creation is configured but the archive forum is missing — the close flow
+ * would have nowhere to post the transcript (the exact misconfiguration that
+ * made the Close button fail before v3.13.2). Shared by the ticket and
+ * application setup status views.
+ */
+export function closeNeedsArchiveWarning(
+  creationChannelId: string | null | undefined,
+  archiveChannelId: string | null | undefined,
+): boolean {
+  return !!creationChannelId && !archiveChannelId;
+}

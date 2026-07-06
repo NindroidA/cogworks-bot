@@ -15,16 +15,30 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { version } from '../package.json';
 
+/** Mirror deploy.yml's extraction: the first `## [x.y.z]` heading, or null. */
+export function extractTopChangelogVersion(changelog: string): string | null {
+  return changelog.match(/^## \[(\d+\.\d+\.\d+)\]/m)?.[1] ?? null;
+}
+
+/**
+ * Pure gate: null = pass; a string = the failure message (the script prints it
+ * and exits 1). Exported so the failure branch — the script's entire purpose —
+ * is actually testable instead of only ever exercising the match branch in CI.
+ */
+export function checkChangelogDrift(changelog: string, pkgVersion: string): string | null {
+  const top = extractTopChangelogVersion(changelog);
+  if (top !== pkgVersion) {
+    return `✗ CHANGELOG drift: package.json is ${pkgVersion} but the top CHANGELOG.md entry is ${top ?? '(none found)'}.`;
+  }
+  return null;
+}
+
 function main() {
   const changelog = readFileSync(join(process.cwd(), 'CHANGELOG.md'), 'utf8');
-  // Mirror deploy.yml's extraction: first `## [x.y.z]` heading.
-  const match = changelog.match(/^## \[(\d+\.\d+\.\d+)\]/m);
-  const top = match?.[1];
+  const failure = checkChangelogDrift(changelog, version);
 
-  if (top !== version) {
-    console.error(
-      `✗ CHANGELOG drift: package.json is ${version} but the top CHANGELOG.md entry is ${top ?? '(none found)'}.`,
-    );
+  if (failure) {
+    console.error(failure);
     console.error(`  Add a "## [${version}] - <date>" section to the top of CHANGELOG.md before releasing,`);
     console.error('  otherwise the deploy will announce the wrong version to Discord.');
     process.exit(1);
@@ -33,4 +47,9 @@ function main() {
   console.log(`✓ CHANGELOG top entry matches package.json version (${version}).`);
 }
 
-main();
+// Only run the gate when executed directly — importing the module for tests
+// must not exit the process. (argv check instead of import.meta.main: the
+// project tsconfig targets a module mode where import.meta is unavailable.)
+if (process.argv[1]?.includes('checkChangelog')) {
+  main();
+}
