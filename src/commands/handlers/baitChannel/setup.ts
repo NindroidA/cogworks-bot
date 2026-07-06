@@ -51,14 +51,20 @@ export async function setupHandler(client: Client, interaction: ChatInputCommand
       });
       setBaitChannels(config, [channel.id]);
     } else {
-      // Check if channel is changing - if so, delete old message
       const currentChannels = getBaitChannelIds(config);
       const oldPrimary = currentChannels[0];
-      isChannelChange = oldPrimary !== channel.id;
+      // The warning banner lives in the channel the LEGACY channelId column
+      // points at — every writer posts it there, including the pre-v3.15.3
+      // setup whose legacy-only writes created divergent rows. Key the
+      // banner's delete/keep decision off that column, not the effective-list
+      // primary: on a divergent row they differ, and using the list primary
+      // would orphan the old banner and post a duplicate.
+      const bannerHome = config.channelId || oldPrimary;
+      isChannelChange = bannerHome !== channel.id;
 
-      if (isChannelChange && oldPrimary && config.channelMessageId) {
+      if (isChannelChange && bannerHome && config.channelMessageId) {
         try {
-          const oldChannel = await interaction.guild!.channels.fetch(oldPrimary);
+          const oldChannel = await interaction.guild!.channels.fetch(bannerHome);
           if (oldChannel?.isTextBased()) {
             const oldMessage = await (oldChannel as TextChannel).messages.fetch(config.channelMessageId);
             await oldMessage.delete();

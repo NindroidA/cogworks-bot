@@ -87,8 +87,8 @@ function makeInteraction(channelId: string) {
     guildId: 'guild-1',
     guild: {
       channels: {
-        // Update path may fetch the old primary to delete the warning message;
-        // "channel gone" is an accepted outcome there.
+        // Update path fetches the old banner's channel to delete the warning
+        // message; "channel gone" is an accepted outcome there.
         fetch: jest.fn(async () => {
           throw new Error('channel gone');
         }),
@@ -206,5 +206,102 @@ describe('/baitchannel setup dual-write (v3.15.3)', () => {
     const saved = configRepo.saveCalls[0];
     expect(saved.channelIds).toEqual(['new-chan']);
     expect(saved.channelId).toBe('new-chan');
+  });
+});
+
+describe('/baitchannel setup warning-banner lifecycle (v3.15.3)', () => {
+  beforeEach(() => {
+    clearConfigCache.mockClear();
+  });
+
+  test('channel change: old banner fetched from the LEGACY column channel, then id cleared', async () => {
+    configRepo = makeFakeConfigRepo({
+      id: 1,
+      guildId: 'guild-1',
+      channelId: 'banner-home',
+      channelIds: ['banner-home'],
+      channelMessageId: 'banner-msg',
+      gracePeriodSeconds: 15,
+      actionType: 'ban',
+      logChannelId: null,
+    });
+    const interaction = makeInteraction('new-chan');
+
+    await setupHandler(mockClient, interaction);
+
+    // Deletion attempted where the banner actually lives
+    expect(interaction.guild.channels.fetch).toHaveBeenCalledWith('banner-home');
+    const saved = configRepo.saveCalls[0];
+    expect(saved.channelMessageId).toBe(null);
+    expect(saved.channelIds).toEqual(['new-chan']);
+  });
+
+  test('divergent row + setup with the legacy channel: banner kept, NOT re-fetched from stale channelIds', async () => {
+    // The likely first admin action after the fix ships: re-running setup
+    // with the channel they already chose (legacy=B, stale channelIds=[A]).
+    // Keying off channelIds[0] would try to delete the banner in A (missing),
+    // null the id, and post a duplicate banner in B.
+    configRepo = makeFakeConfigRepo({
+      id: 1,
+      guildId: 'guild-1',
+      channelId: 'chan-B',
+      channelIds: ['stale-A'],
+      channelMessageId: 'banner-msg',
+      gracePeriodSeconds: 15,
+      actionType: 'ban',
+      logChannelId: null,
+    });
+    const interaction = makeInteraction('chan-B');
+
+    await setupHandler(mockClient, interaction);
+
+    expect(interaction.guild.channels.fetch).not.toHaveBeenCalled();
+    const saved = configRepo.saveCalls[0];
+    expect(saved.channelMessageId).toBe('banner-msg'); // banner untouched
+    expect(saved.channelIds).toEqual(['chan-B']); // list repaired
+    expect(saved.channelId).toBe('chan-B');
+  });
+
+  test('divergent row + setup with a third channel: banner deleted from the legacy channel', async () => {
+    configRepo = makeFakeConfigRepo({
+      id: 1,
+      guildId: 'guild-1',
+      channelId: 'chan-B',
+      channelIds: ['stale-A'],
+      channelMessageId: 'banner-msg',
+      gracePeriodSeconds: 15,
+      actionType: 'ban',
+      logChannelId: null,
+    });
+    const interaction = makeInteraction('chan-C');
+
+    await setupHandler(mockClient, interaction);
+
+    expect(interaction.guild.channels.fetch).toHaveBeenCalledWith('chan-B'); // not stale-A
+    const saved = configRepo.saveCalls[0];
+    expect(saved.channelMessageId).toBe(null);
+    expect(saved.channelIds).toEqual(['chan-C']);
+  });
+
+  test('same-channel re-run on a normal row is idempotent: no banner churn', async () => {
+    configRepo = makeFakeConfigRepo({
+      id: 1,
+      guildId: 'guild-1',
+      channelId: 'chan-X',
+      channelIds: ['chan-X', 'extra-1'],
+      channelMessageId: 'banner-msg',
+      gracePeriodSeconds: 15,
+      actionType: 'ban',
+      logChannelId: null,
+    });
+    const interaction = makeInteraction('chan-X');
+
+    await setupHandler(mockClient, interaction);
+
+    expect(interaction.guild.channels.fetch).not.toHaveBeenCalled();
+    const saved = configRepo.saveCalls[0];
+    expect(saved.channelMessageId).toBe('banner-msg');
+    expect(saved.channelIds).toEqual(['chan-X', 'extra-1']);
+    expect(saved.channelId).toBe('chan-X');
   });
 });

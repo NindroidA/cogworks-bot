@@ -408,6 +408,55 @@ describe('channelDelete event handler', () => {
     expect(saved.channelMessageId).toBe('warn-msg');
   });
 
+  test('BaitChannelConfig divergent row: deleting the stale channelIds entry falls back to the legacy channel', async () => {
+    // Pre-v3.15.3 dual-write bug signature: legacy channelId=B (admin's last
+    // explicit choice, banner lives there), channelIds=[A] stale. Deleting A
+    // must fall back to B — not wipe it and disable the system.
+    const channel = makeFakeChannel('stale-A', 'guild-1');
+    fakeRepos.BaitChannelConfig.rows.set('1', {
+      id: 1,
+      guildId: 'guild-1',
+      channelId: 'chan-B',
+      channelMessageId: 'banner-msg',
+      channelIds: ['stale-A'],
+      logChannelId: null,
+      summaryChannelId: null,
+      enabled: true,
+    });
+
+    await channelDeleteHandler.execute(channel, mockClient);
+
+    expect(fakeRepos.BaitChannelConfig.saveCalls.length).toBe(1);
+    const saved = fakeRepos.BaitChannelConfig.saveCalls[0];
+    expect(saved.enabled).toBe(true);
+    expect(saved.channelId).toBe('chan-B');
+    expect(saved.channelIds).toEqual(['chan-B']); // divergence repaired
+    expect(saved.channelMessageId).toBe('banner-msg'); // banner in B untouched
+  });
+
+  test('BaitChannelConfig divergent row: deleting the legacy channel keeps detection on the channelIds entry', async () => {
+    const channel = makeFakeChannel('chan-B', 'guild-1');
+    fakeRepos.BaitChannelConfig.rows.set('1', {
+      id: 1,
+      guildId: 'guild-1',
+      channelId: 'chan-B',
+      channelMessageId: 'banner-msg',
+      channelIds: ['live-A'],
+      logChannelId: null,
+      summaryChannelId: null,
+      enabled: true,
+    });
+
+    await channelDeleteHandler.execute(channel, mockClient);
+
+    expect(fakeRepos.BaitChannelConfig.saveCalls.length).toBe(1);
+    const saved = fakeRepos.BaitChannelConfig.saveCalls[0];
+    expect(saved.enabled).toBe(true);
+    expect(saved.channelId).toBe('live-A');
+    expect(saved.channelIds).toEqual(['live-A']);
+    expect(saved.channelMessageId).toBe(null); // banner died with chan-B
+  });
+
   test('BaitChannelConfig: deleting the LAST bait channel disables the system', async () => {
     const channel = makeFakeChannel('bait-only', 'guild-1');
     fakeRepos.BaitChannelConfig.rows.set('1', {

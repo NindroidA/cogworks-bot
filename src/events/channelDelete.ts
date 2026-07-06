@@ -126,11 +126,19 @@ const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
       if (!config) return;
 
       let changed = false;
+      // Union of the effective list and the legacy channelId column: on rows
+      // the pre-v3.15.3 dual-write bug left divergent, the legacy column is
+      // the admin's most recent explicit choice — deleting the stale
+      // channelIds entry must fall back to it, not disable the system.
       const currentChannels = getBaitChannelIds(config);
-      if (currentChannels.includes(channelId) || config.channelId === channelId) {
-        // The warning message lives in the legacy-primary channel — gone with it
+      const allChannels =
+        config.channelId && !currentChannels.includes(config.channelId)
+          ? [...currentChannels, config.channelId]
+          : currentChannels;
+      if (allChannels.includes(channelId)) {
+        // The warning banner lives in the legacy-column channel — gone with it
         if (config.channelId === channelId) config.channelMessageId = null;
-        const remaining = currentChannels.filter(id => id !== channelId);
+        const remaining = allChannels.filter(id => id !== channelId);
         setBaitChannels(config, remaining);
         // Only disable when NO bait channels remain — deleting one of several
         // must not silently kill detection on the survivors
