@@ -47,7 +47,7 @@ describe('isCommandVisible', () => {
 
   test('single-command modules without a separate setup path are intentionally NOT gated', () => {
     // Hiding these would strand admins (no always-visible re-enable path).
-    for (const name of ['starboard', 'event', 'onboarding', 'insights', 'automod', 'reactionrole']) {
+    for (const name of ['starboard', 'event', 'onboarding', 'analytics', 'automod', 'reactionrole']) {
       expect(isCommandVisible(name, none)).toBe(true);
     }
   });

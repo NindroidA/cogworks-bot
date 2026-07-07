@@ -28,7 +28,7 @@ graph TB
             Star[Starboard]
             Onboard[Onboarding]
             Status[Status]
-            Insights[Insights]
+            Analytics[Analytics]
         end
 
         subgraph Utils["Shared Utilities"]

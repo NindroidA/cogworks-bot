@@ -877,7 +877,7 @@ const memoryConfig: SimpleSystemConfig<MemoryData, 'memory'> = {
 
 /**
  * Create default forum tags for a memory channel.
- * Matches the logic in memorySetup.ts createDefaultTags().
+ * Matches the logic in memory/setup.ts createDefaultTags().
  */
 async function createDefaultMemoryTags(guildId: string, configId: number, forum: ForumChannel) {
   const allTags: GuildForumTagData[] = [];
@@ -922,7 +922,7 @@ async function createDefaultMemoryTags(guildId: string, configId: number, forum:
 
 /**
  * Create a pinned welcome thread in a memory forum channel.
- * Matches the logic in memorySetup.ts postWelcomeThread().
+ * Matches the logic in memory/setup.ts postWelcomeThread().
  */
 async function createMemoryWelcomeThread(forum: ForumChannel): Promise<string | null> {
   try {

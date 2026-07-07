@@ -1,5 +1,5 @@
 /**
- * Insights Handler Router
+ * Analytics Handler Router
  * Routes to the appropriate subcommand handler based on the subcommand name.
  */
 
@@ -9,9 +9,9 @@ import { channelsHandler } from './channels';
 import { growthHandler } from './growth';
 import { hoursHandler } from './hours';
 import { overviewHandler } from './overview';
-import { insightsSetupHandler } from './setup';
+import { analyticsSetupHandler } from './setup';
 
-export async function insightsHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
+export async function analyticsHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   // Dispatcher uses 'use' — read-only subcommands (overview/growth/channels/hours)
   // pass through. The setup subcommand's own guard escalates to 'manage'.
   const guard = await guardFeatureAccess(interaction, 'analytics', 'use');
@@ -33,7 +33,7 @@ export async function insightsHandler(client: Client, interaction: ChatInputComm
       await hoursHandler(client, interaction);
       break;
     case 'setup':
-      await insightsSetupHandler(client, interaction);
+      await analyticsSetupHandler(client, interaction);
       break;
   }
 }

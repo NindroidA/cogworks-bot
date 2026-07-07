@@ -36,7 +36,7 @@ const COMMAND_CATEGORIES: Record<string, string> = {
   leaderboard: 'Engagement',
   onboarding: 'Engagement',
   event: 'Events',
-  insights: 'Analytics',
+  analytics: 'Analytics',
   import: 'Data',
   'data-export': 'Data',
   archive: 'Data',

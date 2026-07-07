@@ -5,6 +5,7 @@
  * Used by both main bot initialization and guildCreate event.
  */
 
+import { analytics } from './builders/analytics';
 import { announcement } from './builders/announcement';
 import { announcementSetup } from './builders/announcementSetup';
 import { application } from './builders/application';
@@ -23,7 +24,6 @@ import { devSuite } from './builders/devSuite';
 import { devTest } from './builders/devTest';
 import { event } from './builders/event';
 import { importCommand } from './builders/import';
-import { insights } from './builders/insights';
 import { memory } from './builders/memory';
 import { memorySetup } from './builders/memorySetup';
 import { migrate } from './builders/migrate';
@@ -72,7 +72,7 @@ const baseCommands = [
   onboarding, // interactive onboarding flow
   automodCommand, // AutoMod integration
   event, // scheduled events manager
-  insights, // server analytics & insights
+  analytics, // server analytics & insights
   botReset, // factory reset / offboarding
   archive, // archive cleanup and export
 ];

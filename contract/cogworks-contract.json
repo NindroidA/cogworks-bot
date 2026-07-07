@@ -1,6 +1,6 @@
 {
   "contractVersion": "1",
-  "botVersion": "3.16.2",
+  "botVersion": "3.16.3",
   "features": {
     "keys": [
       "tickets",
@@ -3654,7 +3654,7 @@
           ]
         }
       ],
-      "name": "insights",
+      "name": "analytics",
       "description": "View server analytics and insights",
       "default_member_permissions": "8",
       "type": 1

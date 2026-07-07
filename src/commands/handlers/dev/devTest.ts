@@ -369,7 +369,7 @@ async function handleAnalyticsFlush(interaction: ChatInputCommandInteraction, gu
     const { activityTracker } = await import('../../../utils/analytics/activityTracker');
     const memberCount = interaction.guild?.memberCount ?? 0;
     await activityTracker.flushSnapshot(guildId, memberCount);
-    await interaction.editReply('✅ Analytics counters flushed to snapshot. Check `/insights overview`.');
+    await interaction.editReply('✅ Analytics counters flushed to snapshot. Check `/analytics overview`.');
   } catch (error) {
     await interaction.editReply(`❌ Flush failed: ${(error as Error).message}`);
   }
@@ -427,7 +427,7 @@ async function handleAnalyticsSeed(interaction: ChatInputCommandInteraction, gui
   await analyticsSnapshotRepo.save(snapshots as AnalyticsSnapshot[]);
 
   await interaction.editReply(
-    `✅ Seeded **${days} days** of analytics data. Check \`/insights growth ${days}\`, \`/insights channels ${days}\`, \`/insights hours ${days}\`.`,
+    `✅ Seeded **${days} days** of analytics data. Check \`/analytics growth ${days}\`, \`/analytics channels ${days}\`, \`/analytics hours ${days}\`.`,
   );
 }
 

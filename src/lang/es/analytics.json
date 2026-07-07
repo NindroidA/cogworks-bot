@@ -86,7 +86,7 @@
     "footer": "Cogworks Analytics"
   },
   "errors": {
-    "notEnabled": "Analytics are not enabled for this server. An admin can enable them with `/insights setup`.",
+    "notEnabled": "Analytics are not enabled for this server. An admin can enable them with `/analytics setup`.",
     "fetchFailed": "Failed to fetch analytics data.",
     "noPermission": "You need Administrator permission to manage analytics settings."
   }

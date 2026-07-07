@@ -1309,10 +1309,10 @@ function getWalkthroughSteps(system: string): string[] | null {
       ];
     case 'analytics':
       return [
-        'Run `/insights setup enable` to enable analytics',
+        'Run `/analytics setup enable` to enable analytics',
         'Send a few messages in the server',
         'Run `/dev-test analytics-flush` to flush counters',
-        'Run `/insights overview` to see the data',
+        'Run `/analytics overview` to see the data',
       ];
     default:
       return null;

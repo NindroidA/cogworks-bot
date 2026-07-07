@@ -10,8 +10,8 @@ import {
   MessageFlags,
   type TextChannel,
 } from 'discord.js';
-import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
-import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
+import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
+import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import {
   buildConfigStatusEmbed,
   cleanupOldMessage,
@@ -20,10 +20,10 @@ import {
   LogCategory,
   lang,
   RateLimits,
-} from '../../utils';
-import { lazyRepo } from '../../utils/database/lazyRepo';
-import type { ConfigItem } from '../../utils/setup/configStatusEmbed';
-import { closeNeedsArchiveWarning } from '../../utils/setup/configStatusEmbed';
+} from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
+import type { ConfigItem } from '../../../utils/setup/configStatusEmbed';
+import { closeNeedsArchiveWarning } from '../../../utils/setup/configStatusEmbed';
 
 const tl = lang.ticketSetup;
 const ticketConfigRepo = lazyRepo(TicketConfig);

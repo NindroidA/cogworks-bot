@@ -1291,42 +1291,42 @@ Track server activity with analytics dashboards and automated digest reports.
 
 **Enable analytics:**
 ```
-/insights setup action:enable
+/analytics setup action:enable
 ```
 
 **Disable analytics:**
 ```
-/insights setup action:disable
+/analytics setup action:disable
 ```
 
 **Set the digest channel:**
 ```
-/insights setup action:channel channel:#analytics
+/analytics setup action:channel channel:#analytics
 ```
 
 **Set digest frequency:**
 ```
-/insights setup action:frequency frequency:weekly
+/analytics setup action:frequency frequency:weekly
 ```
 Options: `weekly`, `monthly`, `both`.
 
 **Set the day for the digest** (0 = Sunday, 1 = Monday, ...):
 ```
-/insights setup action:frequency day:1
+/analytics setup action:frequency day:1
 ```
 
 **View current status:**
 ```
-/insights setup action:status
+/analytics setup action:status
 ```
 
 ### Viewing Insights
 
 ```
-/insights overview              # Member count, activity summary, system usage
-/insights growth days:30        # Joins, leaves, net growth (default 7 days, max 90)
-/insights channels days:14      # Most active channels by message volume
-/insights hours days:30         # Server activity by hour of day
+/analytics overview              # Member count, activity summary, system usage
+/analytics growth days:30        # Joins, leaves, net growth (default 7 days, max 90)
+/analytics channels days:14      # Most active channels by message volume
+/analytics hours days:30         # Server activity by hour of day
 ```
 
 ---
@@ -1559,7 +1559,7 @@ When the bot leaves your server, **ALL server data is automatically deleted** â€
 | `/event create` | Create an event | Admin |
 | `/event setup enable` | Enable events system | Admin |
 | `/onboarding enable` | Enable onboarding | Admin |
-| `/insights setup` | Configure analytics | Admin |
+| `/analytics setup` | Configure analytics | Admin |
 | `/automod rule create` | Create AutoMod rule | Admin |
 | `/rank` | View XP rank | All |
 | `/leaderboard` | View XP leaderboard | All |
