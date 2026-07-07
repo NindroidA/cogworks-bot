@@ -264,13 +264,16 @@ export async function archiveAndCloseApplication(
           name: threadName,
           message: { embeds: [headerEmbed], allowedMentions: { parse: [] } },
         });
+        // Persist what actually LANDED, not the intended merge: an accumulated
+        // set (prior tags + manual mod tags + this outcome) can exceed Discord's
+        // 5-tag cap, and recording a dropped tag would make the DB claim a tag
+        // the thread never shows. applyForumTags returns the applied set (≤5),
+        // or null on error — fall back to the intended merge in that case.
         const mergedTags = mergeForumTags(existingArchive.forumTagIds, forumTagIds);
-        if (mergedTags.length > 0) {
-          await deps.applyForumTags(forumChannel, newPost.id, mergedTags);
-        }
+        const applied = mergedTags.length > 0 ? await deps.applyForumTags(forumChannel, newPost.id, mergedTags) : [];
         // Repoint + persist BEFORE chunks so a chunk failure can't orphan it.
         existingArchive.messageId = newPost.id;
-        existingArchive.forumTagIds = mergedTags;
+        existingArchive.forumTagIds = applied ?? mergedTags;
         await deps.archivedAppRepo.save(existingArchive);
         await postTranscriptToThread(newPost, transcript.chunks, {
           guildId,

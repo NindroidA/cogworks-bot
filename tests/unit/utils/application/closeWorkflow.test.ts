@@ -637,6 +637,80 @@ describe('archiveAndCloseApplication', () => {
     expect(fakeRepoState.saveCalls).toHaveLength(0);
   });
 
+  test('recreate-on-10003: merges existing + new tags, applies to the recreated thread, persists the applied set', async () => {
+    // Prior close tagged the position; the thread was since deleted (10003), so
+    // this close recreates it and must carry the merged tags onto the new thread.
+    fakeRepoState.findOneByResult = { messageId: 'deleted-thread', forumTagIds: ['tag-position_7'] };
+    fakePositionRepo.findOneBy.mockResolvedValue({ id: 7, title: 'Moderator', emoji: '🛡️' });
+    forumState.fetchShouldThrow = Object.assign(new Error('Unknown Channel'), { code: 10003 });
+    const client = makeFakeClient(forumChannel);
+
+    const result = await archiveAndCloseApplication(
+      client,
+      makeApplication({ type: 'position_7', status: 'accepted' }),
+      'guild-1',
+      makeChannel(),
+      'forum-archive-1',
+      deps,
+    );
+
+    expect(result.archived).toBe(true);
+    // A NEW thread was created (recreate path), and the merged set applied to it.
+    expect(forumChannel.threads.create).toHaveBeenCalledTimes(1);
+    expect(fakeApplyForumTags.mock.calls[0][2]).toEqual(['tag-position_7', 'tag-outcome_accepted']);
+    // Row repointed at the new thread and persisted with the applied tags.
+    const savedRow = fakeRepoState.saveCalls.at(-1);
+    expect(savedRow.messageId).toBe(forumState.threadsCreated[0].id);
+    expect(savedRow.forumTagIds).toEqual(['tag-position_7', 'tag-outcome_accepted']);
+  });
+
+  test('recreate-on-10003: persists only the applied set when the 5-tag cap drops a tag', async () => {
+    fakeRepoState.findOneByResult = { messageId: 'deleted-thread', forumTagIds: ['a', 'b', 'c', 'd'] };
+    fakePositionRepo.findOneBy.mockResolvedValue({ id: 7, title: 'Moderator', emoji: '🛡️' });
+    forumState.fetchShouldThrow = Object.assign(new Error('Unknown Channel'), { code: 10003 });
+    fakeApplyForumTags.mockImplementation(async (_f: any, _t: string, tags: string[]) => tags.slice(0, 5));
+    const client = makeFakeClient(forumChannel);
+
+    await archiveAndCloseApplication(
+      client,
+      makeApplication({ type: 'position_7', status: 'accepted' }),
+      'guild-1',
+      makeChannel(),
+      'forum-archive-1',
+      deps,
+    );
+
+    // merged = [a,b,c,d, tag-position_7, tag-outcome_accepted]; cap keeps 5 —
+    // the DB must record the applied 5, NOT the intended 6 (no phantom tag).
+    const savedRow = fakeRepoState.saveCalls.at(-1);
+    expect(savedRow.forumTagIds).toEqual(['a', 'b', 'c', 'd', 'tag-position_7']);
+    expect(savedRow.forumTagIds).toHaveLength(5);
+  });
+
+  test('recreate-on-10003: applyForumTags error (null) falls back to the intended merge so the row still saves', async () => {
+    fakeRepoState.findOneByResult = { messageId: 'deleted-thread', forumTagIds: ['tag-position_7'] };
+    fakePositionRepo.findOneBy.mockResolvedValue({ id: 7, title: 'Moderator', emoji: '🛡️' });
+    forumState.fetchShouldThrow = Object.assign(new Error('Unknown Channel'), { code: 10003 });
+    fakeApplyForumTags.mockResolvedValue(null); // tag apply failed on the recreated thread
+    const client = makeFakeClient(forumChannel);
+
+    const result = await archiveAndCloseApplication(
+      client,
+      makeApplication({ type: 'position_7', status: 'accepted' }),
+      'guild-1',
+      makeChannel(),
+      'forum-archive-1',
+      deps,
+    );
+
+    // Archive must still succeed (the transcript matters more than the tags),
+    // and the row is repointed with the best-effort intended set.
+    expect(result.archived).toBe(true);
+    const savedRow = fakeRepoState.saveCalls.at(-1);
+    expect(savedRow.messageId).toBe(forumState.threadsCreated[0].id);
+    expect(savedRow.forumTagIds).toEqual(['tag-position_7', 'tag-outcome_accepted']);
+  });
+
   test('re-close append: persists only tags that actually landed (5-tag cap dropped the new one)', async () => {
     fakeRepoState.findOneByResult = {
       messageId: 'existing-thread',
