@@ -14,12 +14,12 @@
  * same deterministic-on-Linux reasons documented in the ticket suite.
  */
 
-import { afterEach, beforeEach, describe, expect, jest, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, jest, test } from 'bun:test';
 import {
-  archiveAndCloseApplication,
   type ArchiveApplicationResult,
+  archiveAndCloseApplication,
   type CloseApplicationWorkflowDeps,
-} from "../../../../src/utils/application/closeWorkflow";
+} from '../../../../src/utils/application/closeWorkflow';
 
 interface FakeRepoState {
   findOneByResult: any;
@@ -70,14 +70,14 @@ interface FakeForumState {
   fetchShouldThrow?: Error;
 }
 
-function makeFakeThread(id = "new-thread-1") {
+function makeFakeThread(id = 'new-thread-1') {
   const state = { id, sentMessages: [] as string[] };
   return {
     ...state,
     send: jest.fn(async ({ content, embeds }: { content?: string; embeds?: any[] }) => {
       // Embed-only sends (header cards) are recorded as a tagged title line so
       // assertions can distinguish them from transcript text chunks.
-      state.sentMessages.push(content ?? `[embed] ${embeds?.[0]?.data?.title ?? ""}`);
+      state.sentMessages.push(content ?? `[embed] ${embeds?.[0]?.data?.title ?? ''}`);
       return { id: `${id}-msg-${state.sentMessages.length}` };
     }),
   };
@@ -104,30 +104,30 @@ function makeFakeForumChannel(state: FakeForumState) {
   };
 }
 
-function makeFakeClient(forumChannel: any, userResolver: (id: string) => any = () => ({ username: "applicant" })) {
+function makeFakeClient(forumChannel: any, userResolver: (id: string) => any = () => ({ username: 'applicant' })) {
   return {
-    user: { id: "bot-client-id" },
+    user: { id: 'bot-client-id' },
     channels: { fetch: jest.fn(async () => forumChannel) },
     users: { fetch: jest.fn(async (id: string) => userResolver(id)) },
   } as any;
 }
 
-function makeChannel(id = "app-channel-1") {
-  return { id, createdAt: new Date("2026-04-20T10:00:00Z") } as any;
+function makeChannel(id = 'app-channel-1') {
+  return { id, createdAt: new Date('2026-04-20T10:00:00Z') } as any;
 }
 
 function makeApplication(overrides: Partial<any> = {}): any {
   return {
     id: 1,
-    guildId: "guild-1",
-    channelId: "app-channel-1",
-    createdBy: "user-100",
-    status: "pending",
+    guildId: 'guild-1',
+    channelId: 'app-channel-1',
+    createdBy: 'user-100',
+    status: 'pending',
     ...overrides,
   };
 }
 
-describe("archiveAndCloseApplication", () => {
+describe('archiveAndCloseApplication', () => {
   let forumState: FakeForumState;
   let forumChannel: any;
 
@@ -150,14 +150,14 @@ describe("archiveAndCloseApplication", () => {
 
   afterEach(() => jest.clearAllMocks());
 
-  test("happy path — first close: creates thread, saves archive row, deletes channel", async () => {
+  test('happy path — first close: creates thread, saves archive row, deletes channel', async () => {
     const client = makeFakeClient(forumChannel);
     const result: ArchiveApplicationResult = await archiveAndCloseApplication(
       client,
       makeApplication(),
-      "guild-1",
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
     );
 
@@ -165,23 +165,27 @@ describe("archiveAndCloseApplication", () => {
     expect(forumChannel.threads.create).toHaveBeenCalledTimes(1);
     expect(fakeRepoState.createCalls).toHaveLength(1);
     expect(fakeRepoState.createCalls[0]).toMatchObject({
-      guildId: "guild-1",
-      createdBy: "user-100",
+      guildId: 'guild-1',
+      createdBy: 'user-100',
       messageId: forumState.threadsCreated[0].id,
     });
     expect(fakeVerifiedChannelDelete).toHaveBeenCalledTimes(1);
   });
 
-  test("channel delete refused → archived:true but channelDeleted:false (caller must tell the user)", async () => {
-    fakeVerifiedChannelDelete.mockResolvedValueOnce({ success: false, alreadyGone: false, error: "Missing Permissions" });
+  test('channel delete refused → archived:true but channelDeleted:false (caller must tell the user)', async () => {
+    fakeVerifiedChannelDelete.mockResolvedValueOnce({
+      success: false,
+      alreadyGone: false,
+      error: 'Missing Permissions',
+    });
     const client = makeFakeClient(forumChannel);
 
     const result = await archiveAndCloseApplication(
       client,
       makeApplication(),
-      "guild-1",
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
     );
 
@@ -189,27 +193,27 @@ describe("archiveAndCloseApplication", () => {
     expect(result).toEqual({ success: true, archived: true, channelDeleted: false });
   });
 
-  test("re-close append: posts header embed into the existing thread, no new thread", async () => {
-    fakeRepoState.findOneByResult = { messageId: "existing-app-thread" };
+  test('re-close append: posts header embed into the existing thread, no new thread', async () => {
+    fakeRepoState.findOneByResult = { messageId: 'existing-app-thread' };
     const client = makeFakeClient(forumChannel);
     const result = await archiveAndCloseApplication(
       client,
       makeApplication(),
-      "guild-1",
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
     );
 
     expect(result).toEqual({ success: true, archived: true, channelDeleted: true });
     expect(forumChannel.threads.create).not.toHaveBeenCalled();
-    expect(forumChannel.threads.fetch).toHaveBeenCalledWith("existing-app-thread", { force: true });
-    const thread = forumState.threadsFetched.get("existing-app-thread");
-    expect(thread.sentMessages[0]).toContain("[embed] 📋");
+    expect(forumChannel.threads.fetch).toHaveBeenCalledWith('existing-app-thread', { force: true });
+    const thread = forumState.threadsFetched.get('existing-app-thread');
+    expect(thread.sentMessages[0]).toContain('[embed] 📋');
     expect(fakeVerifiedChannelDelete).toHaveBeenCalledTimes(1);
   });
 
-  test("re-close with a NULL messageId row: creates a thread and repoints (no silent loss)", async () => {
+  test('re-close with a NULL messageId row: creates a thread and repoints (no silent loss)', async () => {
     // Pre-fix, a row with messageId=null matched neither branch: `archived`
     // stayed true and the channel was deleted with the transcript never
     // posted anywhere. It must take the recreate path instead.
@@ -219,9 +223,9 @@ describe("archiveAndCloseApplication", () => {
     const result = await archiveAndCloseApplication(
       client,
       makeApplication(),
-      "guild-1",
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
     );
 
@@ -233,17 +237,17 @@ describe("archiveAndCloseApplication", () => {
     expect(fakeVerifiedChannelDelete).toHaveBeenCalledTimes(1);
   });
 
-  test("B1: re-close into a DELETED thread (10003) recreates it, repoints messageId, deletes channel", async () => {
-    fakeRepoState.findOneByResult = { messageId: "deleted-app-thread" };
-    forumState.fetchShouldThrow = Object.assign(new Error("Unknown Channel"), { code: 10003 });
+  test('B1: re-close into a DELETED thread (10003) recreates it, repoints messageId, deletes channel', async () => {
+    fakeRepoState.findOneByResult = { messageId: 'deleted-app-thread' };
+    forumState.fetchShouldThrow = Object.assign(new Error('Unknown Channel'), { code: 10003 });
     const client = makeFakeClient(forumChannel);
 
     const result = await archiveAndCloseApplication(
       client,
       makeApplication(),
-      "guild-1",
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
     );
 
@@ -254,17 +258,17 @@ describe("archiveAndCloseApplication", () => {
     expect(fakeVerifiedChannelDelete).toHaveBeenCalledTimes(1);
   });
 
-  test("B1: NON-10003 fetch error bubbles — archive fails, no recreate, channel preserved", async () => {
-    fakeRepoState.findOneByResult = { messageId: "existing-app-thread" };
-    forumState.fetchShouldThrow = Object.assign(new Error("Missing Access"), { code: 50001 });
+  test('B1: NON-10003 fetch error bubbles — archive fails, no recreate, channel preserved', async () => {
+    fakeRepoState.findOneByResult = { messageId: 'existing-app-thread' };
+    forumState.fetchShouldThrow = Object.assign(new Error('Missing Access'), { code: 50001 });
     const client = makeFakeClient(forumChannel);
 
     const result = await archiveAndCloseApplication(
       client,
       makeApplication(),
-      "guild-1",
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
     );
 
@@ -273,16 +277,16 @@ describe("archiveAndCloseApplication", () => {
     expect(fakeVerifiedChannelDelete).not.toHaveBeenCalled();
   });
 
-  test("B2: forum post failure preserves the channel (no data loss)", async () => {
-    forumState.createShouldThrow = new Error("Discord 50013 — missing permissions");
+  test('B2: forum post failure preserves the channel (no data loss)', async () => {
+    forumState.createShouldThrow = new Error('Discord 50013 — missing permissions');
     const client = makeFakeClient(forumChannel);
 
     const result = await archiveAndCloseApplication(
       client,
       makeApplication(),
-      "guild-1",
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
     );
 
@@ -291,16 +295,16 @@ describe("archiveAndCloseApplication", () => {
     expect(fakeRepoState.saveCalls).toHaveLength(0);
   });
 
-  test("transcript fetch failure short-circuits before any forum write or channel delete", async () => {
-    fakeFetchMessages.mockRejectedValue(new Error("Discord API timeout"));
+  test('transcript fetch failure short-circuits before any forum write or channel delete', async () => {
+    fakeFetchMessages.mockRejectedValue(new Error('Discord API timeout'));
     const client = makeFakeClient(forumChannel);
 
     const result = await archiveAndCloseApplication(
       client,
       makeApplication(),
-      "guild-1",
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
     );
 
@@ -323,58 +327,58 @@ describe("archiveAndCloseApplication", () => {
   }
 
   test("position resolved from type='position_<id>' → emoji+title in header title, title in Type row", async () => {
-    fakePositionRepo.findOneBy.mockResolvedValue({ id: 7, title: "Moderator", emoji: "🛡️" });
+    fakePositionRepo.findOneBy.mockResolvedValue({ id: 7, title: 'Moderator', emoji: '🛡️' });
     const client = makeFakeClient(forumChannel);
 
     await archiveAndCloseApplication(
       client,
-      makeApplication({ type: "position_7" }),
-      "guild-1",
+      makeApplication({ type: 'position_7' }),
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
     );
 
-    expect(fakePositionRepo.findOneBy).toHaveBeenCalledWith({ id: 7, guildId: "guild-1" });
+    expect(fakePositionRepo.findOneBy).toHaveBeenCalledWith({ id: 7, guildId: 'guild-1' });
     const header = createdHeader(forumChannel);
-    expect(header.title).toBe("📋 🛡️ Moderator — applicant");
-    expect(header.fields.Type).toBe("Moderator");
+    expect(header.title).toBe('📋 🛡️ Moderator — applicant');
+    expect(header.fields.Type).toBe('Moderator');
   });
 
-  test("orphaned position (row deleted) falls back to the generic Application header — close survives", async () => {
+  test('orphaned position (row deleted) falls back to the generic Application header — close survives', async () => {
     fakePositionRepo.findOneBy.mockResolvedValue(null);
     const client = makeFakeClient(forumChannel);
 
     const result = await archiveAndCloseApplication(
       client,
-      makeApplication({ type: "position_99" }),
-      "guild-1",
+      makeApplication({ type: 'position_99' }),
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
     );
 
     expect(result.archived).toBe(true);
     const header = createdHeader(forumChannel);
-    expect(header.title).toBe("📋 Application — applicant");
-    expect(header.fields.Type).toBe("Application");
+    expect(header.title).toBe('📋 Application — applicant');
+    expect(header.fields.Type).toBe('Application');
   });
 
   test("position lookup DB error is swallowed (orphan fallback), not thrown from the un-try'd metadata region", async () => {
-    fakePositionRepo.findOneBy.mockRejectedValue(new Error("transient DB error"));
+    fakePositionRepo.findOneBy.mockRejectedValue(new Error('transient DB error'));
     const client = makeFakeClient(forumChannel);
 
     const result = await archiveAndCloseApplication(
       client,
-      makeApplication({ type: "position_7" }),
-      "guild-1",
+      makeApplication({ type: 'position_7' }),
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
     );
 
     expect(result.archived).toBe(true);
-    expect(createdHeader(forumChannel).title).toBe("📋 Application — applicant");
+    expect(createdHeader(forumChannel).title).toBe('📋 Application — applicant');
   });
 
   test("outcome from the in-memory pre-close status ('accepted' — API approve path)", async () => {
@@ -382,14 +386,14 @@ describe("archiveAndCloseApplication", () => {
 
     await archiveAndCloseApplication(
       client,
-      makeApplication({ status: "accepted" }),
-      "guild-1",
+      makeApplication({ status: 'accepted' }),
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
     );
 
-    expect(createdHeader(forumChannel).fields.Outcome).toBe("Accepted");
+    expect(createdHeader(forumChannel).fields.Outcome).toBe('Accepted');
   });
 
   test("outcome from the newest decisive statusHistory entry ('denied' — Discord workflow vocabulary)", async () => {
@@ -398,55 +402,137 @@ describe("archiveAndCloseApplication", () => {
     await archiveAndCloseApplication(
       client,
       makeApplication({
-        status: "closed",
+        status: 'closed',
         statusHistory: [
-          { status: "submitted", changedBy: "u1", changedAt: "2026-04-20T10:00:00Z" },
-          { status: "denied", changedBy: "rev-1", changedAt: "2026-04-21T10:00:00Z" },
-          { status: "closed", changedBy: "rev-1", changedAt: "2026-04-22T10:00:00Z" },
+          { status: 'submitted', changedBy: 'u1', changedAt: '2026-04-20T10:00:00Z' },
+          { status: 'denied', changedBy: 'rev-1', changedAt: '2026-04-21T10:00:00Z' },
+          { status: 'closed', changedBy: 'rev-1', changedAt: '2026-04-22T10:00:00Z' },
         ],
       }),
-      "guild-1",
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
     );
 
-    expect(createdHeader(forumChannel).fields.Outcome).toBe("Rejected");
+    expect(createdHeader(forumChannel).fields.Outcome).toBe('Rejected');
   });
 
-  test("no decisive status anywhere → no Outcome row", async () => {
+  test('no decisive status anywhere → no Outcome row', async () => {
     const client = makeFakeClient(forumChannel);
 
     await archiveAndCloseApplication(
       client,
-      makeApplication({ status: "closed", statusHistory: [] }),
-      "guild-1",
+      makeApplication({ status: 'closed', statusHistory: [] }),
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
     );
 
     expect(createdHeader(forumChannel).fields.Outcome).toBeUndefined();
   });
 
-  test("reviewedBy resolves to a Reviewed by row; closedBy actor renders Closed by; Application # present", async () => {
+  test('RETRACTED decision is not reported: approved → moved back → closed yields no Outcome', async () => {
+    const client = makeFakeClient(forumChannel);
+
+    await archiveAndCloseApplication(
+      client,
+      makeApplication({
+        status: 'closed',
+        statusHistory: [
+          { status: 'submitted', changedBy: 'u1', changedAt: '2026-04-20T10:00:00Z' },
+          { status: 'approved', changedBy: 'rev-1', changedAt: '2026-04-21T10:00:00Z' },
+          { status: 'under-review', changedBy: 'rev-1', changedAt: '2026-04-21T12:00:00Z' }, // retraction
+          { status: 'closed', changedBy: 'rev-1', changedAt: '2026-04-22T10:00:00Z' },
+        ],
+      }),
+      'guild-1',
+      makeChannel(),
+      'forum-archive-1',
+      deps,
+    );
+
+    // The withdrawn 'approved' must NOT resurface as the archived outcome.
+    expect(createdHeader(forumChannel).fields.Outcome).toBeUndefined();
+  });
+
+  test("decision followed only by 'closed' IS reported (the normal accept-then-close flow)", async () => {
+    const client = makeFakeClient(forumChannel);
+
+    await archiveAndCloseApplication(
+      client,
+      makeApplication({
+        status: 'closed',
+        statusHistory: [
+          { status: 'approved', changedBy: 'rev-1', changedAt: '2026-04-21T10:00:00Z' },
+          { status: 'closed', changedBy: 'rev-1', changedAt: '2026-04-22T10:00:00Z' },
+        ],
+      }),
+      'guild-1',
+      makeChannel(),
+      'forum-archive-1',
+      deps,
+    );
+
+    expect(createdHeader(forumChannel).fields.Outcome).toBe('Accepted');
+  });
+
+  test("custom workflow status 'constructor' does not leak Object.prototype into the outcome", async () => {
+    const client = makeFakeClient(forumChannel);
+
+    const result = await archiveAndCloseApplication(
+      client,
+      // A guild-defined status id 'constructor' would resolve to the inherited
+      // Object constructor under a naive object lookup and throw in the embed.
+      makeApplication({ status: 'constructor' }),
+      'guild-1',
+      makeChannel(),
+      'forum-archive-1',
+      deps,
+    );
+
+    expect(result.archived).toBe(true);
+    expect(createdHeader(forumChannel).fields.Outcome).toBeUndefined();
+  });
+
+  test('reviewer fetch REJECTING degrades to an id-only Reviewed by row — close survives', async () => {
+    const client = makeFakeClient(forumChannel, (id: string) => {
+      if (id === 'rev-1') throw new Error('Unknown User');
+      return { username: 'applicant' };
+    });
+
+    const result = await archiveAndCloseApplication(
+      client,
+      makeApplication({ reviewedBy: 'rev-1' }),
+      'guild-1',
+      makeChannel(),
+      'forum-archive-1',
+      deps,
+    );
+
+    expect(result.archived).toBe(true);
+    expect(createdHeader(forumChannel).fields['Reviewed by']).toBe('`rev-1`');
+  });
+
+  test('reviewedBy resolves to a Reviewed by row; closedBy actor renders Closed by; Application # present', async () => {
     const client = makeFakeClient(forumChannel, (id: string) =>
-      id === "rev-1" ? { username: "reviewer" } : { username: "applicant" },
+      id === 'rev-1' ? { username: 'reviewer' } : { username: 'applicant' },
     );
 
     await archiveAndCloseApplication(
       client,
-      makeApplication({ id: 55, reviewedBy: "rev-1" }),
-      "guild-1",
+      makeApplication({ id: 55, reviewedBy: 'rev-1' }),
+      'guild-1',
       makeChannel(),
-      "forum-archive-1",
+      'forum-archive-1',
       deps,
-      { id: "staff-2", username: "closer" },
+      { id: 'staff-2', username: 'closer' },
     );
 
     const { fields } = createdHeader(forumChannel);
-    expect(fields["Reviewed by"]).toBe("reviewer (`rev-1`)");
-    expect(fields["Closed by"]).toBe("closer (`staff-2`)");
-    expect(fields["Application #"]).toBe("55");
+    expect(fields['Reviewed by']).toBe('reviewer (`rev-1`)');
+    expect(fields['Closed by']).toBe('closer (`staff-2`)');
+    expect(fields['Application #']).toBe('55');
   });
 });

@@ -4,10 +4,11 @@
  * Pins the SLA first-response capture: before v3.16.0 NOTHING in production
  * wrote Ticket.firstResponseAt (dev seeding only), so slaChecker's
  * `firstResponseAt IS NULL` query matched every ticket forever. The handler
- * now issues a second conditional UPDATE per guild message; these tests
- * assert its WHERE clause carries the guard trio (open ticket, first
- * response still null, author is not the opener) and that bot/DM messages
- * never reach it.
+ * now issues ONE UPDATE per guild message that bumps lastActivityAt and — via
+ * a conditional CASE — captures firstResponseAt for the first non-opener
+ * response. These tests assert the merged statement's SET/WHERE shape, the
+ * email-import exemption (createdBy is the importing admin there, so the
+ * opener-exclusion is skipped), and that bot/DM messages never reach it.
  *
  * Strategy: patch AppDataSource.getRepository (same seam as
  * channelDelete.test.ts) with a fake exposing a recording query-builder.
@@ -18,12 +19,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, jest, test } from 'b
 interface RecordedUpdate {
   set: Record<string, unknown>;
   wheres: { clause: string; params?: Record<string, unknown> }[];
+  params: Record<string, unknown>;
 }
 
 const executedUpdates: RecordedUpdate[] = [];
 
 function makeQueryBuilder() {
-  const record: RecordedUpdate = { set: {}, wheres: [] };
+  const record: RecordedUpdate = { set: {}, wheres: [], params: {} };
   const qb: any = {
     update: () => qb,
     set: (values: Record<string, unknown>) => {
@@ -32,10 +34,20 @@ function makeQueryBuilder() {
     },
     where: (clause: string, params?: Record<string, unknown>) => {
       record.wheres.push({ clause, params });
+      if (params) Object.assign(record.params, params);
       return qb;
     },
     andWhere: (clause: string, params?: Record<string, unknown>) => {
       record.wheres.push({ clause, params });
+      if (params) Object.assign(record.params, params);
+      return qb;
+    },
+    setParameters: (params: Record<string, unknown>) => {
+      Object.assign(record.params, params);
+      return qb;
+    },
+    setParameter: (key: string, value: unknown) => {
+      record.params[key] = value;
       return qb;
     },
     execute: async () => {
@@ -82,6 +94,12 @@ function makeMessage(overrides: Partial<any> = {}) {
   } as any;
 }
 
+/** The raw SQL of the firstResponseAt CASE expression (set() takes a fn). */
+function firstResponseSql(update: RecordedUpdate): string {
+  const fn = update.set.firstResponseAt as () => string;
+  return fn();
+}
+
 describe('messageCreate ticket updates', () => {
   beforeEach(() => {
     executedUpdates.length = 0;
@@ -89,35 +107,48 @@ describe('messageCreate ticket updates', () => {
     mockClient.baitChannelManager.handleMessage.mockClear();
   });
 
-  test('guild message fires BOTH updates: lastActivityAt bump + firstResponseAt capture', async () => {
+  test('guild message fires ONE merged UPDATE setting both lastActivityAt and firstResponseAt', async () => {
     await messageCreateHandler.execute(makeMessage(), mockClient);
 
-    expect(executedUpdates).toHaveLength(2);
-    expect(Object.keys(executedUpdates[0].set)).toEqual(['lastActivityAt']);
-    expect(Object.keys(executedUpdates[1].set)).toEqual(['firstResponseAt']);
+    expect(executedUpdates).toHaveLength(1);
+    expect(Object.keys(executedUpdates[0].set).sort()).toEqual(['firstResponseAt', 'lastActivityAt']);
+    // lastActivityAt is an unconditional Date; firstResponseAt is a CASE fn.
+    expect(executedUpdates[0].set.lastActivityAt).toBeInstanceOf(Date);
+    expect(typeof executedUpdates[0].set.firstResponseAt).toBe('function');
   });
 
-  test('firstResponseAt update carries the guard trio: open, still-null, not-the-opener', async () => {
+  test('firstResponseAt CASE carries the guard trio and the email-import exemption', async () => {
     await messageCreateHandler.execute(makeMessage(), mockClient);
 
-    const clauses = executedUpdates[1].wheres.map(w => w.clause);
-    expect(clauses).toContain('firstResponseAt IS NULL');
-    expect(clauses.some(c => c.includes('createdBy != :author'))).toBe(true);
+    const sql = firstResponseSql(executedUpdates[0]);
+    expect(sql).toContain('firstResponseAt IS NULL');
+    expect(sql).toContain('createdBy != :author');
+    // Email-import tickets: createdBy is the importing admin, so every Discord
+    // message is a staff response — the opener-exclusion must be OR-skipped.
+    expect(sql).toContain('isEmailTicket = TRUE');
+    // author param bound to the message author (the DB comparison excludes the opener)
+    expect(executedUpdates[0].params.author).toBe('author-1');
+    // firstResponseNow bound and equal to the lastActivityAt value (one clock read)
+    expect(executedUpdates[0].params.firstResponseNow).toBe(executedUpdates[0].set.lastActivityAt);
+  });
+
+  test('UPDATE is guild-scoped and skips closed tickets', async () => {
+    await messageCreateHandler.execute(makeMessage(), mockClient);
+
+    const clauses = executedUpdates[0].wheres.map(w => w.clause);
+    expect(clauses.some(c => c.includes('guildId'))).toBe(true);
+    expect(clauses.some(c => c.includes('channelId'))).toBe(true);
     expect(clauses.some(c => c.includes('status != :closed'))).toBe(true);
-    // Guild-scoped (multi-server isolation)
-    const guildWhere = executedUpdates[1].wheres.find(w => w.clause.includes('guildId'));
+    const guildWhere = executedUpdates[0].wheres.find(w => w.clause.includes('guildId'));
     expect(guildWhere?.params).toEqual({ guildId: 'guild-1' });
-    // The author param is the message author — the DB comparison excludes the opener
-    const authorWhere = executedUpdates[1].wheres.find(w => w.clause.includes(':author'));
-    expect(authorWhere?.params).toEqual({ author: 'author-1' });
   });
 
-  test('bot messages never reach the ticket updates', async () => {
+  test('bot messages never reach the ticket update', async () => {
     await messageCreateHandler.execute(makeMessage({ author: { id: 'bot-1', bot: true } }), mockClient);
     expect(executedUpdates).toHaveLength(0);
   });
 
-  test('DM messages (no guild) never reach the ticket updates', async () => {
+  test('DM messages (no guild) never reach the ticket update', async () => {
     await messageCreateHandler.execute(makeMessage({ guild: null }), mockClient);
     expect(executedUpdates).toHaveLength(0);
   });

@@ -12,19 +12,9 @@
  *   - archive: happy path returns honest archived flag, 404 when archive config missing
  */
 
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  jest,
-  mock,
-  test,
-} from "bun:test";
-import type { Client } from "discord.js";
-import { Not } from "typeorm";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, mock, test } from 'bun:test';
+import type { Client } from 'discord.js';
+import { Not } from 'typeorm';
 
 // Injected into registerApplicationHandlers (3rd arg) — NOT mock.module'd.
 // Mocking the shared application/closeWorkflow module here would leak
@@ -39,7 +29,7 @@ const fakeArchiveAndCloseApp = jest.fn(async () => ({
 
 const fakeWriteAuditLog = jest.fn(async () => undefined);
 const fakeWriteAuditAction = jest.fn(async () => undefined);
-mock.module("../../../../src/utils/api/handlers/auditHelper", () => ({
+mock.module('../../../../src/utils/api/handlers/auditHelper', () => ({
   writeAuditLog: fakeWriteAuditLog,
   writeAuditAction: fakeWriteAuditAction,
 }));
@@ -71,47 +61,37 @@ function makeFakeRepo(state: RepoState) {
 const applicationRepo = makeFakeRepo(applicationRepoState);
 const archivedAppConfigRepo = makeFakeRepo(archivedAppConfigRepoState);
 
-let registerApplicationHandlers: typeof import("../../../../src/utils/api/handlers/applicationHandlers").registerApplicationHandlers;
+let registerApplicationHandlers: typeof import('../../../../src/utils/api/handlers/applicationHandlers').registerApplicationHandlers;
 let routes: Map<string, any>;
 let fakeClient: Client;
 let fakeChannelSend: any;
 let originalGetRepository: ((entity: unknown) => unknown) | undefined;
 
 beforeAll(async () => {
-  const { AppDataSource } = await import("../../../../src/typeorm");
-  const { Application } = await import(
-    "../../../../src/typeorm/entities/application/Application"
-  );
+  const { AppDataSource } = await import('../../../../src/typeorm');
+  const { Application } = await import('../../../../src/typeorm/entities/application/Application');
   const { ArchivedApplicationConfig } = await import(
-    "../../../../src/typeorm/entities/application/ArchivedApplicationConfig"
+    '../../../../src/typeorm/entities/application/ArchivedApplicationConfig'
   );
   const repoMap = new Map<unknown, unknown>([
     [Application, applicationRepo],
     [ArchivedApplicationConfig, archivedAppConfigRepo],
   ]);
   // Capture so afterAll can restore. Bun shares module state across test files.
-  originalGetRepository = (
-    AppDataSource as unknown as { getRepository: (e: unknown) => unknown }
-  ).getRepository;
-  (
-    AppDataSource as unknown as { getRepository: (e: unknown) => unknown }
-  ).getRepository = (entity) =>
+  originalGetRepository = (AppDataSource as unknown as { getRepository: (e: unknown) => unknown }).getRepository;
+  (AppDataSource as unknown as { getRepository: (e: unknown) => unknown }).getRepository = entity =>
     repoMap.get(entity) ??
     (() => {
       throw new Error(`Unmocked entity: ${(entity as { name?: string }).name}`);
     })();
-  const sut = await import(
-    "../../../../src/utils/api/handlers/applicationHandlers"
-  );
+  const sut = await import('../../../../src/utils/api/handlers/applicationHandlers');
   registerApplicationHandlers = sut.registerApplicationHandlers;
 });
 
 afterAll(async () => {
   if (originalGetRepository) {
-    const { AppDataSource } = await import("../../../../src/typeorm");
-    (
-      AppDataSource as unknown as { getRepository: (e: unknown) => unknown }
-    ).getRepository = originalGetRepository;
+    const { AppDataSource } = await import('../../../../src/typeorm');
+    (AppDataSource as unknown as { getRepository: (e: unknown) => unknown }).getRepository = originalGetRepository;
   }
 });
 
@@ -132,11 +112,11 @@ beforeEach(() => {
   fakeWriteAuditLog.mockClear();
   fakeWriteAuditAction.mockClear();
 
-  fakeChannelSend = jest.fn(async () => ({ id: "msg-1" }));
+  fakeChannelSend = jest.fn(async () => ({ id: 'msg-1' }));
   fakeClient = {
     channels: {
       fetch: jest.fn(async () => ({
-        id: "app-channel-1",
+        id: 'app-channel-1',
         isTextBased: () => true,
         send: fakeChannelSend,
       })),
@@ -161,112 +141,98 @@ function getRoute(path: string) {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("POST /applications/:id/approve", () => {
-  test("happy path: status flipped to accepted, approval message sent, audit logged", async () => {
+describe('POST /applications/:id/approve', () => {
+  test('happy path: status flipped to accepted, approval message sent, audit logged', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
-      guildId: "guild-1",
-      status: "pending",
-      channelId: "app-channel-1",
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'app-channel-1',
     };
 
-    const result = await getRoute("POST /applications/:id/approve")(
-      "guild-1",
-      { triggeredBy: "reviewer-99", message: "Welcome aboard!" },
-      "/applications/7/approve",
+    const result = await getRoute('POST /applications/:id/approve')(
+      'guild-1',
+      { triggeredBy: 'reviewer-99', message: 'Welcome aboard!' },
+      '/applications/7/approve',
     );
 
     expect(result).toEqual({ success: true, applicationId: 7 });
     expect(applicationRepoState.updateCalls[0]).toEqual({
-      criteria: { id: 7, guildId: "guild-1", status: Not("closed") },
-      partial: { status: "accepted" },
+      criteria: { id: 7, guildId: 'guild-1', status: Not('closed') },
+      partial: { status: 'accepted' },
     });
     expect(fakeChannelSend).toHaveBeenCalledTimes(1);
-    expect(fakeChannelSend.mock.calls[0][0]).toContain("Application Approved");
-    expect(fakeChannelSend.mock.calls[0][0]).toContain("reviewer-99");
-    expect(fakeChannelSend.mock.calls[0][0]).toContain("Welcome aboard!");
-    expect(fakeWriteAuditLog).toHaveBeenCalledWith(
-      "guild-1",
-      "application.approve",
-      "reviewer-99",
-      { applicationId: 7 },
-    );
+    expect(fakeChannelSend.mock.calls[0][0]).toContain('Application Approved');
+    expect(fakeChannelSend.mock.calls[0][0]).toContain('reviewer-99');
+    expect(fakeChannelSend.mock.calls[0][0]).toContain('Welcome aboard!');
+    expect(fakeWriteAuditLog).toHaveBeenCalledWith('guild-1', 'application.approve', 'reviewer-99', {
+      applicationId: 7,
+    });
   });
 
-  test("falls back to body.approvedBy when triggeredBy is absent", async () => {
+  test('falls back to body.approvedBy when triggeredBy is absent', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
-      guildId: "guild-1",
-      status: "pending",
-      channelId: "app-channel-1",
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'app-channel-1',
     };
 
-    await getRoute("POST /applications/:id/approve")(
-      "guild-1",
-      { approvedBy: "fallback-user" },
-      "/applications/7/approve",
+    await getRoute('POST /applications/:id/approve')(
+      'guild-1',
+      { approvedBy: 'fallback-user' },
+      '/applications/7/approve',
     );
 
-    expect(fakeWriteAuditLog).toHaveBeenCalledWith(
-      "guild-1",
-      "application.approve",
-      "fallback-user",
-      { applicationId: 7 },
-    );
+    expect(fakeWriteAuditLog).toHaveBeenCalledWith('guild-1', 'application.approve', 'fallback-user', {
+      applicationId: 7,
+    });
   });
 
-  test("returns 404 when application not found", async () => {
+  test('returns 404 when application not found', async () => {
     applicationRepoState.findOneByResult = null;
 
     await expect(
-      getRoute("POST /applications/:id/approve")(
-        "guild-1",
-        { triggeredBy: "r-1" },
-        "/applications/7/approve",
-      ),
+      getRoute('POST /applications/:id/approve')('guild-1', { triggeredBy: 'r-1' }, '/applications/7/approve'),
     ).rejects.toMatchObject({
       statusCode: 404,
-      message: "Application not found",
+      message: 'Application not found',
     });
     expect(applicationRepoState.updateCalls).toHaveLength(0);
   });
 
-  test("returns 409 when application already closed", async () => {
+  test('returns 409 when application already closed', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
-      guildId: "guild-1",
-      status: "closed",
-      channelId: "app-channel-1",
+      guildId: 'guild-1',
+      status: 'closed',
+      channelId: 'app-channel-1',
     };
 
     await expect(
-      getRoute("POST /applications/:id/approve")(
-        "guild-1",
-        { triggeredBy: "r-1" },
-        "/applications/7/approve",
-      ),
+      getRoute('POST /applications/:id/approve')('guild-1', { triggeredBy: 'r-1' }, '/applications/7/approve'),
     ).rejects.toMatchObject({
       statusCode: 409,
-      message: "Application already closed",
+      message: 'Application already closed',
     });
     expect(applicationRepoState.updateCalls).toHaveLength(0);
   });
 
-  test("skips channel send when channel is not text-based", async () => {
+  test('skips channel send when channel is not text-based', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
-      guildId: "guild-1",
-      status: "pending",
-      channelId: "app-channel-1",
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'app-channel-1',
     };
     (fakeClient.channels.fetch as any).mockResolvedValue({
       isTextBased: () => false,
     });
 
-    const result = await getRoute("POST /applications/:id/approve")(
-      "guild-1",
-      { triggeredBy: "r-1" },
-      "/applications/7/approve",
+    const result = await getRoute('POST /applications/:id/approve')(
+      'guild-1',
+      { triggeredBy: 'r-1' },
+      '/applications/7/approve',
     );
 
     expect(result).toEqual({ success: true, applicationId: 7 });
@@ -277,282 +243,267 @@ describe("POST /applications/:id/approve", () => {
   });
 });
 
-describe("POST /applications/:id/deny", () => {
-  test("happy path: status flipped to rejected, deny message includes reason", async () => {
+describe('POST /applications/:id/deny', () => {
+  test('happy path: status flipped to rejected, deny message includes reason', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
-      guildId: "guild-1",
-      status: "pending",
-      channelId: "app-channel-1",
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'app-channel-1',
     };
 
-    const result = await getRoute("POST /applications/:id/deny")(
-      "guild-1",
-      { triggeredBy: "reviewer-99", reason: "Not enough experience" },
-      "/applications/7/deny",
+    const result = await getRoute('POST /applications/:id/deny')(
+      'guild-1',
+      { triggeredBy: 'reviewer-99', reason: 'Not enough experience' },
+      '/applications/7/deny',
     );
 
     expect(result).toEqual({ success: true, applicationId: 7 });
     expect(applicationRepoState.updateCalls[0].partial).toEqual({
-      status: "rejected",
+      status: 'rejected',
     });
     expect(fakeChannelSend).toHaveBeenCalledTimes(1);
-    expect(fakeChannelSend.mock.calls[0][0]).toContain("Application Denied");
-    expect(fakeChannelSend.mock.calls[0][0]).toContain("Not enough experience");
-    expect(fakeWriteAuditLog).toHaveBeenCalledWith(
-      "guild-1",
-      "application.deny",
-      "reviewer-99",
-      { applicationId: 7 },
-    );
+    expect(fakeChannelSend.mock.calls[0][0]).toContain('Application Denied');
+    expect(fakeChannelSend.mock.calls[0][0]).toContain('Not enough experience');
+    expect(fakeWriteAuditLog).toHaveBeenCalledWith('guild-1', 'application.deny', 'reviewer-99', { applicationId: 7 });
   });
 
   test('omitted reason defaults to "No reason provided."', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
-      guildId: "guild-1",
-      status: "pending",
-      channelId: "app-channel-1",
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'app-channel-1',
     };
 
-    await getRoute("POST /applications/:id/deny")(
-      "guild-1",
-      { triggeredBy: "r-1" },
-      "/applications/7/deny",
-    );
+    await getRoute('POST /applications/:id/deny')('guild-1', { triggeredBy: 'r-1' }, '/applications/7/deny');
 
-    expect(fakeChannelSend.mock.calls[0][0]).toContain("No reason provided.");
+    expect(fakeChannelSend.mock.calls[0][0]).toContain('No reason provided.');
   });
 });
 
-describe("POST /applications/:id/archive", () => {
-  test("happy path: closes app, calls archiveAndCloseApplication, propagates archived flag", async () => {
+describe('POST /applications/:id/archive', () => {
+  test('happy path: closes app, calls archiveAndCloseApplication, propagates archived flag', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
-      guildId: "guild-1",
-      status: "pending",
-      channelId: "app-channel-1",
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'app-channel-1',
     };
     archivedAppConfigRepoState.findOneByResult = {
-      guildId: "guild-1",
-      channelId: "archive-forum-1",
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
     };
 
-    const result = await getRoute("POST /applications/:id/archive")(
-      "guild-1",
-      { triggeredBy: "reviewer-99" },
-      "/applications/7/archive",
+    const result = await getRoute('POST /applications/:id/archive')(
+      'guild-1',
+      { triggeredBy: 'reviewer-99' },
+      '/applications/7/archive',
     );
 
     expect(result).toEqual({ success: true, archived: true });
     // Atomic flip (claimClose): conditional on not-already-closed
     expect(applicationRepoState.updateCalls[0]).toEqual({
-      criteria: { id: 7, guildId: "guild-1", status: Not("closed") },
-      partial: { status: "closed" },
+      criteria: { id: 7, guildId: 'guild-1', status: Not('closed') },
+      partial: { status: 'closed' },
     });
     expect(fakeArchiveAndCloseApp).toHaveBeenCalledTimes(1);
-    expect(fakeArchiveAndCloseApp.mock.calls[0][4]).toBe("archive-forum-1");
+    expect(fakeArchiveAndCloseApp.mock.calls[0][4]).toBe('archive-forum-1');
+    // triggeredBy is threaded as the CloseActor (7th arg) so the archive
+    // header renders "Closed by" — v3.16.0
+    expect(fakeArchiveAndCloseApp.mock.calls[0][6]).toEqual({ id: 'reviewer-99' });
     expect(fakeWriteAuditAction).toHaveBeenCalledWith(
-      "guild-1",
-      { triggeredBy: "reviewer-99" },
-      "application.archive",
+      'guild-1',
+      { triggeredBy: 'reviewer-99' },
+      'application.archive',
       { applicationId: 7 },
     );
   });
 
-  test("flip race lost (affected=0) → 409, no archive attempt", async () => {
+  test('archive without triggeredBy passes NO CloseActor (header omits Closed by)', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
-      guildId: "guild-1",
-      status: "pending",
-      channelId: "app-channel-1",
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'app-channel-1',
     };
     archivedAppConfigRepoState.findOneByResult = {
-      guildId: "guild-1",
-      channelId: "archive-forum-1",
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
+    };
+
+    const result = await getRoute('POST /applications/:id/archive')('guild-1', {}, '/applications/7/archive');
+
+    expect(result).toEqual({ success: true, archived: true });
+    expect(fakeArchiveAndCloseApp).toHaveBeenCalledTimes(1);
+    expect(fakeArchiveAndCloseApp.mock.calls[0][6]).toBeUndefined();
+  });
+
+  test('flip race lost (affected=0) → 409, no archive attempt', async () => {
+    applicationRepoState.findOneByResult = {
+      id: 7,
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'app-channel-1',
+    };
+    archivedAppConfigRepoState.findOneByResult = {
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
     };
     applicationRepo.update.mockResolvedValueOnce({ affected: 0 });
 
     await expect(
-      getRoute("POST /applications/:id/archive")(
-        "guild-1",
-        {},
-        "/applications/7/archive",
-      ),
+      getRoute('POST /applications/:id/archive')('guild-1', {}, '/applications/7/archive'),
     ).rejects.toMatchObject({
       statusCode: 409,
-      message: "Application already closed",
+      message: 'Application already closed',
     });
     expect(fakeArchiveAndCloseApp).not.toHaveBeenCalled();
   });
 
-  test("workflow throws unexpectedly → status conditionally reverted, error propagates", async () => {
+  test('workflow throws unexpectedly → status conditionally reverted, error propagates', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
-      guildId: "guild-1",
-      status: "pending",
-      channelId: "app-channel-1",
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'app-channel-1',
     };
     archivedAppConfigRepoState.findOneByResult = {
-      guildId: "guild-1",
-      channelId: "archive-forum-1",
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
     };
-    fakeArchiveAndCloseApp.mockRejectedValueOnce(new Error("transient DB error"));
+    fakeArchiveAndCloseApp.mockRejectedValueOnce(new Error('transient DB error'));
 
-    await expect(
-      getRoute("POST /applications/:id/archive")(
-        "guild-1",
-        {},
-        "/applications/7/archive",
-      ),
-    ).rejects.toThrow("transient DB error");
+    await expect(getRoute('POST /applications/:id/archive')('guild-1', {}, '/applications/7/archive')).rejects.toThrow(
+      'transient DB error',
+    );
 
     // Flip to closed, then a CONDITIONAL revert (only while still 'closed').
     expect(applicationRepoState.updateCalls).toHaveLength(2);
     expect(applicationRepoState.updateCalls[1]).toEqual({
-      criteria: { id: 7, guildId: "guild-1", status: "closed" },
-      partial: { status: "pending" },
+      criteria: { id: 7, guildId: 'guild-1', status: 'closed' },
+      partial: { status: 'pending' },
     });
     expect(fakeWriteAuditAction).not.toHaveBeenCalled();
   });
 
-  test("returns 404 when archive config missing", async () => {
+  test('returns 404 when archive config missing', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
-      guildId: "guild-1",
-      status: "pending",
-      channelId: "c-1",
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'c-1',
     };
     archivedAppConfigRepoState.findOneByResult = null;
 
     await expect(
-      getRoute("POST /applications/:id/archive")(
-        "guild-1",
-        {},
-        "/applications/7/archive",
-      ),
+      getRoute('POST /applications/:id/archive')('guild-1', {}, '/applications/7/archive'),
     ).rejects.toMatchObject({
       statusCode: 404,
-      message: "Archive config not found",
+      message: 'Archive config not found',
     });
     expect(fakeArchiveAndCloseApp).not.toHaveBeenCalled();
   });
 
-  test("channel not text-based: marks closed, returns archived: false, skips archive call", async () => {
+  test('channel not text-based: marks closed, returns archived: false, skips archive call', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
-      guildId: "guild-1",
-      status: "pending",
-      channelId: "c-1",
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'c-1',
     };
     archivedAppConfigRepoState.findOneByResult = {
-      guildId: "guild-1",
-      channelId: "archive-forum-1",
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
     };
     (fakeClient.channels.fetch as any).mockResolvedValue({
       isTextBased: () => false,
     });
 
-    const result = await getRoute("POST /applications/:id/archive")(
-      "guild-1",
-      {},
-      "/applications/7/archive",
-    );
+    const result = await getRoute('POST /applications/:id/archive')('guild-1', {}, '/applications/7/archive');
 
     expect(result).toEqual({ success: true, archived: false });
     expect(applicationRepoState.updateCalls[0].partial).toEqual({
-      status: "closed",
+      status: 'closed',
     });
     expect(fakeArchiveAndCloseApp).not.toHaveBeenCalled();
   });
 
-  test("transient channel-fetch failure (non-10003): reverts status, returns failure (retryable)", async () => {
+  test('transient channel-fetch failure (non-10003): reverts status, returns failure (retryable)', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
-      guildId: "guild-1",
-      status: "pending",
-      channelId: "c-1",
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'c-1',
     };
     archivedAppConfigRepoState.findOneByResult = {
-      guildId: "guild-1",
-      channelId: "archive-forum-1",
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
     };
-    (fakeClient.channels.fetch as any).mockRejectedValue(
-      Object.assign(new Error("Service Unavailable"), { code: 0 }),
-    );
+    (fakeClient.channels.fetch as any).mockRejectedValue(Object.assign(new Error('Service Unavailable'), { code: 0 }));
 
-    const result = await getRoute("POST /applications/:id/archive")(
-      "guild-1",
-      {},
-      "/applications/7/archive",
-    );
+    const result = await getRoute('POST /applications/:id/archive')('guild-1', {}, '/applications/7/archive');
 
     expect(result).toEqual({ success: false, archived: false });
     expect(applicationRepoState.updateCalls[0].partial).toEqual({
-      status: "closed",
+      status: 'closed',
     });
     expect(applicationRepoState.updateCalls[1].partial).toEqual({
-      status: "pending",
+      status: 'pending',
     });
     expect(fakeArchiveAndCloseApp).not.toHaveBeenCalled();
   });
 
-  test("genuinely-gone channel (10003): terminal close, archived:false, no revert", async () => {
+  test('genuinely-gone channel (10003): terminal close, archived:false, no revert', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
-      guildId: "guild-1",
-      status: "pending",
-      channelId: "c-1",
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'c-1',
     };
     archivedAppConfigRepoState.findOneByResult = {
-      guildId: "guild-1",
-      channelId: "archive-forum-1",
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
     };
-    (fakeClient.channels.fetch as any).mockRejectedValue(
-      Object.assign(new Error("Unknown Channel"), { code: 10003 }),
-    );
+    (fakeClient.channels.fetch as any).mockRejectedValue(Object.assign(new Error('Unknown Channel'), { code: 10003 }));
 
-    const result = await getRoute("POST /applications/:id/archive")(
-      "guild-1",
-      {},
-      "/applications/7/archive",
-    );
+    const result = await getRoute('POST /applications/:id/archive')('guild-1', {}, '/applications/7/archive');
 
     expect(result).toEqual({ success: true, archived: false });
     expect(applicationRepoState.updateCalls).toHaveLength(1); // close flip only, no revert
     expect(fakeArchiveAndCloseApp).not.toHaveBeenCalled();
   });
 
-  test("archiveAndCloseApplication returns archived: false — reverts status for retry, no audit log", async () => {
+  test('archiveAndCloseApplication returns archived: false — reverts status for retry, no audit log', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
-      guildId: "guild-1",
-      status: "pending",
-      channelId: "c-1",
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'c-1',
     };
     archivedAppConfigRepoState.findOneByResult = {
-      guildId: "guild-1",
-      channelId: "archive-forum-1",
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
     };
     fakeArchiveAndCloseApp.mockResolvedValue({
       success: false,
       archived: false,
     });
 
-    const result = await getRoute("POST /applications/:id/archive")(
-      "guild-1",
-      { triggeredBy: "r-1" },
-      "/applications/7/archive",
+    const result = await getRoute('POST /applications/:id/archive')(
+      'guild-1',
+      { triggeredBy: 'r-1' },
+      '/applications/7/archive',
     );
 
     // Honest failure; channel preserved by the workflow.
     expect(result).toEqual({ success: false, archived: false });
     // Status flipped to closed, then reverted to its prior value for retry.
     expect(applicationRepoState.updateCalls[0].partial).toEqual({
-      status: "closed",
+      status: 'closed',
     });
     expect(applicationRepoState.updateCalls[1].partial).toEqual({
-      status: "pending",
+      status: 'pending',
     });
     expect(fakeWriteAuditAction).not.toHaveBeenCalled();
   });

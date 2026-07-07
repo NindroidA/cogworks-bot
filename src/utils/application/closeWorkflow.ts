@@ -85,20 +85,35 @@ async function resolveApplicationPosition(
  * carries the pre-close status; fall back to the newest decisive history
  * entry when the current status isn't itself an outcome.
  */
-const OUTCOME_LABELS: Record<string, string> = {
-  accepted: 'Accepted',
-  approved: 'Accepted',
-  rejected: 'Rejected',
-  denied: 'Rejected',
-};
+// A Map, not an object literal: application.status is admin-extensible
+// (/application workflow-add-status accepts any /^[a-z0-9-]{1,20}$/ id, which
+// admits 'constructor'), and an object-literal lookup on such a key would
+// return an inherited Object.prototype member (a function) that then throws
+// when the embed builder rejects the non-string field value.
+const OUTCOME_LABELS = new Map<string, string>([
+  ['accepted', 'Accepted'],
+  ['approved', 'Accepted'],
+  ['rejected', 'Rejected'],
+  ['denied', 'Rejected'],
+]);
+
+function outcomeLabel(status: string): string | null {
+  return OUTCOME_LABELS.get(status) ?? null;
+}
 
 function resolveApplicationOutcome(application: Application): string | null {
-  const current = OUTCOME_LABELS[application.status];
+  const current = outcomeLabel(application.status);
   if (current) return current;
+  // Current status isn't itself a decision (usually 'closed' after the flip).
+  // Scan history newest-first, skipping the terminal 'closed' entry (the close
+  // action, not a decision). The FIRST substantive entry decides: if it's
+  // decisive that's the outcome; if it's anything else, an earlier decision
+  // was retracted (e.g. approved → moved back to under-review) and we report
+  // no outcome rather than resurrecting the withdrawn one.
   const history = application.statusHistory ?? [];
   for (let i = history.length - 1; i >= 0; i--) {
-    const label = OUTCOME_LABELS[history[i].status];
-    if (label) return label;
+    if (history[i].status === 'closed') continue;
+    return outcomeLabel(history[i].status);
   }
   return null;
 }

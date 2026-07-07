@@ -12,8 +12,11 @@
 
 import { describe, expect, jest, test } from 'bun:test';
 import { Not } from 'typeorm';
+import {
+  type ApplicationCloseDeps,
+  applicationCloseEventImpl as applicationCloseEvent,
+} from '../../../../src/events/application/close';
 import applicationLang from '../../../../src/lang/en/application.json';
-import { type ApplicationCloseDeps, applicationCloseEventImpl as applicationCloseEvent } from '../../../../src/events/application/close';
 
 const tl = applicationLang.close;
 
@@ -45,7 +48,7 @@ function makeInteraction() {
     guildId: 'guild1',
     channelId: 'chan1',
     channel: { id: 'chan1' },
-    user: { id: 'user1' },
+    user: { id: 'user1', username: 'closer-user' },
   } as never;
 }
 
@@ -98,6 +101,9 @@ describe('applicationCloseEvent', () => {
     await applicationCloseEvent(client, makeInteraction(), deps);
 
     expect(archiveAndCloseApplication).toHaveBeenCalledTimes(1);
+    // The clicking user is threaded as the CloseActor (7th arg) so the
+    // archive header renders "Closed by" — v3.16.0
+    expect(archiveAndCloseApplication.mock.calls[0][6]).toEqual({ id: 'user1', username: 'closer-user' });
     expect(applicationRepo.update).toHaveBeenCalledTimes(1);
     expect(applicationRepo.update).toHaveBeenCalledWith(
       { id: 9, guildId: 'guild1', status: Not('closed') },

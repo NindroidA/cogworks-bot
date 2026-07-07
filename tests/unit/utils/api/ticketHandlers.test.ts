@@ -15,19 +15,9 @@
  *   - Channel-not-found path: marks closed, returns archived: false (no archive call)
  */
 
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  jest,
-  mock,
-  test,
-} from "bun:test";
-import type { Client } from "discord.js";
-import { Not } from "typeorm";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, mock, test } from 'bun:test';
+import type { Client } from 'discord.js';
+import { Not } from 'typeorm';
 
 // ---------------------------------------------------------------------------
 // Mocks for non-repo deps
@@ -44,7 +34,7 @@ const fakeArchiveAndClose = jest.fn(async () => ({
 
 const fakeWriteAuditLog = jest.fn(async () => undefined);
 const fakeWriteAuditAction = jest.fn(async () => undefined);
-mock.module("../../../../src/utils/api/handlers/auditHelper", () => ({
+mock.module('../../../../src/utils/api/handlers/auditHelper', () => ({
   writeAuditLog: fakeWriteAuditLog,
   writeAuditAction: fakeWriteAuditAction,
 }));
@@ -77,7 +67,7 @@ function makeFakeRepo(state: RepoState) {
 const ticketRepo = makeFakeRepo(ticketRepoState);
 const archivedConfigRepo = makeFakeRepo(archivedTicketConfigRepoState);
 
-let registerTicketHandlers: typeof import("../../../../src/utils/api/handlers/ticketHandlers").registerTicketHandlers;
+let registerTicketHandlers: typeof import('../../../../src/utils/api/handlers/ticketHandlers').registerTicketHandlers;
 let routes: Map<string, any>;
 let fakeClient: Client;
 let fakeChannel: any;
@@ -86,38 +76,28 @@ let originalGetRepository: ((entity: unknown) => unknown) | undefined;
 
 beforeAll(async () => {
   // Map each entity import to its corresponding fake repo.
-  const { AppDataSource } = await import("../../../../src/typeorm");
-  const { Ticket } = await import(
-    "../../../../src/typeorm/entities/ticket/Ticket"
-  );
-  const { ArchivedTicketConfig } = await import(
-    "../../../../src/typeorm/entities/ticket/ArchivedTicketConfig"
-  );
+  const { AppDataSource } = await import('../../../../src/typeorm');
+  const { Ticket } = await import('../../../../src/typeorm/entities/ticket/Ticket');
+  const { ArchivedTicketConfig } = await import('../../../../src/typeorm/entities/ticket/ArchivedTicketConfig');
   const repoMap = new Map<unknown, unknown>([
     [Ticket, ticketRepo],
     [ArchivedTicketConfig, archivedConfigRepo],
   ]);
   // Capture so afterAll can restore. Bun shares module state across test files.
-  originalGetRepository = (
-    AppDataSource as unknown as { getRepository: (e: unknown) => unknown }
-  ).getRepository;
-  (
-    AppDataSource as unknown as { getRepository: (e: unknown) => unknown }
-  ).getRepository = (entity) =>
+  originalGetRepository = (AppDataSource as unknown as { getRepository: (e: unknown) => unknown }).getRepository;
+  (AppDataSource as unknown as { getRepository: (e: unknown) => unknown }).getRepository = entity =>
     repoMap.get(entity) ??
     (() => {
       throw new Error(`Unmocked entity: ${(entity as { name?: string }).name}`);
     })();
-  const sut = await import("../../../../src/utils/api/handlers/ticketHandlers");
+  const sut = await import('../../../../src/utils/api/handlers/ticketHandlers');
   registerTicketHandlers = sut.registerTicketHandlers;
 });
 
 afterAll(async () => {
   if (originalGetRepository) {
-    const { AppDataSource } = await import("../../../../src/typeorm");
-    (
-      AppDataSource as unknown as { getRepository: (e: unknown) => unknown }
-    ).getRepository = originalGetRepository;
+    const { AppDataSource } = await import('../../../../src/typeorm');
+    (AppDataSource as unknown as { getRepository: (e: unknown) => unknown }).getRepository = originalGetRepository;
   }
 });
 
@@ -138,9 +118,9 @@ beforeEach(() => {
   fakeWriteAuditLog.mockClear();
   fakeWriteAuditAction.mockClear();
 
-  fakeChannel = { id: "ticket-channel-1", isTextBased: () => true };
+  fakeChannel = { id: 'ticket-channel-1', isTextBased: () => true };
   fakeAssignChannel = {
-    id: "ticket-channel-1",
+    id: 'ticket-channel-1',
     permissionOverwrites: { create: jest.fn(async () => undefined) },
   };
   const fakeGuild = {
@@ -164,8 +144,8 @@ afterEach(() => {
 });
 
 function getCloseHandler() {
-  const handler = routes.get("POST /tickets/:id/close");
-  if (!handler) throw new Error("POST /tickets/:id/close not registered");
+  const handler = routes.get('POST /tickets/:id/close');
+  if (!handler) throw new Error('POST /tickets/:id/close not registered');
   return handler;
 }
 
@@ -173,193 +153,196 @@ function getCloseHandler() {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("POST /tickets/:id/close", () => {
-  test("happy path: marks closed, calls archiveAndCloseTicket, writes audit log", async () => {
+describe('POST /tickets/:id/close', () => {
+  test('happy path: marks closed, calls archiveAndCloseTicket, writes audit log', async () => {
     ticketRepoState.findOneByResult = {
       id: 42,
-      guildId: "guild-1",
-      status: "open",
-      channelId: "ticket-channel-1",
+      guildId: 'guild-1',
+      status: 'open',
+      channelId: 'ticket-channel-1',
     };
     archivedTicketConfigRepoState.findOneByResult = {
-      guildId: "guild-1",
-      channelId: "archive-forum-1",
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
     };
 
-    const result = await getCloseHandler()(
-      "guild-1",
-      { triggeredBy: "user-99" },
-      "/tickets/42/close",
-    );
+    const result = await getCloseHandler()('guild-1', { triggeredBy: 'user-99' }, '/tickets/42/close');
 
     expect(result).toEqual({ success: true, ticketId: 42, archived: true });
     // Guild-scoped lookup
     expect(ticketRepo.findOneBy).toHaveBeenCalledWith({
-      guildId: "guild-1",
+      guildId: 'guild-1',
       id: 42,
     });
     // Status flip happens BEFORE the archive call, conditionally (race fix)
     expect(ticketRepoState.updateCalls[0]).toEqual({
-      criteria: { id: 42, guildId: "guild-1", status: Not("closed") },
-      partial: { status: "closed" },
+      criteria: { id: 42, guildId: 'guild-1', status: Not('closed') },
+      partial: { status: 'closed' },
     });
     // Archive helper called with the right channel + archive config
     expect(fakeArchiveAndClose).toHaveBeenCalledTimes(1);
-    expect(fakeArchiveAndClose.mock.calls[0][2]).toBe("guild-1");
-    expect(fakeArchiveAndClose.mock.calls[0][4]).toBe("archive-forum-1");
+    expect(fakeArchiveAndClose.mock.calls[0][2]).toBe('guild-1');
+    expect(fakeArchiveAndClose.mock.calls[0][4]).toBe('archive-forum-1');
+    // triggeredBy is threaded as the CloseActor (7th arg) so the archive
+    // header renders "Closed by" — v3.16.0
+    expect(fakeArchiveAndClose.mock.calls[0][6]).toEqual({ id: 'user-99' });
     // Audit log includes triggeredBy (extracted from the request body)
-    expect(fakeWriteAuditAction).toHaveBeenCalledWith(
-      "guild-1",
-      { triggeredBy: "user-99" },
-      "ticket.close",
-      { ticketId: 42 },
-    );
-  });
-
-  test("returns 404 when ticket not found", async () => {
-    ticketRepoState.findOneByResult = null;
-
-    await expect(
-      getCloseHandler()("guild-1", {}, "/tickets/42/close"),
-    ).rejects.toMatchObject({
-      statusCode: 404,
-      message: "Ticket not found",
+    expect(fakeWriteAuditAction).toHaveBeenCalledWith('guild-1', { triggeredBy: 'user-99' }, 'ticket.close', {
+      ticketId: 42,
     });
-    expect(ticketRepoState.updateCalls).toHaveLength(0);
-    expect(fakeArchiveAndClose).not.toHaveBeenCalled();
   });
 
-  test("returns 409 when ticket is already closed", async () => {
+  test('close without triggeredBy passes NO CloseActor (header omits Closed by)', async () => {
     ticketRepoState.findOneByResult = {
       id: 42,
-      guildId: "guild-1",
-      status: "closed",
-      channelId: "ticket-channel-1",
-    };
-
-    await expect(
-      getCloseHandler()("guild-1", {}, "/tickets/42/close"),
-    ).rejects.toMatchObject({
-      statusCode: 409,
-      message: "Ticket already closed",
-    });
-    expect(ticketRepoState.updateCalls).toHaveLength(0);
-    expect(fakeArchiveAndClose).not.toHaveBeenCalled();
-  });
-
-  test("workflow throws unexpectedly → status reverted, error propagates (no stranded close)", async () => {
-    ticketRepoState.findOneByResult = {
-      id: 42,
-      guildId: "guild-1",
-      status: "open",
-      channelId: "ticket-channel-1",
+      guildId: 'guild-1',
+      status: 'open',
+      channelId: 'ticket-channel-1',
     };
     archivedTicketConfigRepoState.findOneByResult = {
-      guildId: "guild-1",
-      channelId: "archive-forum-1",
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
     };
-    fakeArchiveAndClose.mockRejectedValueOnce(new Error("transient DB error"));
 
-    await expect(
-      getCloseHandler()("guild-1", {}, "/tickets/42/close"),
-    ).rejects.toThrow("transient DB error");
+    const result = await getCloseHandler()('guild-1', {}, '/tickets/42/close');
+
+    expect(result).toEqual({ success: true, ticketId: 42, archived: true });
+    expect(fakeArchiveAndClose).toHaveBeenCalledTimes(1);
+    expect(fakeArchiveAndClose.mock.calls[0][6]).toBeUndefined();
+  });
+
+  test('returns 404 when ticket not found', async () => {
+    ticketRepoState.findOneByResult = null;
+
+    await expect(getCloseHandler()('guild-1', {}, '/tickets/42/close')).rejects.toMatchObject({
+      statusCode: 404,
+      message: 'Ticket not found',
+    });
+    expect(ticketRepoState.updateCalls).toHaveLength(0);
+    expect(fakeArchiveAndClose).not.toHaveBeenCalled();
+  });
+
+  test('returns 409 when ticket is already closed', async () => {
+    ticketRepoState.findOneByResult = {
+      id: 42,
+      guildId: 'guild-1',
+      status: 'closed',
+      channelId: 'ticket-channel-1',
+    };
+
+    await expect(getCloseHandler()('guild-1', {}, '/tickets/42/close')).rejects.toMatchObject({
+      statusCode: 409,
+      message: 'Ticket already closed',
+    });
+    expect(ticketRepoState.updateCalls).toHaveLength(0);
+    expect(fakeArchiveAndClose).not.toHaveBeenCalled();
+  });
+
+  test('workflow throws unexpectedly → status reverted, error propagates (no stranded close)', async () => {
+    ticketRepoState.findOneByResult = {
+      id: 42,
+      guildId: 'guild-1',
+      status: 'open',
+      channelId: 'ticket-channel-1',
+    };
+    archivedTicketConfigRepoState.findOneByResult = {
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
+    };
+    fakeArchiveAndClose.mockRejectedValueOnce(new Error('transient DB error'));
+
+    await expect(getCloseHandler()('guild-1', {}, '/tickets/42/close')).rejects.toThrow('transient DB error');
 
     // Flip to closed, then a CONDITIONAL revert to the original status (only
     // while still 'closed' — a concurrent status change must not be clobbered).
     expect(ticketRepoState.updateCalls).toHaveLength(2);
     expect(ticketRepoState.updateCalls[1]).toEqual({
-      criteria: { id: 42, guildId: "guild-1", status: "closed" },
-      partial: { status: "open" },
+      criteria: { id: 42, guildId: 'guild-1', status: 'closed' },
+      partial: { status: 'open' },
     });
     expect(fakeWriteAuditAction).not.toHaveBeenCalled();
   });
 
-  test("returns 404 when archive config missing — no status flip, no archive call", async () => {
+  test('returns 404 when archive config missing — no status flip, no archive call', async () => {
     ticketRepoState.findOneByResult = {
       id: 42,
-      guildId: "guild-1",
-      status: "open",
-      channelId: "ticket-channel-1",
+      guildId: 'guild-1',
+      status: 'open',
+      channelId: 'ticket-channel-1',
     };
     archivedTicketConfigRepoState.findOneByResult = null;
 
-    await expect(
-      getCloseHandler()("guild-1", {}, "/tickets/42/close"),
-    ).rejects.toMatchObject({
+    await expect(getCloseHandler()('guild-1', {}, '/tickets/42/close')).rejects.toMatchObject({
       statusCode: 404,
-      message: "Archive config not found",
+      message: 'Archive config not found',
     });
     expect(ticketRepoState.updateCalls).toHaveLength(0);
     expect(fakeArchiveAndClose).not.toHaveBeenCalled();
   });
 
-  test("channel fetch fails: marks closed, returns archived: false, skips archive call", async () => {
+  test('channel fetch fails: marks closed, returns archived: false, skips archive call', async () => {
     ticketRepoState.findOneByResult = {
       id: 42,
-      guildId: "guild-1",
-      status: "open",
-      channelId: "ticket-channel-1",
+      guildId: 'guild-1',
+      status: 'open',
+      channelId: 'ticket-channel-1',
     };
     archivedTicketConfigRepoState.findOneByResult = {
-      guildId: "guild-1",
-      channelId: "archive-forum-1",
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
     };
     (fakeClient.channels.fetch as any).mockResolvedValue(null);
 
-    const result = await getCloseHandler()("guild-1", {}, "/tickets/42/close");
+    const result = await getCloseHandler()('guild-1', {}, '/tickets/42/close');
 
     expect(result).toEqual({ success: true, ticketId: 42, archived: false });
     // Status was still flipped to closed before the channel-not-found branch returned
     expect(ticketRepoState.updateCalls[0].partial).toEqual({
-      status: "closed",
+      status: 'closed',
     });
     expect(fakeArchiveAndClose).not.toHaveBeenCalled();
     // Audit log NOT written on the channel-not-found early return (matches current handler behavior)
     expect(fakeWriteAuditAction).not.toHaveBeenCalled();
   });
 
-  test("transient channel-fetch failure (non-10003): reverts status, returns failure (retryable)", async () => {
+  test('transient channel-fetch failure (non-10003): reverts status, returns failure (retryable)', async () => {
     ticketRepoState.findOneByResult = {
       id: 42,
-      guildId: "guild-1",
-      status: "open",
-      channelId: "ticket-channel-1",
+      guildId: 'guild-1',
+      status: 'open',
+      channelId: 'ticket-channel-1',
     };
     archivedTicketConfigRepoState.findOneByResult = {
-      guildId: "guild-1",
-      channelId: "archive-forum-1",
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
     };
-    (fakeClient.channels.fetch as any).mockRejectedValue(
-      Object.assign(new Error("Service Unavailable"), { code: 0 }),
-    );
+    (fakeClient.channels.fetch as any).mockRejectedValue(Object.assign(new Error('Service Unavailable'), { code: 0 }));
 
-    const result = await getCloseHandler()("guild-1", {}, "/tickets/42/close");
+    const result = await getCloseHandler()('guild-1', {}, '/tickets/42/close');
 
     // A transient fetch failure must NOT strand the ticket closed.
     expect(result).toEqual({ success: false, ticketId: 42, archived: false });
     expect(ticketRepoState.updateCalls[0].partial).toEqual({
-      status: "closed",
+      status: 'closed',
     });
-    expect(ticketRepoState.updateCalls[1].partial).toEqual({ status: "open" });
+    expect(ticketRepoState.updateCalls[1].partial).toEqual({ status: 'open' });
     expect(fakeArchiveAndClose).not.toHaveBeenCalled();
   });
 
-  test("genuinely-gone channel (10003): terminal close, archived:false, no revert", async () => {
+  test('genuinely-gone channel (10003): terminal close, archived:false, no revert', async () => {
     ticketRepoState.findOneByResult = {
       id: 42,
-      guildId: "guild-1",
-      status: "open",
-      channelId: "ticket-channel-1",
+      guildId: 'guild-1',
+      status: 'open',
+      channelId: 'ticket-channel-1',
     };
     archivedTicketConfigRepoState.findOneByResult = {
-      guildId: "guild-1",
-      channelId: "archive-forum-1",
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
     };
-    (fakeClient.channels.fetch as any).mockRejectedValue(
-      Object.assign(new Error("Unknown Channel"), { code: 10003 }),
-    );
+    (fakeClient.channels.fetch as any).mockRejectedValue(Object.assign(new Error('Unknown Channel'), { code: 10003 }));
 
-    const result = await getCloseHandler()("guild-1", {}, "/tickets/42/close");
+    const result = await getCloseHandler()('guild-1', {}, '/tickets/42/close');
 
     // Channel is genuinely gone — nothing to archive, so the close is terminal.
     expect(result).toEqual({ success: true, ticketId: 42, archived: false });
@@ -367,62 +350,62 @@ describe("POST /tickets/:id/close", () => {
     expect(fakeArchiveAndClose).not.toHaveBeenCalled();
   });
 
-  test("archiveAndCloseTicket returns archived: false — reverts status for retry, writes NO audit log", async () => {
+  test('archiveAndCloseTicket returns archived: false — reverts status for retry, writes NO audit log', async () => {
     ticketRepoState.findOneByResult = {
       id: 42,
-      guildId: "guild-1",
-      status: "open",
-      channelId: "ticket-channel-1",
+      guildId: 'guild-1',
+      status: 'open',
+      channelId: 'ticket-channel-1',
     };
     archivedTicketConfigRepoState.findOneByResult = {
-      guildId: "guild-1",
-      channelId: "archive-forum-1",
+      guildId: 'guild-1',
+      channelId: 'archive-forum-1',
     };
     fakeArchiveAndClose.mockResolvedValue({ success: false, archived: false });
 
-    const result = await getCloseHandler()("guild-1", {}, "/tickets/42/close");
+    const result = await getCloseHandler()('guild-1', {}, '/tickets/42/close');
 
     // Honest failure surfaced to the caller.
     expect(result).toEqual({ success: false, ticketId: 42, archived: false });
     // Status flipped to closed, then reverted to its prior value so the close
     // can be retried (the workflow preserved the channel).
     expect(ticketRepoState.updateCalls[0].partial).toEqual({
-      status: "closed",
+      status: 'closed',
     });
-    expect(ticketRepoState.updateCalls[1].partial).toEqual({ status: "open" });
+    expect(ticketRepoState.updateCalls[1].partial).toEqual({ status: 'open' });
     // A failed close is not an audit-worthy "ticket.close".
     expect(fakeWriteAuditAction).not.toHaveBeenCalled();
   });
 });
 
-describe("POST /tickets/:id/assign", () => {
-  const ASSIGNEE = "123456789012345678";
+describe('POST /tickets/:id/assign', () => {
+  const ASSIGNEE = '123456789012345678';
 
   function getAssignHandler() {
-    const handler = routes.get("POST /tickets/:id/assign");
-    if (!handler) throw new Error("POST /tickets/:id/assign not registered");
+    const handler = routes.get('POST /tickets/:id/assign');
+    if (!handler) throw new Error('POST /tickets/:id/assign not registered');
     return handler;
   }
 
-  test("persists assignedTo + assignedAt (the v3.2.1 bug fix), grants channel access, audits", async () => {
+  test('persists assignedTo + assignedAt (the v3.2.1 bug fix), grants channel access, audits', async () => {
     ticketRepoState.findOneByResult = {
       id: 42,
-      guildId: "guild-1",
-      status: "open",
-      channelId: "ticket-channel-1",
+      guildId: 'guild-1',
+      status: 'open',
+      channelId: 'ticket-channel-1',
     };
 
     const result = await getAssignHandler()(
-      "guild-1",
-      { userId: ASSIGNEE, triggeredBy: "admin-1" },
-      "/tickets/42/assign",
+      'guild-1',
+      { userId: ASSIGNEE, triggeredBy: 'admin-1' },
+      '/tickets/42/assign',
     );
 
     expect(result).toEqual({ success: true });
     // THE FIX: the assignment is now written to the DB (was only a perm overwrite before).
     expect(ticketRepoState.updateCalls).toHaveLength(1);
     const { criteria, partial } = ticketRepoState.updateCalls[0];
-    expect(criteria).toEqual({ id: 42, guildId: "guild-1" });
+    expect(criteria).toEqual({ id: 42, guildId: 'guild-1' });
     expect(partial.assignedTo).toBe(ASSIGNEE);
     expect(partial.assignedAt).toBeInstanceOf(Date);
     // Channel access still granted.
@@ -431,9 +414,9 @@ describe("POST /tickets/:id/assign", () => {
       expect.objectContaining({ ViewChannel: true, SendMessages: true }),
     );
     expect(fakeWriteAuditAction).toHaveBeenCalledWith(
-      "guild-1",
-      { userId: ASSIGNEE, triggeredBy: "admin-1" },
-      "ticket.assign",
+      'guild-1',
+      { userId: ASSIGNEE, triggeredBy: 'admin-1' },
+      'ticket.assign',
       {
         ticketId: 42,
         userId: ASSIGNEE,
@@ -441,29 +424,25 @@ describe("POST /tickets/:id/assign", () => {
     );
   });
 
-  test("rejects a non-snowflake userId before any write", async () => {
+  test('rejects a non-snowflake userId before any write', async () => {
     ticketRepoState.findOneByResult = {
       id: 42,
-      guildId: "guild-1",
-      status: "open",
-      channelId: "ticket-channel-1",
+      guildId: 'guild-1',
+      status: 'open',
+      channelId: 'ticket-channel-1',
     };
 
     await expect(
-      getAssignHandler()(
-        "guild-1",
-        { userId: "not-a-snowflake" },
-        "/tickets/42/assign",
-      ),
+      getAssignHandler()('guild-1', { userId: 'not-a-snowflake' }, '/tickets/42/assign'),
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(ticketRepoState.updateCalls).toHaveLength(0);
   });
 
-  test("404 when the ticket does not exist", async () => {
+  test('404 when the ticket does not exist', async () => {
     ticketRepoState.findOneByResult = null;
-    await expect(
-      getAssignHandler()("guild-1", { userId: ASSIGNEE }, "/tickets/42/assign"),
-    ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(getAssignHandler()('guild-1', { userId: ASSIGNEE }, '/tickets/42/assign')).rejects.toMatchObject({
+      statusCode: 404,
+    });
     expect(ticketRepoState.updateCalls).toHaveLength(0);
   });
 });

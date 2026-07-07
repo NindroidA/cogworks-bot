@@ -38,35 +38,30 @@ export default {
     // Handle bait channel
     await baitChannelManager.handleMessage(message);
 
-    // Update lastActivityAt for ticket channels (lightweight update)
+    // One UPDATE for the ticket channel: bump lastActivityAt always, and in
+    // the SAME statement capture the first response from someone other than
+    // the opener — the SLA subsystem's data source (slaChecker queries
+    // firstResponseAt IS NULL; before v3.16.0 nothing in production ever wrote
+    // it). For email-import tickets `createdBy` is the importing admin, NOT
+    // the sender the ticket represents, so every Discord message there is a
+    // staff response and the opener-exclusion is skipped. Merged into one
+    // statement to keep the per-message hot path at a single round-trip; the
+    // conditional CASE makes firstResponseAt a no-op for every message but the
+    // genuine first response. Silent-fail like any non-critical hot-path write.
     try {
+      const now = new Date();
       await ticketRepo
         .createQueryBuilder()
         .update(Ticket)
-        .set({ lastActivityAt: new Date() })
+        .set({
+          lastActivityAt: now,
+          firstResponseAt: () =>
+            'CASE WHEN firstResponseAt IS NULL AND (isEmailTicket = TRUE OR createdBy != :author) THEN :firstResponseNow ELSE firstResponseAt END',
+        })
         .where('guildId = :guildId', { guildId: message.guild.id })
         .andWhere('channelId = :channelId', { channelId: message.channelId })
         .andWhere('status != :closed', { closed: 'closed' })
-        .execute();
-    } catch {
-      // Silently fail — this is a non-critical update
-    }
-
-    // Capture the FIRST response from someone other than the opener — the
-    // SLA subsystem's data source (slaChecker queries firstResponseAt IS
-    // NULL; before v3.16.0 nothing in production ever wrote it). Bot authors
-    // never reach here (early return above). Conditional WHERE means this is
-    // a 0-row no-op for everything but the one first-response message.
-    try {
-      await ticketRepo
-        .createQueryBuilder()
-        .update(Ticket)
-        .set({ firstResponseAt: new Date() })
-        .where('guildId = :guildId', { guildId: message.guild.id })
-        .andWhere('channelId = :channelId', { channelId: message.channelId })
-        .andWhere('status != :closed', { closed: 'closed' })
-        .andWhere('firstResponseAt IS NULL')
-        .andWhere('createdBy != :author', { author: message.author.id })
+        .setParameters({ author: message.author.id, firstResponseNow: now })
         .execute();
     } catch {
       // Silently fail — this is a non-critical update

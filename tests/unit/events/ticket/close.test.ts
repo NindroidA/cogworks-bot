@@ -18,8 +18,8 @@
 
 import { describe, expect, jest, test } from 'bun:test';
 import { Not } from 'typeorm';
-import ticketLang from '../../../../src/lang/en/ticket.json';
 import { type TicketCloseDeps, ticketCloseEvent } from '../../../../src/events/ticket/close';
+import ticketLang from '../../../../src/lang/en/ticket.json';
 
 const tl = ticketLang.close;
 
@@ -32,7 +32,13 @@ function makeDeps(overrides: Partial<Record<keyof TicketCloseDeps, unknown>> = {
   const archiveAndCloseTicket = jest.fn().mockResolvedValue({ success: true, archived: true });
   const replyEphemeralError = jest.fn().mockResolvedValue(undefined);
   return {
-    deps: { archivedTicketConfigRepo, ticketRepo, archiveAndCloseTicket, replyEphemeralError, ...overrides } as unknown as TicketCloseDeps,
+    deps: {
+      archivedTicketConfigRepo,
+      ticketRepo,
+      archiveAndCloseTicket,
+      replyEphemeralError,
+      ...overrides,
+    } as unknown as TicketCloseDeps,
     archivedTicketConfigRepo,
     ticketRepo,
     archiveAndCloseTicket,
@@ -45,7 +51,7 @@ function makeInteraction() {
     guildId: 'guild1',
     channelId: 'chan1',
     channel: { id: 'chan1' },
-    user: { id: 'user1' },
+    user: { id: 'user1', username: 'closer-user' },
     replied: true,
     deferred: false,
   } as never;
@@ -137,6 +143,9 @@ describe('ticketCloseEvent', () => {
     await ticketCloseEvent(client, makeInteraction(), deps);
 
     expect(archiveAndCloseTicket).toHaveBeenCalledTimes(1);
+    // The clicking user is threaded as the CloseActor (7th arg) so the
+    // archive header renders "Closed by" — v3.16.0
+    expect(archiveAndCloseTicket.mock.calls[0][6]).toEqual({ id: 'user1', username: 'closer-user' });
     expect(ticketRepo.update).toHaveBeenCalledTimes(1);
     expect(ticketRepo.update).toHaveBeenCalledWith(
       { id: 7, guildId: 'guild1', status: Not('closed') },
