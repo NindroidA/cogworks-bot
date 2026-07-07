@@ -18,6 +18,7 @@ import { Colors } from '../colors';
 import { lazyRepo } from '../database/lazyRepo';
 import { verifiedChannelDelete } from '../discord/verifiedDelete';
 import { fetchMessagesAsTranscript } from '../fetchAllMessages';
+import { applyForumTags, ensureForumTag } from '../forumTagManager';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import type { CloseActor } from '../ticket/closeWorkflow';
 import { buildTranscript, type TicketMetadata, type TranscriptMessage } from '../ticket/transcriptBuilder';
@@ -51,6 +52,8 @@ export interface CloseApplicationWorkflowDeps {
   verifiedChannelDelete: typeof verifiedChannelDelete;
   archivedAppRepo: typeof archivedAppRepo;
   positionRepo: typeof positionRepo;
+  ensureForumTag: typeof ensureForumTag;
+  applyForumTags: typeof applyForumTags;
 }
 
 const defaultDeps: CloseApplicationWorkflowDeps = {
@@ -58,7 +61,19 @@ const defaultDeps: CloseApplicationWorkflowDeps = {
   verifiedChannelDelete,
   archivedAppRepo,
   positionRepo,
+  ensureForumTag,
+  applyForumTags,
 };
+
+/** Union of existing + incoming forum tag ids, order-preserving, deduped.
+ * Mirrors the ticket close workflow's helper. */
+function mergeForumTags(existing: string[] | null | undefined, incoming: string[]): string[] {
+  const merged = [...(existing ?? [])];
+  for (const tag of incoming) {
+    if (!merged.includes(tag)) merged.push(tag);
+  }
+  return merged;
+}
 
 /**
  * Resolve the Position row an application was submitted for. `type` carries
@@ -181,6 +196,25 @@ export async function archiveAndCloseApplication(
   let archived = true;
   try {
     const forumChannel = (await client.channels.fetch(archiveForumChannelId)) as ForumChannel;
+
+    // Forum tags for the archive thread: the position applied for, and the
+    // Accepted/Rejected outcome. Both are best-effort — ensureForumTag returns
+    // null at the 20-tag forum cap or on API error, and we simply skip it.
+    const forumTagIds: string[] = [];
+    if (position) {
+      const tagId = await deps.ensureForumTag(forumChannel, `position_${position.id}`, position.title, position.emoji);
+      if (tagId) forumTagIds.push(tagId);
+    }
+    if (metadata.outcome) {
+      const tagId = await deps.ensureForumTag(
+        forumChannel,
+        `outcome_${metadata.outcome.toLowerCase()}`,
+        metadata.outcome,
+        metadata.outcome === 'Accepted' ? '✅' : '❌',
+      );
+      if (tagId) forumTagIds.push(tagId);
+    }
+
     const existingArchive = await deps.archivedAppRepo.findOneBy({
       createdBy: application.createdBy,
       guildId,
@@ -193,6 +227,10 @@ export async function archiveAndCloseApplication(
         message: { embeds: [headerEmbed], allowedMentions: { parse: [] } },
       });
 
+      if (forumTagIds.length > 0) {
+        await deps.applyForumTags(forumChannel, newPost.id, forumTagIds);
+      }
+
       // Persist the archive row BEFORE posting chunks: a chunk failure then
       // leaves the row pointing at this thread, so the retry appends instead of
       // orphaning it and creating a duplicate.
@@ -201,6 +239,7 @@ export async function archiveAndCloseApplication(
           guildId,
           createdBy: application.createdBy,
           messageId: newPost.id,
+          forumTagIds,
         }),
       );
 
@@ -225,8 +264,16 @@ export async function archiveAndCloseApplication(
           name: threadName,
           message: { embeds: [headerEmbed], allowedMentions: { parse: [] } },
         });
+        // Persist what actually LANDED, not the intended merge: an accumulated
+        // set (prior tags + manual mod tags + this outcome) can exceed Discord's
+        // 5-tag cap, and recording a dropped tag would make the DB claim a tag
+        // the thread never shows. applyForumTags returns the applied set (≤5),
+        // or null on error — fall back to the intended merge in that case.
+        const mergedTags = mergeForumTags(existingArchive.forumTagIds, forumTagIds);
+        const applied = mergedTags.length > 0 ? await deps.applyForumTags(forumChannel, newPost.id, mergedTags) : [];
         // Repoint + persist BEFORE chunks so a chunk failure can't orphan it.
         existingArchive.messageId = newPost.id;
+        existingArchive.forumTagIds = applied ?? mergedTags;
         await deps.archivedAppRepo.save(existingArchive);
         await postTranscriptToThread(newPost, transcript.chunks, {
           guildId,
@@ -240,6 +287,18 @@ export async function archiveAndCloseApplication(
           allowedMentions: { parse: [] },
         });
         await postTranscriptToThread(post, transcript.chunks, { guildId, channelId, label: 'Application transcript' });
+
+        // Accumulate tags onto the existing thread — persist only what actually
+        // landed (the 5-tag cap can drop some; recording a dropped tag would
+        // make future closes skip re-applying it while the thread never shows it).
+        const mergedTags = mergeForumTags(existingArchive.forumTagIds, forumTagIds);
+        if (mergedTags.length > (existingArchive.forumTagIds?.length ?? 0)) {
+          const applied = await deps.applyForumTags(forumChannel, post.id, mergedTags);
+          if (applied) {
+            existingArchive.forumTagIds = applied;
+            await deps.archivedAppRepo.save(existingArchive);
+          }
+        }
       }
     }
   } catch (error) {
