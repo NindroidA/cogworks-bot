@@ -95,7 +95,7 @@ describe('activityTracker flush — per-channel uniqueUsers', () => {
     expect(channels.ch1.uniqueUsers).toBe(MAX.ANALYTICS_CHANNEL_UNIQUE_USERS);
   });
 
-  test('flush clears the counter (a second flush writes a zero-activity snapshot)', async () => {
+  test('flush clears the in-memory counter after persisting the snapshot', async () => {
     const guildId = gid();
     activityTracker.recordMessage(guildId, 'ch1', 'general', 'user1');
     await activityTracker.flushSnapshot(guildId, 100);
