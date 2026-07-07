@@ -230,7 +230,7 @@ export async function sendDigest(client: Client, config: AnalyticsConfig, today:
 }
 
 /**
- * Build an overview embed for the current day (used by /insights overview).
+ * Build an overview embed for the current day (used by /analytics overview).
  */
 export function buildOverviewEmbed(snapshot: AnalyticsSnapshot | null, _guildName: string): EmbedBuilder {
   const embed = new EmbedBuilder().setTitle(`Server Overview — Today`).setColor(Colors.brand.primary);
@@ -276,7 +276,7 @@ export function buildOverviewEmbed(snapshot: AnalyticsSnapshot | null, _guildNam
 }
 
 /**
- * Build a growth embed from snapshot data (used by /insights growth).
+ * Build a growth embed from snapshot data (used by /analytics growth).
  */
 export function buildGrowthEmbed(snapshots: AnalyticsSnapshot[], days: number): EmbedBuilder {
   const embed = new EmbedBuilder().setTitle(`Member Growth — Last ${days} Days`).setColor(Colors.brand.primary);
@@ -310,7 +310,7 @@ export function buildGrowthEmbed(snapshots: AnalyticsSnapshot[], days: number): 
 }
 
 /**
- * Build a channels embed from snapshot data (used by /insights channels).
+ * Build a channels embed from snapshot data (used by /analytics channels).
  */
 export function buildChannelsEmbed(snapshots: AnalyticsSnapshot[], days: number): EmbedBuilder {
   const embed = new EmbedBuilder().setTitle(`Top Channels — Last ${days} Days`).setColor(Colors.brand.primary);
@@ -364,7 +364,7 @@ export function buildChannelsEmbed(snapshots: AnalyticsSnapshot[], days: number)
 }
 
 /**
- * Build an hours heatmap embed from snapshot data (used by /insights hours).
+ * Build an hours heatmap embed from snapshot data (used by /analytics hours).
  */
 export function buildHoursEmbed(snapshots: AnalyticsSnapshot[], days: number): EmbedBuilder {
   const embed = new EmbedBuilder().setTitle(`Activity by Hour — Last ${days} Days`).setColor(Colors.brand.primary);

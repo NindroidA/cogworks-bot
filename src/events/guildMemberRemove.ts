@@ -26,7 +26,7 @@ export default {
     try {
       if (!member.guild) return;
       // Dev guild skipped to match guildMemberAdd / messageCreate — keeps
-      // the dev bot's /insights clean during testing.
+      // the dev bot's /analytics clean during testing.
       if (process.env.DEV_GUILD_ID && member.guild.id === process.env.DEV_GUILD_ID) return;
 
       activityTracker.recordMemberLeave(member.guild.id);

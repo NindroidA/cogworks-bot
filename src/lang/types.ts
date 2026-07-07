@@ -2061,13 +2061,14 @@ export interface Language {
   analytics: LangAnalytics;
 }
 
-// New feature lang types — loosely typed to avoid maintaining duplicate type definitions
-// These match arbitrary JSON structures from lang files
-export type LangXP = Record<string, any>;
-export type LangOnboarding = Record<string, any>;
-export type LangAutomod = Record<string, any>;
-export type LangEvent = Record<string, any>;
-export type LangAnalytics = Record<string, any>;
+// New feature lang types — derived from the English JSON (the Proxy fallback
+// locale) via `typeof import(...)` so the shape stays in sync with the file
+// automatically, without a hand-maintained duplicate interface.
+export type LangXP = typeof import('./en/xp.json');
+export type LangOnboarding = typeof import('./en/onboarding.json');
+export type LangAutomod = typeof import('./en/automod.json');
+export type LangEvent = typeof import('./en/event.json');
+export type LangAnalytics = typeof import('./en/analytics.json');
 
 export interface LangImport {
   results: {

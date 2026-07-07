@@ -13,7 +13,7 @@
  *     command (never gated, always visible).
  *   - baitchannel → the always-visible `/bot-setup` dashboard.
  * Single-command toggle modules whose only setup path is a subcommand of the
- * command itself (starboard, event, onboarding, insights, reactionrole) and
+ * command itself (starboard, event, onboarding, analytics, reactionrole) and
  * automod (no DB config at all) are intentionally NOT gated — hiding them
  * would strand admins with no way to re-enable. Add a module here only once it
  * gains a guaranteed always-visible re-enable path.

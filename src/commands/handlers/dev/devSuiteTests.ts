@@ -756,7 +756,7 @@ const AUDIT_TARGETS: { dir: string; label: string; fileFilter?: string }[] = [
   { dir: 'onboarding', label: 'Onboarding' },
   { dir: 'automod', label: 'Automod' },
   { dir: 'event', label: 'Event' },
-  { dir: 'insights', label: 'Insights' },
+  { dir: 'analytics', label: 'Analytics' },
   { dir: 'import', label: 'Import' },
   { dir: 'ticket', label: 'Ticket SLA', fileFilter: 'sla' },
   { dir: 'ticket', label: 'Ticket Routing', fileFilter: 'routing' },
@@ -775,7 +775,7 @@ const INTENTIONALLY_PUBLIC: Set<string> = new Set([
   // XP — rank and leaderboard are public, index is a router
   'rank',
   'leaderboard',
-  // Insights — viewing analytics is public (setup is admin)
+  // Analytics — viewing analytics is public (setup is admin)
   'overview',
   'growth',
   'channels',

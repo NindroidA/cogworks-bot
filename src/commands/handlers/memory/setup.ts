@@ -14,7 +14,7 @@ import {
   MessageFlags,
   StringSelectMenuBuilder,
 } from 'discord.js';
-import { MemoryConfig, MemoryItem, MemoryTag, type MemoryTagType } from '../../typeorm/entities/memory';
+import { MemoryConfig, MemoryItem, MemoryTag, type MemoryTagType } from '../../../typeorm/entities/memory';
 import {
   awaitSelectMenuChoice,
   Colors,
@@ -27,16 +27,16 @@ import {
   RateLimits,
   replyEphemeralError,
   TIMEOUTS,
-} from '../../utils';
-import { lazyRepo } from '../../utils/database/lazyRepo';
+} from '../../../utils';
+import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const tl = lang.memory;
 const memoryConfigRepo = lazyRepo(MemoryConfig);
 const memoryTagRepo = lazyRepo(MemoryTag);
 const memoryItemRepo = lazyRepo(MemoryItem);
 
-import { MAX } from '../../utils/constants';
-import { manageTagsHandler } from './memory/manageTags';
+import { MAX } from '../../../utils/constants';
+import { manageTagsHandler } from './manageTags';
 
 const DEFAULT_CATEGORY_TAGS = [
   { name: 'Bug', emoji: '\u{1F41B}' },

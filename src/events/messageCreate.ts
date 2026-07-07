@@ -17,7 +17,7 @@ export default {
     // downstream failure in either doesn't drop analytics counts. The call
     // is synchronous and in-memory — no DB hop, no latency tax on hot path.
     // Dev guild is skipped to match the existing join-tracking convention
-    // in guildMemberAdd.ts so /insights on the dev server isn't polluted.
+    // in guildMemberAdd.ts so /analytics on the dev server isn't polluted.
     if (!process.env.DEV_GUILD_ID || message.guild.id !== process.env.DEV_GUILD_ID) {
       // `name` is null for DMs but we've already guarded on message.guild
       // above; `'name' in channel` handles thread parents and voice text.

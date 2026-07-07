@@ -354,6 +354,7 @@ src/
 ├── commands/
 │   ├── builders/           # SlashCommandBuilder definitions
 │   ├── handlers/           # Command execution logic (grouped by feature)
+│   │   ├── analytics/      # /analytics command: overview, growth, channels, hours, setup
 │   │   ├── announcement/   # handler, setup, templates
 │   │   ├── application/    # applicationSetup, applicationFields, applicationPosition
 │   │   ├── archive/        # cleanup (export + delete archived data)
@@ -364,10 +365,11 @@ src/
 │   │   │   └── systemFlows.ts    # Per-system auto-create + config flows
 │   │   ├── contextMenus/   # Right-click context menu commands
 │   │   ├── dev/            # devSuite, devTest, scaffold, workflows
-│   │   ├── memory/         # add, capture, update, delete, tags, manageTags
+│   │   ├── memory/         # add, capture, update, delete, tags, manageTags, setup
 │   │   ├── reactionRole/   # create, add, remove, edit, delete, list, validate
+│   │   ├── rules/          # setup
 │   │   ├── shared/         # fieldManagerCore (generic field management)
-│   │   ├── ticket/         # typeAdd, typeEdit, workflow, emailImport, etc.
+│   │   ├── ticket/         # typeAdd, typeEdit, workflow, emailImport, setup, etc.
 │   │   ├── botReset.ts     # Factory reset with archive + cleanup
 │   │   └── ...
 │   ├── commands.ts         # Central routing hub

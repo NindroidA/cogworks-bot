@@ -14,6 +14,7 @@ import {
 import { writeAuditLog } from '../utils/api/handlers/auditHelper';
 import { lazyRepo } from '../utils/database/lazyRepo';
 import { maybeRefreshCommandsAfterSetup } from '../utils/setup/commandGating';
+import { analyticsHandler } from './handlers/analytics';
 import { announcementHandler } from './handlers/announcement';
 import { announcementSetupHandler } from './handlers/announcement/setup';
 import { applicationEditHandler } from './handlers/application/applicationEdit';
@@ -49,23 +50,22 @@ import {
 } from './handlers/dev/ticketDev';
 import { eventHandler } from './handlers/event';
 import { importHandler } from './handlers/import';
-import { insightsHandler } from './handlers/insights';
 import {
   memoryAddHandler,
   memoryCaptureHandler,
   memoryDeleteHandler,
+  memorySetupHandler,
   memoryTagsHandler,
   memoryUpdateHandler,
   memoryUpdateStatusHandler,
   memoryUpdateTagsHandler,
 } from './handlers/memory';
-import { memorySetupHandler } from './handlers/memorySetup';
 import { migrateApplicationTagsHandler, migrateTicketTagsHandler } from './handlers/migrate';
 import { onboardingHandler } from './handlers/onboarding';
 import { pingHandler } from './handlers/ping';
 import { reactionRoleHandler } from './handlers/reactionRole';
 import { roleAddHandler, roleListHandler, roleRemoveHandler } from './handlers/role';
-import { rulesSetupHandler } from './handlers/rulesSetup';
+import { rulesSetupHandler } from './handlers/rules/setup';
 import { serverCommandHandler } from './handlers/serverCommand';
 import { starboardHandler } from './handlers/starboard';
 import { statusHandler } from './handlers/status';
@@ -76,6 +76,7 @@ import {
   settingsHandler,
   ticketAssignHandler,
   ticketInfoHandler,
+  ticketSetupHandler,
   ticketStatusHandler,
   ticketUnassignHandler,
   typeAddHandler,
@@ -101,7 +102,6 @@ import {
   routingStrategyHandler,
 } from './handlers/ticket/routing';
 import { slaDisableHandler, slaEnableHandler, slaPerTypeHandler, slaStatsHandler } from './handlers/ticket/sla';
-import { ticketSetupHandler } from './handlers/ticketSetup';
 import {
   leaderboardCommandHandler,
   rankCommandHandler,
@@ -140,7 +140,7 @@ const CLIENT_ROUTES: Record<string, FullHandler> = {
   onboarding: onboardingHandler,
   automod: automodHandler,
   event: eventHandler,
-  insights: insightsHandler,
+  analytics: analyticsHandler,
   archive: archiveCleanupHandler,
   'dev-test': devTestHandler,
   'dev-suite': devSuiteHandler,

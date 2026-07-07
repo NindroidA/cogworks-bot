@@ -58,8 +58,8 @@ const setup = new SlashCommandSubcommandBuilder()
     option.setName('day').setDescription(tl.setup.day).setRequired(false).setMinValue(0).setMaxValue(28),
   );
 
-export const insights = new SlashCommandBuilder()
-  .setName('insights')
+export const analytics = new SlashCommandBuilder()
+  .setName('analytics')
   .setDescription(tl.cmdDescrp)
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand(overview)

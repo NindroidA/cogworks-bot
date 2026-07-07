@@ -196,7 +196,7 @@ async function handleStatusAction(interaction: ChatInputCommandInteraction<Cache
   });
 }
 
-export async function insightsSetupHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
+export async function analyticsSetupHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardFeatureAccess(interaction, 'analytics', 'manage');
   if (!guard.allowed) return;
 
