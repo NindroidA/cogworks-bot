@@ -40,9 +40,14 @@ export class AnalyticsSnapshot {
   @Column({ default: 0 })
   voiceMinutes: number;
 
-  /** Top 5 channels by message count: Array<{ channelId: string; name: string; count: number }> */
+  /**
+   * Top 5 channels by message count. `uniqueUsers` (v3.16.2) is the day's
+   * distinct message authors in that channel, capped at
+   * MAX.ANALYTICS_CHANNEL_UNIQUE_USERS. Optional — rows written before v3.16.2
+   * omit it (simple-json, no migration needed); readers treat absent as 0.
+   */
   @Column({ type: 'simple-json', nullable: true })
-  topChannels: { channelId: string; name: string; count: number }[] | null;
+  topChannels: { channelId: string; name: string; count: number; uniqueUsers?: number }[] | null;
 
   /** Hour with the most message activity (0-23 UTC) */
   @Column({ type: 'int', nullable: true })

@@ -8,14 +8,15 @@
 
 import { AppDataSource } from '../../typeorm';
 import { AnalyticsSnapshot } from '../../typeorm/entities/analytics/AnalyticsSnapshot';
+import { MAX } from '../constants';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
 interface GuildDayCounters {
   messageCount: number;
   /** Set of unique user IDs who sent messages */
   activeMembers: Set<string>;
-  /** Channel ID -> message count */
-  channelCounts: Map<string, { name: string; count: number }>;
+  /** Channel ID -> message count + set of unique authors (capped) */
+  channelCounts: Map<string, { name: string; count: number; users: Set<string> }>;
   /** Hour (0-23) -> message count */
   hourCounts: Map<number, number>;
   voiceMinutes: number;
@@ -74,12 +75,15 @@ class ActivityTracker {
     c.messageCount++;
     c.activeMembers.add(userId);
 
-    // Channel counts
+    // Channel counts + per-channel unique authors (bounded set — a hot channel
+    // can't grow it past MAX.ANALYTICS_CHANNEL_UNIQUE_USERS; the daily unique
+    // count saturates there rather than tracking every id).
     const existing = c.channelCounts.get(channelId);
     if (existing) {
       existing.count++;
+      if (existing.users.size < MAX.ANALYTICS_CHANNEL_UNIQUE_USERS) existing.users.add(userId);
     } else {
-      c.channelCounts.set(channelId, { name: channelName, count: 1 });
+      c.channelCounts.set(channelId, { name: channelName, count: 1, users: new Set([userId]) });
     }
 
     // Hour counts (UTC)
@@ -142,9 +146,9 @@ class ActivityTracker {
   ): Promise<void> {
     const repo = AppDataSource.getRepository(AnalyticsSnapshot);
 
-    // Top 5 channels by count
+    // Top 5 channels by count, each with its (capped) daily unique-author count
     const topChannels = [...c.channelCounts.entries()]
-      .map(([channelId, { name, count }]) => ({ channelId, name, count }))
+      .map(([channelId, { name, count, users }]) => ({ channelId, name, count, uniqueUsers: users.size }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 

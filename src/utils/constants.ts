@@ -144,6 +144,13 @@ export const MAX = {
   STATUS_INCIDENTS: 100,
   /** CSV import max rows */
   IMPORT_CSV_MAX_ROWS: 10000,
+  /**
+   * Per-channel unique-user set saturation cap (analytics). Bounds the
+   * in-memory Set so a hot channel can't grow it unboundedly across a day;
+   * once hit, further distinct users aren't counted (the reported daily
+   * unique count saturates at this value).
+   */
+  ANALYTICS_CHANNEL_UNIQUE_USERS: 1000,
 } as const;
 
 export const JOIN_VELOCITY = {
