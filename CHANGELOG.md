@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.2] - 2026-07-07
+
+Real per-channel unique-user analytics — the dashboard's "unique users" was a
+hardcoded 0.
+
+### Added
+
+- **Per-channel daily unique authors** are now tracked and surfaced on the
+  `/analytics/channels` and `/analytics/overview` API responses. The activity
+  tracker keeps a bounded per-channel author set (capped at 1000 via
+  `MAX.ANALYTICS_CHANNEL_UNIQUE_USERS` so a hot channel can't grow it
+  unboundedly), persists the daily count into each snapshot's `topChannels`,
+  and the handlers accumulate it across the requested window (SUM of daily
+  uniques, matching the existing `activeMembers` convention).
+
+### Fixed
+
+- `/analytics/channels` no longer returns a hardcoded `uniqueUsers: 0` stub.
+
+### Notes
+
+- No migration: `topChannels` is a `simple-json` column and the new
+  `uniqueUsers` key is optional (rows written before this release omit it and
+  are read as 0).
+
 ## [3.16.1] - 2026-07-07
 
 Application archives gain forum tags — parity with ticket archives.

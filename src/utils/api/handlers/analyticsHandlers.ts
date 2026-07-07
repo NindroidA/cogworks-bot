@@ -147,19 +147,25 @@ export function registerAnalyticsHandlers(_client: Client, routes: Map<string, R
     const leaves = sum(current, r => r.memberLeft);
     const voiceMinutes = sum(current, r => r.voiceMinutes);
 
-    // Aggregate topChannels across the window.
-    const channelTotals = new Map<string, { channelId: string; channelName: string; messages: number }>();
+    // Aggregate topChannels across the window (uniqueUsers = SUM of daily
+    // uniques, same imprecision as activeMembers above).
+    const channelTotals = new Map<
+      string,
+      { channelId: string; channelName: string; messages: number; uniqueUsers: number }
+    >();
     for (const snap of current) {
       if (!snap.topChannels) continue;
       for (const c of snap.topChannels) {
         const existing = channelTotals.get(c.channelId);
         if (existing) {
           existing.messages += c.count;
+          existing.uniqueUsers += c.uniqueUsers ?? 0;
         } else {
           channelTotals.set(c.channelId, {
             channelId: c.channelId,
             channelName: c.name,
             messages: c.count,
+            uniqueUsers: c.uniqueUsers ?? 0,
           });
         }
       }
@@ -216,13 +222,17 @@ export function registerAnalyticsHandlers(_client: Client, routes: Map<string, R
     });
 
     // Aggregate topChannels across the window, combining same channelId rows.
-    const acc = new Map<string, { channelId: string; channelName: string; messages: number }>();
+    // uniqueUsers is a per-DAY distinct-author count; summing across days
+    // over-counts users active on multiple days — this is the SUM of daily
+    // uniques (same convention as activeMembers in /overview, :142-145).
+    const acc = new Map<string, { channelId: string; channelName: string; messages: number; uniqueUsers: number }>();
     for (const snap of rows) {
       if (!snap.topChannels) continue;
       for (const c of snap.topChannels) {
         const existing = acc.get(c.channelId);
         if (existing) {
           existing.messages += c.count;
+          existing.uniqueUsers += c.uniqueUsers ?? 0;
           // Prefer the most recent name we've seen — channel renames are rare
           // but we want the latest label rather than whichever came first.
           existing.channelName = c.name;
@@ -231,17 +241,13 @@ export function registerAnalyticsHandlers(_client: Client, routes: Map<string, R
             channelId: c.channelId,
             channelName: c.name,
             messages: c.count,
+            uniqueUsers: c.uniqueUsers ?? 0,
           });
         }
       }
     }
 
-    const channels = [...acc.values()]
-      .sort((a, b) => b.messages - a.messages)
-      // `uniqueUsers` isn't tracked per-channel yet — returning 0 keeps the
-      // contract shape stable until we add channelUniqueUsers in a later
-      // migration. Documented in CHANGELOG 3.1.2.
-      .map(c => ({ ...c, uniqueUsers: 0 }));
+    const channels = [...acc.values()].sort((a, b) => b.messages - a.messages);
 
     return { days, channels };
   });
