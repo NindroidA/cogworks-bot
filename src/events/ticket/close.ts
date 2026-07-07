@@ -91,7 +91,10 @@ export const ticketCloseEvent = async (
 
   let result: ArchiveTicketResult;
   try {
-    result = await deps.archiveAndCloseTicket(client, ticket, guildId, channel, archivedConfig.channelId);
+    result = await deps.archiveAndCloseTicket(client, ticket, guildId, channel, archivedConfig.channelId, undefined, {
+      id: interaction.user.id,
+      username: interaction.user.username,
+    });
   } catch (error) {
     // An unexpected throw escaped the workflow (e.g. a transient DB error while
     // resolving a custom ticket type — closeWorkflow's metadata region isn't

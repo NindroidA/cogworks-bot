@@ -5,7 +5,7 @@ import { lazyRepo } from '../../database/lazyRepo';
 import { claimClose, releaseClose } from '../../database/statusFlip';
 import { archiveAndCloseTicket as defaultArchiveAndCloseTicket } from '../../ticket/closeWorkflow';
 import { ApiError } from '../apiError';
-import { getAndValidateEntity, isValidSnowflake, requireString } from '../helpers';
+import { getAndValidateEntity, isValidSnowflake, optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 import { writeAuditAction } from './auditHelper';
 
@@ -62,6 +62,10 @@ export function registerTicketHandlers(
       return { success: true, ticketId: ticket.id, archived: false };
     }
 
+    // ninsys-api sends the dashboard actor's id as `triggeredBy` — the
+    // workflow resolves the username for the "Closed by" archive row.
+    const triggeredBy = optionalString(body, 'triggeredBy');
+
     let result: Awaited<ReturnType<typeof archiveAndCloseTicket>>;
     try {
       result = await archiveAndCloseTicket(
@@ -70,6 +74,8 @@ export function registerTicketHandlers(
         guildId,
         channel as GuildTextBasedChannel,
         archivedConfig.channelId,
+        undefined,
+        triggeredBy ? { id: triggeredBy } : undefined,
       );
     } catch (error) {
       // An unexpected throw escaped the workflow (its metadata region isn't

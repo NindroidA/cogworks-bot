@@ -82,8 +82,6 @@ async function processGuildSla(client: Client, config: TicketConfig): Promise<vo
       // SLA breached
       const elapsedMinutes = Math.floor(elapsed / 60_000);
 
-      ticket.slaBreached = true;
-
       // Only mark the breach as notified once an alert is actually delivered.
       // Otherwise an unconfigured/unreachable breach channel would permanently
       // flag the ticket notified with nothing sent — and the query filters on
@@ -116,8 +114,14 @@ async function processGuildSla(client: Client, config: TicketConfig): Promise<vo
         }
       }
 
-      ticket.slaBreachNotified = notified;
-      await ticketRepo.save(ticket);
+      // Targeted UPDATE, not save(): a full-entity save would write back the
+      // firstResponseAt we loaded as NULL, clobbering a value captured
+      // concurrently by messageCreate between this find and the write (v3.16.0
+      // made firstResponseAt a live column). Touch only the two breach columns.
+      await ticketRepo.update(
+        { id: ticket.id, guildId: config.guildId },
+        { slaBreached: true, slaBreachNotified: notified },
+      );
 
       enhancedLogger.info('SLA breach detected', LogCategory.SYSTEM, {
         guildId: config.guildId,

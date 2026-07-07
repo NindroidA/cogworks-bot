@@ -84,6 +84,27 @@ export interface TicketMetadata {
   createdById?: string;
   /** Discord user id of the assignee — badges their author lines with 🛡️. */
   assignedToId?: string;
+  // v3.16.0 archival enrichment — every field below is optional and its
+  // header row renders ONLY when the data exists (absent data shows nothing).
+  /** DB row id — renders as "Ticket #N" / "Application #N". */
+  entityId?: number;
+  /** Who performed the close (button clicker or dashboard actor). */
+  closedByUsername?: string | null;
+  closedById?: string | null;
+  /** First non-opener human response (SLA source). Tickets only. */
+  firstResponseAt?: Date | null;
+  slaBreached?: boolean;
+  /** Application outcome label — 'Accepted' / 'Rejected'. */
+  outcome?: string | null;
+  /** Reviewer who claimed the application. */
+  reviewedByUsername?: string | null;
+  reviewedById?: string | null;
+}
+
+/** Per-author message tally for the header's Participants row. */
+export interface TranscriptParticipant {
+  username: string;
+  count: number;
 }
 
 /** Author-line badge context, derived from {@link TicketMetadata}. */
@@ -153,30 +174,96 @@ function blockquote(body: string): string {
     .join('\n');
 }
 
+/** `username (`id`)` when both are known — the id makes archives greppable. */
+function formatUserWithId(username: string | null | undefined, id: string | null | undefined): string | null {
+  if (username && id) return `${username} (\`${id}\`)`;
+  if (username) return username;
+  if (id) return `\`${id}\``;
+  return null;
+}
+
+/** Discord's per-field value limit. */
+const FIELD_VALUE_LIMIT = 1024;
+
+/**
+ * `alice (12), bob (5), …` — capped under the 1024-char field limit; when
+ * the tail doesn't fit it collapses into `+N more`.
+ */
+function formatParticipants(participants: TranscriptParticipant[]): string {
+  const parts: string[] = [];
+  let length = 0;
+  for (let i = 0; i < participants.length; i++) {
+    const piece = `${participants[i].username} (${participants[i].count})`;
+    // Reserve room for a ", +NN more" tail so the cap can never be blown.
+    const reserve = i < participants.length - 1 ? 12 : 0;
+    const addLen = (parts.length > 0 ? 2 : 0) + piece.length;
+    if (length + addLen + reserve > FIELD_VALUE_LIMIT) {
+      parts.push(`+${participants.length - i} more`);
+      break;
+    }
+    parts.push(piece);
+    length += addLen;
+  }
+  return parts.join(', ');
+}
+
 /**
  * Header data for the archive post's embed card. Applications omit the
  * "Assigned to" row when there's no assignee (tickets show "Unassigned" —
  * unassigned tickets are signal, unassigned applications are the norm).
+ * Enrichment rows (id, closed-by, first-response, outcome, reviewer,
+ * participants — v3.16.0) render only when their data exists.
  */
 export function buildHeaderData(
   metadata: TicketMetadata,
   messageCount: number,
   attachmentCount: number,
+  participants?: TranscriptParticipant[],
 ): TranscriptHeaderData {
   const kind = metadata.kind ?? 'ticket';
   const duration = formatDurationShort(metadata.closedAt.getTime() - metadata.openedAt.getTime());
-  const fields: TranscriptHeaderData['fields'] = [
+  const fields: TranscriptHeaderData['fields'] = [];
+  if (metadata.entityId !== undefined) {
+    fields.push({
+      name: kind === 'application' ? 'Application #' : 'Ticket #',
+      value: `${metadata.entityId}`,
+      inline: true,
+    });
+  }
+  fields.push(
     { name: 'Opened', value: formatFullStamp(metadata.openedAt), inline: true },
     { name: 'Closed', value: formatFullStamp(metadata.closedAt), inline: true },
     { name: 'Duration', value: duration, inline: true },
     { name: 'Type', value: metadata.type, inline: true },
     { name: 'Created by', value: metadata.createdByUsername, inline: true },
-  ];
+  );
   if (metadata.assignedToUsername !== null || kind === 'ticket') {
     fields.push({ name: 'Assigned to', value: metadata.assignedToUsername ?? 'Unassigned', inline: true });
   }
+  const closedBy = formatUserWithId(metadata.closedByUsername, metadata.closedById);
+  if (closedBy) {
+    fields.push({ name: 'Closed by', value: closedBy, inline: true });
+  }
+  if (metadata.firstResponseAt || metadata.slaBreached) {
+    const stamp = metadata.firstResponseAt ? formatFullStamp(metadata.firstResponseAt) : 'None';
+    fields.push({
+      name: 'First response',
+      value: metadata.slaBreached ? `${stamp}\n⚠️ SLA breached` : stamp,
+      inline: true,
+    });
+  }
+  if (metadata.outcome) {
+    fields.push({ name: 'Outcome', value: metadata.outcome, inline: true });
+  }
+  const reviewedBy = formatUserWithId(metadata.reviewedByUsername, metadata.reviewedById);
+  if (reviewedBy) {
+    fields.push({ name: 'Reviewed by', value: reviewedBy, inline: true });
+  }
   const counts = attachmentCount > 0 ? `${messageCount} · ${attachmentCount} 📎` : `${messageCount}`;
   fields.push({ name: 'Messages', value: counts, inline: true });
+  if (participants && participants.length > 0) {
+    fields.push({ name: 'Participants', value: formatParticipants(participants), inline: false });
+  }
   // Discord caps embed titles at 256 chars — an email-ticket subject can
   // exceed that, and an over-limit title fails the whole archive post.
   const title = `${kind === 'application' ? '📋' : '🎫'} ${metadata.title}`;
@@ -557,6 +644,18 @@ function shouldIncludeMessage(msg: TranscriptMessage): boolean {
   return hasText || hasAttachments || hasStickers || hasPoll || hasMeaningfulEmbeds;
 }
 
+/** Per-author message tallies from kept messages, bots excluded, most active first. */
+function buildParticipants(kept: TranscriptMessage[]): TranscriptParticipant[] {
+  const byAuthor = new Map<string, TranscriptParticipant>();
+  for (const msg of kept) {
+    if (msg.author.bot) continue;
+    const entry = byAuthor.get(msg.author.id);
+    if (entry) entry.count++;
+    else byAuthor.set(msg.author.id, { username: msg.author.username, count: 1 });
+  }
+  return [...byAuthor.values()].sort((a, b) => b.count - a.count);
+}
+
 /**
  * End-to-end builder. Filters out system/UI noise, formats survivors
  * chat-style, and chunks them (text + attachment payloads) to fit Discord's
@@ -565,7 +664,7 @@ function shouldIncludeMessage(msg: TranscriptMessage): boolean {
 export function buildTranscript(messages: TranscriptMessage[], metadata: TicketMetadata): TranscriptResult {
   const kept = messages.filter(shouldIncludeMessage);
   const attachmentCount = kept.reduce((sum, m) => sum + m.attachments.length, 0);
-  const headerData = buildHeaderData(metadata, kept.length, attachmentCount);
+  const headerData = buildHeaderData(metadata, kept.length, attachmentCount, buildParticipants(kept));
 
   if (kept.length === 0) {
     const hadAny = messages.length > 0;

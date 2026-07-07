@@ -155,6 +155,16 @@ function mergeForumTags(existing: string[] | null | undefined, incoming: string[
 }
 
 /**
+ * Who performed a close. The Discord button path knows both fields; the
+ * internal API path only has the actor's id (`triggeredBy`) — the workflow
+ * resolves the username itself when it's missing.
+ */
+export interface CloseActor {
+  id?: string;
+  username?: string;
+}
+
+/**
  * Archive a ticket to the forum channel and clean up.
  *
  * This is the shared core that both the event handler and API handler call.
@@ -167,6 +177,7 @@ export async function archiveAndCloseTicket(
   channel: GuildTextBasedChannel,
   archiveForumChannelId: string,
   deps: CloseWorkflowDeps = defaultDeps,
+  closedBy?: CloseActor,
 ): Promise<ArchiveTicketResult> {
   const channelId = ticket.channelId || '';
 
@@ -189,12 +200,14 @@ export async function archiveAndCloseTicket(
 
   // Build header + chunks. Ticket metadata is resolved locally — type info
   // falls back to the ticket's stored type name when the custom row is gone.
-  // Independent lookups — run them concurrently instead of three sequential
+  // Independent lookups — run them concurrently instead of sequential
   // round-trips on every close.
-  const [typeInfo, creatorUser, assignedUser] = await Promise.all([
+  const [typeInfo, creatorUser, assignedUser, closedByUser] = await Promise.all([
     resolveTicketTypeInfo(ticket, guildId, deps),
     client.users.fetch(ticket.createdBy).catch(() => null),
     ticket.assignedTo ? client.users.fetch(ticket.assignedTo).catch(() => null) : Promise.resolve(null),
+    // API closes only carry the actor's id — resolve the username here.
+    closedBy?.id && !closedBy.username ? client.users.fetch(closedBy.id).catch(() => null) : Promise.resolve(null),
   ]);
 
   const metadata: TicketMetadata = {
@@ -210,6 +223,11 @@ export async function archiveAndCloseTicket(
     assignedToUsername: assignedUser?.username ?? null,
     createdById: ticket.createdBy,
     assignedToId: ticket.assignedTo ?? undefined,
+    entityId: ticket.id,
+    closedByUsername: closedBy?.username ?? closedByUser?.username ?? null,
+    closedById: closedBy?.id ?? null,
+    firstResponseAt: ticket.firstResponseAt ?? null,
+    slaBreached: ticket.slaBreached === true,
   };
   // Prefer the channel's createdAt as a more accurate open time when available.
   if ('createdAt' in channel && channel.createdAt instanceof Date) {
