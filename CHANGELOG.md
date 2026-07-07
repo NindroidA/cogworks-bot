@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.1] - 2026-07-07
+
+Application archives gain forum tags — parity with ticket archives.
+
+### Added
+
+- **Application archive threads are now tagged** by the position applied for
+  and the Accepted/Rejected outcome, so the archive forum is filterable the
+  same way ticket archives already were. Tags accumulate across re-closes and
+  respect Discord's 5-tag-per-thread cap (only tags that actually land are
+  persisted). Adds a nullable `forumTagIds` column to `archived_applications`
+  (TypeORM migration; mirrors `ArchivedTicket.forumTagIds`).
+
 ## [3.16.0] - 2026-07-06
 
 Archival enrichment — ticket and application archive headers now carry the

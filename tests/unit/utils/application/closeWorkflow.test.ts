@@ -56,11 +56,19 @@ const fakePositionRepo = {
   findOneBy: jest.fn(async () => null as any),
 };
 
+// Forum-tag seams. ensureForumTag returns a deterministic id per (typeId);
+// applyForumTags echoes the tags it was asked to apply (the real one caps at 5
+// and merges live thread tags, but tests drive the cap explicitly when needed).
+const fakeEnsureForumTag = jest.fn(async (_forum: any, typeId: string) => `tag-${typeId}`);
+const fakeApplyForumTags = jest.fn(async (_forum: any, _threadId: string, tags: string[]) => tags);
+
 const deps = {
   fetchMessagesAsTranscript: fakeFetchMessages,
   verifiedChannelDelete: fakeVerifiedChannelDelete,
   archivedAppRepo: fakeRepo,
   positionRepo: fakePositionRepo,
+  ensureForumTag: fakeEnsureForumTag,
+  applyForumTags: fakeApplyForumTags,
 } as unknown as CloseApplicationWorkflowDeps;
 
 interface FakeForumState {
@@ -144,6 +152,10 @@ describe('archiveAndCloseApplication', () => {
     fakeFetchMessages.mockImplementation(async () => []);
     fakePositionRepo.findOneBy.mockClear();
     fakePositionRepo.findOneBy.mockImplementation(async () => null);
+    fakeEnsureForumTag.mockClear();
+    fakeEnsureForumTag.mockImplementation(async (_forum: any, typeId: string) => `tag-${typeId}`);
+    fakeApplyForumTags.mockClear();
+    fakeApplyForumTags.mockImplementation(async (_forum: any, _threadId: string, tags: string[]) => tags);
     forumState = { threadsCreated: [], threadsFetched: new Map() };
     forumChannel = makeFakeForumChannel(forumState);
   });
@@ -534,5 +546,119 @@ describe('archiveAndCloseApplication', () => {
     expect(fields['Reviewed by']).toBe('reviewer (`rev-1`)');
     expect(fields['Closed by']).toBe('closer (`staff-2`)');
     expect(fields['Application #']).toBe('55');
+  });
+
+  // -------------------------------------------------------------------------
+  // Forum tags (v3.16.1): position + Accepted/Rejected outcome, accumulation
+  // -------------------------------------------------------------------------
+
+  test('first close: applies position + outcome tags and persists them on the archive row', async () => {
+    fakePositionRepo.findOneBy.mockResolvedValue({ id: 7, title: 'Moderator', emoji: '🛡️' });
+    const client = makeFakeClient(forumChannel);
+
+    await archiveAndCloseApplication(
+      client,
+      makeApplication({ type: 'position_7', status: 'accepted' }),
+      'guild-1',
+      makeChannel(),
+      'forum-archive-1',
+      deps,
+    );
+
+    // Two tags ensured: position (by position id) + outcome
+    expect(fakeEnsureForumTag).toHaveBeenCalledTimes(2);
+    expect(fakeEnsureForumTag.mock.calls[0][1]).toBe('position_7');
+    expect(fakeEnsureForumTag.mock.calls[1][1]).toBe('outcome_accepted');
+    // Applied to the new thread and persisted on the row
+    expect(fakeApplyForumTags).toHaveBeenCalledTimes(1);
+    expect(fakeApplyForumTags.mock.calls[0][2]).toEqual(['tag-position_7', 'tag-outcome_accepted']);
+    expect(fakeRepoState.createCalls[0].forumTagIds).toEqual(['tag-position_7', 'tag-outcome_accepted']);
+  });
+
+  test('no position and no outcome: no tags ensured, row saved with empty tag list', async () => {
+    const client = makeFakeClient(forumChannel);
+
+    await archiveAndCloseApplication(
+      client,
+      makeApplication({ type: null, status: 'pending' }),
+      'guild-1',
+      makeChannel(),
+      'forum-archive-1',
+      deps,
+    );
+
+    expect(fakeEnsureForumTag).not.toHaveBeenCalled();
+    expect(fakeApplyForumTags).not.toHaveBeenCalled();
+    expect(fakeRepoState.createCalls[0].forumTagIds).toEqual([]);
+  });
+
+  test('re-close append: accumulates the new outcome tag onto the existing archive row', async () => {
+    // Prior close tagged the position; this close is the decision.
+    fakeRepoState.findOneByResult = { messageId: 'existing-thread', forumTagIds: ['tag-position_7'] };
+    fakePositionRepo.findOneBy.mockResolvedValue({ id: 7, title: 'Moderator', emoji: '🛡️' });
+    const client = makeFakeClient(forumChannel);
+
+    await archiveAndCloseApplication(
+      client,
+      makeApplication({ type: 'position_7', status: 'rejected' }),
+      'guild-1',
+      makeChannel(),
+      'forum-archive-1',
+      deps,
+    );
+
+    // Position tag already present; the merged set adds the outcome tag.
+    const applied = fakeApplyForumTags.mock.calls[0][2];
+    expect(applied).toEqual(['tag-position_7', 'tag-outcome_rejected']);
+    // Persisted the accumulated set
+    const savedRow = fakeRepoState.saveCalls.at(-1);
+    expect(savedRow.forumTagIds).toEqual(['tag-position_7', 'tag-outcome_rejected']);
+  });
+
+  test('re-close append: no NEW tags → no re-apply, no extra save', async () => {
+    fakeRepoState.findOneByResult = {
+      messageId: 'existing-thread',
+      forumTagIds: ['tag-position_7', 'tag-outcome_accepted'],
+    };
+    fakePositionRepo.findOneBy.mockResolvedValue({ id: 7, title: 'Moderator', emoji: '🛡️' });
+    const client = makeFakeClient(forumChannel);
+
+    await archiveAndCloseApplication(
+      client,
+      makeApplication({ type: 'position_7', status: 'accepted' }),
+      'guild-1',
+      makeChannel(),
+      'forum-archive-1',
+      deps,
+    );
+
+    // Both tags already on the row → nothing new to apply or persist.
+    expect(fakeApplyForumTags).not.toHaveBeenCalled();
+    expect(fakeRepoState.saveCalls).toHaveLength(0);
+  });
+
+  test('re-close append: persists only tags that actually landed (5-tag cap dropped the new one)', async () => {
+    fakeRepoState.findOneByResult = {
+      messageId: 'existing-thread',
+      forumTagIds: ['a', 'b', 'c', 'd'], // 4 pre-existing (manual/other)
+    };
+    fakePositionRepo.findOneBy.mockResolvedValue({ id: 7, title: 'Moderator', emoji: '🛡️' });
+    // Cap simulation: only the first 5 of the merged set survive.
+    fakeApplyForumTags.mockImplementation(async (_f: any, _t: string, tags: string[]) => tags.slice(0, 5));
+    const client = makeFakeClient(forumChannel);
+
+    await archiveAndCloseApplication(
+      client,
+      makeApplication({ type: 'position_7', status: 'accepted' }),
+      'guild-1',
+      makeChannel(),
+      'forum-archive-1',
+      deps,
+    );
+
+    // merged = [a,b,c,d, tag-position_7, tag-outcome_accepted]; applied caps to 5.
+    const savedRow = fakeRepoState.saveCalls.at(-1);
+    expect(savedRow.forumTagIds).toEqual(['a', 'b', 'c', 'd', 'tag-position_7']);
+    expect(savedRow.forumTagIds).toHaveLength(5);
   });
 });
