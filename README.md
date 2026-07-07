@@ -92,7 +92,7 @@ Auto-detects your server's config, walks you through the rest, and creates chann
 </td>
 <td width="50%" valign="top">
 
-**Insights** — Activity snapshots, growth trends, channel heatmaps, digest reports
+**Analytics** — Activity snapshots, growth trends, channel heatmaps, digest reports
 
 </td>
 </tr>
