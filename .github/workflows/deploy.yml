@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     name: Build and Deploy
     if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
 
@@ -19,33 +19,69 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Build and deploy
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build Docker image
         run: |
           docker build -t cogworks-bot:latest .
-          cd /opt/docker
-          docker-compose stop cogworks 2>/dev/null || true
-          docker-compose rm -f cogworks 2>/dev/null || true
-          docker-compose up -d cogworks
-          # Prune dangling images only (the prior :latest tag we just replaced)
-          # so we don't accidentally evict images other services on this host
-          # may still want — even though the box is dedicated today, the
-          # narrower scope keeps that assumption explicit.
-          docker image prune -f --filter "dangling=true"
-          echo "=== Deployment complete ==="
-          docker-compose ps cogworks
+          docker save cogworks-bot:latest | gzip > cogworks-bot.tar.gz
+
+      # The appleboy actions receive the SSH key, so they're pinned to full
+      # commit SHAs rather than movable tags.
+      - name: Copy image to server
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "cogworks-bot.tar.gz"
+          target: "/tmp/"
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          # set -e: stop before touching the running container if the image
+          # fails to load (ssh-action's replacement for the removed script_stop).
+          script: |
+            set -e
+            gunzip -c /tmp/cogworks-bot.tar.gz | docker load
+            rm /tmp/cogworks-bot.tar.gz
+            cd /opt/docker
+            docker-compose stop cogworks 2>/dev/null || true
+            docker-compose rm -f cogworks 2>/dev/null || true
+            docker-compose up -d cogworks
+            # Prune dangling images only (the prior :latest tag we just replaced)
+            # so we don't accidentally evict images other services on this host
+            # may still want — even though the box is dedicated today, the
+            # narrower scope keeps that assumption explicit.
+            docker image prune -f --filter "dangling=true"
+            echo "=== Deployment complete ==="
+            docker-compose ps cogworks
 
       - name: Verify deployment
-        run: |
-          echo "Waiting for health check..."
-          sleep 15
-          if docker-compose -f /opt/docker/docker-compose.yml ps cogworks | grep -q "Up"; then
-            echo "Deployment successful!"
-            docker-compose -f /opt/docker/docker-compose.yml logs --tail=20 cogworks
-          else
-            echo "Deployment may have failed. Checking logs..."
-            docker-compose -f /opt/docker/docker-compose.yml logs --tail=50 cogworks
-            exit 1
-          fi
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            echo "Waiting for health check..."
+            sleep 15
+            if docker-compose -f /opt/docker/docker-compose.yml ps cogworks | grep -q "Up"; then
+              echo "Deployment successful!"
+              docker-compose -f /opt/docker/docker-compose.yml logs --tail=20 cogworks
+            else
+              echo "Deployment may have failed. Checking logs..."
+              docker-compose -f /opt/docker/docker-compose.yml logs --tail=50 cogworks
+              exit 1
+            fi
 
   update-badges:
     runs-on: ubuntu-latest
