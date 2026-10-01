@@ -23,65 +23,68 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Build Docker image
+        # --load: put the image in the local store whichever builder is active
         run: |
-          docker build -t cogworks-bot:latest .
-          docker save cogworks-bot:latest | gzip > cogworks-bot.tar.gz
+          docker build --load -t cogworks-bot:latest .
+          docker image inspect cogworks-bot:latest --format 'Built image {{.Id}}'
 
-      # The appleboy actions receive the SSH key, so they're pinned to full
-      # commit SHAs rather than movable tags.
-      - name: Copy image to server
-        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
-          source: "cogworks-bot.tar.gz"
-          target: "/tmp/"
+      # Everything happens over ONE SSH connection: the server rate-limits new
+      # SSH connections, and scp-action's extra connections got reset (#38).
+      # The image streams straight into docker load, then the same session
+      # restarts the service and runs the health check.
+      - name: Deploy and verify
+        timeout-minutes: 10
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_USERNAME: ${{ secrets.SERVER_USERNAME }}
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+        run: |
+          # The hostname is masked as a secret, but ssh errors print the
+          # resolved IP; mask that too so it never lands in this public log.
+          { getent ahosts "$SERVER_HOST" || true; } | awk '{print $1}' | sort -u |
+            while read -r ip; do echo "::add-mask::$ip"; done
 
-      - name: Deploy to server
-        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
+          (umask 077 && printf '%s\n' "$SERVER_SSH_KEY" > "$RUNNER_TEMP/deploy_key")
+
           # set -e: stop before touching the running container if the image
-          # fails to load (ssh-action's replacement for the removed script_stop).
-          script: |
-            set -e
-            gunzip -c /tmp/cogworks-bot.tar.gz | docker load
-            rm /tmp/cogworks-bot.tar.gz
-            cd /opt/docker
-            docker-compose stop cogworks 2>/dev/null || true
-            docker-compose rm -f cogworks 2>/dev/null || true
-            docker-compose up -d cogworks
-            # Prune dangling images only (the prior :latest tag we just replaced)
-            # so we don't accidentally evict images other services on this host
-            # may still want — even though the box is dedicated today, the
-            # narrower scope keeps that assumption explicit.
-            docker image prune -f --filter "dangling=true"
-            echo "=== Deployment complete ==="
-            docker-compose ps cogworks
+          # fails to load.
+          remote_script=$(cat <<'EOF'
+          set -e
+          gunzip | docker load
+          cd /opt/docker
+          docker-compose stop cogworks 2>/dev/null || true
+          docker-compose rm -f cogworks 2>/dev/null || true
+          docker-compose up -d cogworks
+          # Prune dangling images only (the prior :latest tag we just replaced)
+          # so we don't accidentally evict images other services on this host
+          # may still want — even though the box is dedicated today, the
+          # narrower scope keeps that assumption explicit.
+          docker image prune -f --filter "dangling=true"
+          echo "=== Deployment complete ==="
+          docker-compose ps cogworks
+          docker inspect --format 'Running image {{.Image}}' "$(docker-compose ps -q cogworks)" || true
 
-      - name: Verify deployment
-        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
-          script: |
-            echo "Waiting for health check..."
-            sleep 15
-            if docker-compose -f /opt/docker/docker-compose.yml ps cogworks | grep -q "Up"; then
-              echo "Deployment successful!"
-              docker-compose -f /opt/docker/docker-compose.yml logs --tail=20 cogworks
-            else
-              echo "Deployment may have failed. Checking logs..."
-              docker-compose -f /opt/docker/docker-compose.yml logs --tail=50 cogworks
-              exit 1
-            fi
+          echo "Waiting for health check..."
+          sleep 15
+          if docker-compose ps cogworks | grep -q "Up"; then
+            echo "Deployment successful!"
+            docker-compose logs --tail=20 cogworks
+          else
+            echo "Deployment may have failed. Checking logs..."
+            docker-compose logs --tail=50 cogworks
+            exit 1
+          fi
+          EOF
+          )
+
+          docker save cogworks-bot:latest | gzip | ssh \
+            -i "$RUNNER_TEMP/deploy_key" -p "$SERVER_PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o LogLevel=ERROR \
+            -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts" \
+            -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+            "$SERVER_USERNAME@$SERVER_HOST" "$remote_script"
 
   update-badges:
     runs-on: ubuntu-latest
