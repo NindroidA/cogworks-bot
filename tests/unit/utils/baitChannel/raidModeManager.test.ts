@@ -9,43 +9,61 @@
  *
  * Automates smoke-test checklist §8 (raid mode). Discord-side fakes stand in
  * for the gateway/REST surface; the irreducible "look at the real audit log /
- * real channel perms" items stay manual.
+ * real channel perms" items stay manual. The fakes are stateful (edits change
+ * the overwrite, repos hand out row copies) so a bot restart can be simulated
+ * with a second manager over the same store.
  */
 
-import { describe, expect, jest, test } from 'bun:test';
-import { RaidModeManager } from '../../../../src/utils/baitChannel/raidModeManager';
+import { describe, expect, jest, spyOn, test } from 'bun:test';
+import { RaidModeGuildUnavailableError, RaidModeManager } from '../../../../src/utils/baitChannel/raidModeManager';
+import { enhancedLogger } from '../../../../src/utils/monitoring/enhancedLogger';
 
 const EVERYONE = 'everyone-role-id';
 
 // A fake text channel with a configurable prior @everyone SendMessages overwrite.
 // priorSend: true = explicit allow, false = explicit deny, null = no overwrite (inherit).
+// Edits update the overwrite, like Discord does; `failEdits` makes them throw (e.g. Missing Permissions).
 function makeChannel(id: string, name: string, priorSend: boolean | null) {
   const overwriteCache = new Map<string, unknown>();
-  if (priorSend === true || priorSend === false) {
-    overwriteCache.set(EVERYONE, {
-      allow: { has: () => priorSend === true },
-      deny: { has: () => priorSend === false },
-    });
-  }
+  const setSend = (value: boolean | null | undefined) => {
+    if (value === true || value === false) {
+      overwriteCache.set(EVERYONE, { allow: { has: () => value === true }, deny: { has: () => value === false } });
+    } else {
+      overwriteCache.delete(EVERYONE);
+    }
+  };
+  setSend(priorSend);
   const editValues: Array<boolean | null | undefined> = [];
-  return {
+  const channel = {
     id,
     name,
+    failEdits: false,
     isTextBased: () => true,
     permissionOverwrites: {
       cache: overwriteCache,
       edit: jest.fn(async (_role: unknown, opts: { SendMessages?: boolean | null }) => {
+        await Promise.resolve(); // yield like a REST call, so concurrent sweeps can interleave
+        if (channel.failEdits) throw new Error('Missing Permissions');
         editValues.push(opts.SendMessages);
+        setSend(opts.SendMessages);
       }),
     },
     editValues,
+    setSend,
   };
+  return channel;
+}
+
+/** Current @everyone SendMessages state of a fake channel. */
+function sendState(ch: FakeChannel): boolean | null {
+  const ow = ch.permissionOverwrites.cache.get(EVERYONE) as { allow: { has: () => boolean } } | undefined;
+  return ow ? ow.allow.has() : null;
 }
 
 type FakeChannel = ReturnType<typeof makeChannel>;
 
 function makeCache(channels: FakeChannel[]): any {
-  const map = new Map(channels.map((c) => [c.id, c]));
+  const map = new Map(channels.map(c => [c.id, c]));
   return {
     filter: (fn: (c: FakeChannel) => boolean) => makeCache(channels.filter(fn)),
     values: () => map.values(),
@@ -60,6 +78,7 @@ function makeGuild(id: string, channels: FakeChannel[]) {
   return {
     id,
     name: `Guild ${id}`,
+    available: true,
     roles: { everyone: { id: EVERYONE } },
     channels: {
       cache: makeCache(channels),
@@ -84,22 +103,60 @@ function makeConfig(overrides: Record<string, unknown> = {}): any {
   };
 }
 
-function makeManager(config: any) {
+// The "database": one config row plus the bait log, shared across manager instances (= restarts).
+function makeStore(config: any) {
+  return { row: { ...config }, logs: [] as any[] };
+}
+
+// Honors the two TypeORM operators the manager queries `currentRaidModeUntil` with.
+function matchesUntil(op: any, until: Date | null): boolean {
+  if (!op) return true;
+  if (!until) return false;
+  if (op.type === 'lessThanOrEqual') return until.getTime() <= op.value.getTime();
+  if (op.type === 'moreThan') return until.getTime() > op.value.getTime();
+  throw new Error(`unexpected operator ${op.type}`);
+}
+
+function makeManager(config: any, store = makeStore(config)) {
   const configRepo = {
-    findOne: jest.fn(async () => config),
-    find: jest.fn(async () => [config]),
-    save: jest.fn(async (c: any) => c),
+    findOne: jest.fn(async () => ({ ...store.row })),
+    find: jest.fn(async (opts: any = {}) =>
+      matchesUntil(opts.where?.currentRaidModeUntil, store.row.currentRaidModeUntil) ? [{ ...store.row }] : [],
+    ),
+    save: jest.fn(async (c: any) => {
+      store.row = { ...c };
+      return c;
+    }),
+    update: jest.fn(async (_where: unknown, patch: any) => {
+      store.row = { ...store.row, ...patch };
+    }),
   };
   const logRepo = {
     create: jest.fn((x: any) => x),
-    save: jest.fn(async (x: any) => x),
+    save: jest.fn(async (x: any) => {
+      store.logs.push({ ...x, id: store.logs.length + 1 });
+      return x;
+    }),
+    // Newest first, like `order: { createdAt: 'DESC', id: 'DESC' }`.
+    find: jest.fn(async (opts: any) =>
+      store.logs.filter(l => l.guildId === opts.where.guildId && l.actionTaken === opts.where.actionTaken).reverse(),
+    ),
   };
   const mgr = new RaidModeManager({ configRepo, logRepo } as any);
-  return { mgr, configRepo, logRepo };
+  return { mgr, configRepo, logRepo, store };
 }
 
 describe('RaidModeManager', () => {
   describe('getStatus', () => {
+    test('stays active past the cap until the lockdown is actually released', async () => {
+      const config = makeConfig({ currentRaidModeUntil: new Date(Date.now() - 1000) });
+      const { mgr } = makeManager(config);
+      const guild = makeGuild('g1', [makeChannel('c', 'general', null)]);
+      expect((await mgr.getStatus('g1')).active).toBe(true); // channels are still locked
+      await mgr.checkAutoRelease(guild);
+      expect((await mgr.getStatus('g1')).active).toBe(false);
+    });
+
     test('inactive when currentRaidModeUntil is null', async () => {
       const config = makeConfig({ currentRaidModeUntil: null });
       const { mgr } = makeManager(config);
@@ -232,12 +289,12 @@ describe('RaidModeManager', () => {
       const ch = makeChannel('c', 'general', null);
       const guild = makeGuild('g1', [ch]);
       const config = makeConfig({ currentRaidModeUntil: new Date(Date.now() + 60_000) });
-      const { mgr, configRepo, logRepo } = makeManager(config);
+      const { mgr, configRepo, logRepo, store } = makeManager(config);
 
       const released = await mgr.releaseRaidMode(guild, 'mod-1', 'all clear');
       expect(released).toBe(true);
-      expect(config.currentRaidModeUntil).toBeNull();
-      expect(configRepo.save).toHaveBeenCalled();
+      expect(store.row.currentRaidModeUntil).toBeNull();
+      expect(configRepo.update).toHaveBeenCalled();
       expect(logRepo.save).toHaveBeenCalled(); // raid-mode-released meta row
     });
 
@@ -245,11 +302,11 @@ describe('RaidModeManager', () => {
       const config = makeConfig({ currentRaidModeUntil: new Date(Date.now() - 1000) });
       const ch = makeChannel('c', 'general', null);
       const guild = makeGuild('g1', [ch]);
-      const { mgr, configRepo } = makeManager(config);
+      const { mgr, configRepo, store } = makeManager(config);
 
       await mgr.checkAutoRelease(guild);
-      expect(config.currentRaidModeUntil).toBeNull();
-      expect(configRepo.save).toHaveBeenCalled();
+      expect(store.row.currentRaidModeUntil).toBeNull();
+      expect(configRepo.update).toHaveBeenCalled();
     });
 
     test('checkAutoRelease is a no-op while still within the cap', async () => {
@@ -261,6 +318,321 @@ describe('RaidModeManager', () => {
       await mgr.checkAutoRelease(guild);
       expect(config.currentRaidModeUntil).toEqual(future);
       expect(configRepo.save).not.toHaveBeenCalled();
+      expect(configRepo.update).not.toHaveBeenCalled();
+    });
+
+    test('channels are restored before the raid is cleared in the DB (a crash mid-release leaves it active)', async () => {
+      const ch = makeChannel('c', 'general', true);
+      const guild = makeGuild('g1', [ch]);
+      const config = makeConfig();
+      const { mgr, configRepo, store } = makeManager(config);
+      await mgr.enterRaidMode(guild, config);
+
+      const stateWhenCleared: Array<boolean | null> = [];
+      configRepo.update.mockImplementation(async (_where: unknown, patch: any) => {
+        stateWhenCleared.push(sendState(ch));
+        store.row = { ...store.row, ...patch };
+      });
+      await mgr.releaseRaidMode(guild, 'mod-1');
+      expect(stateWhenCleared).toEqual([true]);
+    });
+
+    test('auto-release keeps the raid when no channel could be restored, and a later sweep finishes it', async () => {
+      const ch = makeChannel('c', 'general', true);
+      const guild = makeGuild('g1', [ch]);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      mgr.setGuildFetcher(async () => guild);
+      await mgr.enterRaidMode(guild, config);
+      store.row.currentRaidModeUntil = new Date(Date.now() - 1000);
+
+      ch.failEdits = true; // ManageRoles revoked mid-raid
+      expect(await mgr.releaseExpired('system:auto-release')).toBe(0);
+      expect(store.row.currentRaidModeUntil).not.toBeNull();
+      expect((await mgr.getStatus('g1')).active).toBe(true);
+
+      ch.failEdits = false;
+      expect(await mgr.releaseExpired('system:auto-release')).toBe(1);
+      expect(store.row.currentRaidModeUntil).toBeNull();
+      expect(sendState(ch)).toBe(true);
+    });
+
+    test('a manual release with a channel it cannot restore still completes and restores the rest', async () => {
+      const ok = makeChannel('ok', 'general', true);
+      const stuck = makeChannel('stuck', 'chat', null);
+      const guild = makeGuild('g1', [ok, stuck]);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      await mgr.enterRaidMode(guild, config);
+
+      stuck.failEdits = true;
+      expect(await mgr.releaseRaidMode(guild, 'mod-1')).toBe(true);
+      expect(store.row.currentRaidModeUntil).toBeNull();
+      expect([sendState(ok), sendState(stuck)]).toEqual([true, false]);
+    });
+
+    test('an unavailable guild (outage, empty channel cache) is not auto-released until it is back', async () => {
+      const ch = makeChannel('c', 'general', true);
+      const guild = makeGuild('g1', [ch]);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      await mgr.enterRaidMode(guild, config);
+      store.row.currentRaidModeUntil = new Date(Date.now() - 1000);
+
+      mgr.setGuildFetcher(async () => ({ ...makeGuild('g1', []), available: false }));
+      expect(await mgr.releaseExpired('system:auto-release')).toBe(0);
+      expect(store.row.currentRaidModeUntil).not.toBeNull();
+      expect(sendState(ch)).toBe(false);
+
+      mgr.setGuildFetcher(async () => guild);
+      expect(await mgr.releaseExpired('system:auto-release')).toBe(1);
+      expect(sendState(ch)).toBe(true);
+    });
+
+    test('a manual release while the guild is unavailable is refused and leaves the raid and channels locked', async () => {
+      const ch = makeChannel('c', 'general', true);
+      const guild = makeGuild('g1', [ch]);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      await mgr.enterRaidMode(guild, config);
+
+      // e.g. a dashboard release for a guild that was unavailable at boot: empty channel cache.
+      const unavailable = { ...makeGuild('g1', []), available: false };
+      await expect(mgr.releaseRaidMode(unavailable, 'dashboard')).rejects.toBeInstanceOf(RaidModeGuildUnavailableError);
+      expect(store.row.currentRaidModeUntil).not.toBeNull();
+      expect(store.logs.some(l => l.actionTaken === 'raid-mode-released')).toBe(false);
+
+      expect(await mgr.releaseRaidMode(guild, 'dashboard')).toBe(true);
+      expect(sendState(ch)).toBe(true);
+    });
+
+    test('channels the lockdown never locked are not restore failures, so the sweep still releases', async () => {
+      // The bot can't manage this channel (hidden, or Manage Roles missing): its lock and restore edits fail.
+      const hidden = makeChannel('hidden', 'mod-only', null);
+      hidden.failEdits = true;
+      const guild = makeGuild('g1', [hidden]);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      mgr.setGuildFetcher(async () => guild);
+      await mgr.enterRaidMode(guild, config); // every lock edit fails
+      store.row.currentRaidModeUntil = new Date(Date.now() - 1000);
+
+      expect(await mgr.releaseExpired('system:auto-release')).toBe(1);
+      expect(store.row.currentRaidModeUntil).toBeNull();
+      expect(sendState(hidden)).toBeNull();
+    });
+
+    test('a manual release does not warn about a channel it never locked', async () => {
+      const general = makeChannel('general', 'general', true);
+      const hidden = makeChannel('hidden', 'mod-only', null);
+      hidden.failEdits = true;
+      const guild = makeGuild('g1', [general, hidden]);
+      const config = makeConfig();
+      const { mgr } = makeManager(config);
+      await mgr.enterRaidMode(guild, config);
+
+      const warnSpy = spyOn(enhancedLogger, 'warn');
+      try {
+        expect(await mgr.releaseRaidMode(guild, 'mod-1')).toBe(true);
+        const warnings = warnSpy.mock.calls.map(([message]) => String(message));
+        expect(warnings.filter(m => m.includes('could not restore'))).toEqual([]);
+      } finally {
+        warnSpy.mockRestore();
+      }
+      expect(sendState(general)).toBe(true);
+    });
+  });
+
+  describe('restart mid-raid (persisted snapshot)', () => {
+    function threeChannels() {
+      return [
+        makeChannel('allow', 'general', true),
+        makeChannel('none', 'chat', null),
+        makeChannel('deny', 'news', false),
+      ];
+    }
+
+    // Boot path: a fresh manager over the same store, wired like src/index.ts.
+    async function reboot(config: any, store: any, guild: any) {
+      const next = makeManager(config, store);
+      next.mgr.setGuildFetcher(async () => guild);
+      await next.mgr.restoreActiveLockdowns();
+      next.mgr.stopAutoReleaseSweep();
+      return next;
+    }
+
+    test('restore reuses the persisted priors, so a release after the restart restores them (not the lock)', async () => {
+      const [allow, none, deny] = threeChannels();
+      const guild = makeGuild('g1', [allow, none, deny]);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      await mgr.enterRaidMode(guild, config);
+      expect([allow, none, deny].map(sendState)).toEqual([false, false, false]);
+      // Crash before #general's deny landed: the restore must re-lock it.
+      allow.setSend(true);
+
+      const { mgr: rebooted } = await reboot(config, store, guild);
+      expect(sendState(allow)).toBe(false);
+
+      expect(await rebooted.releaseRaidMode(guild, 'mod-1')).toBe(true);
+      expect([allow, none, deny].map(sendState)).toEqual([true, null, false]);
+    });
+
+    test('a cap that elapsed while offline is released at boot with the real priors', async () => {
+      const [allow, none, deny] = threeChannels();
+      const guild = makeGuild('g1', [allow, none, deny]);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      await mgr.enterRaidMode(guild, config);
+      // Push both the row and its persisted `until` into the past by the same amount.
+      const past = new Date(Date.now() - 1000);
+      const entered = store.logs.find(l => l.actionTaken === 'raid-mode-entered');
+      entered.messageContent = JSON.stringify({ ...JSON.parse(entered.messageContent), until: past });
+      store.row.currentRaidModeUntil = past;
+
+      await reboot(config, store, guild);
+      expect(store.row.currentRaidModeUntil).toBeNull();
+      expect([allow, none, deny].map(sendState)).toEqual([true, null, false]);
+    });
+
+    test('the snapshot still matches after the DATETIME column rounds the cap to the second', async () => {
+      const [allow, none, deny] = threeChannels();
+      const guild = makeGuild('g1', [allow, none, deny]);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      await mgr.enterRaidMode(guild, config);
+      const t = store.row.currentRaidModeUntil.getTime();
+      store.row.currentRaidModeUntil = new Date(Math.round(t / 1000) * 1000); // MySQL DATETIME round trip
+
+      const { mgr: rebooted } = await reboot(config, store, guild);
+      await rebooted.releaseRaidMode(guild, 'mod-1');
+      expect([allow, none, deny].map(sendState)).toEqual([true, null, false]);
+    });
+
+    test('a failed write of the snapshot row is logged at error level', async () => {
+      const guild = makeGuild('g1', [makeChannel('c', 'general', true)]);
+      const config = makeConfig();
+      const { mgr, logRepo } = makeManager(config);
+      logRepo.save.mockImplementation(async () => {
+        throw new Error('db down');
+      });
+      const errorSpy = spyOn(enhancedLogger, 'error');
+      try {
+        await mgr.enterRaidMode(guild, config);
+        expect(errorSpy).toHaveBeenCalledWith(
+          expect.stringContaining('raid-mode lockdown snapshot'),
+          expect.any(Error),
+          expect.anything(),
+          expect.anything(),
+        );
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+
+    test('a snapshot from an earlier raid is never applied to the current one', async () => {
+      const ch = makeChannel('c', 'general', true);
+      const guild = makeGuild('g1', [ch]);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      await mgr.enterRaidMode(guild, config);
+      await mgr.releaseRaidMode(guild, 'mod-1');
+      // A later raid locked by an older bot version (no snapshot row), then a restart.
+      ch.setSend(false);
+      store.row.currentRaidModeUntil = new Date(Date.now() + 60_000);
+
+      const { mgr: rebooted } = await reboot(config, store, guild);
+      await rebooted.releaseRaidMode(guild, 'mod-1');
+      expect(sendState(ch)).toBeNull(); // unknown prior → inherit fallback, not the stale `true`
+    });
+
+    test('no persisted snapshot (raid entered before 3.16.5): locked channels fall back to inherit, open ones keep their prior', async () => {
+      const locked = makeChannel('locked', 'general', false); // denied by the old version
+      const open = makeChannel('open', 'chat', true); // a crash left it open
+      const guild = makeGuild('g1', [locked, open]);
+      const config = makeConfig({ currentRaidModeUntil: new Date(Date.now() + 60_000) });
+      const { mgr } = await reboot(config, makeStore(config), guild);
+      expect([sendState(locked), sendState(open)]).toEqual([false, false]);
+
+      await mgr.releaseRaidMode(guild, 'mod-1');
+      expect([sendState(locked), sendState(open)]).toEqual([null, true]);
+    });
+  });
+
+  describe('auto-release and re-entry', () => {
+    test('the sweep releases a lockdown past its cap and restores the channels', async () => {
+      const ch = makeChannel('c', 'general', true);
+      const guild = makeGuild('g1', [ch]);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      mgr.setGuildFetcher(async () => guild);
+      await mgr.enterRaidMode(guild, config);
+      store.row.currentRaidModeUntil = new Date(Date.now() - 1000);
+
+      mgr.startAutoReleaseSweep(5);
+      for (let i = 0; i < 100 && store.row.currentRaidModeUntil; i++) await Bun.sleep(5);
+      mgr.stopAutoReleaseSweep();
+
+      expect(store.row.currentRaidModeUntil).toBeNull();
+      expect(sendState(ch)).toBe(true);
+      expect(store.logs.at(-1)).toMatchObject({ actionTaken: 'raid-mode-released' });
+    });
+
+    test('the sweep leaves a raid that is still within its cap alone', async () => {
+      const config = makeConfig({ currentRaidModeUntil: new Date(Date.now() + 60_000) });
+      const { mgr, store } = makeManager(config);
+      mgr.setGuildFetcher(async () => makeGuild('g1', []));
+      expect(await mgr.releaseExpired('system:auto-release')).toBe(0);
+      expect(store.row.currentRaidModeUntil).not.toBeNull();
+    });
+
+    test('re-entering after the cap but before release keeps the original priors', async () => {
+      const ch = makeChannel('c', 'general', true);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      await mgr.enterRaidMode(makeGuild('g1', [ch]), config);
+      store.row.currentRaidModeUntil = new Date(Date.now() - 1000); // expired, still locked
+
+      // A channel created mid-raid with its own deny was never touched by the bot.
+      const created = makeChannel('new', 'staff', false);
+      const guild = makeGuild('g1', [ch, created]);
+      await mgr.enterRaidMode(guild, { ...store.row });
+      await mgr.releaseRaidMode(guild, 'mod-1');
+
+      expect([sendState(ch), sendState(created)]).toEqual([true, false]);
+    });
+
+    test("the sweep's cap re-check leaves a raid re-entered while it was queued alone", async () => {
+      const ch = makeChannel('c', 'general', true);
+      const guild = makeGuild('g1', [ch]);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      await mgr.enterRaidMode(guild, config);
+      store.row.currentRaidModeUntil = new Date(Date.now() - 1000); // expired, still locked
+
+      // The sweep's release is queued behind a fresh entry for the same guild.
+      const entry = mgr.enterRaidMode(guild, { ...store.row });
+      const release = mgr.releaseRaidMode(guild, 'system:auto-release', 'cap', true);
+      await entry;
+      expect(await release).toBe(false);
+      expect(store.row.currentRaidModeUntil.getTime()).toBeGreaterThan(Date.now());
+      expect(sendState(ch)).toBe(false);
+    });
+
+    test('an entry racing a release waits for it, so it snapshots the restored state', async () => {
+      const ch = makeChannel('c', 'general', true);
+      const guild = makeGuild('g1', [ch]);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      await mgr.enterRaidMode(guild, config);
+
+      await Promise.all([
+        mgr.releaseRaidMode(guild, 'mod-1'),
+        mgr.enterRaidMode(guild, { ...store.row, currentRaidModeUntil: null }),
+      ]);
+      expect(sendState(ch)).toBe(false);
+      await mgr.releaseRaidMode(guild, 'mod-1');
+      expect(sendState(ch)).toBe(true);
     });
   });
 });
