@@ -68,9 +68,6 @@ async function runDailySnapshot(client: Client): Promise<void> {
       }
     }
 
-    // Clean stale in-memory entries
-    activityTracker.cleanStaleEntries();
-
     // Clean old snapshots (90+ days)
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - RETENTION_DAYS.ANALYTICS_SNAPSHOT);
@@ -103,6 +100,10 @@ async function runDailySnapshot(client: Client): Promise<void> {
     );
   } catch (error) {
     enhancedLogger.error('Analytics snapshot job failed', error as Error, LogCategory.SYSTEM);
+  } finally {
+    // Always — including the no-guild-enabled early return — or counters for
+    // guilds that never opted in pile up until restart.
+    activityTracker.cleanStaleEntries();
   }
 }
 

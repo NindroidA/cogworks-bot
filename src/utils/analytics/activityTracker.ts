@@ -3,7 +3,8 @@
  *
  * Lightweight, privacy-first: only aggregate counts are stored.
  * Called from event handlers (messageCreate, voiceStateUpdate, guildMemberAdd/Remove).
- * Data is flushed to AnalyticsSnapshot once daily by the snapshot job.
+ * Data is flushed to AnalyticsSnapshot by the midnight snapshot job and on
+ * graceful shutdown; each buffered day lands in its own date's row.
  */
 
 import { AppDataSource } from '../../typeorm';
@@ -44,6 +45,27 @@ function createCounters(): GuildDayCounters {
  */
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+type TopChannel = NonNullable<AnalyticsSnapshot['topChannels']>[number];
+
+/**
+ * Merge a flush window's top channels into the row's stored ones (counts add
+ * up; uniqueUsers keeps the larger window), re-ranked to the top 5.
+ */
+function mergeTopChannels(stored: TopChannel[] | null, next: TopChannel[]): TopChannel[] | null {
+  if (next.length === 0) return stored;
+  const merged = new Map((stored ?? []).map(ch => [ch.channelId, { ...ch }]));
+  for (const ch of next) {
+    const prev = merged.get(ch.channelId);
+    merged.set(
+      ch.channelId,
+      prev
+        ? { ...ch, count: prev.count + ch.count, uniqueUsers: Math.max(prev.uniqueUsers ?? 0, ch.uniqueUsers ?? 0) }
+        : ch,
+    );
+  }
+  return [...merged.values()].sort((a, b) => b.count - a.count).slice(0, 5);
 }
 
 class ActivityTracker {
@@ -117,25 +139,21 @@ class ActivityTracker {
   }
 
   /**
-   * Flush today's counters for a specific guild into an AnalyticsSnapshot row.
-   * After flushing, the in-memory counters are removed.
+   * Flush one guild-day's counters into its AnalyticsSnapshot row, then drop
+   * them from memory (before the DB write, so events recorded meanwhile start
+   * a fresh counter instead of being discarded with this one).
    *
    * @param guildId  Guild snowflake
    * @param memberCount  Current total member count (from Guild.memberCount)
+   * @param dateStr  Day to flush (YYYY-MM-DD, UTC); defaults to today
    */
-  async flushSnapshot(guildId: string, memberCount: number): Promise<void> {
-    const dateStr = todayKey();
+  async flushSnapshot(guildId: string, memberCount: number, dateStr: string = todayKey()): Promise<void> {
     const key = `${guildId}:${dateStr}`;
     const c = this.counters.get(key);
-
-    if (!c) {
-      // No activity recorded — still write a snapshot with member count for growth tracking
-      await this.upsertSnapshot(guildId, dateStr, createCounters(), memberCount);
-      return;
-    }
-
-    await this.upsertSnapshot(guildId, dateStr, c, memberCount);
     this.counters.delete(key);
+
+    // No activity recorded — still write a snapshot with member count for growth tracking
+    await this.upsertSnapshot(guildId, dateStr, c ?? createCounters(), memberCount);
   }
 
   private async upsertSnapshot(
@@ -177,15 +195,17 @@ class ActivityTracker {
         snapshot.memberJoined += c.memberJoined;
         snapshot.memberLeft += c.memberLeft;
         snapshot.messageCount += c.messageCount;
-        snapshot.activeMembers = c.activeMembers.size || snapshot.activeMembers;
+        // A restart splits the day into windows whose author sets can't be
+        // unioned; the larger window is the best lower bound we have.
+        snapshot.activeMembers = Math.max(snapshot.activeMembers, c.activeMembers.size);
         snapshot.voiceMinutes += c.voiceMinutes;
-        snapshot.topChannels = topChannels.length > 0 ? topChannels : snapshot.topChannels;
-        snapshot.peakHourUtc = peakHourUtc ?? snapshot.peakHourUtc;
+        snapshot.topChannels = mergeTopChannels(snapshot.topChannels, topChannels);
         if (hasHourlyData) {
           // Merge the new window's hourly counts into whatever is already
           // stored so mid-day flushes accumulate rather than replacing.
           const existing = snapshot.hourlyCounts ?? new Array(24).fill(0);
           snapshot.hourlyCounts = existing.map((v, i) => v + hourlyCounts[i]);
+          snapshot.peakHourUtc = snapshot.hourlyCounts.indexOf(Math.max(...snapshot.hourlyCounts));
         }
       } else {
         snapshot = repo.create({
@@ -213,21 +233,26 @@ class ActivityTracker {
   }
 
   /**
-   * Flush ALL guilds' counters for a given date key and remove them.
-   * Used by the snapshot job at midnight UTC.
+   * Flush every buffered guild-day into its own date's snapshot row and
+   * remove it. Used by the midnight snapshot job (where the day that just
+   * ended is the one that matters) and by graceful shutdown.
+   *
+   * `guildMemberCounts` is also the allow-list: it holds only guilds with
+   * analytics enabled that the bot is still in. Counters for any other guild
+   * (never opted in, or purged by guildDelete / bot-reset) are discarded,
+   * never written.
    *
    * @param guildMemberCounts  Map of guildId -> current member count
    */
   async flushAll(guildMemberCounts: Map<string, number>): Promise<void> {
-    const dateStr = todayKey();
-
-    for (const [key, _counters] of this.counters) {
+    for (const key of [...this.counters.keys()]) {
       const [guildId, keyDate] = key.split(':');
-      // Only flush entries for the current date (stale entries from previous days are cleaned)
-      if (keyDate === dateStr || keyDate < dateStr) {
-        const memberCount = guildMemberCounts.get(guildId) ?? 0;
-        await this.flushSnapshot(guildId, memberCount);
+      const memberCount = guildMemberCounts.get(guildId);
+      if (memberCount === undefined) {
+        this.counters.delete(key);
+        continue;
       }
+      await this.flushSnapshot(guildId, memberCount, keyDate);
     }
   }
 

@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.7] - 2026-10-06
+
+Analytics: the day that just ended is saved at midnight instead of thrown
+away, and a deploy or restart no longer drops the day so far.
+
+### Fixed
+
+- **Analytics lost every day's activity**: the midnight job flushed the new,
+  empty day and then deleted the day that had just ended, so `/analytics`
+  and the dashboard showed zero activity. Each buffered day now lands in its
+  own date's snapshot.
+- **Restarts dropped the day so far**: graceful shutdown now flushes the
+  buffered counters of analytics-enabled guilds (bounded to 5s so a slow
+  database can't hold up exit). A same-day re-flush (shutdown, then
+  midnight) merges top channels and the peak hour and keeps the larger
+  active-member count.
+- **Purged guilds got analytics rows back**: counters are only written for
+  guilds that have analytics enabled and are still joined; anything else is
+  discarded, so guildDelete / bot-reset purges stay purged.
+- **Counters piled up when no guild had analytics enabled**: the midnight
+  job returned early before cleaning stale in-memory counters; it now
+  always cleans them.
+
 ## [3.16.6] - 2026-10-06
 
 Runtime jobs: SLA breach alerts and event reminders actually run in
