@@ -62,11 +62,10 @@
       "announcement": "Announcements",
       "application": "Applications",
       "baitchannel": "Bait channel",
-      "core": "Core (settings, roles, permissions, commands)",
+      "core": "Core (settings, staff roles, permissions, commands)",
       "memory": "Memory",
       "reactionRole": "Reaction roles",
       "rules": "Rules",
-      "staffRole": "Staff role",
       "ticket": "Tickets"
     }
   },

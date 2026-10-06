@@ -4,6 +4,7 @@
  * strings file has nothing a check can't emit.
  */
 import { describe, expect, test } from 'bun:test';
+import { HEALTH_SYSTEM_CHOICES } from '../../../../src/commands/builders/botHealth';
 import { DEFAULT_LOCALE, getLangForLocale, lang, SUPPORTED_LOCALES } from '../../../../src/lang';
 import { getChecks } from '../../../../src/utils/health/registry';
 
@@ -36,6 +37,34 @@ describe('health check registry', () => {
   test('getChecks(system) filters', () => {
     expect(getChecks('ticket')).toEqual([]);
     expect(getChecks().length).toBeGreaterThanOrEqual(getChecks('core').length);
+  });
+});
+
+describe('/bot-health system choices', () => {
+  const labels = lang.health.command.systems as Record<string, string>;
+
+  // A new system's first checks must also add it to the choices and to command.systems.
+  test.each([...new Set(getChecks().map(check => check.system))])('%s is a choice with a label', system => {
+    expect(HEALTH_SYSTEM_CHOICES).toContain(system);
+    expect(labels[system]).toBeString();
+  });
+
+  test('every choice has a label', () => {
+    for (const system of ['all', ...HEALTH_SYSTEM_CHOICES])
+      expect({ system, label: labels[system] }).toEqual({
+        system,
+        label: expect.any(String),
+      });
+  });
+
+  test('staff roles are checked under Core, so they are not a choice of their own', () => {
+    expect(
+      getChecks()
+        .filter(check => check.id.includes('staff_role'))
+        .map(check => check.system),
+    ).toEqual(['core', 'core']);
+    expect(HEALTH_SYSTEM_CHOICES).not.toContain('staffRole');
+    expect(labels.staffRole).toBeUndefined();
   });
 });
 

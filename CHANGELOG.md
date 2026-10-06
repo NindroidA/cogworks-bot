@@ -16,15 +16,16 @@ a later release.
 ### Added
 
 - **`/bot-health check [system] [deep]`** (Administrator, or the bot owner):
-  runs the read-only health check and replies ephemerally with a summary (bot
-  version, check time, one line per system: ✅ no problems, ⚠️ n found,
-  ❌ n found with something broken, ➖ not set up; footer: how many are
-  automatic, need confirmation or are manual fixes). A select opens each
-  system's findings, 10 per page with Previous/Next, each explained in plain
-  language with deleted objects shown as raw IDs and existing ones as
-  mentions, and every page kept inside Discord's embed limits. **Export JSON**
-  attaches the full report (IDs and codes only) for support. The buttons stop
-  after 5 minutes.
+  `system` picks Core (settings, staff roles, permissions, commands) or one
+  `/bot-setup` system. It runs the read-only health check and replies
+  ephemerally with a summary (bot version, check time, one line per system: ✅
+  no problems, ⚠️ n found, ❌ n found with something broken, ➖ not set up;
+  footer: how many are automatic, need confirmation or are manual fixes). A
+  select opens each system's findings, 10 per page with Previous/Next, each
+  explained in plain language with deleted objects shown as raw IDs and
+  existing ones as mentions, and every page kept inside Discord's embed
+  limits. **Export JSON** attaches the full report (IDs and codes only) for
+  support. The buttons stop after 5 minutes.
 - It runs on a server without a BotConfig row (like `/bot-setup` and
   `/bot-reset`), is never hidden by module gating, and is audit-logged.
 - **Rate limits** per server: one check a minute, one deep check every
@@ -33,10 +34,11 @@ a later release.
   bot is in, by ID; anyone else who passes it gets an error.
 - **Slash-command sync check** (`core.commands`): compares the server's
   registered commands (one Discord call) with the set the bot would register
-  there now. Missing or out-of-date commands are degraded, leftover ones are
-  cleanup, all fixable by re-registering (the later repair); Discord refusing
-  the list (50001) means the bot lacks the `applications.commands` scope and
-  the finding links a re-invite.
+  there now; a field Discord leaves out reads the same as an empty one, so an
+  untouched server shows no drift. Missing or out-of-date commands are
+  degraded, leftover ones are cleanup, all fixable by re-registering (the
+  later repair); Discord refusing the list (50001) means the bot lacks the
+  `applications.commands` scope and the finding links a re-invite.
 
 ### Changed
 

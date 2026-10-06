@@ -46,12 +46,8 @@
                   "value": "all"
                 },
                 {
-                  "name": "Core (settings, roles, permissions, commands)",
+                  "name": "Core (settings, staff roles, permissions, commands)",
                   "value": "core"
-                },
-                {
-                  "name": "Staff role",
-                  "value": "staffRole"
                 },
                 {
                   "name": "Tickets",
