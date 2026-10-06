@@ -7,6 +7,8 @@
  *   so a new entity can't be missed again.
  * - Warm config caches kept acting on purged config. /bot-reset also clears
  *   the bait config and keyword caches, which live on the client.
+ * - A table that failed to purge was only logged; it is now reported in
+ *   `failed` so /bot-reset can say the reset is incomplete (v3.16.9).
  */
 
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
@@ -47,8 +49,26 @@ describe('deleteAllGuildData coverage', () => {
     const result = await deleteAllGuildData(GUILD);
 
     expect(result.success).toBe(true);
+    expect(result.failed).toEqual([]);
     expect(purged.has('GuildPermission')).toBe(true);
     expect(guildEntityNames().filter(n => !purged.has(n))).toEqual([]);
+  });
+
+  test('reports the tables whose delete failed, and still purges the rest', async () => {
+    const xpUsers = makeRepo([{ guildId: GUILD, userId: 'u1' }]);
+    xpUsers.delete = async () => {
+      throw new Error('ER_LOCK_WAIT_TIMEOUT');
+    };
+    repos = { XPUser: xpUsers, BotConfig: makeRepo([{ guildId: GUILD }]) };
+
+    const result = await deleteAllGuildData(GUILD);
+
+    // Not a throw and not success:false: callers must check `failed` to see an incomplete purge.
+    expect(result.success).toBe(true);
+    expect(result.failed).toEqual(['XPUser']);
+    expect(result.total).toBe(1);
+    expect(repos.BotConfig.rows).toEqual([]);
+    expect(repos.XPUser.rows).toHaveLength(1);
   });
 
   test('drops cached role grants, so a reset revokes them immediately', async () => {
