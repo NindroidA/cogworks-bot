@@ -3,6 +3,7 @@ import { MessageFlags } from 'discord.js';
 import { StarboardConfig } from '../../../typeorm/entities/starboard';
 import { formatLang, guardFeatureAccess, handleInteractionError, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { invalidateStarboardCache } from '../../../utils/starboard/configCache';
 
 const configRepo = lazyRepo(StarboardConfig);
 const tl = lang.starboard;
@@ -30,6 +31,7 @@ export async function starboardIgnoreHandler(interaction: ChatInputCommandIntera
       ignored.push(channel.id);
       config.ignoredChannels = ignored;
       await configRepo.save(config);
+      invalidateStarboardCache(guildId);
     }
 
     await interaction.reply({
@@ -69,6 +71,7 @@ export async function starboardUnignoreHandler(interaction: ChatInputCommandInte
     ignored.splice(idx, 1);
     config.ignoredChannels = ignored.length > 0 ? ignored : null;
     await configRepo.save(config);
+    invalidateStarboardCache(guildId);
 
     await interaction.reply({
       content: formatLang(tl.ignore.removed, `<#${channel.id}>`),

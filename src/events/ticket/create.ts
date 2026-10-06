@@ -9,6 +9,7 @@ import {
   ModalBuilder,
   type ModalSubmitFields,
   type ModalSubmitInteraction,
+  roleMention,
   type StringSelectMenuInteraction,
   type TextChannel,
   TextInputBuilder,
@@ -434,6 +435,7 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
       [member.id],
       staffRoleIds,
       PermissionSets.TICKET_CREATOR,
+      guild.roles.cache,
     );
 
     const channel = await guild.channels.create({
@@ -477,7 +479,10 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
     }
 
     const botConfig = await botConfigRepo.findOneBy({ guildId });
-    if (botConfig?.enableGlobalStaffRole && botConfig?.globalStaffRole) {
+    const globalStaffRoleId = botConfig?.enableGlobalStaffRole
+      ? extractIdFromMention(botConfig.globalStaffRole ?? '')
+      : null;
+    if (globalStaffRoleId) {
       let shouldPingStaff = false;
 
       if (isBuiltinType) {
@@ -491,7 +496,7 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
 
       if (shouldPingStaff) {
         await newChannel.send({
-          content: `${botConfig.globalStaffRole}\n📨 A new **${displayName}** ticket has been created!`,
+          content: `${roleMention(globalStaffRoleId)}\n📨 A new **${displayName}** ticket has been created!`,
         });
       }
     }

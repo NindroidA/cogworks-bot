@@ -3,8 +3,8 @@
  *
  * Covers enqueue backoff/dead-letter math and the per-tick retry lifecycle
  * (executed → remove, duplicate → remove, queued → attempts++/backoff, failed
- * or MAX_ATTEMPTS → dead-letter, orphaned-grace promotion, guild-gone →
- * terminal). The REST executor is injected (deps.executeBanAction) so we drive
+ * or MAX_ATTEMPTS → dead-letter, orphaned grace rows dropped (never run),
+ * test mode → dry run, guild-gone → terminal). The REST executor is injected (deps.executeBanAction) so we drive
  * outcomes without mock.module() — which is process-shared on bun and would
  * poison the sibling banExecutor suite.
  *
@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, jest, test } from 'bun:test';
-import { RetryQueue } from '../../../../src/utils/baitChannel/retryQueue';
+import { ORPHAN_GRACE_MARGIN_MS, RetryQueue } from '../../../../src/utils/baitChannel/retryQueue';
 
 function makeRow(overrides: Record<string, unknown> = {}): any {
   return {
@@ -168,12 +168,42 @@ describe('RetryQueue', () => {
       expect(row.deadAt).toBeInstanceOf(Date);
     });
 
-    test('orphaned grace row (attempts=0) is promoted and executed', async () => {
-      const row = makeRow({ attempts: 0 });
+    test('orphaned grace row (attempts=0) past the margin is dropped, never executed', async () => {
+      const row = makeRow({ attempts: 0, expiresAt: new Date(Date.now() - ORPHAN_GRACE_MARGIN_MS - 1000) });
       const { mgr, removed, executeBanAction } = makeQueue({ due: [row], execResult: { status: 'executed' } });
       await (mgr as any).tick();
-      expect(executeBanAction).toHaveBeenCalled();
+      expect(executeBanAction).not.toHaveBeenCalled();
       expect(removed).toContain(row);
+    });
+
+    test('grace row just past expiresAt is left to the live timer (no race)', async () => {
+      const row = makeRow({ attempts: 0, expiresAt: new Date(Date.now() - 200) });
+      const { mgr, removed, executeBanAction } = makeQueue({ due: [row] });
+      await (mgr as any).tick();
+      expect(executeBanAction).not.toHaveBeenCalled();
+      expect(removed).not.toContain(row);
+    });
+
+    test('retry in a test-mode guild is a dry run', async () => {
+      const row = makeRow({ attempts: 1 });
+      const { mgr, executeBanAction } = makeQueue({ due: [row] });
+      (mgr as any).deps.getConfig = jest.fn(async () => ({ testMode: true, deleteMessageHours: 2 }));
+      await (mgr as any).tick();
+      const opts = (executeBanAction.mock.calls[0] as any[])[0];
+      expect(opts.testMode).toBe(true);
+      expect(opts.deleteMessageSeconds).toBe(2 * 3600);
+    });
+
+    test('retry reads config from the client-attached manager by default', async () => {
+      const row = makeRow({ attempts: 1, action: 'timeout' });
+      const { mgr, executeBanAction, client } = makeQueue({ due: [row] });
+      const getCachedConfig = jest.fn(async () => ({ testMode: false, timeoutDurationMinutes: 5 }));
+      (client as any).baitChannelManager = { getCachedConfig };
+      await (mgr as any).tick();
+      expect(getCachedConfig).toHaveBeenCalledWith('g1');
+      const opts = (executeBanAction.mock.calls[0] as any[])[0];
+      expect(opts.testMode).toBe(false);
+      expect(opts.timeoutMs).toBe(5 * 60 * 1000);
     });
 
     test('guild no longer accessible → terminal dead-letter, no executor call', async () => {

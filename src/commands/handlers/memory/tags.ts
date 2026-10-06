@@ -27,7 +27,7 @@ import {
   TIMEOUTS,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
-import { resolveMemoryConfig } from './channelPicker';
+import { type MemoryFlowInteraction, replyFlow, replyFlowError, resolveMemoryConfig } from './channelPicker';
 
 const tl = lang.memory;
 const memoryTagRepo = lazyRepo(MemoryTag);
@@ -43,28 +43,29 @@ export async function memoryTagsHandler(interaction: ChatInputCommandInteraction
   const guildId = interaction.guildId!;
   const action = interaction.options.getString('action', true);
 
-  // Check if memory system is configured
-  const config = await resolveMemoryConfig(interaction, guildId);
-  if (!config) return;
+  // Check if memory system is configured (2+ forums: the picker's select owns the next response)
+  const resolved = await resolveMemoryConfig(interaction, guildId);
+  if (!resolved) return;
+  const { config, source } = resolved;
 
   switch (action) {
     case 'add':
-      await handleAddTag(interaction, guildId, config.forumChannelId, config.id);
+      await handleAddTag(source, guildId, config.forumChannelId, config.id);
       break;
     case 'edit':
-      await handleEditTag(interaction, guildId, config.forumChannelId, config.id);
+      await handleEditTag(source, guildId, config.forumChannelId, config.id);
       break;
     case 'remove':
-      await handleRemoveTag(interaction, guildId, config.forumChannelId, config.id);
+      await handleRemoveTag(source, guildId, config.forumChannelId, config.id);
       break;
     case 'list':
-      await handleListTags(interaction, guildId, config.id);
+      await handleListTags(source, guildId, config.id);
       break;
   }
 }
 
 async function handleAddTag(
-  interaction: ChatInputCommandInteraction,
+  interaction: MemoryFlowInteraction,
   guildId: string,
   forumChannelId: string,
   memoryConfigId: number,
@@ -180,7 +181,7 @@ async function handleAddTagSubmit(
 }
 
 async function handleEditTag(
-  interaction: ChatInputCommandInteraction,
+  interaction: MemoryFlowInteraction,
   guildId: string,
   forumChannelId: string,
   memoryConfigId: number,
@@ -188,7 +189,7 @@ async function handleEditTag(
   const tags = await memoryTagRepo.find({ where: { guildId, memoryConfigId } });
 
   if (tags.length === 0) {
-    await replyEphemeralError(interaction, tl.tags.noTags);
+    await replyFlowError(interaction, tl.tags.noTags);
     return;
   }
 
@@ -205,10 +206,9 @@ async function handleEditTag(
       .addOptions(tagOptions),
   );
 
-  const response = await interaction.reply({
+  const response = await replyFlow(interaction, {
     content: tl.tags.edit.selectTag,
     components: [selectMenu],
-    flags: [MessageFlags.Ephemeral],
   });
 
   const collector = response.createMessageComponentCollector({ time: TIMEOUTS.COMPONENT });
@@ -327,7 +327,7 @@ async function handleEditTagSubmit(
 }
 
 async function handleRemoveTag(
-  interaction: ChatInputCommandInteraction,
+  interaction: MemoryFlowInteraction,
   guildId: string,
   forumChannelId: string,
   memoryConfigId: number,
@@ -337,10 +337,7 @@ async function handleRemoveTag(
   });
 
   if (tags.length === 0) {
-    await interaction.reply({
-      content: `${E.info} ${tl.tags.remove.cannotRemoveDefault}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyFlow(interaction, { content: `${E.info} ${tl.tags.remove.cannotRemoveDefault}` });
     return;
   }
 
@@ -357,10 +354,9 @@ async function handleRemoveTag(
       .addOptions(tagOptions),
   );
 
-  const response = await interaction.reply({
+  const response = await replyFlow(interaction, {
     content: tl.tags.remove.selectTag,
     components: [selectMenu],
-    flags: [MessageFlags.Ephemeral],
   });
 
   const collector = response.createMessageComponentCollector({ time: TIMEOUTS.COMPONENT });
@@ -480,7 +476,7 @@ async function confirmRemoveTag(interaction: StringSelectMenuInteraction, guildI
   });
 }
 
-async function handleListTags(interaction: ChatInputCommandInteraction, guildId: string, memoryConfigId: number) {
+async function handleListTags(interaction: MemoryFlowInteraction, guildId: string, memoryConfigId: number) {
   const categoryTags = await memoryTagRepo.find({
     where: { guildId, memoryConfigId, tagType: 'category' },
   });
@@ -489,10 +485,7 @@ async function handleListTags(interaction: ChatInputCommandInteraction, guildId:
   });
 
   if (categoryTags.length === 0 && statusTags.length === 0) {
-    await interaction.reply({
-      content: `${E.info} ${tl.tags.list.empty}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyFlow(interaction, { content: `${E.info} ${tl.tags.list.empty}` });
     return;
   }
 
@@ -520,8 +513,5 @@ async function handleListTags(interaction: ChatInputCommandInteraction, guildId:
     });
   }
 
-  await interaction.reply({
-    embeds: [embed],
-    flags: [MessageFlags.Ephemeral],
-  });
+  await replyFlow(interaction, { embeds: [embed] });
 }
