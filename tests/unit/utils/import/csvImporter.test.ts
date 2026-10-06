@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { CsvImporter } from '../../../../src/utils/import/csvImporter';
+import type { ImportOptions } from '../../../../src/utils/import/types';
 
 /**
  * CsvImporter Unit Tests
@@ -9,10 +10,13 @@ import { CsvImporter } from '../../../../src/utils/import/csvImporter';
  * The logger call is non-critical and won't break the return value.
  */
 
-function createImporter(csv: string): CsvImporter {
+/** The content travels in the options of each call; the importer keeps no per-import state. */
+function createImporter(csv: string) {
   const importer = new CsvImporter();
-  importer.csvContent = csv;
-  return importer;
+  return {
+    import: (guildId: string, dataType: string, options: ImportOptions = {}) =>
+      importer.import(guildId, dataType, { ...options, content: csv }),
+  };
 }
 
 // ===========================================================================
@@ -58,16 +62,24 @@ describe('valid CSV parsing', () => {
     expect(result.imported).toBe(2);
   });
 
-  test('stores parsed records in lastImportRecords', async () => {
+  test('returns the parsed records in the result', async () => {
     const csv = `userId,xp,level,messages
 123456789012345678,1000,3,50`;
     const importer = createImporter(csv);
-    await importer.import('guild1', 'xp');
-    expect(importer.lastImportRecords).toHaveLength(1);
-    expect(importer.lastImportRecords[0].userId).toBe('123456789012345678');
-    expect(importer.lastImportRecords[0].xp).toBe(1000);
-    expect(importer.lastImportRecords[0].level).toBe(3);
-    expect(importer.lastImportRecords[0].messageCount).toBe(50);
+    const { records } = await importer.import('guild1', 'xp');
+    expect(records).toEqual([{ userId: '123456789012345678', xp: 1000, level: 3, messageCount: 50 }]);
+  });
+
+  test('one shared instance parses each call its own content (two guilds at once)', async () => {
+    const shared = new CsvImporter();
+    const [a, b] = await Promise.all([
+      shared.import('guildA', 'xp', { content: '123456789012345678,100,1,1' }),
+      shared.import('guildB', 'xp', { content: '234567890123456789,200,1,2\n345678901234567890,300,1,3' }),
+    ]);
+    expect(a.records?.map(r => r.userId)).toEqual(['123456789012345678']);
+    expect(b.records?.map(r => r.userId)).toEqual(['234567890123456789', '345678901234567890']);
+    expect('csvContent' in shared).toBe(false);
+    expect('lastImportRecords' in shared).toBe(false);
   });
 
   test('handles zero XP and level', async () => {
@@ -232,7 +244,7 @@ describe('empty and edge case input', () => {
     expect(result.imported).toBe(0);
   });
 
-  test('returns failure for unset csvContent', async () => {
+  test('returns failure when no content is passed', async () => {
     const importer = new CsvImporter();
     const result = await importer.import('guild1', 'xp');
     expect(result.success).toBe(false);

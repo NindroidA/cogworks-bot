@@ -480,7 +480,9 @@ class HealthMonitor {
           await this.statusManager.autoSetStatus('major-outage');
         } else if (status.status === 'degraded') {
           await this.statusManager.autoSetStatus('degraded');
-        } else if (status.status === 'healthy' && this.previousStatus !== 'healthy') {
+        } else if (status.status === 'healthy') {
+          // Every healthy tick, not only on recovery, so an expired manual override is reverted.
+          // autoSetStatus is a no-op when nothing changed.
           await this.statusManager.autoSetStatus('operational');
         }
       } catch (error) {
