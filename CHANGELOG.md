@@ -30,9 +30,10 @@ planned for this step come in a separate release to keep this one reviewable.
   mode, no options or more than Discord's 20 reactions per message, and Manage
   Roles; each option's role (same rules as `validateRoleForMenu`, returned as
   codes) and emoji, including two options on the same emoji. Custom emoji
-  compare by id, matching the reaction lookup once #53 lands, so `<:x:id>`,
-  `<a:x:id>`, `x:id` and the bare id (which the dashboard accepts) are one
-  emoji, and animated emoji aren't flagged. Options have no `guildId` column,
+  compare by id through the reaction lookup's own key (`optionEmojiKey` in
+  `utils/reactionRole/optionEmoji.ts`), so `<:x:id>`, `<a:x:id>`, `x:id` and the
+  bare id (which the dashboard accepts) are one emoji, and animated emoji aren't
+  flagged. Options have no `guildId` column,
   so an option whose menu row is gone can't be tied to a guild and isn't
   checked.
 - **Memory**: each memory forum (deleted, not a forum, missing permissions, set
@@ -40,8 +41,8 @@ planned for this step come in a separate release to keep this one reviewable.
   use, and warns that removing one also deletes its memories, tags and welcome
   post) and its welcome post, tags whose memory channel is gone, whose forum
   tag is missing or whose type isn't category or status, stale copies of a tag
-  left by earlier setup re-runs (removable by the coming repair, since
-  re-running setup keeps the linked copy and leaves them), and memories whose memory channel is
+  left by earlier setup re-runs (re-running setup keeps the linked copy and
+  leaves them), and memories whose memory channel is
   gone or whose post was deleted. Archived posts aren't cached, so a deleted
   post is only reported in deep mode, through the REST budget: at most 20 posts
   per run (the rest are listed as not checked), and none in a forum the bot
@@ -52,7 +53,10 @@ planned for this step come in a separate release to keep this one reviewable.
   assignability, and deep-mode message and thread lookups that only report
   "missing" on proof (Unknown Message / Unknown Channel).
 - English strings for every new finding code in `src/lang/en/health.json`. Each
-  names the command that fixes the problem, or says when no action is needed.
+  ends with a step the admin can take (a real command such as
+  `/reactionrole edit mode:normal`, `/bot-setup` for a memory tag missing from its
+  forum, or "Grant the bot Manage Roles") or says no action is needed (memory
+  tags and memories whose channel is gone, deleted memory posts).
 
 ### Changed — health-check engine REST budget (internal)
 

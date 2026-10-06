@@ -5,7 +5,7 @@
  */
 import { describe, expect, test } from 'bun:test';
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
-import { optionEmojiKey } from '../../../../src/utils/health/checks/reactionRoles';
+import { reactionKey } from '../../../../src/utils/health/checks/reactionRoles';
 import { type FakeGuildInit, makeFakeGuild } from '../../../helpers/fakeGuild';
 import { ADMIN_BOT, codes, G, runChecks, withMessages } from './moderationHelpers';
 
@@ -48,16 +48,16 @@ const menu = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-describe('optionEmojiKey', () => {
+describe('reactionKey', () => {
   test('custom emoji by id in every spelling (bare id too); unicode by itself; text is invalid', () => {
     const spellings = [`<:blue:${EMOJI_ID}>`, `<a:blue:${EMOJI_ID}>`, `blue:${EMOJI_ID}`, `<:renamed:${EMOJI_ID}>`, ` ${EMOJI_ID} `];
-    for (const spelling of spellings) expect(optionEmojiKey(spelling)).toBe(EMOJI_ID);
-    expect(optionEmojiKey(' 🔴 ')).toBe('🔴');
-    expect(optionEmojiKey('red')).toBeNull();
-    expect(optionEmojiKey('1')).toBeNull();
-    // Too short for a snowflake, and #53 doesn't strip brackets from a bare id.
-    expect(optionEmojiKey('12345')).toBeNull();
-    expect(optionEmojiKey(`<${EMOJI_ID}>`)).toBeNull();
+    for (const spelling of spellings) expect(reactionKey(spelling)).toBe(EMOJI_ID);
+    expect(reactionKey(' 🔴 ')).toBe('🔴');
+    expect(reactionKey('red')).toBeNull();
+    expect(reactionKey('1')).toBeNull();
+    // Too short for a snowflake, and parseOptionEmoji doesn't strip brackets from a bare id.
+    expect(reactionKey('12345')).toBeNull();
+    expect(reactionKey(`<${EMOJI_ID}>`)).toBeNull();
   });
 });
 

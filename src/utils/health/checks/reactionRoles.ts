@@ -4,6 +4,7 @@
  * emoji. Options load with their menu: they have no guildId column, so an
  * option whose menu is gone can't be tied to a guild and is not checked here.
  */
+import { optionEmojiKey, parseOptionEmoji } from '../../reactionRole/optionEmoji';
 import { type CheckContext, rowsOf } from '../context';
 import { defineCheck, type FindingTarget } from '../define';
 import { missingPermissions, type PermissionName } from '../refs';
@@ -26,23 +27,19 @@ const UNIQUE_PERMS: PermissionName[] = [...MENU_PERMS, 'ManageMessages'];
 /** Discord allows at most 20 different reactions on one message. */
 const MAX_REACTIONS = 20;
 const MODES = new Set(['normal', 'unique', 'lock']);
-const CUSTOM_EMOJI = /^(?:a?:)?(\w{2,32}):(\d{17,20})$/;
 const EMOJI_ID = /^\d{17,20}$/;
 
 const isConfigured = (ctx: CheckContext) => rowsOf(ctx, 'ReactionRoleMenu').length > 0;
 
 /**
- * The reaction lookup's identity for a stored option emoji (`utils/reactionRole/optionEmoji.ts`
- * once #53 lands): a custom emoji by id in any spelling (`<:x:id>`, `<a:x:id>`, `x:id`, or the
- * bare id, which #53 keys as typed and a reaction keys by its id), a unicode emoji by itself.
- * Null when it is neither.
+ * The key the reaction lookup files a stored option emoji under (`optionEmojiKey`), or null when
+ * no reaction can ever match it. A custom emoji keys by its id in any spelling (`<:x:id>`,
+ * `<a:x:id>`, `x:id`); anything else keys as typed, which only a unicode emoji or a bare id
+ * (a reaction keys a custom emoji by its id) can match.
  */
-export function optionEmojiKey(stored: string): string | null {
-  const trimmed = stored.trim();
-  const inner = trimmed.startsWith('<') && trimmed.endsWith('>') ? trimmed.slice(1, -1) : trimmed;
-  const custom = CUSTOM_EMOJI.exec(inner);
-  if (custom) return custom[2];
-  return EMOJI_ID.test(trimmed) || UNICODE_EMOJI.test(trimmed) ? trimmed : null;
+export function reactionKey(stored: string): string | null {
+  const { id, name } = parseOptionEmoji(stored);
+  return id || EMOJI_ID.test(name) || UNICODE_EMOJI.test(name) ? optionEmojiKey(stored) : null;
 }
 
 const menus = defineCheck(
@@ -120,7 +117,7 @@ const options = defineCheck(
         // The roleDelete cleaner removes an option whose role is gone.
         const roleAt = { ...at, field: 'roleId', refId: option.roleId };
         if (role) out.push(emit(`role_${role}`, 'block', role === 'missing' ? 'auto' : 'manual', roleAt));
-        const key = optionEmojiKey(option.emoji);
+        const key = reactionKey(option.emoji);
         const kept = key === null ? undefined : seen.get(key);
         if (key === null) out.push(emit('emoji_invalid', 'block', 'manual', at));
         // Two options on one emoji collide in the lookup, so only one of their roles can ever be given.
