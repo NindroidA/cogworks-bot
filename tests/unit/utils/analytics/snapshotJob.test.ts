@@ -21,6 +21,9 @@ const snapshotFinds: any[] = [];
 let activityTracker: typeof import('../../../../src/utils/analytics/activityTracker').activityTracker;
 let startSnapshotJob: typeof import('../../../../src/utils/analytics/snapshotJob').startSnapshotJob;
 let stopSnapshotJob: typeof import('../../../../src/utils/analytics/snapshotJob').stopSnapshotJob;
+let runMidnight: typeof import('../../../../src/utils/analytics/snapshotJob').runMidnight;
+let runDailySnapshot: typeof import('../../../../src/utils/analytics/snapshotJob').runDailySnapshot;
+let configFinds = 0;
 let originalGetRepository: unknown;
 let AppDataSource: { getRepository: unknown };
 
@@ -29,7 +32,12 @@ beforeAll(async () => {
   originalGetRepository = AppDataSource.getRepository;
   AppDataSource.getRepository = (entity: unknown) =>
     entity === AnalyticsConfig
-      ? { find: async () => enabledConfigs }
+      ? {
+          find: async () => {
+            configFinds++;
+            return enabledConfigs;
+          },
+        }
       : {
           find: async (opts: unknown) => {
             snapshotFinds.push(opts);
@@ -41,7 +49,9 @@ beforeAll(async () => {
           delete: async () => ({ affected: 0 }),
         };
   ({ activityTracker } = await import('../../../../src/utils/analytics/activityTracker'));
-  ({ startSnapshotJob, stopSnapshotJob } = await import('../../../../src/utils/analytics/snapshotJob'));
+  ({ startSnapshotJob, stopSnapshotJob, runMidnight, runDailySnapshot } = await import(
+    '../../../../src/utils/analytics/snapshotJob'
+  ));
 });
 
 afterAll(() => {
@@ -55,21 +65,33 @@ afterEach(() => {
   enabledConfigs = [];
   saved.length = 0;
   snapshotFinds.length = 0;
+  configFinds = 0;
 });
 
 /**
- * Start the job at 23:59 UTC Oct 4 and let its first run (60s later, at
- * midnight) finish. Fake timers move the clock as they advance, and stay on
- * until the run is done so it reads the midnight time throughout.
+ * The midnight run for Oct 4 -> Oct 5, a few seconds after 00:00 UTC. It is
+ * called directly with an explicit `now`: on Bun 1.3.x (the CI version) a
+ * fake-timer callback reads the real clock, so the date can't be driven
+ * through the scheduler. Scheduling itself is covered separately below.
  */
 async function runFirstMidnight(client: unknown): Promise<void> {
-  jest.useFakeTimers();
-  setSystemTime(new Date('2026-10-04T23:59:00Z'));
-  startSnapshotJob(client as Client);
-  jest.advanceTimersByTime(60_000 + 5);
-  for (let i = 0; i < 200; i++) await Promise.resolve(); // the repos are in-memory fakes
-  jest.useRealTimers();
+  const at = new Date('2026-10-05T00:00:05Z');
+  setSystemTime(at);
+  await runDailySnapshot(client as Client, at.getTime());
 }
+
+describe('snapshot job — scheduling', () => {
+  test('the first run fires at the next UTC midnight', async () => {
+    jest.useFakeTimers();
+    setSystemTime(new Date('2026-10-04T23:59:00Z'));
+    startSnapshotJob({ guilds: { cache: new Map() } } as unknown as Client);
+    jest.advanceTimersByTime(59_000);
+    expect(configFinds).toBe(0);
+    jest.advanceTimersByTime(1_005);
+    for (let i = 0; i < 50; i++) await Promise.resolve();
+    expect(configFinds).toBe(1);
+  });
+});
 
 describe('snapshot job — stale counter cleanup', () => {
   test('cleans the previous day even when no guild has analytics enabled', async () => {
@@ -127,5 +149,15 @@ describe('snapshot job — the day that just ended', () => {
 
     expect(snapshotFinds).toHaveLength(1);
     expect(snapshotFinds[0].where.date.value).toEqual(['2026-09-28', '2026-10-04']);
+  });
+});
+
+describe('snapshot job — run midnight', () => {
+  test('a run that fires late, on time or slightly early belongs to the nearest UTC midnight', () => {
+    const midnight = Date.parse('2026-10-05T00:00:00Z');
+    expect(runMidnight(midnight).toISOString()).toBe('2026-10-05T00:00:00.000Z');
+    expect(runMidnight(Date.parse('2026-10-05T00:07:30Z')).getTime()).toBe(midnight); // late timer
+    expect(runMidnight(Date.parse('2026-10-05T03:00:00Z')).getTime()).toBe(midnight); // very late
+    expect(runMidnight(Date.parse('2026-10-04T23:59:59.900Z')).getTime()).toBe(midnight); // interval drift
   });
 });

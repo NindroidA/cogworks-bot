@@ -201,8 +201,8 @@ export async function sendDigest(client: Client, config: AnalyticsConfig, today:
 
   const snapshotRepo = AppDataSource.getRepository(AnalyticsSnapshot);
   const days = digestType === 'weekly' ? 7 : 30;
-  // `today` is the midnight run's start; the digest covers the `days` full
-  // UTC days that end with the one that just finished.
+  // `today` is the run's UTC midnight (snapshotJob runMidnight); the digest
+  // covers the `days` full UTC days that end with the one that just finished.
   const lastDay = new Date(today.getTime() - 60_000);
   const firstDay = new Date(lastDay);
   firstDay.setUTCDate(firstDay.getUTCDate() - (days - 1));

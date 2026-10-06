@@ -10,7 +10,6 @@
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, jest, setSystemTime, test } from 'bun:test';
 import { format } from 'mysql2';
-import { DateUtils } from 'typeorm/util/DateUtils';
 import { MAX } from '../../../../src/utils/constants';
 
 interface SnapshotRepoState {
@@ -199,7 +198,8 @@ describe('activityTracker snapshot date — process time zone (v3.16.7)', () => 
 
       const where = analyticsRepo.findOneBy.mock.calls[0][0];
       expect(format('date = ?', [where.date])).toBe("date = '2026-10-06'");
-      expect(DateUtils.mixedDateToDateString(repoState.saved[0].date)).toBe('2026-10-06');
+      // A 'YYYY-MM-DD' string is written verbatim by TypeORM, whatever the TZ.
+      expect(repoState.saved[0].date).toBe('2026-10-06');
     });
   }
 });
