@@ -1447,7 +1447,13 @@ Complete factory reset: removes all configuration and data, and Cogworks' panels
 /archive cleanup system:all
 ```
 
-Exports archived records as JSON (via DM), then removes them from the database. Forum posts in Discord remain. Use this to reduce database size over time.
+Exports archived records **and their transcript text** as a `.json.gz` file via DM, then asks whether to delete them. **Yes** deletes the exported records **and their forum threads** in Discord. Attachment files in those threads are not in the file.
+
+- A thread that couldn't be read, or that got a new message before you confirmed (for example, a returning user's next ticket closed), is kept along with its record.
+- If the DM fails or the file is over 8 MB, nothing is offered for deletion.
+- Rate limited: one export per 24 hours (an export that delivers nothing doesn't count)
+
+Use this to reduce database size over time.
 
 ### Data Deletion
 
