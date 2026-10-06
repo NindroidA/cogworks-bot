@@ -71,16 +71,19 @@ yet, so nothing a server sees changes in this release.
 
 ### Added — ticket and application health checks (internal, no user-visible command yet)
 
-- **Panels** (tickets and applications): the panel channel is gone or isn't a text
-  channel; the panel isn't posted (a blank message id, which the delete event leaves
+- **Panels** (tickets and applications): no panel channel at all (the channel delete
+  event blanks it and keeps the config row, and a setup that only picked a category
+  never set it), so members can't open anything; the panel channel is gone or isn't a
+  text channel; the panel isn't posted (a blank message id, which the delete event leaves
   behind, reported in every mode; in deep mode also a stored message id that no longer
-  exists, through the budgeted REST fetcher); the bot lacks View Channel / Send Messages
+  exists, through the budgeted REST fetcher), which also blocks members; the bot lacks View Channel / Send Messages
   in the panel channel (only needed to post the panel again, so with a panel posted
   it's a cosmetic note; no Embed Links, since neither panel sends an embed) or, for
   applications, View Channel / Read Message History (the posted panel isn't updated
   when positions change, degraded); the category for new channels is
   unset, gone, not a category, missing Manage Channels / Manage Roles, or at Discord's
-  50-channel limit; a posted panel with no archive forum, so nothing can be closed.
+  50-channel limit; no archive forum (or one the delete event blanked), so nothing can
+  be closed.
 - **Archive forums**: gone, not a forum, missing the permissions closes need, or at
   Discord's 20-tag limit while an active ticket type or position (or an
   Accepted / Rejected outcome) still has no tag. Missing Manage Channels is reported on
@@ -103,7 +106,7 @@ yet, so nothing a server sees changes in this release.
   (removing one needs confirmation: it keeps its reason and applies again if the type
   id is re-added), open tickets and applications whose channel was deleted, and
   tickets stuck in `created` without a channel for more than 10 minutes (a failed
-  creation).
+  creation). These can be closed from the web dashboard, which works without a channel.
 - The health loader reads only open `Ticket` and `Application` rows, so closed
   history never loads.
 
