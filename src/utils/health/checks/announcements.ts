@@ -6,9 +6,10 @@ import type { AnnouncementTemplate } from '../../../typeorm/entities/announcemen
 import { DEFAULT_ANNOUNCEMENT_TEMPLATES } from '../../announcement/defaultTemplates';
 import { rowsOf } from '../context';
 import { defineCheck, type FindingTarget } from '../define';
-import { resolveRole } from '../refs';
+import { resolveChannel, resolveRole } from '../refs';
 import type { HealthCheck, HealthFinding } from '../types';
 import { botLacks, channelFindings, channelNames, EMBED_SEND } from './featureRefs';
+import { threadStatus } from './refHelpers';
 
 const config = defineCheck(
   {
@@ -18,18 +19,26 @@ const config = defineCheck(
     names: ['channel_unset', ...channelNames('channel'), 'role_missing', 'role_everyone', 'role_not_mentionable'],
     isConfigured: ctx => rowsOf(ctx, 'AnnouncementConfig').length > 0,
   },
-  (ctx, emit) => {
+  async (ctx, emit) => {
     const row = rowsOf(ctx, 'AnnouncementConfig')[0];
     if (!row) return [];
     const at: FindingTarget = { entity: 'AnnouncementConfig', rowId: row.id, field: 'defaultChannelId' };
     // `/announcement send` without a channel option posts here. '' is what channelDelete leaves behind.
     // `/announcement-setup` accepts any channel type, so the id may be a thread. Archived threads aren't
-    // cached, so a miss proves nothing: channel_missing would need a REST confirmation, which isn't made.
+    // cached, so a miss proves nothing by itself: deep mode confirms it with one budgeted REST lookup
+    // (a channel deleted while the bot was offline, which channelDelete never blanked).
     // A cached thread reads wrong_type: the send handler only posts to text and announcement channels.
     const rule = { kinds: ['text', 'news'], perms: EMBED_SEND, severity: 'degraded', mayBeThread: true } as const;
-    const out = row.defaultChannelId
-      ? channelFindings(ctx, emit, 'channel', row.defaultChannelId, at, rule)
+    const channelId = row.defaultChannelId;
+    const out = channelId
+      ? channelFindings(ctx, emit, 'channel', channelId, at, rule)
       : [emit('channel_unset', 'degraded', 'manual', at)];
+    if (
+      channelId &&
+      resolveChannel(ctx.guild, channelId, rule).status === 'unknown' &&
+      (await threadStatus(ctx, 'announcement.channel', channelId)) === 'missing'
+    )
+      out.push(emit('channel_missing', 'degraded', 'auto', { ...at, refId: channelId, params: { channelId } }));
     if (!row.defaultRoleId) return out;
 
     const roleId = row.defaultRoleId;
