@@ -76,6 +76,18 @@
                 {
                   "name": "Reaction roles",
                   "value": "reactionRole"
+                },
+                {
+                  "name": "XP",
+                  "value": "xp"
+                },
+                {
+                  "name": "Starboard",
+                  "value": "starboard"
+                },
+                {
+                  "name": "Onboarding",
+                  "value": "onboarding"
                 }
               ],
               "name": "system",

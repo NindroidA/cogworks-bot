@@ -827,7 +827,7 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 **`/bot-health check [system] [deep] [guild-id]`**
 - **Admin-only** (the bot owner can also run it); works even before `/bot-setup` has been run
 - Checks the saved Cogworks settings against the server's live channels, roles and slash commands, and reports what is broken or stale. It only reads; nothing is changed
-- `system` - (Optional) Check one system: Core (which includes the staff roles), Tickets, Applications, Announcements, Bait channel, Memory, Rules, Reaction roles (default: all)
+- `system` - (Optional) Check one system: Core (which includes the staff roles), Tickets, Applications, Announcements, Bait channel, Memory, Rules, Reaction roles, XP, Starboard, Onboarding (default: all)
 - `deep` - (Optional) Also look up messages and threads through Discord (slower)
 - `guild-id` - (Optional, bot owner only) Check another server the bot is in
 - **Summary**: one line per system (✅ no problems, ⚠️ found, ❌ something is broken, ➖ not set up) and how many problems can be fixed automatically, need confirmation, or need a manual fix

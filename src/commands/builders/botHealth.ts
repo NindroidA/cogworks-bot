@@ -11,13 +11,17 @@ import type { HealthSystem } from '../../utils/health/types';
 const tl = lang.health.command;
 
 /**
- * The `system` choices besides `all`: core first, then the `/bot-setup` systems.
- * Staff roles are left out because their checks are part of Core. A test
- * requires every system with checks to be a choice with a label.
+ * The `system` choices besides `all`: core first, then the `/bot-setup` systems,
+ * then the features set up by their own commands. Staff roles are left out
+ * because their checks are part of Core. A test requires every system with
+ * checks to be a choice with a label.
  */
 export const HEALTH_SYSTEM_CHOICES: readonly HealthSystem[] = [
   'core',
   ...(Object.keys(DEFAULT_SYSTEM_STATES) as HealthSystem[]).filter(system => system !== 'staffRole'),
+  'xp',
+  'starboard',
+  'onboarding',
 ];
 
 const systemLabels = tl.systems as Record<string, string>;

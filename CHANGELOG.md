@@ -16,16 +16,16 @@ a later release.
 ### Added
 
 - **`/bot-health check [system] [deep]`** (Administrator, or the bot owner):
-  `system` picks Core (settings, staff roles, permissions, commands) or one
-  `/bot-setup` system. It runs the read-only health check and replies
-  ephemerally with a summary (bot version, check time, one line per system: ✅
-  no problems, ⚠️ n found, ❌ n found with something broken, ➖ not set up;
-  footer: how many are automatic, need confirmation or are manual fixes). A
-  select opens each system's findings, 10 per page with Previous/Next, each
-  explained in plain language with deleted objects shown as raw IDs and
-  existing ones as mentions, and every page kept inside Discord's embed
-  limits. **Export JSON** attaches the full report (IDs and codes only) for
-  support. The buttons stop after 5 minutes.
+  `system` picks Core (settings, staff roles, permissions, commands), one
+  `/bot-setup` system, XP, the starboard or onboarding. It runs the read-only
+  health check and replies ephemerally with a summary (bot version, check time,
+  one line per system: ✅ no problems, ⚠️ n found, ❌ n found with something
+  broken, ➖ not set up; footer: how many are automatic, need confirmation or
+  are manual fixes). A select opens each system's findings, 10 per page with
+  Previous/Next, each explained in plain language with deleted objects shown
+  as raw IDs and existing ones as mentions, and every page kept inside
+  Discord's embed limits. **Export JSON** attaches the full report (IDs and
+  codes only) for support. The buttons stop after 5 minutes.
 - It runs on a server without a BotConfig row (like `/bot-setup` and
   `/bot-reset`), is never hidden by module gating, and is audit-logged. The
   dashboard's command browser lists it under Setup with them.

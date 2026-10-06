@@ -65,9 +65,12 @@
       "baitchannel": "Bait channel",
       "core": "Core (settings, staff roles, permissions, commands)",
       "memory": "Memory",
+      "onboarding": "Onboarding",
       "reactionRole": "Reaction roles",
       "rules": "Rules",
-      "ticket": "Tickets"
+      "starboard": "Starboard",
+      "ticket": "Tickets",
+      "xp": "XP"
     }
   },
   "findings": {
