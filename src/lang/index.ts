@@ -44,6 +44,7 @@ import devEn from './en/dev.json';
 import errorsEn from './en/errors.json';
 import eventEn from './en/event.json';
 import generalEn from './en/general.json';
+import healthEn from './en/health.json';
 import importEn from './en/import.json';
 import mainEn from './en/main.json';
 import memoryEn from './en/memory.json';
@@ -76,6 +77,7 @@ const englishModules = {
   errors: errorsEn,
   event: eventEn,
   general: generalEn,
+  health: healthEn,
   import: importEn,
   main: mainEn,
   memory: memoryEn,
@@ -174,6 +176,7 @@ function assembleLanguage(m: LocaleModules): Language {
     automod: m.automod as typeof automodEn,
     event: m.event as typeof eventEn,
     analytics: m.analytics as typeof analyticsEn,
+    health: m.health as typeof healthEn,
   };
 }
 
