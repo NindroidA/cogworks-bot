@@ -1433,9 +1433,11 @@ Exports every record Cogworks stores for your server (tickets, applications, ann
 /bot-reset
 ```
 
-Complete factory reset: removes all configuration and data, and Cogworks' panels, messages and archive threads. `/bot-setup` and the other setup commands stay available; module commands come back when you set the module up again. Three confirmation steps. **Irreversible.**
+Complete factory reset: removes all configuration and data, Cogworks' panels and messages, the archive forum threads, memory threads, and any **open** ticket and application channels. `/bot-setup` and the other setup commands stay available; module commands come back when you set the module up again. Three confirmation steps. **Irreversible.**
 
-- **Save Data First** DMs you a `.json.gz` archive (archived tickets and applications, memory items, announcement, audit and bait logs) before anything is deleted. If the archive can't be sent (DMs closed, or over 8 MB), the reset stops and nothing is deleted. For a copy of every table, run `/data-export` first.
+- **Save Data First** DMs you a `.json.gz` archive of every record plus the text of every transcript, memory thread and open ticket/application channel. Attachment files are not included. If the archive can't be sent (DMs closed, or over 8 MB), the reset stops and nothing is deleted.
+- With Save Data First, only the threads and channels the archive holds are deleted. Any that couldn't be read, or that were opened or got new messages while the archive was being made, are left in place and listed in the summary.
+- An archive over 8 MB can't be split yet. `/archive cleanup` can shrink the archived tickets and applications in it, but not memory items, XP, activity, analytics or log data; if those make up most of it, reset with **No, Delete Everything** or contact support. `/data-export` skips transcripts, so it may fit under the same 8 MB limit: try it first to save the tables.
 - If some tables can't be purged, the summary says **Factory Reset Incomplete** and lists them; run `/bot-reset` again to finish.
 - Rate limited: one completed reset per 24 hours (cancelling, or a reset that stops or doesn't finish, doesn't count)
 
