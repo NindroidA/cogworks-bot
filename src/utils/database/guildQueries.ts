@@ -174,7 +174,8 @@ export async function deleteByGuild<T extends { guildId: string }>(
  * acting on (and re-creating rows from) the deleted config.
  *
  * @param guildId - Guild ID to delete all data for
- * @returns Object with deletion counts per entity
+ * @returns Object with deletion counts per entity, and the tables whose delete
+ *   failed (`failed`). `success` is false only when the purge couldn't start.
  *
  * @example
  * const result = await deleteAllGuildData(guildId);
@@ -185,6 +186,8 @@ export async function deleteAllGuildData(guildId: string): Promise<{
   total: number;
   tables: number;
   details: Record<string, number>;
+  /** Tables whose delete failed (each logged by safeDbOperation); their rows may remain. */
+  failed: string[];
   error?: string;
 }> {
   try {
@@ -365,16 +368,19 @@ export async function deleteAllGuildData(guildId: string): Promise<{
 
     // Per-table resilience: one table failing shouldn't abort the whole
     // GDPR purge. `safeDbOperation` logs the error and returns null; we
-    // treat null as "0 affected" and continue to the next table. This is
+    // count null as "0 affected", record the table in `failed` so callers
+    // can report an incomplete purge, and continue to the next table. This is
     // the one place that genuinely needs graceful degradation — best-effort
     // partial deletion beats all-or-nothing for compliance work.
     const { safeDbOperation } = await import('../errorHandler');
+    const failed: string[] = [];
     invalidateGuildCaches(guildId);
     for (const { name, repo } of deletions) {
       const result = await safeDbOperation(
         () => deleteByGuild(repo as Repository<{ guildId: string }>, guildId),
         `deleteAllGuildData:${name}`,
       );
+      if (result === null) failed.push(name);
       details[name] = result?.affected ?? 0;
       total += details[name];
     }
@@ -386,11 +392,12 @@ export async function deleteAllGuildData(guildId: string): Promise<{
       total,
       tables: Object.keys(details).length,
       details,
+      failed,
     };
   } catch (error) {
     // Covers failures before the deletion loop starts (dynamic imports,
     // repository resolution). Once the loop runs, per-table errors are
-    // absorbed by `safeDbOperation` and never reach this catch.
+    // absorbed by `safeDbOperation`, reported in `failed`, and never reach this catch.
     enhancedLogger.error(
       `Error in deleteAllGuildData for guildId ${guildId}: ${(error as Error).message}`,
       error instanceof Error ? error : undefined,
@@ -402,6 +409,7 @@ export async function deleteAllGuildData(guildId: string): Promise<{
       total: 0,
       tables: 0,
       details: {},
+      failed: [],
       error: (error as Error).message,
     };
   }
