@@ -99,6 +99,45 @@ the bot stops sending its Discord token to ninsys-api.
   falls back to the old behaviour and logs one deprecation warning at
   startup.
 
+## [3.16.5] - 2026-10-06
+
+Raid mode now lets go when it should. The 4-hour cap was never enforced while
+the bot was running, and a restart mid-raid made the next release re-lock every
+channel instead of unlocking it.
+
+### Fixed
+
+- **Raid mode auto-releases at its 4-hour cap.** `checkAutoRelease` had no
+  caller, so after the cap every channel stayed read-only for `@everyone` while
+  `/baitchannel raid status` already said "inactive". A one-minute sweep
+  (started by the existing boot-time restore) now releases any lockdown past
+  its cap and restores the channels. Status reports raid mode as active until
+  the lockdown is actually released.
+- **Releasing after a bot restart restores the real permissions.** Boot-time
+  restore re-snapshotted channels it had already locked, so the recorded
+  "prior" state was the bot's own deny and a later release (manual or
+  auto) left the whole server read-only. The pre-raid permission snapshot is
+  now saved in the `raid-mode-entered` log row and reloaded at boot and on
+  release. A raid entered before this version still falls back to inherit
+  for channels it can't account for, with a warning.
+- **Entering raid mode again before the release never overwrites the
+  snapshot.** Re-entering after the cap (still locked) keeps the priors
+  already recorded and only adds channels it hasn't touched. Enter, release
+  and the sweep now run one at a time per guild, so a release in progress
+  can't be captured as the next raid's prior state.
+- **A release that can't finish no longer reports raid mode as over.**
+  Channels are restored before the raid is cleared in the database, so a
+  crash or shutdown mid-release leaves it active and the next boot or sweep
+  finishes it. No release runs while a guild is in a Discord outage: the
+  auto-release waits for the next sweep, and a manual release (slash command
+  or dashboard) says the server is unavailable instead of reporting success
+  with every channel still locked. The auto-release also keeps a raid where no
+  channel could be restored (for example, Manage Roles revoked), retrying on
+  the next sweep. Channels a release can't restore are named in a warning,
+  except channels the lockdown never managed to lock (hidden from the bot, or
+  Manage Roles missing at entry), which need no restore. A failed save of the
+  snapshot row is logged as an error.
+
 ## [3.16.4] - 2026-10-06
 
 Bait-channel moderation safety — the grace-period path could ban people it

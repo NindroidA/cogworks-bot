@@ -7,7 +7,7 @@ import { JoinEvent } from '../../../typeorm/entities/bait/JoinEvent';
 import { PendingAction } from '../../../typeorm/entities/bait/PendingAction';
 import type { BaitChannelManager } from '../../baitChannel/baitChannelManager';
 import { DEFAULT_KEYWORDS } from '../../baitChannel/defaultKeywords';
-import { getRaidModeManager } from '../../baitChannel/raidModeManager';
+import { getRaidModeManager, RaidModeGuildUnavailableError } from '../../baitChannel/raidModeManager';
 import { MAX } from '../../constants';
 import { lazyRepo } from '../../database/lazyRepo';
 import { requestGuildCommandRefresh } from '../../setup/commandGating';
@@ -403,7 +403,10 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
     if (!mgr) throw ApiError.conflict('Raid mode manager is not initialized');
     const guild = await client.guilds.fetch(guildId).catch(() => null);
     if (!guild) throw ApiError.notFound('Guild not accessible to the bot');
-    const released = await mgr.releaseRaidMode(guild, triggeredBy, reason);
+    const released = await mgr.releaseRaidMode(guild, triggeredBy, reason).catch(error => {
+      if (error instanceof RaidModeGuildUnavailableError) throw new ApiError(503, error.message);
+      throw error;
+    });
     if (released) {
       await writeAuditLog(guildId, 'bait.raidModeRelease', triggeredBy, {
         reason,
