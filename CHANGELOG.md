@@ -16,9 +16,10 @@ release.
 ### Added — community feature health checks (internal, no user-visible command yet)
 
 - **Announcements**: the default channel is unset, not a text or announcement
-  channel (a thread included), or missing the bot's permissions (a default
-  channel that isn't cached could be an archived thread, so it isn't reported
-  as deleted); the ping role is deleted, or can't be pinged (not mentionable
+  channel (a thread included), or missing the bot's permissions; a default
+  channel that isn't cached could be an archived thread, so it's only reported
+  as deleted when deep mode's one REST lookup gets Unknown Channel (a channel
+  deleted while the bot was offline); the ping role is deleted, or can't be pinged (not mentionable
   and the bot lacks Mention Everyone; when the role is @everyone, which
   `/bot-setup` saves by default and which has no mentionable toggle, the
   finding says it can't ping everyone and points to picking a real role);
@@ -55,7 +56,12 @@ release.
   their own commands rather than `/bot-setup`), shared reference rules in
   `src/utils/health/checks/featureRefs.ts` (a channel the bot posts in, a role
   it grants using the reaction-role menu rules, lists of ids to prune), and an
-  English string for every new finding code.
+  English string for every new finding code. Each ends with a step the admin
+  can take (a real command such as `/starboard setup` or
+  `/xp-setup config setting:Level-Up Channel value:none`, the web dashboard for
+  templates and onboarding steps, or a permission to grant) or says no action
+  is needed (deleted ignored channels and roles, multiplier channels, reward
+  roles, and built-in templates added later).
 
 ## [3.16.23] - 2026-10-06
 
