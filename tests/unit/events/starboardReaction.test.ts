@@ -158,8 +158,13 @@ function makeGuild(starboardChannel: StarboardChannelFake | null) {
   return { id: GUILD, channels: { cache } };
 }
 
-function makeMessage(guild: ReturnType<typeof makeGuild>, opts: { partial?: boolean } = {}) {
-  const author = { id: AUTHOR, bot: false, tag: 'author#0001', displayAvatarURL: () => 'https://cdn/avatar.png' };
+function makeMessage(guild: ReturnType<typeof makeGuild>, opts: { partial?: boolean; bot?: boolean } = {}) {
+  const author = {
+    id: AUTHOR,
+    bot: opts.bot ?? false,
+    tag: 'author#0001',
+    displayAvatarURL: () => 'https://cdn/avatar.png',
+  };
   const message: any = {
     id: MESSAGE,
     channelId: SOURCE_CHANNEL,
@@ -311,6 +316,25 @@ describe('starboard threshold', () => {
     expect(embed.author.name).toBe('author#0001');
     expect(partialMessage.fetch).not.toHaveBeenCalled();
   });
+
+  test("un-starring a partial message still drops the author's own star, using the stored author", async () => {
+    const channel = makeStarboardChannel();
+    const message = makeMessage(makeGuild(channel));
+    const live = { count: 4 };
+    const client = makeClient(live);
+
+    await handleAdd(makeReaction(message, { reactors: [AUTHOR, user.id, 'x', 'y'] }), user, client);
+    expect(entryState.rows[0].starCount).toBe(3);
+
+    live.count = 3;
+    // message.author is null on a partial message, so the author must come from the entry
+    const partialMessage = makeMessage(makeGuild(channel), { partial: true });
+    await handleRemove(makeReaction(partialMessage, { reactors: [AUTHOR, 'x', 'y'] }), user, client);
+
+    expect(entryState.rows[0].starCount).toBe(2);
+    expect(channel.posts.get('post-1').embeds[0].footer.text).toBe('⭐ 2 | #general');
+    expect(partialMessage.fetch).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -386,6 +410,31 @@ describe('starboard skips REST for reactions it does not care about', () => {
     expect(client.rest.get).not.toHaveBeenCalled();
     expect(reaction.users.fetch).not.toHaveBeenCalled();
     expect(message.fetch).not.toHaveBeenCalled();
+  });
+
+  test('a cached message written by a bot, with ignoreBots on', async () => {
+    const channel = makeStarboardChannel();
+    const message = makeMessage(makeGuild(channel), { bot: true });
+    const reaction = makeReaction(message);
+    const client = makeClient({ count: 10 });
+
+    await handleAdd(reaction, user, client);
+
+    expect(client.rest.get).not.toHaveBeenCalled();
+    expect(reaction.users.fetch).not.toHaveBeenCalled();
+    expect(channel.send).not.toHaveBeenCalled();
+  });
+
+  test('a partial message written by a bot is checked after its fetch, and never posts', async () => {
+    const channel = makeStarboardChannel();
+    const message = makeMessage(makeGuild(channel), { partial: true, bot: true });
+    const client = makeClient({ count: 10 });
+
+    await handleAdd(makeReaction(message), user, client);
+
+    expect(client.rest.get).toHaveBeenCalledTimes(1);
+    expect(message.fetch).toHaveBeenCalledTimes(1);
+    expect(channel.send).not.toHaveBeenCalled();
   });
 
   test('an ignored channel', async () => {

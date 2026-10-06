@@ -31,8 +31,10 @@ never saw more than one star, so it only ever posted at a threshold of 1.
 
 - **Fewer REST calls on reactions.** The starboard checks the guild's config,
   the emoji and the channel on the partial reaction before fetching anything,
-  so reactions it doesn't care about no longer fetch the message. Existing
-  starboard posts are refreshed from their own embed (color and footer only).
+  so reactions it doesn't care about no longer fetch the message. Stars on a
+  cached bot message are skipped before any REST call while `ignoreBots` is on.
+  Existing starboard posts are refreshed from their own embed (color and footer
+  only).
 
 ## [3.16.3] - 2026-07-07
 

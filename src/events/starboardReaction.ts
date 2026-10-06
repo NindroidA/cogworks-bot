@@ -279,6 +279,10 @@ export async function handleStarboardReactionAdd(
     const channel = message.channel;
     if (config.ignoreNSFW && channel && 'nsfw' in channel && channel.nsfw) return;
 
+    // A cached message already names its author, so a bot post is skipped before
+    // any REST call. A partial message is checked after its fetch, in syncStarboardEntry.
+    if (!message.partial && config.ignoreBots && message.author?.bot) return;
+
     await withMessageLock(`${config.guildId}:${message.id}`, () => syncStarboardEntry(reaction, client, config, true));
   } catch (error) {
     enhancedLogger.error('Error handling starboard reaction add', error as Error, LogCategory.SYSTEM, {
