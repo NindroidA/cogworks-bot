@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.6] - 2026-10-06
+
+Runtime jobs: SLA breach alerts and event reminders actually run in
+production, one failing startup step no longer switches half the bot off, and
+the bot stops sending its Discord token to ninsys-api.
+
+### Fixed
+
+- **SLA breach alerts and event reminders were never scheduled** outside
+  `/dev-test`, so `/ticket sla` never alerted and `/event remind` (plus every
+  default reminder) never posted. Both now run with the other periodic jobs
+  (SLA every 5 minutes, reminders every minute so a "15 minutes before"
+  reminder lands on time) and stop on shutdown. A tick is skipped while the
+  previous one is still running, so a slow run can't post a reminder twice.
+- **Events the bot created had every reminder stored twice**: the command
+  (`/event create`, templates, recurring) added one, and the scheduled-event
+  create handler added another because Discord sends it for the bot's own
+  events too. The handler now skips the bot's own events, and the checker
+  posts one reminder per event and time (existing duplicate rows are marked
+  sent without posting).
+- **One failed startup step disabled the rest**: each `clientReady` step
+  (bait manager, retry queue, presence, internal API, timers, watchdog, raid
+  restore, command registration) is isolated, so a failure is logged and the
+  others still start. The bait manager is attached before the slow raid
+  lockdown restore, and the internal API and timers start before it.
+- **Ticket activity depended on the bait manager**: messages in ticket
+  channels only updated `lastActivityAt` / `firstResponseAt` once the bait
+  channel manager was attached. Now that a failed bait step no longer stops
+  the SLA and auto-close jobs, that update runs either way, so a missing
+  manager can't cause false SLA breaches or auto-close active tickets.
+- **API registration was never retried**: if ninsys-api was down at boot the
+  bot showed offline until its next restart. Registration now retries in the
+  background (30s, 60s, 2m, 4m, then every 5m) without delaying startup, and
+  starts stats sync once it succeeds. With `API_URL` unset it isn't attempted
+  at all (the existing startup warning still says so).
+
+### Changed
+
+- Rollout guards for the newly scheduled jobs: reminders whose event already
+  started, ended or was cancelled (or that are over an hour overdue with the
+  event unavailable) are marked sent without posting, and tickets opened
+  before v3.16.0 began recording first responses don't raise SLA alerts.
+  "Opened" comes from the ticket channel's creation time, so later messages
+  or status changes on an old ticket don't make it look new.
+- A breached ticket whose alert can't be posted (no breach channel, or the
+  bot can't send there) is no longer rewritten and re-logged every 5
+  minutes. A failed alert is still retried on each check until it lands,
+  with an error logged only the first time.
+
+### Security
+
+- **New `COGWORKS_API_TOKEN`** authenticates the bot to ninsys-api instead of
+  the Discord bot token, which was ending up in ninsys-api's request logs.
+  Set the same value on the bot and on ninsys-api. Until it's set the bot
+  falls back to the old behaviour and logs one deprecation warning at
+  startup.
+
 ## [3.16.5] - 2026-10-06
 
 Raid mode now lets go when it should. The 4-hour cap was never enforced while
