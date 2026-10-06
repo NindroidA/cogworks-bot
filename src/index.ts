@@ -326,7 +326,8 @@ client.once('clientReady', async () => {
   });
 
   // retry queue picks up actions that returned 'queued' from the executor
-  // (Discord 429/5xx, network) and orphaned grace rows after a bot restart
+  // (Discord 429/5xx, network); grace rows orphaned by a restart are dropped
+  // without acting
   await runInitStep('bait retry queue', () =>
     initRetryQueue({
       client,
