@@ -1064,6 +1064,7 @@ export interface LangBaitChannel {
     activated: string;
     released: string;
     notActive: string;
+    guildUnavailable: string;
     unknownSubcommand: string;
     error: string;
   };
