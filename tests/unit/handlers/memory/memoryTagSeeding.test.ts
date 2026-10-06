@@ -6,8 +6,9 @@
  *   existing tags instead of replacing them (which deleted every other tag and
  *   stripped it from every post).
  * - 117: re-running the /bot-setup memory flow on the same forum changes
- *   nothing: no PATCH, no new MemoryTag rows, no second welcome thread, and a
- *   default tag an admin renamed in Discord stays linked to its row.
+ *   nothing: no PATCH, no new MemoryTag rows, no second welcome thread, a
+ *   default tag an admin renamed in Discord stays linked to its row, and a
+ *   default renamed with the bot's tag edit doesn't come back.
  *
  * Strategy: patch AppDataSource.getRepository with in-memory fakes (same seam
  * as memoryFlows.test.ts) and drive the real handlers with minimal interaction
@@ -276,6 +277,34 @@ describe('re-running the /bot-setup memory flow (audit 117)', () => {
 
     expect(forum.patches).toHaveLength(0);
     expect(db.MemoryTag.find(r => r.name === 'Bug')?.discordTagId).toBe('fbs-Bug');
+  });
+
+  test("a default renamed with the bot's tag edit doesn't come back under its old name", async () => {
+    const forum = seedSetUpForum();
+    // /memory tags action:edit (or /memory-setup tag-edit) renamed "Bug" to "Defect" in both places
+    db.MemoryTag.find(r => r.name === 'Bug')!.name = 'Defect';
+    forum.availableTags.find((t: Row) => t.id === 'fbs-Bug').name = 'Defect';
+    const before = db.MemoryTag.map(r => ({ ...r }));
+
+    await runBotSetupMemory(guildId, { 'f-bs': forum }, 'f-bs');
+
+    expect(forum.patches).toHaveLength(0); // no new "Bug" tag
+    expect(forum.availableTags.map((t: Row) => t.name)).not.toContain('Bug');
+    expect(db.MemoryTag).toEqual(before);
+  });
+
+  test('a config with only custom rows still gets the defaults', async () => {
+    // Its first seeding failed before any default row was saved; a custom tag was added later
+    const forum = makeForum('f-bs', [{ id: 'fbs-Docs', name: 'Docs' }]);
+    db.MemoryConfig.push({ id: 901, guildId, forumChannelId: 'f-bs', channelName: 'memory', messageId: 'w-1' });
+    db.MemoryTag.push(tagRow(901, 'Docs', 'fbs-Docs', guildId));
+
+    await runBotSetupMemory(guildId, { 'f-bs': forum }, 'f-bs');
+
+    expect(forum.patches).toHaveLength(1);
+    expect(forum.availableTags.map((t: Row) => t.name)).toEqual(['Docs', ...DEFAULTS]);
+    expect(db.MemoryTag.filter(r => r.memoryConfigId === 901)).toHaveLength(10);
+    expect(db.MemoryTag.find(r => r.name === 'Docs')?.discordTagId).toBe('fbs-Docs');
   });
 
   test('a row whose forum tag was deleted is re-linked by name or re-added', async () => {

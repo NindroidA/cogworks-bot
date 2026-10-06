@@ -863,7 +863,7 @@ const memoryConfig: SimpleSystemConfig<MemoryData, 'memory'> = {
     // Seed default forum tags + create welcome thread (matches both auto & manual paths).
     // Seeding is additive: it keeps the forum's own tags, leaves rows still
     // linked to one of them alone and upserts the rest, so a re-run on the same
-    // forum changes nothing.
+    // forum only restores memory tags deleted from it.
     try {
       const forum = (await guild.channels.fetch(data.forumChannelId)) as ForumChannel;
       await seedMemoryTags(guildId, config.id, forum);
