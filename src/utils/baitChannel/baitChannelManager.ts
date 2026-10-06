@@ -23,13 +23,14 @@ import type { UserActivity } from '../../typeorm/entities/UserActivity';
 import { Colors } from '../colors';
 import { CACHE_TTL, INTERVALS } from '../constants';
 import { createTtlCache } from '../database/configCache';
+import { verifiedMessageDelete } from '../discord/verifiedDelete';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { toUnixSeconds } from '../time';
 import { truncateWithNotice } from '../validation/inputSanitizer';
 import { buildAppealUrl } from './appealToken';
 import { buildAuditReason, flagsTriggered } from './auditReason';
-import { type BanExecutorAction, type BanExecutorResult, executeBanAction } from './banExecutor';
+import { type BanExecutorAction, type BanExecutorResult, executeBanAction, fetchBanState } from './banExecutor';
 import { getBaitChannelIds } from './channelList';
 import { getContentBurstDetector } from './contentBurstDetector';
 import type { JoinVelocityTracker } from './joinVelocityTracker';
@@ -75,6 +76,7 @@ interface PurgeResult {
 }
 
 interface PendingBan {
+  guildId: string;
   userId: string;
   messageId: string;
   channelId: string;
@@ -82,6 +84,31 @@ interface PendingBan {
   timeoutId: NodeJS.Timeout;
   suspicionScore: number;
   warningMessageId?: string; // ID of the bot's warning reply
+  /**
+   * Live detection state. Entries restored from the DB after a restart have
+   * none, and they never act (their timer only drops the row).
+   */
+  context?: {
+    message: Message;
+    member: GuildMember;
+    analysis: SuspicionAnalysis;
+    warningMessage: Message | null;
+    /** The user was told "no real action will be taken", so nothing real ever is. */
+    postedInTestMode: boolean;
+  };
+}
+
+/**
+ * How a grace entry is being settled when the member already left: whether
+ * they are banned now (null when that couldn't be checked).
+ */
+interface LeaveState {
+  banned: boolean | null;
+}
+
+/** Grace timers are keyed per guild, so an event in one guild can never touch another guild's timer. */
+function graceKey(guildId: string, userId: string, messageId: string): string {
+  return `${guildId}:${userId}:${messageId}`;
 }
 
 interface SuspicionAnalysis {
@@ -121,6 +148,8 @@ interface RepeatOffenderResult {
 
 export class BaitChannelManager {
   private pendingBans: Map<string, PendingBan> = new Map();
+  /** Tail of each member's chain (`guildId:userId`), see inMemberChain. */
+  private memberChains: Map<string, Promise<void>> = new Map();
   private configCache = createTtlCache<string, BaitChannelConfig>(CACHE_TTL.BAIT_CONFIG);
   private keywordCache = createTtlCache<string, BaitKeyword[]>(CACHE_TTL.BAIT_CONFIG);
   private activityBuffer: Map<string, BufferedActivity> = new Map();
@@ -161,13 +190,14 @@ export class BaitChannelManager {
           continue;
         }
 
-        const key = `${ban.userId}-${ban.messageId}`;
+        const key = graceKey(ban.guildId, ban.userId, ban.messageId);
         const timeoutId = setTimeout(async () => {
           this.pendingBans.delete(key);
           await this.removePendingBanFromDb(ban.userId, ban.messageId, ban.guildId);
         }, remainingMs);
 
         this.pendingBans.set(key, {
+          guildId: ban.guildId,
           userId: ban.userId,
           messageId: ban.messageId,
           channelId: ban.channelId,
@@ -192,7 +222,14 @@ export class BaitChannelManager {
     }
   }
 
-  private async savePendingBanToDb(guildId: string, pendingBan: PendingBan, gracePeriodSeconds: number): Promise<void> {
+  // `action` is what the row would do if run: the resolved executor action,
+  // or 'log-only' in test mode. Left unset, the column default is 'ban'.
+  private async savePendingBanToDb(
+    guildId: string,
+    pendingBan: PendingBan,
+    gracePeriodSeconds: number,
+    action: BanExecutorAction,
+  ): Promise<void> {
     if (!this.pendingActionRepo) return;
     try {
       const entity = this.pendingActionRepo.create({
@@ -200,6 +237,7 @@ export class BaitChannelManager {
         userId: pendingBan.userId,
         messageId: pendingBan.messageId,
         channelId: pendingBan.channelId,
+        action,
         suspicionScore: pendingBan.suspicionScore,
         warningMessageId: pendingBan.warningMessageId || undefined,
         createdAt: new Date(pendingBan.timestamp),
@@ -236,26 +274,125 @@ export class BaitChannelManager {
   }
 
   /**
-   * Clear any in-memory pending grace timers for a user. Called from
-   * `guildMemberRemove` before draining DB rows, so the setTimeout
-   * callback's `pendingBans.has(key)` guard short-circuits and we don't
-   * race with leave-drain's REST execution. The actual DB row is removed
-   * by the caller (leave-drain owns its own pending_actions.remove call).
+   * Settle a user's grace periods in ONE guild when they leave it. Called
+   * (and awaited) by `guildMemberRemove` before it drains retry rows; grace
+   * rows (attempts = 0) belong to this manager and the drain skips them.
+   *
+   * Runs in the member's chain, so when our own ban or softban caused the
+   * leave, that action finishes (and settles the other entries) first.
+   *
+   * A leave can be a ban by a mod or another bot, and a softban would lift
+   * it, so the ban list is checked first: a banned user's entries end
+   * without action. Otherwise a live entry resolves now, through the same
+   * checks as an expired timer (fresh config, test mode, whitelist, message
+   * still there), with timeout and kick becoming a softban since the member
+   * is gone. A restored entry only loses its timer: restored entries never
+   * act, and the retry queue's orphan sweep drops the row.
    */
-  cancelGraceForUser(guildId: string, userId: string): void {
-    for (const [key, ban] of this.pendingBans.entries()) {
-      if (ban.userId === userId) {
-        clearTimeout(ban.timeoutId);
-        this.pendingBans.delete(key);
-        enhancedLogger.debug(
-          `Cleared in-memory grace timer for ${userId} in ${guildId} (user left)`,
-          LogCategory.SECURITY,
-          {
-            guildId,
-            userId,
-          },
-        );
+  resolveGraceOnLeave(guildId: string, userId: string): Promise<void> {
+    return this.inMemberChain(guildId, userId, async () => {
+      const entries = [...this.pendingBans.entries()].filter(([, p]) => p.guildId === guildId && p.userId === userId);
+      const guild = entries.find(([, p]) => p.context)?.[1].context?.message.guild;
+      const banned = guild ? await fetchBanState(guild, userId) : null;
+      for (const [key, pending] of entries) {
+        clearTimeout(pending.timeoutId);
+        if (pending.context) {
+          await this.resolveGrace(key, 'Left during grace period', { banned });
+        } else {
+          this.pendingBans.delete(key);
+        }
+        enhancedLogger.debug(`Settled grace timer for ${userId} in ${guildId} (user left)`, LogCategory.SECURITY, {
+          guildId,
+          userId,
+        });
       }
+    });
+  }
+
+  /**
+   * Run `task` after any earlier grace resolution or bait action for the same
+   * member in the same guild has finished. Without this, two posts' timers
+   * (or a timer and the leave our own softban causes) can act at once, and a
+   * ban can land between a softban's ban and unban steps and be lifted.
+   */
+  private inMemberChain<T>(guildId: string, userId: string, task: () => Promise<T>): Promise<T> {
+    const chainKey = `${guildId}:${userId}`;
+    const run = (this.memberChains.get(chainKey) ?? Promise.resolve()).then(task);
+    const tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.memberChains.set(chainKey, tail);
+    void tail.then(() => {
+      if (this.memberChains.get(chainKey) === tail) this.memberChains.delete(chainKey);
+    });
+    return run;
+  }
+
+  /**
+   * Cancel one pending grace-period action (dashboard cancel). Stops the
+   * in-memory timer and removes the bot's warning reply; the caller removes
+   * the DB row afterwards. Returns false when no timer was pending (already
+   * resolved, or the row is a retry-queue row).
+   */
+  async cancelPendingAction(guildId: string, userId: string, messageId: string): Promise<boolean> {
+    const key = graceKey(guildId, userId, messageId);
+    const pending = this.pendingBans.get(key);
+    if (!pending) return false;
+    clearTimeout(pending.timeoutId);
+    this.pendingBans.delete(key);
+    await this.deleteGraceWarning(pending);
+    enhancedLogger.info(`Cancelled pending bait action for ${userId} in ${guildId}`, LogCategory.SECURITY, {
+      guildId,
+      userId,
+      messageId,
+    });
+    return true;
+  }
+
+  /**
+   * End a user's remaining grace periods in one guild without acting. Called
+   * once a removal of that user (ban, kick, softban) has landed: left to run,
+   * a later entry could lift that ban with a softban's unban step, or ban
+   * someone just softbanned before that post's own window was over. So the
+   * user is acted on once, by the entry that resolved first. Their posts are
+   * deleted here, as each timer would have done: with deleteMessageHours 0 the
+   * ban purges nothing. A post the purge already took is skipped quietly.
+   */
+  private async dropGraceForUser(guildId: string, userId: string): Promise<void> {
+    const dropped = [...this.pendingBans.entries()].filter(([, p]) => p.guildId === guildId && p.userId === userId);
+    for (const [key, pending] of dropped) {
+      clearTimeout(pending.timeoutId);
+      this.pendingBans.delete(key);
+    }
+    for (const [, pending] of dropped) {
+      await this.removePendingBanFromDb(userId, pending.messageId, guildId);
+      if (pending.context) {
+        await verifiedMessageDelete(pending.context.message, { guildId, label: 'bait channel message' });
+      }
+      await this.deleteGraceWarning(pending);
+    }
+  }
+
+  /** Delete the bot's warning reply for a grace entry (by reference, or by ID for restored entries). */
+  private async deleteGraceWarning(pending: PendingBan): Promise<void> {
+    if (!pending.warningMessageId) return;
+    try {
+      let warning = pending.context?.warningMessage ?? null;
+      if (!warning) {
+        const guild = this.client.guilds.cache.get(pending.guildId);
+        const channel = (await guild?.channels.fetch(pending.channelId).catch(() => null)) as TextChannel | null;
+        warning = (await channel?.messages.fetch(pending.warningMessageId).catch(() => null)) ?? null;
+      }
+      await warning?.delete();
+    } catch (error) {
+      logError({
+        category: ErrorCategory.DISCORD_API,
+        severity: ErrorSeverity.LOW,
+        message: 'Failed to delete bait warning message',
+        error,
+        context: { warningMessageId: pending.warningMessageId, channelId: pending.channelId },
+      });
     }
   }
 
@@ -348,13 +485,17 @@ export class BaitChannelManager {
 
       // Instant action for high suspicion scores (configurable threshold, default 90)
       if (config.enableSmartDetection && analysis.score >= (config.instantActionThreshold ?? 90)) {
-        await this.executeAction(member, message, config, analysis, 'High suspicion score - instant action');
+        await this.inMemberChain(message.guild.id, member.id, () =>
+          this.executeAction(member, message, config, analysis, 'High suspicion score - instant action'),
+        );
         return;
       }
 
       // Instant ban mode
       if (config.gracePeriodSeconds === 0) {
-        await this.executeAction(member, message, config, analysis, 'Instant action mode');
+        await this.inMemberChain(message.guild.id, member.id, () =>
+          this.executeAction(member, message, config, analysis, 'Instant action mode'),
+        );
         return;
       }
 
@@ -604,6 +745,18 @@ export class BaitChannelManager {
     return 'log-only';
   }
 
+  /**
+   * Executor action for a resolved action. 'kick' becomes 'softban' when we
+   * have BAN_MEMBERS so messages get deleted via the ban API (softban = ban +
+   * immediate unban); without it we fall back to a true kick + purge sweep.
+   */
+  private toApiAction(resolvedAction: string, guild: Guild): BanExecutorAction {
+    if (resolvedAction === 'kick') {
+      return guild.members.me?.permissions.has(PermissionFlagsBits.BanMembers) ? 'softban' : 'kick';
+    }
+    return resolvedAction as BanExecutorAction;
+  }
+
   private async sendDmNotification(
     member: GuildMember,
     action: string,
@@ -698,7 +851,11 @@ export class BaitChannelManager {
     analysis: SuspicionAnalysis,
   ): Promise<void> {
     const member = message.member!;
-    const key = `${member.id}-${message.id}`;
+    // Read once, now: `message.guild` is a cache getter that turns null when
+    // the bot leaves the guild, and the timer below must not depend on it.
+    const guild = message.guild!;
+    const guildId = guild.id;
+    const key = graceKey(guildId, member.id, message.id);
 
     // Determine the potential action based on current score
     const potentialAction = this.determineAction(analysis.score, config);
@@ -778,65 +935,22 @@ export class BaitChannelManager {
       }
     }
 
-    // Set up action timer
-    const timeoutId = setTimeout(async () => {
-      // Check if this pending ban was already handled by handleMessageDelete
-      const pendingBan = this.pendingBans.get(key);
-      if (!pendingBan) {
-        // Already handled - user deleted their message and handleMessageDelete cleaned up
-        return;
-      }
-
-      try {
-        // Try to fetch the original message to see if it still exists
-        await message.fetch();
-
-        // Message still exists - remove from pending and execute action
-        this.pendingBans.delete(key);
-        await this.removePendingBanFromDb(member.id, message.id, member.guild.id);
-        await this.executeAction(member, message, config, analysis, 'Grace period expired');
-
-        // Delete the bot's warning message
-        if (warningMessage) {
-          try {
-            await warningMessage.delete();
-          } catch (error) {
-            logError({
-              category: ErrorCategory.DISCORD_API,
-              severity: ErrorSeverity.LOW,
-              message: 'Failed to delete warning message',
-              error,
-              context: { messageId: warningMessage.id },
-            });
-          }
-        }
-      } catch {
-        // Message was deleted - user complied in time
-        // Check again in case handleMessageDelete ran between our check and here
-        if (this.pendingBans.has(key)) {
-          this.pendingBans.delete(key);
-          await this.removePendingBanFromDb(member.id, message.id, member.guild.id);
-          await this.logAction(message, member, 'deleted-in-time', config, analysis);
-
-          // Delete the bot's warning message since the user complied
-          if (warningMessage) {
-            try {
-              await warningMessage.delete();
-            } catch (error) {
-              logError({
-                category: ErrorCategory.DISCORD_API,
-                severity: ErrorSeverity.LOW,
-                message: 'Failed to delete warning message after compliance',
-                error,
-                context: { messageId: warningMessage.id },
-              });
-            }
-          }
-        }
-      }
+    // Set up action timer. Nothing in this callback may throw: an exception
+    // escaping a timer is uncaught and shuts the whole bot down.
+    const timeoutId = setTimeout(() => {
+      this.inMemberChain(guildId, member.id, () => this.resolveGrace(key, 'Grace period expired')).catch(error =>
+        logError({
+          category: ErrorCategory.UNKNOWN,
+          severity: ErrorSeverity.HIGH,
+          message: 'Bait grace timer failed',
+          error,
+          context: { guildId, userId: member.id, messageId: message.id },
+        }),
+      );
     }, config.gracePeriodSeconds * 1000);
 
     const pendingBanData: PendingBan = {
+      guildId,
       userId: member.id,
       messageId: message.id,
       channelId: message.channelId,
@@ -844,50 +958,135 @@ export class BaitChannelManager {
       timeoutId,
       suspicionScore: analysis.score,
       warningMessageId: warningMessage?.id,
+      context: { message, member, analysis, warningMessage, postedInTestMode: isTestMode },
     };
     this.pendingBans.set(key, pendingBanData);
 
-    // Persist to DB for crash recovery
-    await this.savePendingBanToDb(message.guild!.id, pendingBanData, config.gracePeriodSeconds);
+    // Persist to DB for crash recovery, with the action it stands for.
+    // Test mode persists 'log-only' so nothing that reads the row can act for real.
+    const rowAction = isTestMode ? 'log-only' : this.toApiAction(potentialAction, guild);
+    await this.savePendingBanToDb(guildId, pendingBanData, config.gracePeriodSeconds, rowAction);
+  }
+
+  /**
+   * Settle a live grace entry, when its timer fires or right away when the
+   * member leaves. Acts on CURRENT state, not the snapshot from when the
+   * message was posted: config is re-read (disabled, channel removed, test
+   * mode, thresholds), the whitelist is re-checked, and a deleted message
+   * counts as compliance. The entry is claimed only after those awaits, so a
+   * cancel or delete that lands meanwhile wins. Callers run it in the
+   * member's chain (inMemberChain).
+   *
+   * `leave` is set when the member already left. If they left banned (a mod
+   * or another bot), the entry ends without action: their ban stands, and
+   * the purge that usually comes with it must not read as compliance.
+   */
+  private async resolveGrace(key: string, reason: string, leave?: LeaveState): Promise<void> {
+    const pending = this.pendingBans.get(key);
+    if (!pending?.context) return; // already settled (deleted, cancelled, left)
+    const { message, member, analysis, postedInTestMode } = pending.context;
+
+    // The bot is no longer in the guild (removed, or the guild was deleted):
+    // nothing here can act, and guildDelete wipes the guild's data, the grace
+    // row included. Drop the entry without writing anything.
+    if (!message.guild) {
+      clearTimeout(pending.timeoutId);
+      this.pendingBans.delete(key);
+      return;
+    }
+
+    let messageGone = false;
+    try {
+      await message.fetch();
+    } catch {
+      messageGone = true;
+    }
+    const config = await this.getConfig(pending.guildId);
+
+    if (this.pendingBans.get(key) !== pending) return;
+    clearTimeout(pending.timeoutId);
+    this.pendingBans.delete(key);
+
+    try {
+      await this.removePendingBanFromDb(pending.userId, pending.messageId, pending.guildId);
+
+      if (leave?.banned) {
+        if (!messageGone) {
+          // The ban kept their messages: still clear the bait post.
+          await message.delete().catch(error =>
+            logError({
+              category: ErrorCategory.DISCORD_API,
+              severity: ErrorSeverity.LOW,
+              message: 'Failed to delete bait channel message from banned user',
+              error,
+              context: { messageId: message.id, guildId: pending.guildId },
+            }),
+          );
+        }
+        if (config) await this.logAction(message, member, 'superseded-by-mod', config, analysis);
+        enhancedLogger.info(
+          `Bait grace for ${member.user.tag} ended without action (banned when they left)`,
+          LogCategory.SECURITY,
+          { guildId: pending.guildId, userId: pending.userId },
+        );
+        return;
+      }
+
+      if (messageGone) {
+        // User complied in time
+        if (config) await this.logAction(message, member, 'deleted-in-time', config, analysis);
+        return;
+      }
+
+      // Disabled, unreadable, or this channel is no longer a bait channel: stand down.
+      if (!config?.enabled || !getBaitChannelIds(config).includes(message.channelId)) {
+        enhancedLogger.info(
+          `Bait grace for ${member.user.tag} ended without action (bait channel disabled or removed)`,
+          LogCategory.SECURITY,
+          { guildId: pending.guildId, userId: pending.userId },
+        );
+        return;
+      }
+
+      const whitelist = this.checkWhitelist(member, config);
+      if (whitelist.whitelisted) {
+        await message.delete().catch(error =>
+          logError({
+            category: ErrorCategory.DISCORD_API,
+            severity: ErrorSeverity.LOW,
+            message: 'Failed to delete bait channel message from whitelisted user',
+            error,
+            context: { messageId: message.id, guildId: pending.guildId },
+          }),
+        );
+        await this.logToChannelWhitelisted(member, message, config, whitelist.reason);
+        await this.logAction(message, member, 'whitelisted', config);
+        return;
+      }
+
+      const effective = postedInTestMode && !config.testMode ? { ...config, testMode: true } : config;
+      await this.executeAction(member, message, effective, analysis, reason, leave);
+    } catch (error) {
+      logError({
+        category: ErrorCategory.UNKNOWN,
+        severity: ErrorSeverity.HIGH,
+        message: 'Failed to resolve bait grace period',
+        error,
+        context: { guildId: pending.guildId, userId: pending.userId, messageId: pending.messageId },
+      });
+    } finally {
+      await this.deleteGraceWarning(pending);
+    }
   }
 
   async handleMessageDelete(messageId: string, guildId: string): Promise<void> {
     try {
       for (const [key, pendingBan] of this.pendingBans.entries()) {
-        if (pendingBan.messageId === messageId) {
+        if (pendingBan.guildId === guildId && pendingBan.messageId === messageId) {
           clearTimeout(pendingBan.timeoutId);
           this.pendingBans.delete(key);
           await this.removePendingBanFromDb(pendingBan.userId, messageId, guildId);
-
-          const guild = this.client.guilds.cache.get(guildId);
-          if (!guild) return;
-
-          // Delete the bot's warning message
-          if (pendingBan.warningMessageId && pendingBan.channelId) {
-            try {
-              const channel = (await guild.channels
-                .fetch(pendingBan.channelId)
-                .catch(() => null)) as TextChannel | null;
-              if (channel) {
-                const warningMessage = await channel.messages.fetch(pendingBan.warningMessageId).catch(() => null);
-                if (warningMessage) {
-                  await warningMessage.delete();
-                }
-              }
-            } catch (error) {
-              logError({
-                category: ErrorCategory.DISCORD_API,
-                severity: ErrorSeverity.LOW,
-                message: 'Failed to delete warning message after user deleted their message',
-                error,
-                context: {
-                  warningMessageId: pendingBan.warningMessageId,
-                  channelId: pendingBan.channelId,
-                },
-              });
-            }
-          }
-
+          await this.deleteGraceWarning(pendingBan);
           break;
         }
       }
@@ -1030,10 +1229,31 @@ export class BaitChannelManager {
     config: BaitChannelConfig,
     analysis: SuspicionAnalysis,
     reason: string,
+    leave?: LeaveState,
   ): Promise<void> {
+    // Test mode: still delete message but skip ban/kick/timeout and purge
+    const isTestMode = config.testMode === true;
+
     // Determine action (escalation-aware)
     const resolvedAction = this.determineAction(analysis.score, config);
-    let actionTaken: string = resolvedAction;
+    let apiAction = this.toApiAction(resolvedAction, message.guild!);
+    // What the DM, embed and log report.
+    let shownAction = resolvedAction;
+
+    // A member who already left can't be timed out or kicked. The REST ban
+    // endpoint works by user ID, so those become a softban (ban + unban, which
+    // also purges their messages), reported as one. That needs to know they
+    // aren't banned: a softban lifts any ban in place. When the ban list says
+    // otherwise or can't be read (no BAN_MEMBERS, in which case the softban
+    // would fail anyway), nothing is done and the post is only logged.
+    let demotedOnLeave = false;
+    if (leave && (apiAction === 'timeout' || apiAction === 'kick' || apiAction === 'softban')) {
+      demotedOnLeave = leave.banned !== false;
+      apiAction = demotedOnLeave ? 'log-only' : 'softban';
+      shownAction = apiAction;
+    }
+
+    let actionTaken: string = shownAction;
     let actionResult: 'success' | 'failed' = 'success';
     let failureReason: string | undefined;
 
@@ -1050,24 +1270,23 @@ export class BaitChannelManager {
       });
     }
 
-    // Test mode: still delete message but skip ban/kick/timeout and purge
-    const isTestMode = config.testMode === true;
     let purgeResult: PurgeResult | undefined;
 
     // Step 2: Send DM notification BEFORE action (user must still be in server).
     // The DM result is structured — we record whether it landed and (if not)
     // why, so admins reviewing the bait log can distinguish DM-blocked from
-    // DM-attempted-and-failed cases.
+    // DM-attempted-and-failed cases. A softban on leave sends none: the member
+    // is gone, and the timeout or kick their warning named never happens.
     let dmResult: DmResult = { sent: false };
-    if (!isTestMode) {
-      dmResult = await this.sendDmNotification(member, resolvedAction, config, analysis);
+    if (!isTestMode && shownAction !== 'softban') {
+      dmResult = await this.sendDmNotification(member, shownAction, config, analysis);
     }
     const dmSent = dmResult.sent;
 
     // Step 3: Execute the resolved action via REST executor (idempotent, leave-tolerant).
     // 'kick' is mapped to 'softban' when we have BAN_MEMBERS so messages get
     // deleted via the ban API (softban = ban + immediate unban). Without
-    // BAN_MEMBERS we fall back to a true kick + bot-side purge sweep.
+    // BAN_MEMBERS we fall back to a true kick + bot-side purge sweep (toApiAction).
     const deleteHours = config.deleteMessageHours ?? 24;
     const timeoutMs = (config.timeoutDurationMinutes ?? 60) * 60 * 1000;
     const channelName =
@@ -1079,12 +1298,6 @@ export class BaitChannelManager {
       messageId: message.id,
       extra: reason,
     });
-
-    let apiAction: BanExecutorAction = resolvedAction as BanExecutorAction;
-    if (resolvedAction === 'kick') {
-      const hasBanPermission = message.guild!.members.me?.permissions.has(PermissionFlagsBits.BanMembers);
-      apiAction = hasBanPermission ? 'softban' : 'kick';
-    }
 
     const executorResult: BanExecutorResult | null = this.idempotencyRepo
       ? await executeBanAction(
@@ -1102,6 +1315,18 @@ export class BaitChannelManager {
           this.idempotencyRepo,
         )
       : null;
+
+    // A removal landed (or someone already did it today): end the user's
+    // other grace periods here without acting (see dropGraceForUser). If it
+    // failed, they keep their own timers.
+    const removesMember = apiAction === 'ban' || apiAction === 'softban' || apiAction === 'kick';
+    if (
+      !isTestMode &&
+      removesMember &&
+      (executorResult?.status === 'executed' || executorResult?.status === 'duplicate')
+    ) {
+      await this.dropGraceForUser(message.guild!.id, member.id);
+    }
 
     // Translate executor result into the BaitChannelLog `actionTaken` value
     // the rest of this method expects. Preserve existing test-* / failed /
@@ -1130,7 +1355,8 @@ export class BaitChannelManager {
       actionTaken = 'queued';
       failureReason = executorResult.failureReason;
 
-      const queue = getRetryQueue();
+      // Never queue a test-mode dry run: the retry queue would run it for real.
+      const queue = isTestMode ? null : getRetryQueue();
       if (queue) {
         await queue.enqueue({
           guildId: message.guild!.id,
@@ -1167,11 +1393,13 @@ export class BaitChannelManager {
     } else {
       // executed — including test mode dry-run (the executor itself logs the [TEST MODE] line).
       if (isTestMode) {
-        actionTaken = `test-${resolvedAction}`;
+        actionTaken = `test-${shownAction}`;
+      } else if (demotedOnLeave) {
+        actionTaken = 'demoted-after-leave';
       } else if (resolvedAction === 'log-only') {
         actionTaken = 'logged';
       } else {
-        actionTaken = resolvedAction;
+        actionTaken = shownAction;
       }
 
       enhancedLogger.info(
@@ -1213,7 +1441,7 @@ export class BaitChannelManager {
       !isTestMode &&
       actionResult === 'success' &&
       config.deleteUserMessages &&
-      (resolvedAction === 'ban' || resolvedAction === 'kick') &&
+      (shownAction === 'ban' || shownAction === 'kick' || shownAction === 'softban') &&
       message.guild
     ) {
       const additionalPurge = await this.purgeUserMessages(message.guild, member.id, []);
@@ -1241,7 +1469,7 @@ export class BaitChannelManager {
       config,
       analysis,
       reason,
-      resolvedAction,
+      shownAction,
       actionResult,
       failureReason,
       purgeResult,
@@ -1413,6 +1641,7 @@ export class BaitChannelManager {
         const textMap: Record<string, string> = {
           ban: 'Would Ban',
           kick: 'Would Kick',
+          softban: 'Would Softban',
           timeout: `Would Timeout (${config.timeoutDurationMinutes ?? 60} min)`,
           'log-only': 'Logged (No action)',
         };
@@ -1421,7 +1650,13 @@ export class BaitChannelManager {
         color = Colors.status.info; // Informational color for test mode
       } else if (actionResult === 'failed') {
         actionEmoji = '';
-        actionText = `${resolvedAction === 'ban' ? 'Ban' : resolvedAction === 'kick' ? 'Kick' : resolvedAction === 'timeout' ? 'Timeout' : 'Action'} FAILED`;
+        const failedMap: Record<string, string> = {
+          ban: 'Ban',
+          kick: 'Kick',
+          softban: 'Softban',
+          timeout: 'Timeout',
+        };
+        actionText = `${failedMap[resolvedAction] ?? 'Action'} FAILED`;
         color = Colors.status.neutral; // Gray for failure
       } else {
         const emojiMap: Record<string, string> = {
@@ -1435,6 +1670,7 @@ export class BaitChannelManager {
         const textMap: Record<string, string> = {
           ban: 'Banned',
           kick: 'Kicked',
+          softban: 'Softbanned',
           timeout: `Timed Out (${config.timeoutDurationMinutes ?? 60} min)`,
           'log-only': 'Logged (No action)',
         };
@@ -1545,8 +1781,8 @@ export class BaitChannelManager {
         });
       }
 
-      // Add DM notification status
-      if (config.dmBeforeAction && resolvedAction !== 'log-only') {
+      // Add DM notification status (none is sent for log-only or a softban on leave)
+      if (config.dmBeforeAction && resolvedAction !== 'log-only' && resolvedAction !== 'softban') {
         embed.addFields({
           name: '📩 DM Notification',
           value: dmSent ? 'DM notification sent' : 'DM notification failed (user has DMs disabled)',
