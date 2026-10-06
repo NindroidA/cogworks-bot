@@ -50,20 +50,21 @@ const forums = defineCheck(
   },
   async (ctx, emit) => {
     const out: HealthFinding[] = [];
-    const kept = new Map<string, number>();
+    const kept = new Map<string, { id: number; name: string }>();
     for (const row of [...rowsOf(ctx, 'MemoryConfig')].sort((a, b) => a.id - b.id)) {
       const id = row.forumChannelId;
       const at: FindingTarget = { entity: 'MemoryConfig', rowId: row.id, field: 'forumChannelId', refId: id };
       const name = { name: row.channelName };
-      const keptId = kept.get(id);
-      if (keptId !== undefined) {
-        // The channel picker lists the forum twice, and commands run in its posts use only one config.
-        out.push(
-          emit('duplicate', 'cosmetic', 'manual', { ...at, params: { ...name, channelId: id, keptRowId: keptId } }),
-        );
+      const first = kept.get(id);
+      if (first) {
+        // The channel picker lists the forum twice, and commands run in its posts use one config
+        // (`resolveConfigFromThread` has no ORDER BY; in practice the oldest row). Either can hold live memories,
+        // and removing one deletes its memories, tags and welcome post: the admin decides.
+        const params = { ...name, channelId: id, keptRowId: first.id, keptName: first.name };
+        out.push(emit('duplicate', 'cosmetic', 'manual', { ...at, params }));
         continue;
       }
-      kept.set(id, row.id);
+      kept.set(id, { id: row.id, name: row.channelName });
       const problem = channelProblem(ctx, id, ['forum'], FORUM_PERMS);
       if (problem) {
         const params = { ...name, ...channelParams(id, problem) };

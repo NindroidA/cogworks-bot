@@ -58,7 +58,10 @@ planned for this step come in a separate release to keep this one reviewable.
 
 - **Rules**: the rules channel (deleted, a channel without a text chat, or the
   bot can't see reactions there; the text chat of a voice or stage channel,
-  which the dashboard offers, counts as working), the rules message (deep mode
+  which the dashboard offers, counts as working; missing Send Messages or Add
+  Reactions is only degraded, and the text says they're needed to post the
+  message again, which re-running setup does after deleting the current one),
+  the rules message (deep mode
   only, and still looked up when only Add Reactions or Send Messages is
   missing), the role it gives (deleted, @everyone, managed by an integration, or
   at/above the bot's highest role), Manage Roles, and an emoji a reaction can
@@ -75,10 +78,12 @@ planned for this step come in a separate release to keep this one reviewable.
   so an option whose menu row is gone can't be tied to a guild and isn't
   checked.
 - **Memory**: each memory forum (deleted, not a forum, missing permissions, set
-  up twice) and its welcome post, tags whose memory channel is gone, whose forum
+  up twice: the text names both entries, says which one commands in its posts
+  use, and warns that removing one also deletes its memories, tags and welcome
+  post) and its welcome post, tags whose memory channel is gone, whose forum
   tag is missing or whose type isn't category or status, stale copies of a tag
-  left by earlier setup re-runs (reported as removable, since re-running setup
-  keeps the linked copy and leaves them), and memories whose memory channel is
+  left by earlier setup re-runs (removable by the coming repair, since
+  re-running setup keeps the linked copy and leaves them), and memories whose memory channel is
   gone or whose post was deleted. Archived posts aren't cached, so a deleted
   post is only reported in deep mode, through the REST budget: at most 20 posts
   per run (the rest are listed as not checked), and none in a forum the bot
@@ -88,7 +93,8 @@ planned for this step come in a separate release to keep this one reviewable.
   channel's type and the bot's permissions in it in one lookup, role
   assignability, and deep-mode message and thread lookups that only report
   "missing" on proof (Unknown Message / Unknown Channel).
-- English strings for every new finding code in `src/lang/en/health.json`.
+- English strings for every new finding code in `src/lang/en/health.json`. Each
+  names the command that fixes the problem, or says when no action is needed.
 
 ### Changed — health-check engine REST budget (internal)
 
@@ -107,29 +113,39 @@ yet, so nothing a server sees changes in this release.
 
 ### Added — ticket and application health checks (internal, no user-visible command yet)
 
-- **Panels** (tickets and applications): the panel channel is gone, isn't a text
-  channel, or the bot can't post in it; the panel message was deleted (deep mode
-  only, through the budgeted REST fetcher); the category for new channels is unset,
-  gone, not a category, missing Manage Channels / Manage Roles, or at Discord's
+- **Panels** (tickets and applications): the panel channel is gone or isn't a text
+  channel; the panel isn't posted (a blank message id, which the delete event leaves
+  behind, reported in every mode; in deep mode also a stored message id that no longer
+  exists, through the budgeted REST fetcher); the bot lacks View Channel / Send Messages
+  in the panel channel (only needed to post the panel again, so with a panel posted
+  it's a cosmetic note; no Embed Links, since neither panel sends an embed) or, for
+  applications, View Channel / Read Message History (the posted panel isn't updated
+  when positions change, degraded); the category for new channels is
+  unset, gone, not a category, missing Manage Channels / Manage Roles, or at Discord's
   50-channel limit; a posted panel with no archive forum, so nothing can be closed.
 - **Archive forums**: gone, not a forum, missing the permissions closes need, or at
   Discord's 20-tag limit while an active ticket type or position (or an
-  Accepted / Rejected outcome) still has no tag.
-- **Ticket types and positions**: more than 25 active, none active while a panel is
-  posted, more than one default type, a non-hex type color, a type name that makes the
-  form title longer than Discord's 45 characters, an emoji Discord won't accept, and
-  form questions over Discord's limits (missing or repeated ids, labels over 45,
-  placeholders over 100, invalid length limits, more than 5 questions). Ratings follow
-  what the bot does: a type menu that can't be sent (over 25 types or a rejected emoji)
-  falls back to the 5 built-in ticket types, and a ticket form shows only its first 5
-  questions, so those are degraded rather than broken; positions have neither fallback.
-  In deep mode a custom emoji is looked up on the server, on the other servers the bot
-  is in and among the bot's own emojis; one found nowhere is only a cosmetic note with
-  a manual fix, since it may still work. Problems on an inactive type or position are
-  cosmetic.
-- **Leftover rows**: user restrictions for a ticket type that no longer exists,
-  open tickets and applications whose channel was deleted, and tickets stuck in
-  `created` without a channel for more than 10 minutes (a failed creation).
+  Accepted / Rejected outcome) still has no tag. Missing Manage Channels is reported on
+  its own as degraded: closes still work, but new tags can't be created.
+- **Ticket types and positions**: more than 25 active, no active ticket type while a
+  panel is posted (nobody can open a ticket), more than one default type, a non-hex
+  type color, a type name that makes the form title longer than Discord's 45
+  characters, an emoji Discord won't accept, and form questions over Discord's limits
+  (missing or repeated ids, labels over 45, placeholders over 100, invalid length
+  limits, more than 5 questions). Ratings follow what the bot does: a type menu that
+  can't be sent (over 25 types or a rejected emoji) falls back to the 5 built-in ticket
+  types, and a ticket form shows only its first 5 questions, so those are degraded
+  rather than broken; positions have neither fallback. No open position is not a
+  finding: the panel says none are available (recruiting closed). In deep mode a custom
+  emoji is looked up on the server, on the other servers the bot is in (cache) and
+  among the bot's own emojis; one found nowhere was probably deleted, and is a cosmetic
+  note with a manual fix (no repair removes it). Problems on an inactive type or
+  position are cosmetic.
+- **Leftover rows**: user restrictions for a ticket type that no longer exists
+  (removing one needs confirmation: it keeps its reason and applies again if the type
+  id is re-added), open tickets and applications whose channel was deleted, and
+  tickets stuck in `created` without a channel for more than 10 minutes (a failed
+  creation).
 - The health loader reads only open `Ticket` and `Application` rows, so closed
   history never loads.
 

@@ -15,19 +15,25 @@ import { defineCheck, type Emit, type FindingTarget } from '../define';
 import { type ChannelKind, channelIsKind, missingPermissions, type PermissionName, resolveChannel } from '../refs';
 import type { HealthCheck, HealthFinding, HealthSeverity, RepairClass } from '../types';
 
-/** View, Send, Embed Links, Read History: post (and edit) a message in a channel. */
-const SEND_PERMISSIONS: PermissionName[] = ['ViewChannel', 'SendMessages', 'EmbedLinks', 'ReadMessageHistory'];
+/**
+ * Post a panel: View and Send. Neither panel sends an embed. Members click a posted
+ * panel without the bot touching the channel, so these only matter for posting it again.
+ */
+const POST_PERMISSIONS: PermissionName[] = ['ViewChannel', 'SendMessages'];
+/** Fetch and edit the posted panel (the application panel, when positions change). */
+const EDIT_PERMISSIONS: PermissionName[] = ['ViewChannel', 'ReadMessageHistory'];
 /** Create each private channel and write its permission overwrites. */
 const CATEGORY_PERMISSIONS: PermissionName[] = ['ManageChannels', 'ManageRoles'];
-/** Post transcripts as forum threads, re-upload attachments, and create type tags. */
+/** Post transcripts as forum threads and re-upload attachments. */
 const ARCHIVE_PERMISSIONS: PermissionName[] = [
   'ViewChannel',
   'SendMessages',
   'SendMessagesInThreads',
   'EmbedLinks',
   'AttachFiles',
-  'ManageChannels',
 ];
+/** Create a missing type tag. Best effort: `ensureForumTag` logs a failure and the close goes on untagged. */
+const TAG_PERMISSIONS: PermissionName[] = ['ManageChannels'];
 /** Discord limits: per category, per forum, per modal, per select menu, per message (buttons), modal title. */
 export const LIMITS = {
   categoryChannels: 50,
@@ -53,25 +59,33 @@ const CHANNEL_REPAIR: Record<ChannelProblem, RepairClass> = { missing: 'auto', t
 
 /**
  * A configured channel: `missing` only on proof, `type` when it is the wrong kind,
- * `permissions` when the bot lacks some (listed in `params`). `channel` is set when it exists with the right kind.
+ * `permissions` when the bot lacks some (`missing`, also listed in `params`). `channel`
+ * is set when it exists with the right kind.
  */
 function inspectChannel(
   ctx: CheckContext,
   id: string,
   kinds: ChannelKind[],
   required: PermissionName[],
-): { problem?: ChannelProblem; channel?: GuildBasedChannel; params: Record<string, string> } {
+): {
+  problem?: ChannelProblem;
+  channel?: GuildBasedChannel;
+  params: Record<string, string>;
+  missing: PermissionName[];
+} {
   const params = { channelId: id };
   const resolved = resolveChannel(ctx.guild, id);
-  if (resolved.status !== 'ok') return { problem: resolved.status === 'missing' ? 'missing' : undefined, params };
-  if (!channelIsKind(resolved.value, ...kinds)) return { problem: 'type', params };
+  if (resolved.status !== 'ok')
+    return { problem: resolved.status === 'missing' ? 'missing' : undefined, params, missing: [] };
+  if (!channelIsKind(resolved.value, ...kinds)) return { problem: 'type', params, missing: [] };
   const missing = ctx.me ? missingPermissions(ctx.me, required, resolved.value) : [];
-  if (missing.length === 0) return { channel: resolved.value, params };
-  return { problem: 'permissions', channel: resolved.value, params: { ...params, permissions: missing.join(', ') } };
+  if (missing.length === 0) return { channel: resolved.value, params, missing };
+  const withList = { ...params, permissions: missing.join(', ') };
+  return { problem: 'permissions', channel: resolved.value, params: withList, missing };
 }
 
 // ---------------------------------------------------------------------------
-// Panel: channel (+ message in deep mode), category, archive forum
+// Panel: channel and message, category, archive forum
 // ---------------------------------------------------------------------------
 
 export const PANEL_NAMES = [
@@ -95,34 +109,51 @@ interface PanelConfig {
   categoryId: string | null;
 }
 
-/** Only a posted panel lets members open anything, so a config without one reports nothing. */
+/**
+ * A config without a panel channel reports nothing. With one, a blank `messageId` means
+ * the panel isn't posted: the delete event clears it, and `/bot-setup` leaves it blank
+ * when the post fails. `editsPanel`: the bot fetches and edits the posted panel later.
+ */
 export async function checkPanel(
   ctx: CheckContext,
   emit: Emit<(typeof PANEL_NAMES)[number]>,
   entity: string,
   config: PanelConfig | undefined,
   archiveChannelId: string | undefined,
+  options: { editsPanel?: boolean } = {},
 ): Promise<HealthFinding[]> {
   if (!config?.channelId) return [];
   const out: HealthFinding[] = [];
   const at: FindingTarget = { entity, rowId: config.id, field: 'channelId', refId: config.channelId };
-  const panel = inspectChannel(ctx, config.channelId, ['text', 'news'], SEND_PERMISSIONS);
-  if (panel.problem)
+  const posted = Boolean(config.messageId);
+  const required = options.editsPanel ? [...new Set([...POST_PERMISSIONS, ...EDIT_PERMISSIONS])] : POST_PERMISSIONS;
+  const panel = inspectChannel(ctx, config.channelId, ['text', 'news'], required);
+  if (panel.problem === 'permissions') {
+    // A posted panel keeps working: members click it without the bot touching the
+    // channel. It only goes stale when the bot can't fetch it to edit it.
+    const stale = options.editsPanel && EDIT_PERMISSIONS.some(name => panel.missing.includes(name));
+    const severity: HealthSeverity = !posted || stale ? 'degraded' : 'cosmetic';
+    out.push(emit('channel_permissions', severity, 'manual', { ...at, params: panel.params }));
+  } else if (panel.problem)
     out.push(emit(`channel_${panel.problem}`, 'block', CHANNEL_REPAIR[panel.problem], { ...at, params: panel.params }));
-  if (panel.channel && ctx.deep && isValidSnowflake(config.messageId)) {
+  const notPosted = (staleId?: string) => {
+    const target: FindingTarget = {
+      entity,
+      rowId: config.id,
+      field: 'messageId',
+      params: { channelId: config.channelId },
+    };
+    return emit('message_missing', 'degraded', 'confirm', staleId ? { ...target, refId: staleId } : target);
+  };
+  // A deleted channel or one of the wrong kind is reported above; this is the panel itself.
+  if (!posted && panel.problem !== 'missing' && panel.problem !== 'type') out.push(notPosted());
+  else if (posted && panel.channel && ctx.deep && isValidSnowflake(config.messageId)) {
+    // A stored id can still point at a message deleted while the bot was offline.
     const channel = panel.channel as GuildTextBasedChannel;
     const fetched = await ctx.rest.fetch(`${entity}.messageId`, () =>
       channel.messages.fetch({ message: config.messageId, force: true }),
     );
-    if (fetched.status === 'missing')
-      out.push(
-        emit('message_missing', 'block', 'confirm', {
-          ...at,
-          field: 'messageId',
-          refId: config.messageId,
-          params: panel.params,
-        }),
-      );
+    if (fetched.status === 'missing') out.push(notPosted(config.messageId));
   }
 
   const categoryAt: FindingTarget = { entity, rowId: config.id, field: 'categoryId' };
@@ -147,7 +178,13 @@ export async function checkPanel(
   return out;
 }
 
-export const ARCHIVE_NAMES = ['channel_missing', 'channel_type', 'channel_permissions', 'tags_full'] as const;
+export const ARCHIVE_NAMES = [
+  'channel_missing',
+  'channel_type',
+  'channel_permissions',
+  'tag_permissions',
+  'tags_full',
+] as const;
 
 /** `tagNames`: the tags closes will ask for (matched case-insensitively, as `ensureForumTag` does). */
 export function checkArchiveForum(
@@ -163,6 +200,9 @@ export function checkArchiveForum(
   const forum = inspectChannel(ctx, archive.channelId, ['forum'], ARCHIVE_PERMISSIONS);
   if (forum.problem)
     out.push(emit(`channel_${forum.problem}`, 'block', CHANNEL_REPAIR[forum.problem], { ...at, params: forum.params }));
+  // Closes still work without it; tags that don't exist yet just aren't created.
+  if (forum.channel && ctx.me && missingPermissions(ctx.me, TAG_PERMISSIONS, forum.channel).length > 0)
+    out.push(emit('tag_permissions', 'degraded', 'manual', { ...at, params: { channelId: archive.channelId } }));
   // A full forum only hurts when a close needs a tag it doesn't have yet.
   const tags = (forum.channel as ForumChannel | undefined)?.availableTags ?? [];
   const existing = new Set(tags.map(tag => tag.name.toLowerCase()));
@@ -352,8 +392,9 @@ const types = defineCheck(
     // emoji Discord rejects), createTicketButton falls back to the 5 built-in type buttons.
     if (active.length > LIMITS.selectOptions)
       out.push(emit('too_many_active', 'degraded', 'manual', { ...all, params: { count: active.length } }));
+    // With no active type the menu offers only "No ticket types available", so nothing opens.
     if (active.length === 0 && rowsOf(ctx, 'TicketConfig')[0]?.channelId)
-      out.push(emit('none_active', 'degraded', 'manual', all));
+      out.push(emit('none_active', 'block', 'manual', all));
     const defaults = rows.filter(type => type.isDefault);
     for (const extra of defaults.slice(1)) {
       const params = { typeId: extra.typeId, keptTypeId: defaults[0].typeId };
@@ -400,7 +441,8 @@ const restrictions = defineCheck(
       .filter(row => !typeIds.has(row.typeId))
       .map(row => {
         const params = { typeId: row.typeId, userId: row.userId };
-        return emit('unknown_type', 'cosmetic', 'auto', { entity: 'UserTicketRestriction', rowId: row.id, params });
+        // Not lossless: the row keeps its reason, and re-adding a type with that id revives it.
+        return emit('unknown_type', 'cosmetic', 'confirm', { entity: 'UserTicketRestriction', rowId: row.id, params });
       });
   },
 );
