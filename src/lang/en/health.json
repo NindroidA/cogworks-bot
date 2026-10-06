@@ -110,7 +110,7 @@
     "rules.config.emoji_invalid": "The rules emoji `{emoji}` isn't one a reaction can match. Run `/rules-setup setup` with another emoji.",
     "rules.config.error": "Couldn't check the rules setup. Try again later.",
     "reactionRole.menu.channel_missing": "The channel (`{channelId}`) of the reaction-role menu \"{name}\" no longer exists, so the menu is gone. Remove it with `/reactionrole delete`.",
-    "reactionRole.menu.channel_wrong_type": "The reaction-role menu \"{name}\" is in <#{channelId}>, which isn't a text channel.",
+    "reactionRole.menu.channel_wrong_type": "The reaction-role menu \"{name}\" is in <#{channelId}>, which isn't a text channel. Delete it with `/reactionrole delete` and create it again in a text channel with `/reactionrole create`, then add its options again.",
     "reactionRole.menu.channel_permissions": "The bot is missing {permissions} in <#{channelId}> for the reaction-role menu \"{name}\". Without View Channel or Read Message History reactions don't give roles; without Add Reactions the bot can't add the reaction for a new option (`/reactionrole add`); unique mode also needs Manage Messages to take the old reaction off. Grant them in the channel's permissions.",
     "reactionRole.menu.message_missing": "The message of the reaction-role menu \"{name}\" in <#{channelId}> was deleted. The menu can be posted again.",
     "reactionRole.menu.mode": "The reaction-role menu \"{name}\" has the unknown mode `{mode}` and works as `normal`. It can be set to `normal`.",
