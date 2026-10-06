@@ -50,7 +50,7 @@ type OptionLike = Record<string, unknown>;
  * A copy of the expected options with every field that is unset on both sides
  * written the way Discord returned it, matched by name at every level. The
  * builders send `options: []` on subcommands without options, and discord.js
- * (14.26) compares nested option counts without the `?? 0` it uses at the top
+ * (14.27) compares nested option counts without the `?? 0` it uses at the top
  * level, so a subcommand Discord returns without the key would read as
  * changed. A field set on only one side is left alone, so real changes still show.
  */
