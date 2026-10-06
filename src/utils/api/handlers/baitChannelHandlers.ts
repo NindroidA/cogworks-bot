@@ -445,6 +445,10 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
     if (id === undefined) throw ApiError.badRequest('id is required');
     const row = await pendingActionRepo.findOne({ where: { guildId, id } });
     if (!row) throw ApiError.notFound('Pending action not found');
+    // A grace-period row is driven by an in-memory timer: stop it (and remove
+    // the warning reply) first, or deleting the row alone still lets it act.
+    const baitManager = (client as ClientWithBaitManager).baitChannelManager;
+    await baitManager?.cancelPendingAction(guildId, row.userId, row.messageId);
     await pendingActionRepo.remove(row);
     await writeAuditLog(guildId, 'bait.pendingActionCancel', triggeredBy, {
       pendingActionId: id,
