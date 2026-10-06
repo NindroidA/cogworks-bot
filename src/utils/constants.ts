@@ -45,12 +45,36 @@ export const INTERVALS = {
   RATE_LIMIT_CLEANUP: 5 * 60 * 1000,
   /** Auto-close ticket check: 1 hour */
   AUTO_CLOSE_CHECK: 3_600_000,
-  /** SLA breach check: 1 hour */
-  SLA_CHECK: 3_600_000,
-  /** Event reminder check: 1 hour */
-  REMINDER_CHECK: 3_600_000,
+  /** SLA breach check: 5 minutes (SLA targets can be as short as 1 minute) */
+  SLA_CHECK: 5 * 60 * 1000,
+  /** Event reminder check: 60 seconds, so a "15 minutes before" reminder isn't sent late */
+  REMINDER_CHECK: 60_000,
   /** Analytics snapshot flush: 24 hours (daily at midnight UTC) */
   ANALYTICS_SNAPSHOT: 24 * 60 * 60 * 1000,
+  /** ninsys-api registration retry after a failed boot registration: 30s, doubling... */
+  API_REGISTER_RETRY_BASE: 30_000,
+  /** ...capped at 5 minutes (the stats-sync cadence) */
+  API_REGISTER_RETRY_MAX: 5 * 60 * 1000,
+} as const;
+
+/**
+ * Rollout guards for the SLA + reminder checkers, which were never scheduled
+ * in production before v3.16.6 — so their tables carry a backlog.
+ */
+export const SCHEDULER_GUARDS = {
+  /**
+   * v3.16.0 is the first release that recorded `firstResponseAt` (merged
+   * 2026-07-07 05:29Z, production deploy finished 05:32Z). Tickets opened
+   * earlier have it NULL even when staff replied, so the SLA checker ignores
+   * them instead of raising a false breach alert. Cutoff is the midnight UTC
+   * after the deploy, so every ticket opened before it is covered.
+   */
+  SLA_TRACKED_SINCE_MS: Date.UTC(2026, 6, 8),
+  /**
+   * A reminder whose event can't be fetched is dropped (marked sent, not
+   * posted) once it is this overdue — e.g. the bot was offline at reminderAt.
+   */
+  REMINDER_STALE_AFTER_MS: 60 * 60 * 1000,
 } as const;
 
 export const RETENTION_DAYS = {

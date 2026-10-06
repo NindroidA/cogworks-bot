@@ -25,18 +25,19 @@ export default {
       activityTracker.recordMessage(message.guild.id, message.channelId, channelName, message.author.id);
     }
 
-    // Get bait channel manager from client
+    // Bait tracking + bait channel handling. Skipped while the manager isn't
+    // attached (early startup, or its init step failed), but the ticket update
+    // below still runs: the SLA checker and auto-close depend on it.
     const { baitChannelManager } = client;
-    if (!baitChannelManager) {
+    if (baitChannelManager) {
+      // Track all messages for activity monitoring
+      await baitChannelManager.trackMessage(message);
+
+      // Handle bait channel
+      await baitChannelManager.handleMessage(message);
+    } else {
       enhancedLogger.debug('BaitChannelManager not available on client', LogCategory.SYSTEM);
-      return;
     }
-
-    // Track all messages for activity monitoring
-    await baitChannelManager.trackMessage(message);
-
-    // Handle bait channel
-    await baitChannelManager.handleMessage(message);
 
     // One UPDATE for the ticket channel: bump lastActivityAt always, and in
     // the SAME statement capture the first response from someone other than
