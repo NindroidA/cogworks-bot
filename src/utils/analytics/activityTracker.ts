@@ -11,6 +11,7 @@ import { AppDataSource } from '../../typeorm';
 import { AnalyticsSnapshot } from '../../typeorm/entities/analytics/AnalyticsSnapshot';
 import { MAX } from '../constants';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+import { snapshotDate, utcDateKey } from './snapshotDate';
 
 interface GuildDayCounters {
   messageCount: number;
@@ -38,13 +39,6 @@ function createCounters(): GuildDayCounters {
     memberJoined: 0,
     memberLeft: 0,
   };
-}
-
-/**
- * Returns today's date string in YYYY-MM-DD format (UTC).
- */
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 type TopChannel = NonNullable<AnalyticsSnapshot['topChannels']>[number];
@@ -76,7 +70,7 @@ class ActivityTracker {
   private counters = new Map<string, GuildDayCounters>();
 
   private getCounters(guildId: string): GuildDayCounters {
-    const key = `${guildId}:${todayKey()}`;
+    const key = `${guildId}:${utcDateKey()}`;
     let c = this.counters.get(key);
     if (!c) {
       c = createCounters();
@@ -147,7 +141,7 @@ class ActivityTracker {
    * @param memberCount  Current total member count (from Guild.memberCount)
    * @param dateStr  Day to flush (YYYY-MM-DD, UTC); defaults to today
    */
-  async flushSnapshot(guildId: string, memberCount: number, dateStr: string = todayKey()): Promise<void> {
+  async flushSnapshot(guildId: string, memberCount: number, dateStr: string = utcDateKey()): Promise<void> {
     const key = `${guildId}:${dateStr}`;
     const c = this.counters.get(key);
     this.counters.delete(key);
@@ -188,7 +182,7 @@ class ActivityTracker {
 
     try {
       // Upsert: if a snapshot for this guild+date already exists, update it
-      let snapshot = await repo.findOneBy({ guildId, date: new Date(dateStr) });
+      let snapshot = await repo.findOneBy({ guildId, date: snapshotDate(dateStr) });
 
       if (snapshot) {
         snapshot.memberCount = memberCount;
@@ -210,7 +204,7 @@ class ActivityTracker {
       } else {
         snapshot = repo.create({
           guildId,
-          date: new Date(dateStr),
+          date: snapshotDate(dateStr),
           memberCount,
           memberJoined: c.memberJoined,
           memberLeft: c.memberLeft,
@@ -258,7 +252,7 @@ class ActivityTracker {
 
   /** Remove stale entries from previous days that were never flushed. */
   cleanStaleEntries(): void {
-    const today = todayKey();
+    const today = utcDateKey();
     for (const key of this.counters.keys()) {
       const keyDate = key.split(':')[1];
       if (keyDate < today) {
@@ -267,9 +261,9 @@ class ActivityTracker {
     }
   }
 
-  /** Check if there are any counters for a guild today (for testing). */
-  hasCounters(guildId: string): boolean {
-    return this.counters.has(`${guildId}:${todayKey()}`);
+  /** Check if there are buffered counters for a guild on a day (YYYY-MM-DD, UTC; defaults to today). */
+  hasCounters(guildId: string, dateStr: string = utcDateKey()): boolean {
+    return this.counters.has(`${guildId}:${dateStr}`);
   }
 }
 

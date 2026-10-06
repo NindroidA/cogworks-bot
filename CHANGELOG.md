@@ -27,6 +27,16 @@ away, and a deploy or restart no longer drops the day so far.
 - **Counters piled up when no guild had analytics enabled**: the midnight
   job returned early before cleaning stale in-memory counters; it now
   always cleans them.
+- **Midnight wrote an empty row for the new day**: guilds with no activity
+  now get their member-count row for the day that just ended, so digests
+  and `/analytics overview` no longer show a 0 "today" right after midnight.
+  Weekly and monthly digests cover the 7 or 30 full UTC days that just
+  ended (the window used to hold only 6 or 29 of them).
+- **Snapshot dates depended on the host time zone**: a snapshot's day was
+  passed to MySQL as a JS Date, so on a host west of UTC rows were written
+  under the previous day and same-day lookups missed (a second flush then
+  hit the unique index). Snapshot writes, `/analytics overview` and digest
+  windows now pass the UTC day as a 'YYYY-MM-DD' string.
 
 ## [3.16.6] - 2026-10-06
 
