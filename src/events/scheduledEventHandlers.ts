@@ -36,7 +36,7 @@ const eventTemplateRepo = lazyRepo(EventTemplate);
 
 export const guildScheduledEventCreate = {
   name: 'guildScheduledEventCreate',
-  async execute(event: GuildScheduledEvent, _client: Client) {
+  async execute(event: GuildScheduledEvent, client: Client) {
     const guildId = event.guildId;
     if (!guildId) return;
 
@@ -49,8 +49,10 @@ export const guildScheduledEventCreate = {
         eventId: event.id,
       });
 
-      // Auto-create reminder if configured
-      if (config.reminderChannelId && config.defaultReminderMinutes > 0 && event.scheduledStartAt) {
+      // Auto-create reminder if configured. Events the bot creates itself
+      // (/event create, templates, recurring) already got one from that path.
+      const createdByBot = !!event.creatorId && event.creatorId === client.user?.id;
+      if (!createdByBot && config.reminderChannelId && config.defaultReminderMinutes > 0 && event.scheduledStartAt) {
         const reminderAt = new Date(event.scheduledStartAt.getTime() - config.defaultReminderMinutes * 60 * 1000);
 
         if (reminderAt > new Date()) {
