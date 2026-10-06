@@ -79,6 +79,103 @@ role permission grants and stops warm caches from acting on deleted config.
 - `/data-export` no longer includes the global `BotStatus` row, which exposed
   the bot owner's user ID to every guild admin.
 
+## [3.16.5] - 2026-10-06
+
+Raid mode now lets go when it should. The 4-hour cap was never enforced while
+the bot was running, and a restart mid-raid made the next release re-lock every
+channel instead of unlocking it.
+
+### Fixed
+
+- **Raid mode auto-releases at its 4-hour cap.** `checkAutoRelease` had no
+  caller, so after the cap every channel stayed read-only for `@everyone` while
+  `/baitchannel raid status` already said "inactive". A one-minute sweep
+  (started by the existing boot-time restore) now releases any lockdown past
+  its cap and restores the channels. Status reports raid mode as active until
+  the lockdown is actually released.
+- **Releasing after a bot restart restores the real permissions.** Boot-time
+  restore re-snapshotted channels it had already locked, so the recorded
+  "prior" state was the bot's own deny and a later release (manual or
+  auto) left the whole server read-only. The pre-raid permission snapshot is
+  now saved in the `raid-mode-entered` log row and reloaded at boot and on
+  release. A raid entered before this version still falls back to inherit
+  for channels it can't account for, with a warning.
+- **Entering raid mode again before the release never overwrites the
+  snapshot.** Re-entering after the cap (still locked) keeps the priors
+  already recorded and only adds channels it hasn't touched. Enter, release
+  and the sweep now run one at a time per guild, so a release in progress
+  can't be captured as the next raid's prior state.
+- **A release that can't finish no longer reports raid mode as over.**
+  Channels are restored before the raid is cleared in the database, so a
+  crash or shutdown mid-release leaves it active and the next boot or sweep
+  finishes it. No release runs while a guild is in a Discord outage: the
+  auto-release waits for the next sweep, and a manual release (slash command
+  or dashboard) says the server is unavailable instead of reporting success
+  with every channel still locked. The auto-release also keeps a raid where no
+  channel could be restored (for example, Manage Roles revoked), retrying on
+  the next sweep. Channels a release can't restore are named in a warning,
+  except channels the lockdown never managed to lock (hidden from the bot, or
+  Manage Roles missing at entry), which need no restore. A failed save of the
+  snapshot row is logged as an error.
+
+## [3.16.4] - 2026-10-06
+
+Bait-channel moderation safety — the grace-period path could ban people it
+had told "no real action will be taken", people who deleted their message in
+time, and people in a different server. Grace periods now act only on the
+server's current settings, and only from the timer that owns them.
+
+### Fixed
+
+- **Grace rows no longer save as `ban`.** The pending-action row now records
+  the action it stands for (`timeout`, `softban` for kick, …), and `log-only`
+  in test mode, instead of the column default `ban` that the leave-drain and
+  orphan sweep then carried out.
+- **Leaving one server no longer cancels a grace timer in another.** Timers
+  are keyed per guild, so a member leaving guild B can't orphan their guild-A
+  timer into a retry-queue ban.
+- **Grace expiry uses current settings.** When the timer fires, the config is
+  re-read: test mode, disabling the feature, removing the bait channel, or
+  whitelisting the user during the window now takes effect. A message posted
+  while test mode was on is always a dry run, even if test mode is switched off
+  before the window ends.
+- **Leaving during the grace window** is settled by the same checks (current
+  config, test mode, whitelist, message still there) and logged like any other
+  bait action, instead of the leave-drain running the raw row. Timeout and kick
+  still become a softban since the member is gone; the log row now says
+  `softban`, the log embed says "Softbanned" (or "Softban FAILED" when it
+  fails, instead of "Action FAILED"), and the departed member is no longer
+  DMed the timeout or kick that never happened.
+- **The bot never lifts someone else's ban.** If a member leaves because a mod
+  (or another bot) banned them during the grace window, the grace period ends
+  as `superseded-by-mod` with no action; before, a timeout or kick would have
+  become a softban whose unban step lifted the mod's ban. When the ban list
+  can't be read (no Ban Members permission, or a Discord or network error), a
+  timeout or kick on leave is logged as `demoted-after-leave` and nothing is
+  done. The leave-drain applies the same rule to queued retries: no softban
+  unless the ban list says the member isn't banned.
+- **Several bait posts from one member get one removal.** Once a ban, kick or
+  softban of a member lands (including on leave), their other posts still in
+  their grace window end without an action of their own, and those posts are
+  deleted. Before, the leave the removal caused ran them as bans; replayed one
+  by one, a later softban could lift the ban, or a later post could ban someone
+  just softbanned before that post's own window was over. They end only after
+  the removal lands; if it fails, they keep their own timers. A post that only
+  timed the member out leaves the others to their own timers. Grace resolutions
+  for the same member run one at a time, so two timers firing together can't
+  race (a ban landing between a softban's ban and unban steps used to be
+  lifted).
+- **Dashboard cancel actually cancels.** `pending-actions/cancel` now stops the
+  in-memory grace timer and removes the warning reply before deleting the row;
+  previously the timer still acted.
+- **Orphan sweep no longer races the live timer.** Grace rows are only treated
+  as orphaned 60s past their window, and are dropped without acting (startup
+  restore never acted on them either).
+- **Test mode never reaches a real retry.** A test-mode dry run is not queued
+  for retry, and retries in a guild that is now in test mode run as dry runs.
+  Retries also use the guild's configured message-delete window and timeout
+  length instead of fixed 24h / 60min.
+
 ## [3.16.3] - 2026-07-07
 
 Consistency chore — no behavioral change. Aligns the analytics command name
@@ -1026,6 +1123,7 @@ lockdown).
 - Schema entity rename `PendingBan` → `PendingAction` across 6
   importers (manager, index, dataExport, devSuiteScaffold,
   guildQueries, tests).
+
 ## [3.1.42] - 2026-05-31
 
 ### Fixed

@@ -43,9 +43,16 @@ const configRepo = {
   findOne: jest.fn(async () => state.config),
   save: jest.fn(async (x: any) => x),
 };
-const pendingRepo = { find: jest.fn(async () => state.pending), findOne: jest.fn(), remove: jest.fn() };
+const pendingRepo = {
+  find: jest.fn(async () => state.pending),
+  findOne: jest.fn(async (): Promise<any> => null),
+  remove: jest.fn(async (x: any) => x),
+};
 const logRepo = { find: jest.fn(async () => state.logs) };
 const auditRepo = { create: jest.fn((x: any) => x), save: jest.fn(async (x: any) => x) };
+
+// Handlers read `client.baitChannelManager` per request, so tests can attach one.
+const client = { guilds: { fetch: jest.fn(async () => null) } } as any;
 
 let routes: Map<string, RouteHandler>;
 let originalGetRepository: ((e: unknown) => unknown) | undefined;
@@ -64,7 +71,6 @@ beforeAll(() => {
     repoMap.get(e) ?? {};
 
   routes = new Map<string, RouteHandler>();
-  const client = { guilds: { fetch: jest.fn(async () => null) } } as any;
   registerBaitChannelHandlers(client, routes);
 });
 
@@ -81,6 +87,9 @@ beforeEach(() => {
   configRepo.findOne.mockClear();
   configRepo.save.mockClear();
   pendingRepo.find.mockClear();
+  pendingRepo.findOne.mockReset();
+  pendingRepo.remove.mockClear();
+  client.baitChannelManager = undefined;
   logRepo.find.mockClear();
   auditRepo.save.mockClear();
   fakeWriteAuditLog.mockClear();
@@ -148,6 +157,43 @@ describe('bait internal API handlers', () => {
 
     test('rejects an invalid status', async () => {
       await expect(route('GET /bait-channel/pending-actions')('g1', {}, '/x?status=bogus')).rejects.toThrow();
+    });
+  });
+
+  describe('POST /bait-channel/pending-actions/cancel', () => {
+    const row = { id: 7, guildId: 'g1', userId: 'u1', messageId: 'm1', action: 'ban', attempts: 0 };
+
+    test('stops the grace timer before deleting the row', async () => {
+      pendingRepo.findOne.mockResolvedValue({ ...row });
+      const order: string[] = [];
+      const cancelPendingAction = jest.fn(async () => {
+        order.push('timer');
+        return true;
+      });
+      pendingRepo.remove.mockImplementation(async (x: any) => {
+        order.push('row');
+        return x;
+      });
+      client.baitChannelManager = { cancelPendingAction };
+
+      const res = await route('POST /bait-channel/pending-actions/cancel')('g1', { id: 7 }, '');
+
+      expect(res).toEqual({ success: true });
+      expect(cancelPendingAction).toHaveBeenCalledWith('g1', 'u1', 'm1');
+      expect(order).toEqual(['timer', 'row']);
+      expect(fakeWriteAuditLog).toHaveBeenCalled();
+    });
+
+    test('still removes the row when no manager is attached (retry rows only live in the DB)', async () => {
+      pendingRepo.findOne.mockResolvedValue({ ...row, attempts: 2 });
+      await route('POST /bait-channel/pending-actions/cancel')('g1', { id: 7 }, '');
+      expect(pendingRepo.remove).toHaveBeenCalledTimes(1);
+    });
+
+    test('404 when the row is not in this guild', async () => {
+      pendingRepo.findOne.mockResolvedValue(null);
+      await expect(route('POST /bait-channel/pending-actions/cancel')('g1', { id: 7 }, '')).rejects.toThrow();
+      expect(pendingRepo.remove).not.toHaveBeenCalled();
     });
   });
 
