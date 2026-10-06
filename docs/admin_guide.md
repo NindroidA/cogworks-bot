@@ -1420,10 +1420,11 @@ Right-click a user and select "Manage Restrictions" to view and modify their tic
 /data-export
 ```
 
-Exports all data from every configured system (tickets, applications, announcements, bait channel, rules, reaction roles, memory, starboard, XP, events, onboarding, analytics, AutoMod, archives, audit logs, and bot status).
+Exports every record Cogworks stores for your server (tickets, applications, announcements, bait channel, rules, reaction roles, memory, starboard, XP, events, onboarding, analytics, AutoMod, archives, audit logs, role permission grants and setup progress).
 
-- Sent via **DM** as a **JSON file**
-- Rate limited: once per 24 hours
+- Sent via **DM** as a compressed JSON file (`.json.gz`; open it with any unzip tool). If your DMs are closed, the file is attached to the command's private reply instead.
+- Files over Discord's 8 MB upload limit can't be sent yet. That attempt still counts as the day's export, since running it again builds the same file.
+- Rate limited: once per 24 hours (an export that fails to send, for example when both the DM and the fallback fail, doesn't count)
 - Admin-only command
 
 ### Bot Reset (Factory Reset)

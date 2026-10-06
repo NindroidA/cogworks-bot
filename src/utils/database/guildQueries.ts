@@ -169,7 +169,9 @@ export async function deleteByGuild<T extends { guildId: string }>(
  * Safely delete ALL data for a specific guild (GDPR compliance)
  *
  * ⚠️ DANGEROUS: This deletes all data for a guild across all tables
- * Use only when a guild removes the bot
+ * Use only when a guild removes the bot, or for /bot-reset. Also drops the
+ * guild's in-memory config caches before and after the purge, so nothing keeps
+ * acting on (and re-creating rows from) the deleted config.
  *
  * @param guildId - Guild ID to delete all data for
  * @returns Object with deletion counts per entity
@@ -231,6 +233,8 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     const { OnboardingConfig } = await import('../../typeorm/entities/onboarding/OnboardingConfig');
     const { SetupState } = await import('../../typeorm/entities/SetupState');
     const { OnboardingCompletion } = await import('../../typeorm/entities/onboarding/OnboardingCompletion');
+    const { GuildPermission } = await import('../../typeorm/entities/GuildPermission');
+    const { invalidateGuildCaches } = await import('../offboarding/guildCaches');
 
     const details: Record<string, number> = {};
     let total = 0;
@@ -277,10 +281,10 @@ export async function deleteAllGuildData(guildId: string): Promise<{
         name: 'StarboardConfig',
         repo: AppDataSource.getRepository(StarboardConfig),
       },
-      // XP system
+      // XP system (no FKs; config before users so a message landing mid-purge finds XP disabled)
       { name: 'XPRoleReward', repo: AppDataSource.getRepository(XPRoleReward) },
-      { name: 'XPUser', repo: AppDataSource.getRepository(XPUser) },
       { name: 'XPConfig', repo: AppDataSource.getRepository(XPConfig) },
+      { name: 'XPUser', repo: AppDataSource.getRepository(XPUser) },
       // Events
       {
         name: 'EventReminder',
@@ -348,6 +352,8 @@ export async function deleteAllGuildData(guildId: string): Promise<{
         repo: AppDataSource.getRepository(BaitChannelLog),
       },
       { name: 'StaffRole', repo: AppDataSource.getRepository(StaffRole) },
+      // Role grants: a surviving row would keep granting feature access after a reset.
+      { name: 'GuildPermission', repo: AppDataSource.getRepository(GuildPermission) },
       { name: 'UserActivity', repo: AppDataSource.getRepository(UserActivity) },
       { name: 'SetupState', repo: AppDataSource.getRepository(SetupState) },
       { name: 'RulesConfig', repo: AppDataSource.getRepository(RulesConfig) },
@@ -363,6 +369,7 @@ export async function deleteAllGuildData(guildId: string): Promise<{
     // the one place that genuinely needs graceful degradation — best-effort
     // partial deletion beats all-or-nothing for compliance work.
     const { safeDbOperation } = await import('../errorHandler');
+    invalidateGuildCaches(guildId);
     for (const { name, repo } of deletions) {
       const result = await safeDbOperation(
         () => deleteByGuild(repo as Repository<{ guildId: string }>, guildId),
@@ -371,6 +378,8 @@ export async function deleteAllGuildData(guildId: string): Promise<{
       details[name] = result?.affected ?? 0;
       total += details[name];
     }
+    // Again after the purge: a message handled mid-purge may have re-cached a not-yet-deleted config row.
+    invalidateGuildCaches(guildId);
 
     return {
       success: true,

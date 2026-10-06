@@ -1352,6 +1352,7 @@ export interface LangDataExport {
   footer: string;
   dmSuccess: string;
   dmFailed: string;
+  tooLarge: string;
   error: string;
   starting: string;
   completed: string;

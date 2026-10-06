@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.8] - 2026-10-06
+
+`/data-export` now reaches the admin and covers every guild table, and the
+guild purge (used by `/bot-reset` and when the bot leaves a server) removes
+role permission grants and stops warm caches from acting on deleted config.
+
+### Fixed
+
+- **Warm caches outlived a purge.** XP, starboard, rules, reaction-role menu,
+  locale and permission caches are now dropped before and after
+  `deleteAllGuildData` (for `/bot-reset` and guild leave), so XP and starboard
+  rows stop being re-created for up to five minutes afterwards. `/bot-reset`
+  and guild leave also clear the bait config and keyword caches on both sides
+  of the purge (reset used to clear only the config cache, and only before;
+  guild leave didn't clear them, so a kick and re-invite within five minutes
+  kept acting on the deleted bait config). `XPConfig` is
+  now deleted before `XPUser`. The starboard config cache moved to
+  `utils/starboard/configCache.ts` so the purge can reach it.
+- **`/data-export`** is gzipped compact JSON instead of pretty-printed, checks
+  the 8 MB upload limit, and when the DM fails it attaches the file to the
+  ephemeral reply instead of pointing at a download button that didn't exist.
+  Its daily limit is given back when delivery fails, but an export too large
+  to upload still counts, since running it again would build the same file.
+  Compression no longer blocks the event loop. The entity list
+  moved to `utils/offboarding/guildDataExport.ts` so other exports can reuse it.
+  The `/data-export` sections of the admin guide and `docs/commands.md`
+  describe the new file, the fallback and when the daily limit counts.
+
+### Security
+
+- **Role permission grants (`GuildPermission`) survived `/bot-reset` and the
+  guild-leave purge**, so a role granted dashboard access before a factory
+  reset kept it afterwards. They are now purged (and their cache dropped), and
+  included in `/data-export`, along with `SetupState`. A unit test now diffs
+  the purge and export lists against the DataSource so a new entity can't be
+  missed again.
+- `/data-export` no longer includes the global `BotStatus` row, which exposed
+  the bot owner's user ID to every guild admin.
+
 ## [3.16.7] - 2026-10-06
 
 Analytics: the day that just ended is saved at midnight instead of thrown
