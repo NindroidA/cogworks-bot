@@ -28,7 +28,8 @@ export class StarboardEntry {
   @Column({ type: 'text', nullable: true })
   content: string | null;
 
-  @Column({ type: 'varchar', nullable: true })
+  // Signed Discord CDN URLs (?ex=&is=&hm=) can pass 255 characters.
+  @Column({ type: 'varchar', length: 2048, nullable: true })
   attachmentUrl: string | null;
 
   @CreateDateColumn()
