@@ -89,7 +89,7 @@ import { lang } from '../utils';
 lang.ticket.created;          // Direct access
 lang.ticketSetup.createTicket; // Setup strings are under ticketSetup/applicationSetup keys
 ```
-Translation files: per-locale dirs `src/lang/<locale>/*.json` (en, es, fr, de, pt-BR — English is the Proxy fallback) with types in `src/lang/types.ts`.
+Strings live in `src/lang/en/*.json` with types in `src/lang/types.ts`; add new user-facing text there. English is the only shipped locale. The locale machinery stays for future translations: a translation is a partial JSON set (only translated keys) plus one `LOCALE_REGISTRY` entry in `src/lang/index.ts`, and a Proxy falls back to English for everything else (`getGuildLang(guildId)` resolves a guild's locale; see `src/lang/TRANSLATING.md`). The `/bot-setup` Language button only shows when more than one locale is registered. Don't add untranslated copies of the English files.
 
 ### Error Handling
 ```typescript

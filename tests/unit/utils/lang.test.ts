@@ -1,22 +1,38 @@
-import { describe, expect, test } from 'bun:test';
+/**
+ * Locale machinery tests. English is the only shipped locale; the registry,
+ * guild lookup and Proxy fallback stay so a partial translation can be dropped
+ * in later. The fallback is exercised through `buildLocaleLang` with fake
+ * partial modules, which is exactly what a registered translation goes through.
+ *
+ * Guild lookups use the AppDataSource runtime-patch pattern (not mock.module,
+ * which is process-shared) so getGuildLocale reads a fake BotConfig row.
+ */
+
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { buildDashboardButtons } from '../../../src/commands/handlers/botSetup';
 import {
+  buildLocaleLang,
   DEFAULT_LOCALE,
+  getGuildLang,
+  getGuildLocale,
   getLangForLocale,
+  getLocaleLabel,
+  invalidateGuildLocaleCache,
   isSupportedLocale,
   lang,
   SUPPORTED_LOCALES,
 } from '../../../src/lang';
+import { AppDataSource } from '../../../src/typeorm';
+import { DEFAULT_SYSTEM_STATES } from '../../../src/typeorm/entities/SetupState';
 
 describe('SUPPORTED_LOCALES', () => {
-  test('includes English as default', () => {
-    expect(SUPPORTED_LOCALES).toContain('en');
+  test('ships English only, as the default', () => {
+    expect([...SUPPORTED_LOCALES]).toEqual(['en']);
     expect(DEFAULT_LOCALE).toBe('en');
   });
 
-  test('includes the seeded locales', () => {
-    for (const code of ['es', 'pt-BR', 'fr', 'de']) {
-      expect(SUPPORTED_LOCALES).toContain(code as (typeof SUPPORTED_LOCALES)[number]);
-    }
+  test('every locale has a display label', () => {
+    expect(getLocaleLabel('en')).toBe('English');
   });
 });
 
@@ -24,6 +40,12 @@ describe('isSupportedLocale', () => {
   test('accepts known locale codes', () => {
     for (const code of SUPPORTED_LOCALES) {
       expect(isSupportedLocale(code)).toBe(true);
+    }
+  });
+
+  test('rejects the removed untranslated locales so stored values fall back to English', () => {
+    for (const code of ['es', 'pt-BR', 'fr', 'de']) {
+      expect(isSupportedLocale(code)).toBe(false);
     }
   });
 
@@ -36,49 +58,98 @@ describe('isSupportedLocale', () => {
 });
 
 describe('getLangForLocale', () => {
-  test('returns the English singleton for "en"', () => {
+  test('returns the English singleton for "en" on every call', () => {
     expect(getLangForLocale('en')).toBe(lang);
-  });
-
-  test('returns a Language object for every supported locale', () => {
-    for (const code of SUPPORTED_LOCALES) {
-      const result = getLangForLocale(code);
-      expect(result).toBeTruthy();
-      // Every locale must expose the same top-level shape as English.
-      expect(typeof result.ticket).toBe('object');
-      expect(typeof result.general).toBe('object');
-      expect(typeof result.botConfig.notFound).toBe('string');
-    }
-  });
-
-  test('caches results so repeat calls return the same object', () => {
-    const first = getLangForLocale('es');
-    const second = getLangForLocale('es');
-    expect(first).toBe(second);
+    expect(getLangForLocale('en')).toBe(lang);
   });
 });
 
-describe('Proxy fallback to English', () => {
-  // The scaffolded non-EN locales are copies of English, so reads should
-  // return the same string for both until translators start diverging the
-  // JSON. We rely on a runtime probe rather than structural assumptions to
-  // verify the fallback mechanism works.
-  test('missing nested keys fall through to English', () => {
-    const en = getLangForLocale('en');
-    const es = getLangForLocale('es');
-
-    // Force a missing key by probing a property that definitely doesn't exist
-    // in any locale. A naive object would return undefined; the Proxy should
-    // also return undefined, but reading `ticket.created` (which exists in
-    // English) should still resolve through the fallback chain.
-    expect(typeof es.ticket.created).toBe('string');
-    // With current scaffolded data, the strings coincide — confirming the
-    // fallback path is exercised when Spanish has no translation yet.
-    expect(es.ticket.created).toBe(en.ticket.created);
+describe('buildLocaleLang (partial translations)', () => {
+  test('translated keys win; untranslated siblings fall back to English', () => {
+    const es = buildLocaleLang({ ticket: { created: 'Tu ticket fue creado: ' } });
+    expect(es.ticket.created).toBe('Tu ticket fue creado: ');
+    expect(es.ticket.cancelled).toBe(lang.ticket.cancelled);
   });
 
-  test('array keys are returned as whole arrays (no per-element fallback)', () => {
-    const de = getLangForLocale('de');
-    expect(Array.isArray(de.general.presenceMessages)).toBe(true);
+  test('files the translation leaves out read entirely from English', () => {
+    const es = buildLocaleLang({ ticket: { created: 'x' } });
+    expect(es.general.cmdGuildNotFound).toBe(lang.general.cmdGuildNotFound);
+    expect(es.botConfig.notFound).toBe(lang.botConfig.notFound);
+  });
+
+  test('keys derived from ticket.json and roles.json fall back when those files are missing', () => {
+    const empty = buildLocaleLang({});
+    expect(empty.ticketSetup.createTicket).toBe(lang.ticketSetup.createTicket);
+    expect(empty.addRole.cmdDescrp).toBe(lang.addRole.cmdDescrp);
+    expect(empty.removeRole.cmdDescrp).toBe(lang.removeRole.cmdDescrp);
+    expect(empty.getRoles.cmdDescrp).toBe(lang.getRoles.cmdDescrp);
+  });
+
+  test('a translated ticket.setup key surfaces under ticketSetup', () => {
+    const es = buildLocaleLang({ ticket: { setup: { createTicket: 'Crear ticket' } } });
+    expect(es.ticketSetup.createTicket).toBe('Crear ticket');
+    expect(es.ticketSetup.cmdDescrp).toBe(lang.ticketSetup.cmdDescrp);
+  });
+
+  test('array keys are replaced as whole arrays (no per-element fallback)', () => {
+    const es = buildLocaleLang({ general: { presenceMessages: ['hola'] } });
+    expect([...es.general.presenceMessages]).toEqual(['hola']);
+    expect(Array.isArray(buildLocaleLang({}).general.presenceMessages)).toBe(true);
+  });
+});
+
+describe('getGuildLocale / getGuildLang', () => {
+  type PatchableDataSource = { isInitialized: boolean; getRepository: (e: unknown) => unknown };
+  const ds = AppDataSource as unknown as PatchableDataSource;
+  let original: Pick<PatchableDataSource, 'isInitialized' | 'getRepository'>;
+  let storedLocale: string | null = null;
+
+  beforeAll(() => {
+    original = { isInitialized: ds.isInitialized, getRepository: ds.getRepository };
+    ds.isInitialized = true;
+    ds.getRepository = () => ({
+      findOne: async ({ where }: { where: { guildId: string } }) =>
+        storedLocale === null ? null : { guildId: where.guildId, locale: storedLocale },
+    });
+  });
+
+  afterAll(() => {
+    ds.isInitialized = original.isInitialized;
+    ds.getRepository = original.getRepository;
+    invalidateGuildLocaleCache();
+  });
+
+  beforeEach(() => invalidateGuildLocaleCache());
+
+  test('a guild that picked a removed locale reads English (no migration needed)', async () => {
+    for (const code of ['es', 'pt-BR', 'fr', 'de']) {
+      storedLocale = code;
+      invalidateGuildLocaleCache('g1');
+      expect(await getGuildLocale('g1')).toBe('en');
+      expect(await getGuildLang('g1')).toBe(lang);
+    }
+  });
+
+  test('"en" and a missing BotConfig row both resolve to English', async () => {
+    storedLocale = 'en';
+    expect(await getGuildLocale('g2')).toBe('en');
+    storedLocale = null;
+    expect(await getGuildLocale('g3')).toBe('en');
+  });
+});
+
+describe('/bot-setup Language button', () => {
+  const buttonIds = (showLanguage?: boolean) =>
+    buildDashboardButtons(DEFAULT_SYSTEM_STATES, null, showLanguage).components.map(
+      b => (b.data as { custom_id?: string }).custom_id,
+    );
+
+  test('is hidden while English is the only locale', () => {
+    expect(buttonIds()).not.toContain('setup_language');
+    expect(buttonIds()).toEqual(['setup_finish_later', 'setup_manage_systems', 'setup_reset']);
+  });
+
+  test('comes back once there is a locale to choose', () => {
+    expect(buttonIds(true)).toEqual(['setup_finish_later', 'setup_manage_systems', 'setup_language', 'setup_reset']);
   });
 });
