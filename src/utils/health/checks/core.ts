@@ -23,10 +23,12 @@ const globalStaffRole = defineCheck(
     const at: FindingTarget = { entity: 'BotConfig', rowId: config.guildId, field: 'globalStaffRole' };
     if (!config.globalStaffRole) {
       if (!config.enableGlobalStaffRole) return [];
-      return [emit('enabled_without_role', 'cosmetic', 'auto', { ...at, field: 'enableGlobalStaffRole' })];
+      // New tickets try to ping the role and ping nobody, so this degrades staff alerts.
+      return [emit('enabled_without_role', 'degraded', 'auto', { ...at, field: 'enableGlobalStaffRole' })];
     }
     const ref = parseRoleRef(config.globalStaffRole);
-    if (!ref) return [emit('invalid', 'degraded', 'manual', at)];
+    // Every reader checks the flag first, so with it off the bad value has no effect.
+    if (!ref) return [emit('invalid', config.enableGlobalStaffRole ? 'degraded' : 'cosmetic', 'manual', at)];
 
     const target: FindingTarget = { ...at, refId: ref.id, params: { roleId: ref.id } };
     const role = resolveRole(ctx.guild, ref.id);
@@ -69,7 +71,7 @@ const staffRoles = defineCheck(
     const out: HealthFinding[] = [];
     // Oldest row wins a duplicate pair, so the report is stable across runs.
     const rows = [...rowsOf(ctx, 'StaffRole')].sort((a, b) => a.id - b.id);
-    const kept = new Map<string, number>();
+    const kept = new Map<string, { id: number; alias: string | null | undefined }>();
     for (const row of rows) {
       const at: FindingTarget = { entity: 'StaffRole', rowId: row.id, field: 'role' };
       if (row.type !== 'staff' && row.type !== 'admin') {
@@ -79,18 +81,27 @@ const staffRoles = defineCheck(
       }
       const ref = parseRoleRef(row.role);
       if (!ref) {
-        out.push(emit('invalid', 'degraded', 'manual', { ...at, params: { alias: row.alias ?? '' } }));
+        // No reader can use the row (they all skip it), so removing it loses nothing,
+        // but it is shown for confirmation because it may be the only trace of an old setup.
+        out.push(emit('invalid', 'cosmetic', 'confirm', { ...at, params: { alias: row.alias ?? '' } }));
         continue;
       }
       const target: FindingTarget = { ...at, refId: ref.id, params: { roleId: ref.id, alias: row.alias ?? '' } };
       const key = `${row.type}:${ref.id}`;
-      const keptRowId = kept.get(key);
-      if (keptRowId !== undefined) {
-        // The same role saved twice, usually once per format (`<@&id>` and raw).
-        out.push(emit('duplicate', 'cosmetic', 'auto', { ...target, params: { ...target.params, keptRowId } }));
+      const keptRow = kept.get(key);
+      if (keptRow !== undefined) {
+        // The same role saved twice, usually once per format (`<@&id>` and raw). Removing
+        // the newer row is lossless only when both carry the same alias (shown in /role list).
+        const sameAlias = (keptRow.alias ?? '') === (row.alias ?? '');
+        out.push(
+          emit('duplicate', 'cosmetic', sameAlias ? 'auto' : 'confirm', {
+            ...target,
+            params: { ...target.params, keptRowId: keptRow.id, keptAlias: keptRow.alias ?? '' },
+          }),
+        );
         continue;
       }
-      kept.set(key, row.id);
+      kept.set(key, { id: row.id, alias: row.alias });
       // Since 3.16.11 channel creation skips a deleted role, so the row is an inert dangling reference.
       if (resolveRole(ctx.guild, ref.id).status === 'missing') out.push(emit('missing', 'cosmetic', 'auto', target));
       else if (ref.legacy) out.push(emit('format_legacy', 'cosmetic', 'auto', target));

@@ -59,7 +59,7 @@ describe('core.global_staff_role', () => {
     expect(f).toMatchObject({
       code: 'core.global_staff_role.enabled_without_role',
       system: 'core',
-      severity: 'cosmetic',
+      severity: 'degraded',
       repair: 'auto',
       entity: 'BotConfig',
       rowId: G,
@@ -103,6 +103,13 @@ describe('core.global_staff_role', () => {
     expect(codes(await run(id, { BotConfig: [botConfig({ globalStaffRole: 'Moderators' })] }))).toEqual([
       'core.global_staff_role.invalid',
     ]);
+  });
+
+  test('unparseable value with the flag off is only cosmetic', async () => {
+    const [f] = await run(id, {
+      BotConfig: [botConfig({ enableGlobalStaffRole: false, globalStaffRole: 'Moderators' })],
+    });
+    expect(f).toMatchObject({ code: 'core.global_staff_role.invalid', severity: 'cosmetic' });
   });
 
   test('fail: non-mentionable role and the bot lacks MentionEveryone', async () => {
@@ -181,12 +188,24 @@ describe('core.staff_role', () => {
     expect(findings[0]).toMatchObject({ rowId: 7, refId: STAFF, params: { keptRowId: 3 } });
   });
 
+  test('duplicate with a different alias needs confirmation (the alias would be lost)', async () => {
+    const findings = await run(id, {
+      StaffRole: [row(3, STAFF, 'staff', 'Mods'), row(7, `<@&${STAFF}>`, 'staff', 'Moderators')],
+    });
+    expect(findings[0]).toMatchObject({
+      code: 'core.staff_role.duplicate',
+      repair: 'confirm',
+      params: { keptRowId: 3, keptAlias: 'Mods', alias: 'Moderators' },
+    });
+  });
+
   test('pass: the same role as both staff and admin is not a duplicate', async () => {
     expect(await run(id, { StaffRole: [row(1, STAFF, 'staff'), row(2, STAFF, 'admin')] })).toEqual([]);
   });
 
   test('fail: unparseable role and unknown type', async () => {
-    expect(codes(await run(id, { StaffRole: [row(1, 'Mods')] }))).toEqual(['core.staff_role.invalid']);
+    const [invalid] = await run(id, { StaffRole: [row(1, 'Mods')] });
+    expect(invalid).toMatchObject({ code: 'core.staff_role.invalid', severity: 'cosmetic', repair: 'confirm' });
     const [f] = await run(id, { StaffRole: [row(1, STAFF, 'mod')] });
     expect(f).toMatchObject({ code: 'core.staff_role.unknown_type', field: 'type', params: { type: 'mod' } });
   });
