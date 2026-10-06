@@ -283,6 +283,7 @@
     "activated": "✅ Raid mode activated. Reason: {0}",
     "released": "✅ Raid mode released. Channel permissions restored.",
     "notActive": "ℹ️ Raid mode was not active.",
+    "guildUnavailable": "⚠️ Discord reports this server as unavailable right now, so raid mode was NOT released and channels are still locked. Try again in a few minutes.",
     "unknownSubcommand": "Unknown raid subcommand.",
     "error": "Failed to handle raid command"
   }

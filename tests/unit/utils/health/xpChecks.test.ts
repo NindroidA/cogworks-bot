@@ -157,7 +157,7 @@ describe('xp.role_reward', () => {
         repair: 'confirm',
         rowId: 7,
         field: 'level',
-        params: { level: 5, keptRowId: 3 },
+        params: { level: 5, roleId: ROLE_2, keptRowId: 3, keptRoleId: ROLE },
       }),
     ]);
   });

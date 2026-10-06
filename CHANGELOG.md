@@ -46,15 +46,20 @@ in a separate release.
 
 - **`/bot-health check [system] [deep]`** (Administrator, or the bot owner):
   `system` picks Core (settings, staff roles, permissions), one `/bot-setup`
-  system, XP, the starboard or onboarding. It runs the read-only health check
-  and replies ephemerally with a summary (bot version, check time, one line per
-  system: ✅ no problems, ⚠️ n found, ❌ n found with something broken, ➖ not set
-  up; footer: how many are automatic, need confirmation or are manual fixes). A
-  select opens each system's findings, 10 per page with Previous/Next, each
-  explained in plain language with deleted objects shown as raw IDs and
-  existing ones as mentions, and every page kept inside Discord's embed limits.
-  **Export JSON** attaches the full report (IDs and codes only) for support.
-  The buttons stop after 5 minutes.
+  system that has checks, XP, the starboard or onboarding (the bait channel's
+  checks come later; a check of all systems lists it as not checked yet). It
+  runs the read-only health check and replies ephemerally with a summary (bot
+  version, check time, one line per system: ✅ no problems, ⚠️ n found, ❌ n
+  found with something broken, ➖ not set up). A select opens each system's
+  findings, 10 per page with Previous/Next, each explained in plain language
+  with what to do, deleted objects shown as raw IDs and existing ones as
+  mentions, and every page kept inside Discord's embed limits. Nothing is fixed
+  automatically yet: findings a later `/bot-health repair` will fix say so, and
+  their repair class stays in the export. Deep-mode lookups skipped by the
+  fixed per-run caps are listed by what they cover. **Export JSON** attaches the
+  full report with IDs, finding codes and numbers only (names, titles and other
+  text from the server's settings are left out) for support. The buttons stop
+  after 5 minutes.
 - It runs on a server without a BotConfig row (like `/bot-setup` and
   `/bot-reset`), is never hidden by module gating, and is audit-logged. The
   dashboard's command browser lists it under Setup with them.
@@ -83,12 +88,16 @@ release.
   channel (a thread included), or missing the bot's permissions (a default
   channel that isn't cached could be an archived thread, so it isn't reported
   as deleted); the ping role is deleted, or can't be pinged (not mentionable
-  and the bot lacks Mention Everyone); built-in templates added after the
-  server was set up are missing;
-  a template has a color the renderer can't parse or exceeds Discord's embed
+  and the bot lacks Mention Everyone; when the role is @everyone, which
+  `/bot-setup` saves by default and which has no mentionable toggle, the
+  finding says it can't ping everyone and points to picking a real role);
+  built-in templates added after the server was set up are missing; a
+  template has a color the renderer can't parse or exceeds Discord's embed
   limits, so it can't be sent.
 - **XP** (only while enabled): the level-up channel is deleted, can't hold
-  messages or is missing the bot's permissions; deleted ignored channels,
+  messages or is missing the bot's permissions (the bot grants reward roles
+  only after posting the level-up message, so the text says rewards are
+  skipped too); deleted ignored channels,
   ignored roles and multiplier channels; multipliers of 0 or less; a minimum
   XP per message above the maximum; reward roles that were deleted, are managed
   or @everyone, or sit above the bot's highest role; Manage Roles missing; more
@@ -99,12 +108,18 @@ release.
   Message History missing (existing posts don't update their counts); a
   threshold below 1; deleted ignored channels. Any unicode emoji passes,
   including flags, skin tones, keycaps and ZWJ sequences.
-- **Onboarding** (only while enabled): no steps; a welcome message over 2,000
-  characters (over 4,096 Discord rejects it); the completion role or a
+- **Onboarding** (only while enabled): no steps; a welcome message that,
+  with the server name and a member's display name filled in, is longer than
+  the 4,096 characters a Discord embed allows (the welcome DM fails and
+  onboarding never starts: for every member, or only for members with long
+  names); the completion role or a
   role-select option is deleted, managed or @everyone, or above the bot; Manage
   Roles missing; steps with a repeated id, an unknown type, an id too long for
-  Discord's custom ids, more than 25 role options or the same role twice. A
-  step that can't be sent is rated as blocking when it's required.
+  the custom ids its type builds (`continue_` for message, channel-suggest and
+  custom-question steps, `accept_` for rules-accept, `confirmrole_` for
+  role-select steps with options; steps that send no buttons aren't checked),
+  more than 25 role options or the same role twice. A step that can't be sent
+  is rated as blocking when it's required.
 - New health systems `xp`, `starboard` and `onboarding` (features set up by
   their own commands rather than `/bot-setup`), shared reference rules in
   `src/utils/health/checks/featureRefs.ts` (a channel the bot posts in, a role
@@ -122,7 +137,10 @@ planned for this step come in a separate release to keep this one reviewable.
 
 - **Rules**: the rules channel (deleted, a channel without a text chat, or the
   bot can't see reactions there; the text chat of a voice or stage channel,
-  which the dashboard offers, counts as working), the rules message (deep mode
+  which the dashboard offers, counts as working; missing Send Messages or Add
+  Reactions is only degraded, and the text says they're needed to post the
+  message again, which re-running setup does after deleting the current one),
+  the rules message (deep mode
   only, and still looked up when only Add Reactions or Send Messages is
   missing), the role it gives (deleted, @everyone, managed by an integration, or
   at/above the bot's highest role), Manage Roles, and an emoji a reaction can
@@ -139,10 +157,12 @@ planned for this step come in a separate release to keep this one reviewable.
   so an option whose menu row is gone can't be tied to a guild and isn't
   checked.
 - **Memory**: each memory forum (deleted, not a forum, missing permissions, set
-  up twice) and its welcome post, tags whose memory channel is gone, whose forum
+  up twice: the text names both entries, says which one commands in its posts
+  use, and warns that removing one also deletes its memories, tags and welcome
+  post) and its welcome post, tags whose memory channel is gone, whose forum
   tag is missing or whose type isn't category or status, stale copies of a tag
-  left by earlier setup re-runs (reported as removable, since re-running setup
-  keeps the linked copy and leaves them), and memories whose memory channel is
+  left by earlier setup re-runs (removable by the coming repair, since
+  re-running setup keeps the linked copy and leaves them), and memories whose memory channel is
   gone or whose post was deleted. Archived posts aren't cached, so a deleted
   post is only reported in deep mode, through the REST budget: at most 20 posts
   per run (the rest are listed as not checked), and none in a forum the bot
@@ -152,7 +172,8 @@ planned for this step come in a separate release to keep this one reviewable.
   channel's type and the bot's permissions in it in one lookup, role
   assignability, and deep-mode message and thread lookups that only report
   "missing" on proof (Unknown Message / Unknown Channel).
-- English strings for every new finding code in `src/lang/en/health.json`.
+- English strings for every new finding code in `src/lang/en/health.json`. Each
+  names the command that fixes the problem, or says when no action is needed.
 
 ### Changed — health-check engine REST budget (internal)
 
@@ -171,29 +192,39 @@ yet, so nothing a server sees changes in this release.
 
 ### Added — ticket and application health checks (internal, no user-visible command yet)
 
-- **Panels** (tickets and applications): the panel channel is gone, isn't a text
-  channel, or the bot can't post in it; the panel message was deleted (deep mode
-  only, through the budgeted REST fetcher); the category for new channels is unset,
-  gone, not a category, missing Manage Channels / Manage Roles, or at Discord's
+- **Panels** (tickets and applications): the panel channel is gone or isn't a text
+  channel; the panel isn't posted (a blank message id, which the delete event leaves
+  behind, reported in every mode; in deep mode also a stored message id that no longer
+  exists, through the budgeted REST fetcher); the bot lacks View Channel / Send Messages
+  in the panel channel (only needed to post the panel again, so with a panel posted
+  it's a cosmetic note; no Embed Links, since neither panel sends an embed) or, for
+  applications, View Channel / Read Message History (the posted panel isn't updated
+  when positions change, degraded); the category for new channels is
+  unset, gone, not a category, missing Manage Channels / Manage Roles, or at Discord's
   50-channel limit; a posted panel with no archive forum, so nothing can be closed.
 - **Archive forums**: gone, not a forum, missing the permissions closes need, or at
   Discord's 20-tag limit while an active ticket type or position (or an
-  Accepted / Rejected outcome) still has no tag.
-- **Ticket types and positions**: more than 25 active, none active while a panel is
-  posted, more than one default type, a non-hex type color, a type name that makes the
-  form title longer than Discord's 45 characters, an emoji Discord won't accept, and
-  form questions over Discord's limits (missing or repeated ids, labels over 45,
-  placeholders over 100, invalid length limits, more than 5 questions). Ratings follow
-  what the bot does: a type menu that can't be sent (over 25 types or a rejected emoji)
-  falls back to the 5 built-in ticket types, and a ticket form shows only its first 5
-  questions, so those are degraded rather than broken; positions have neither fallback.
-  In deep mode a custom emoji is looked up on the server, on the other servers the bot
-  is in and among the bot's own emojis; one found nowhere is only a cosmetic note with
-  a manual fix, since it may still work. Problems on an inactive type or position are
-  cosmetic.
-- **Leftover rows**: user restrictions for a ticket type that no longer exists,
-  open tickets and applications whose channel was deleted, and tickets stuck in
-  `created` without a channel for more than 10 minutes (a failed creation).
+  Accepted / Rejected outcome) still has no tag. Missing Manage Channels is reported on
+  its own as degraded: closes still work, but new tags can't be created.
+- **Ticket types and positions**: more than 25 active, no active ticket type while a
+  panel is posted (nobody can open a ticket), more than one default type, a non-hex
+  type color, a type name that makes the form title longer than Discord's 45
+  characters, an emoji Discord won't accept, and form questions over Discord's limits
+  (missing or repeated ids, labels over 45, placeholders over 100, invalid length
+  limits, more than 5 questions). Ratings follow what the bot does: a type menu that
+  can't be sent (over 25 types or a rejected emoji) falls back to the 5 built-in ticket
+  types, and a ticket form shows only its first 5 questions, so those are degraded
+  rather than broken; positions have neither fallback. No open position is not a
+  finding: the panel says none are available (recruiting closed). In deep mode a custom
+  emoji is looked up on the server, on the other servers the bot is in (cache) and
+  among the bot's own emojis; one found nowhere was probably deleted, and is a cosmetic
+  note with a manual fix (no repair removes it). Problems on an inactive type or
+  position are cosmetic.
+- **Leftover rows**: user restrictions for a ticket type that no longer exists
+  (removing one needs confirmation: it keeps its reason and applies again if the type
+  id is re-added), open tickets and applications whose channel was deleted, and
+  tickets stuck in `created` without a channel for more than 10 minutes (a failed
+  creation).
 - The health loader reads only open `Ticket` and `Application` rows, so closed
   history never loads.
 
@@ -233,6 +264,679 @@ nothing a server sees changes in this release.
   pattern from the delete-event suites, now also tracking `insert` / `update` /
   `delete`, with `shouldThrowOn` that works after creation),
   `tests/helpers/fakeGuild.ts` and `tests/helpers/healthContext.ts`.
+
+## [3.16.20] - 2026-10-06
+
+Language cleanup: English is the only shipped locale. The Spanish, Portuguese
+(Brazil), French and German options were untranslated copies of an old English
+snapshot (every string matched English, and about 40 newer keys were missing),
+so picking one changed nothing. The locale machinery stays so a real
+translation can be added later as a partial set of files.
+
+### Changed
+
+- **Removed the `es`, `pt-BR`, `fr` and `de` locale directories** (96 JSON
+  files). Guilds that had picked one of them read English, as they effectively
+  did already. No migration: `BotConfig.locale` keeps its value, and unknown
+  codes resolve to English.
+- **The `/bot-setup` Language button is hidden while English is the only
+  locale.** It comes back automatically once a second locale is registered.
+- **Adding a locale is now one `LOCALE_REGISTRY` entry** in `src/lang/index.ts`
+  (label + modules) plus a partial JSON set holding only the translated keys.
+  `SUPPORTED_LOCALES` and the picker labels derive from the registry, and
+  `TRANSLATING.md` describes the partial-file workflow.
+- The "no Bot Config" reply for unconfigured guilds reads the English string
+  directly instead of looking up a locale the guild can't have saved yet.
+
+### Fixed
+
+- A partial locale that omits `ticket.json` or `roles.json` no longer throws
+  while building its language object; the derived `ticketSetup`, `addRole`,
+  `removeRole` and `getRoles` keys fall back to English.
+
+### Removed
+
+- The unused hard-coded `cogdeck` language block.
+
+## [3.16.19] - 2026-10-06
+
+Dependency security sweep. `bun audit` reported 36 advisories (17 high, 15
+moderate, 4 low); after this release it reports none. Every bump stays inside
+the existing major versions. None of the advisories was reachable from the bot
+as it runs under Bun in production, but clearing them makes new alerts
+visible again.
+
+### Security
+
+- **discord.js 14.26.4 → 14.27.0**, which moves undici to 6.29.0 (from 6.24.1
+  and a nested 6.21.3) and `@discordjs/rest` to 2.6.3. Under Bun these paths
+  use Bun's built-in `fetch`/`WebSocket`, so the undici and ws advisories only
+  applied to the `start:node` script.
+- **ws 8.18.3 → 8.22.0** (transitive via `@discordjs/ws`). `@discordjs/ws`
+  stays at 1.2.3, so the existing `patchedDependencies` entry still applies.
+- **TypeORM 1.0.0 → 1.1.1** (GHSA-2rp8-mm9q-fp49, `migration:generate`
+  code injection; dev CLI only).
+- **mysql2 3.22.5 → 3.24.5** (GHSA-rgwj-5xj2-c3m3, compressed-protocol
+  decompression bomb; the bot never enables `compress`).
+- **lodash 4.17.21 → 4.18.1** (transitive via `@sapphire/shapeshift`) and
+  **diff 4.0.2 → 4.0.4** (transitive via `ts-node`).
+
+### Changed
+
+- **TypeORM 1.1 rejects `null`/`undefined` in write criteria.** `update`,
+  `delete`, `softDelete`, `restore`, `increment` and `decrement` now throw on
+  a `null` or `undefined` where-value, matching how `find` already behaved,
+  and refuse criteria that would match every row. Every write criteria in
+  `src/` is non-null: guild-scoped, a global `LessThan(date)` retention sweep
+  (log cleanup, analytics snapshots, expired bait pending actions), or the
+  fixed `['test']` match in the `/dev-test` incident cleanup. Nothing should
+  change.
+
+### Removed
+
+- **`nodemon` dev dependency.** No script, config or doc used it, and it
+  brought in the vulnerable `minimatch`, `brace-expansion`, `braces` and
+  `picomatch` 2.x.
+
+## [3.16.18] - 2026-10-06
+
+Memory setup no longer deletes forum tags. Setup used to replace a forum's
+whole tag list with the 9 defaults, which deletes every other tag in Discord
+and strips it from every post.
+
+### Fixed
+
+- **Setup keeps a forum's tags.** `/memory-setup setup`, `/memory-setup
+  add-channel` and the `/bot-setup` memory flow now add the default tags to
+  the forum's existing ones (reusing same-named tags, case-insensitive, and
+  stopping at Discord's 20-tag cap) instead of replacing the list.
+- **Re-running the `/bot-setup` memory flow on the same forum no longer adds
+  tags, rows or welcome posts.** It only restores memory tags that were
+  deleted from the forum. A memory tag still linked to one of the forum's tags
+  is left alone, even if an admin renamed it in Discord, and a config that
+  already has its default tags isn't seeded with them again, so a default
+  renamed with `/memory tags action:edit` or `/memory-setup tag-edit` doesn't
+  come back under its old name. Missing tags are upserted by name instead of
+  inserted again, the flow prefers the config already on the chosen forum,
+  and it keeps the existing welcome thread instead of posting another.
+
+### Notes
+
+- Duplicate memory tag rows left by earlier `/bot-setup` re-runs are not
+  cleaned up; re-runs just stop adding more.
+- `/memory-setup tag-reset` still replaces the forum's tags on purpose, behind
+  its confirmation.
+
+## [3.16.17] - 2026-10-06
+
+Memory command fixes — multi-forum guilds, reopening items, and long text.
+Several `/memory` flows failed outright: update-tags on every run, and add,
+capture and tags in any guild with 2+ memory forums.
+
+### Fixed
+
+- **`/memory update-tags` works again.** Clicking Continue now acknowledges
+  the click before editing the reply; it used to fail with "This interaction
+  failed" on every run, leaving the item untouched.
+- **Guilds with 2+ memory forums can use `/memory add`, `capture` and
+  `tags`.** After the forum picker, the flow continues from the picker (it
+  replaces the picker message or opens the modal from it) instead of replying
+  a second time, which threw and froze on "Processing...".
+- **Completed items can be reopened.** Status and tag changes on an archived
+  (Completed) thread now unarchive it in the same edit; Discord rejected the
+  old edit, so `/memory update-status` back to Open always failed. The thread
+  is unlocked only when the item moves off Completed, so a lock a moderator
+  set on an open item stays, and `update-tags` archives the thread again
+  afterwards unless it reopened the item.
+- **`/memory update-status` works for items in a second or third forum.** The
+  status autocomplete is scoped to the picked item's forum, and a same-named
+  status from another forum is resolved by name instead of answering "Memory
+  item not found". An unknown status now gets a status error.
+- **Long descriptions no longer fail to post.** The add/capture description
+  is capped at 1800 characters (was 4000) so it fits the 2000-character forum
+  starter message, and anything that still overflows is cut with a visible
+  "(content truncated)" notice. Dashboard creates (`POST /memory/create`) clamp
+  the description the same way and answer a title over 100 characters (the
+  thread name limit) with a 400 instead of a 500.
+
+## [3.16.16] - 2026-10-06
+
+Reaction-role and rules-reaction fixes. Animated custom emoji never granted
+their role, unique-mode menus never cleared the previous pick, and un-reacting
+within 2 seconds left the role on.
+
+### Fixed
+
+- **Animated custom emoji work in reaction-role menus.** Options are matched by
+  emoji id, so `<a:name:id>` options grant and remove their role, and a renamed
+  custom emoji keeps working. `/reactionrole add`, `/reactionrole remove` and
+  the dashboard's menu create compare custom emoji by id too, so two spellings
+  of one emoji can't become two options that collide.
+- **Unique-mode menus clear the previous reaction.** With the client's reaction
+  cache turned off, the old cache lookup never found anything. Picking a new
+  option now removes the user's reaction from the option they switched away
+  from over REST, so switching back takes one click instead of two. This needs
+  the bot to have Manage Messages in the menu channel; without it the reaction
+  stays and the bot logs a warning.
+- **Quick un-reacts are no longer dropped.** Reaction roles and the rules
+  message used one 2-second cooldown for both adding and removing, so
+  un-reacting within 2 seconds left the role on. Add and remove now have
+  separate cooldowns (per option for reaction roles).
+
+### Changed
+
+- **Fewer REST calls on reactions.** The reaction-role handlers look up the
+  menu and the option on the partial reaction before fetching anything, so
+  reactions on other messages no longer fetch the reaction or the user.
+
+## [3.16.15] - 2026-10-06
+
+Starboard fixes. With the client's reaction cache turned off, the starboard
+never saw more than one star, so it only ever posted at a threshold of 1.
+
+### Fixed
+
+- **Starboard reaches its threshold again.** The handler read
+  `reaction.count`, which is always 0 or 1 while `ReactionManager` caching is
+  disabled. It now reads the live count for the star emoji from the message
+  over REST, so a message with 3 stars posts at the default threshold of 3,
+  and removing a star updates the post with the real count.
+- **No duplicate starboard posts.** Stars that land together are serialized per
+  message, so the second one updates the first one's post instead of posting
+  again. If saving the entry still fails after posting, the post is deleted
+  instead of being left untracked.
+- **`/starboard` settings apply immediately.** `/starboard setup`, `config`,
+  `toggle`, `ignore` and `unignore` now clear the 5-minute config cache, so a
+  disabled starboard or newly ignored channel stops posting right away. A
+  missing starboard channel now disables starboard with a targeted update
+  instead of saving a possibly stale cached config.
+
+### Changed
+
+- **Fewer REST calls on reactions.** The starboard checks the guild's config,
+  the emoji and the channel on the partial reaction before fetching anything,
+  so reactions it doesn't care about no longer fetch the message. Stars on a
+  cached bot message are skipped before any REST call while `ignoreBots` is on.
+  Existing starboard posts are refreshed from their own embed (color and footer
+  only).
+
+## [3.16.14] - 2026-10-06
+
+Auto-close now really closes tickets: it archives the transcript and deletes
+the channel through the same path as the Close button, instead of leaving a
+ticket marked `closed` with a live channel that nothing could close.
+
+### Fixed
+
+- **Auto-close now really closes the ticket.** The hourly job used to set the
+  status to `closed` without archiving and leave the channel in place. After
+  that, the Close button answered "already being closed" and the dashboard close
+  returned 409, so the only way out was deleting the channel by hand. It now runs
+  the same claim → archive → delete path as the Close button, with the bot
+  recorded as the closer, and reverts the status if the archive fails so the
+  next run retries. A channel fetch that fails for any reason other than
+  Unknown Channel (missing access, an outage) is retried instead of being
+  treated as a deleted channel.
+- **Auto-close re-checks each ticket right before acting.** A run loads every
+  idle ticket at once, and each close fetches and posts a full transcript, so
+  tickets late in a big batch were handled minutes after the query. A user who
+  had replied to the warning in that time, or a ticket staff had just moved to
+  another status, still got closed. Each ticket is now re-read just before its
+  warning or close, and skipped if it has new activity or left the auto-close
+  status.
+- **The auto-close warning resets on new activity.** A warning now counts only
+  while it is newer than the ticket's last activity, so a ticket that comes back
+  to life gets a fresh warning before the next auto-close. A ticket is also
+  never auto-closed until its warning has been up for the full warning window,
+  even if the warning went out late because the bot was offline.
+- **Auto-close on `open` matches panel tickets.** Tickets created from the
+  panel are stored as `opened` (or `created`), which the auto-close query never
+  matched, so they were never warned or closed.
+
+### Changed
+
+- Auto-close no longer posts a separate "automatically closed" message, because
+  the channel is deleted right after. The warning message in the archived
+  transcript records why the ticket closed.
+- Auto-close skips a server that has no archive forum (never set up, or
+  deleted while the bot was running), logging a warning each hourly run,
+  instead of warning tickets it can't archive. A forum deleted while the bot
+  was offline isn't detected yet: those tickets are still warned, and each
+  close attempt fails and is retried every hour.
+- A ticket whose warning can't be posted (for example, the bot lacks Send
+  Messages there) is never auto-closed; the error is logged each run.
+
+### Notes
+
+- In servers that auto-close on `open`, every idle panel ticket nobody touched
+  matches for the first time. The first hourly run after deploy warns that whole
+  backlog at once, however old the tickets are, and closes them once the
+  warning window has passed.
+
+## [3.16.13] - 2026-10-06
+
+`/ticket manage status closed` now really closes the ticket, the three
+`/ticket manage` mutations check dashboard permissions, and a deleted archive
+forum gives a clear "not configured" error instead of a transcript failure.
+Auto-close is fixed separately in 3.16.13.
+
+### Fixed
+
+- **`/ticket manage status closed` archives and deletes the channel** like the
+  Close button, right away and with no confirmation step (the transcript is
+  kept in the archive forum). It used to set the status to `closed` and
+  nothing else, which left a live channel that every close path (the Close
+  button, the dashboard, `/ticket manage`) then refused as already closed. The
+  Close button's claim → archive → revert-on-failure sequence moved into
+  `utils/ticket/claimAndArchive.ts`, and both now use it.
+- **A deleted archive forum gives a clear "not configured" error.** Deleting
+  the forum blanks the archive config's channel instead of removing the row, so
+  the Close Ticket and Close Application buttons failed with "Error making
+  transcript file!". They now say no archive forum is configured and an admin
+  needs to rerun setup, and `/ticket manage status closed` does the same. The
+  dashboard's ticket close and application archive return the same 404
+  ("Archive config not found") as a server that never set up a forum, instead
+  of a generic failure. Closing still needs a forum: these servers can close
+  again once an admin picks a new one.
+- **`/ticket manage status` and `info` read panel tickets as `open`.** Tickets
+  created from the panel are stored as `opened`, which no workflow status
+  matched, so `info` showed the raw value with no label, and `status open` on
+  an untouched ticket posted a status change instead of "already Open".
+
+### Security
+
+- **`/ticket manage status`, `assign` and `unassign` now check the dashboard's
+  `tickets` permission** at the `manage` level, like the other `/ticket`
+  subcommands. A server that gave staff `/ticket` through Discord's
+  Integrations settings but has no dashboard permission rows falls back to
+  admin-only for these three until an admin grants `tickets: manage`. Roles
+  granted only `tickets: use` also need `manage` for these three.
+
+## [3.16.12] - 2026-10-06
+
+One staff-role format. Saved staff roles came in two shapes — `/role add`
+stored the `<@&id>` mention while the dashboard and `/bot-setup` store the raw
+role ID — and most code understood only one of them, so dashboard-saved roles
+were silently ignored and deleted roles were never cleaned up. The raw ID is now
+the canonical format; every reader accepts both, so existing rows keep working
+without a migration (NindroidA/cogworks-bot#41).
+
+### Fixed
+
+- **Dashboard-saved staff roles are honored again**: ticket channels,
+  application channels and Admin Only now grant/hide roles saved from the
+  dashboard (raw IDs), not just ones saved with `/role add`.
+- **A deleted staff role no longer breaks ticket/application creation**: role IDs
+  that no longer exist in the server are skipped (with a log warning) when
+  ticket, application and email-import channels are built, instead of making
+  channel creation fail for the whole guild. Rows for roles deleted before this
+  release stay saved; remove them from the dashboard's role list, since
+  `/role remove` can't pick a role that no longer exists.
+- **The global staff role pings again**: the new-ticket and Admin Only request
+  pings render the role as a mention; a raw ID (how `/bot-setup` saves it)
+  used to post as a bare number.
+- **Email-import tickets are visible to staff**: the channel now grants the
+  importer and every saved staff/admin role, and picks up the global staff role
+  when it is saved as a raw ID — previously a non-admin importer couldn't open
+  the ticket they had just made.
+- **`/role remove` no longer reports false success**: removing a role under the
+  wrong type (e.g. `staff` for a role saved as `admin`) now says the role isn't
+  saved instead of "Successfully removed" with nothing deleted. It also removes
+  dashboard-saved rows.
+- **Role deletion cleans up more references**: deleting a Discord role now
+  removes its staff-role rows in both formats, clears a legacy-format global
+  staff role, drops it from onboarding role-select options, clears the
+  bait-channel raid alert role, and removes ticket routing rules that pointed at
+  it. Dashboard permission grants (`GuildPermission`) for the deleted role are
+  still kept for now (the dashboard lists them under "Deleted roles"); that part
+  is left for a later decision.
+
+### Changed
+
+- **`/role add` stores the raw role ID** (matching the dashboard), treats a role
+  saved in either format as already saved, and rejects `@everyone`.
+- **`/role list` shows every saved role as a mention**, whichever format it was
+  stored in.
+
+## [3.16.11] - 2026-10-06
+
+"Save Data First" on `/bot-reset` now archives every table plus the
+transcripts the reset deletes, and the reset deletes only what that archive
+holds. `/bot-reset` also removes open ticket and application channels instead
+of leaving them behind with no records.
+
+### Fixed
+
+- **"Save Data First" deleted the only copy of every transcript.** The archive
+  held just row metadata (thread ID, creator, type), then the reset deleted the
+  archive and memory forum threads holding the conversations. The archive now
+  includes the text of every archive thread, memory thread and open
+  ticket/application channel (attachments are listed but not downloaded),
+  using the transcript capture `/archive cleanup` got in 3.16.10. Deletion is
+  now an allow-list: only threads and channels the archive holds are deleted,
+  and only if they got no new message after they were read. Anything else
+  (unreadable, opened while the archive was being made, or a returning user's
+  archive thread that a new close appended to) is kept and listed in the
+  summary ("Left in place"). After a saved reset, the sweep for leftover bot
+  messages also skips every archive and memory forum thread, and doesn't run
+  if the threads to keep couldn't be listed.
+- **The `/bot-reset` archive left out most of the server's data.** It now uses
+  the same entity list as `/data-export`, so it includes XP, configurations and
+  open tickets/applications, and the "Save Your Data?" step says so. The file
+  is `cogworks-archive-v2`: it keeps v1's top-level tables and
+  `metadata.version`, which the dashboard's Archive Viewer reads, and adds
+  `metadata.guildName` and a `transcripts` object.
+- **`/bot-reset` left open ticket and application channels behind** with no
+  records behind them. They are now deleted (after their text goes into the
+  archive, if saving), and any channel or thread that couldn't be saved or
+  deleted is listed in the summary.
+- **"Archive Too Large" matches the bigger archive.** It says `/archive
+  cleanup` can shrink archived tickets and applications (with their
+  transcripts) but not memory items, XP, activity, analytics or log data, and
+  that otherwise the options are a reset with **No, Delete Everything** or
+  contacting support. `/data-export` skips transcripts, so it may fit under the
+  same 8 MB limit; the message suggests trying it first.
+- **Transcript capture is time-boxed.** It stops 8 minutes after the slash
+  command (not after the final click). If the 15-minute interaction token
+  still runs out, the summary is DMed instead, and the finished reset keeps
+  its daily limit spent.
+- The admin guide's `/bot-reset` section describes the new behavior.
+
+## [3.16.10] - 2026-10-06
+
+`/archive cleanup` now keeps the transcripts it deletes, and deletes only what
+its export actually holds.
+
+### Fixed
+
+- **`/archive cleanup` deleted the only copy of every transcript.** The export
+  held just row metadata (thread ID, creator, type), then "Yes" deleted the
+  forum threads holding the conversations. The file now includes each
+  thread's message text (attachments are listed but not downloaded), as
+  `cogworks-archive-v2`: the v1 tables stay at the top level for the
+  dashboard's Archive Viewer, and a `transcripts` object is added.
+- **"Yes" deleted more than was exported.** It deleted every archived row,
+  including rows archived after the export and rows whose thread failed to
+  delete. Deletion is now an allow-list of the exported rows: each thread is
+  deleted only if the export read it and it has no newer message (a returning
+  user's next ticket, say), and each row right after its thread, only while it
+  still points there. Anything else is kept and counted in the summary.
+- **Deletion was offered when the DM failed.** No deletion is offered unless
+  the file reached the admin's DMs and is under 8 MB ("Archive Not
+  Delivered"), and the reply says the forum threads are deleted too.
+- **`/archive cleanup` spent its daily limit when nothing was delivered** (or
+  there was nothing to export), and refused with `/data-export` wording. The
+  limit is given back in those cases, and the refusal names `/archive cleanup`.
+- **The reply could get stuck on "Deleting archived entries..."** A DB error
+  during "Yes" now reports what was deleted before it, and a summary edit
+  that fails after the deletion finished (Discord error, expired token) is
+  logged instead of rejecting the button handler.
+- The admin guide's `/archive cleanup` section describes the new behavior.
+
+## [3.16.9] - 2026-10-06
+
+`/bot-reset` no longer deletes everything after failing to deliver the archive
+the admin asked for, no longer removes `/bot-setup`, and no longer spends the
+day's reset on a run that didn't finish.
+
+### Fixed
+
+- **`/bot-reset` purged everything after the archive DM failed.** If the admin
+  chose to save and the archive can't be delivered (DMs closed, file over
+  8 MB), the reset now stops before deleting anything.
+- **`/bot-reset` removed `/bot-setup`.** It replaced the guild's commands with
+  an empty list. It now re-registers the command set after the purge, which
+  leaves `/bot-setup` and the other setup commands available.
+- **`/bot-reset` spent its daily limit before the confirmations**, so Cancel,
+  a timeout or "Archive Too Large" locked the admin out for 24 hours (with a
+  refusal that talked about data exports). The limit is now checked up front,
+  spent at the final confirmation, and given back if the reset aborts, fails
+  or doesn't finish. The refusal names `/bot-reset`.
+- **A partly failed purge was reported as "Factory Reset Complete".**
+  `deleteAllGuildData` swallowed each table's error and returned success. It
+  now reports the tables it couldn't purge (`failed`): `/bot-reset` shows
+  "Factory Reset Incomplete" with those tables and gives the daily limit back
+  so it can be run again, and guild leave logs them as a warning.
+- **Every reset error said data "may have been partially deleted"**, even when
+  the archive step failed before anything was deleted. It now says nothing was
+  deleted in that case.
+- **The "Save Your Data?" step said the archive held XP data and
+  configurations.** It holds archived tickets and applications, memory items,
+  and announcement, audit and bait logs; the step now says so and points to
+  `/data-export` for every table. "Archive Too Large" no longer suggests
+  `/data-export` (same 8 MB cap, more tables), and says `/archive cleanup`
+  only shrinks the ticket and application archives.
+- The admin guide's `/bot-reset` section describes the new behavior.
+
+## [3.16.8] - 2026-10-06
+
+`/data-export` now reaches the admin and covers every guild table, and the
+guild purge (used by `/bot-reset` and when the bot leaves a server) removes
+role permission grants and stops warm caches from acting on deleted config.
+
+### Fixed
+
+- **Warm caches outlived a purge.** XP, starboard, rules, reaction-role menu,
+  locale and permission caches are now dropped before and after
+  `deleteAllGuildData` (for `/bot-reset` and guild leave), so XP and starboard
+  rows stop being re-created for up to five minutes afterwards. `/bot-reset`
+  and guild leave also clear the bait config and keyword caches on both sides
+  of the purge (reset used to clear only the config cache, and only before;
+  guild leave didn't clear them, so a kick and re-invite within five minutes
+  kept acting on the deleted bait config). `XPConfig` is
+  now deleted before `XPUser`. The starboard config cache moved to
+  `utils/starboard/configCache.ts` so the purge can reach it.
+- **`/data-export`** is gzipped compact JSON instead of pretty-printed, checks
+  the 8 MB upload limit, and when the DM fails it attaches the file to the
+  ephemeral reply instead of pointing at a download button that didn't exist.
+  Its daily limit is given back when delivery fails, but an export too large
+  to upload still counts, since running it again would build the same file.
+  Compression no longer blocks the event loop. The entity list
+  moved to `utils/offboarding/guildDataExport.ts` so other exports can reuse it.
+  The `/data-export` sections of the admin guide and `docs/commands.md`
+  describe the new file, the fallback and when the daily limit counts.
+
+### Security
+
+- **Role permission grants (`GuildPermission`) survived `/bot-reset` and the
+  guild-leave purge**, so a role granted dashboard access before a factory
+  reset kept it afterwards. They are now purged (and their cache dropped), and
+  included in `/data-export`, along with `SetupState`. A unit test now diffs
+  the purge and export lists against the DataSource so a new entity can't be
+  missed again.
+- `/data-export` no longer includes the global `BotStatus` row, which exposed
+  the bot owner's user ID to every guild admin.
+
+## [3.16.7] - 2026-10-06
+
+Analytics: the day that just ended is saved at midnight instead of thrown
+away, and a deploy or restart no longer drops the day so far.
+
+### Fixed
+
+- **Analytics lost every day's activity**: the midnight job flushed the new,
+  empty day and then deleted the day that had just ended, so `/analytics`
+  and the dashboard showed zero activity. Each buffered day now lands in its
+  own date's snapshot.
+- **Restarts dropped the day so far**: graceful shutdown now flushes the
+  buffered counters of analytics-enabled guilds (bounded to 5s so a slow
+  database can't hold up exit). A same-day re-flush (shutdown, then
+  midnight) merges top channels and the peak hour and keeps the larger
+  active-member count.
+- **Purged guilds got analytics rows back**: counters are only written for
+  guilds that have analytics enabled and are still joined; anything else is
+  discarded, so guildDelete / bot-reset purges stay purged.
+- **Counters piled up when no guild had analytics enabled**: the midnight
+  job returned early before cleaning stale in-memory counters; it now
+  always cleans them.
+- **Midnight wrote an empty row for the new day**: guilds with no activity
+  now get their member-count row for the day that just ended, so digests
+  and `/analytics overview` no longer show a 0 "today" right after midnight.
+  Weekly and monthly digests cover the 7 or 30 full UTC days that just
+  ended (the window used to hold only 6 or 29 of them).
+- **A late midnight run recorded the wrong day**: the run worked out "the day
+  that just ended" as the time a minute before it started, so a run that
+  fired more than a minute late (busy event loop, slow startup) saved and
+  digested the new day. Each run now belongs to the nearest UTC midnight.
+- **Snapshot dates depended on the host time zone**: a snapshot's day was
+  passed to MySQL as a JS Date, so on a host west of UTC rows were written
+  under the previous day and same-day lookups missed (a second flush then
+  hit the unique index). Snapshot writes, `/analytics overview` and digest
+  windows now pass the UTC day as a 'YYYY-MM-DD' string.
+
+## [3.16.6] - 2026-10-06
+
+Runtime jobs: SLA breach alerts and event reminders actually run in
+production, one failing startup step no longer switches half the bot off, and
+the bot stops sending its Discord token to ninsys-api.
+
+### Fixed
+
+- **SLA breach alerts and event reminders were never scheduled** outside
+  `/dev-test`, so `/ticket sla` never alerted and `/event remind` (plus every
+  default reminder) never posted. Both now run with the other periodic jobs
+  (SLA every 5 minutes, reminders every minute so a "15 minutes before"
+  reminder lands on time) and stop on shutdown. A tick is skipped while the
+  previous one is still running, so a slow run can't post a reminder twice.
+- **Events the bot created had every reminder stored twice**: the command
+  (`/event create`, templates, recurring) added one, and the scheduled-event
+  create handler added another because Discord sends it for the bot's own
+  events too. The handler now skips the bot's own events, and the checker
+  posts one reminder per event and time (existing duplicate rows are marked
+  sent without posting).
+- **One failed startup step disabled the rest**: each `clientReady` step
+  (bait manager, retry queue, presence, internal API, timers, watchdog, raid
+  restore, command registration) is isolated, so a failure is logged and the
+  others still start. The bait manager is attached before the slow raid
+  lockdown restore, and the internal API and timers start before it.
+- **Ticket activity depended on the bait manager**: messages in ticket
+  channels only updated `lastActivityAt` / `firstResponseAt` once the bait
+  channel manager was attached. Now that a failed bait step no longer stops
+  the SLA and auto-close jobs, that update runs either way, so a missing
+  manager can't cause false SLA breaches or auto-close active tickets.
+- **API registration was never retried**: if ninsys-api was down at boot the
+  bot showed offline until its next restart. Registration now retries in the
+  background (30s, 60s, 2m, 4m, then every 5m) without delaying startup, and
+  starts stats sync once it succeeds. With `API_URL` unset it isn't attempted
+  at all (the existing startup warning still says so).
+
+### Changed
+
+- Rollout guards for the newly scheduled jobs: reminders whose event already
+  started, ended or was cancelled (or that are over an hour overdue with the
+  event unavailable) are marked sent without posting, and tickets opened
+  before v3.16.0 began recording first responses don't raise SLA alerts.
+  "Opened" comes from the ticket channel's creation time, so later messages
+  or status changes on an old ticket don't make it look new.
+- A breached ticket whose alert can't be posted (no breach channel, or the
+  bot can't send there) is no longer rewritten and re-logged every 5
+  minutes. A failed alert is still retried on each check until it lands,
+  with an error logged only the first time.
+
+### Security
+
+- **New `COGWORKS_API_TOKEN`** authenticates the bot to ninsys-api instead of
+  the Discord bot token, which was ending up in ninsys-api's request logs.
+  Set the same value on the bot and on ninsys-api. Until it's set the bot
+  falls back to the old behaviour and logs one deprecation warning at
+  startup.
+
+## [3.16.5] - 2026-10-06
+
+Raid mode now lets go when it should. The 4-hour cap was never enforced while
+the bot was running, and a restart mid-raid made the next release re-lock every
+channel instead of unlocking it.
+
+### Fixed
+
+- **Raid mode auto-releases at its 4-hour cap.** `checkAutoRelease` had no
+  caller, so after the cap every channel stayed read-only for `@everyone` while
+  `/baitchannel raid status` already said "inactive". A one-minute sweep
+  (started by the existing boot-time restore) now releases any lockdown past
+  its cap and restores the channels. Status reports raid mode as active until
+  the lockdown is actually released.
+- **Releasing after a bot restart restores the real permissions.** Boot-time
+  restore re-snapshotted channels it had already locked, so the recorded
+  "prior" state was the bot's own deny and a later release (manual or
+  auto) left the whole server read-only. The pre-raid permission snapshot is
+  now saved in the `raid-mode-entered` log row and reloaded at boot and on
+  release. A raid entered before this version still falls back to inherit
+  for channels it can't account for, with a warning.
+- **Entering raid mode again before the release never overwrites the
+  snapshot.** Re-entering after the cap (still locked) keeps the priors
+  already recorded and only adds channels it hasn't touched. Enter, release
+  and the sweep now run one at a time per guild, so a release in progress
+  can't be captured as the next raid's prior state.
+- **A release that can't finish no longer reports raid mode as over.**
+  Channels are restored before the raid is cleared in the database, so a
+  crash or shutdown mid-release leaves it active and the next boot or sweep
+  finishes it. No release runs while a guild is in a Discord outage: the
+  auto-release waits for the next sweep, and a manual release (slash command
+  or dashboard) says the server is unavailable instead of reporting success
+  with every channel still locked. The auto-release also keeps a raid where no
+  channel could be restored (for example, Manage Roles revoked), retrying on
+  the next sweep. Channels a release can't restore are named in a warning,
+  except channels the lockdown never managed to lock (hidden from the bot, or
+  Manage Roles missing at entry), which need no restore. A failed save of the
+  snapshot row is logged as an error.
+
+## [3.16.4] - 2026-10-06
+
+Bait-channel moderation safety — the grace-period path could ban people it
+had told "no real action will be taken", people who deleted their message in
+time, and people in a different server. Grace periods now act only on the
+server's current settings, and only from the timer that owns them.
+
+### Fixed
+
+- **Grace rows no longer save as `ban`.** The pending-action row now records
+  the action it stands for (`timeout`, `softban` for kick, …), and `log-only`
+  in test mode, instead of the column default `ban` that the leave-drain and
+  orphan sweep then carried out.
+- **Leaving one server no longer cancels a grace timer in another.** Timers
+  are keyed per guild, so a member leaving guild B can't orphan their guild-A
+  timer into a retry-queue ban.
+- **Grace expiry uses current settings.** When the timer fires, the config is
+  re-read: test mode, disabling the feature, removing the bait channel, or
+  whitelisting the user during the window now takes effect. A message posted
+  while test mode was on is always a dry run, even if test mode is switched off
+  before the window ends.
+- **Leaving during the grace window** is settled by the same checks (current
+  config, test mode, whitelist, message still there) and logged like any other
+  bait action, instead of the leave-drain running the raw row. Timeout and kick
+  still become a softban since the member is gone; the log row now says
+  `softban`, the log embed says "Softbanned" (or "Softban FAILED" when it
+  fails, instead of "Action FAILED"), and the departed member is no longer
+  DMed the timeout or kick that never happened.
+- **The bot never lifts someone else's ban.** If a member leaves because a mod
+  (or another bot) banned them during the grace window, the grace period ends
+  as `superseded-by-mod` with no action; before, a timeout or kick would have
+  become a softban whose unban step lifted the mod's ban. When the ban list
+  can't be read (no Ban Members permission, or a Discord or network error), a
+  timeout or kick on leave is logged as `demoted-after-leave` and nothing is
+  done. The leave-drain applies the same rule to queued retries: no softban
+  unless the ban list says the member isn't banned.
+- **Several bait posts from one member get one removal.** Once a ban, kick or
+  softban of a member lands (including on leave), their other posts still in
+  their grace window end without an action of their own, and those posts are
+  deleted. Before, the leave the removal caused ran them as bans; replayed one
+  by one, a later softban could lift the ban, or a later post could ban someone
+  just softbanned before that post's own window was over. They end only after
+  the removal lands; if it fails, they keep their own timers. A post that only
+  timed the member out leaves the others to their own timers. Grace resolutions
+  for the same member run one at a time, so two timers firing together can't
+  race (a ban landing between a softban's ban and unban steps used to be
+  lifted).
+- **Dashboard cancel actually cancels.** `pending-actions/cancel` now stops the
+  in-memory grace timer and removes the warning reply before deleting the row;
+  previously the timer still acted.
+- **Orphan sweep no longer races the live timer.** Grace rows are only treated
+  as orphaned 60s past their window, and are dropped without acting (startup
+  restore never acted on them either).
+- **Test mode never reaches a real retry.** A test-mode dry run is not queued
+  for retry, and retries in a guild that is now in test mode run as dry runs.
+  Retries also use the guild's configured message-delete window and timeout
+  length instead of fixed 24h / 60min.
 
 ## [3.16.3] - 2026-07-07
 
@@ -1181,6 +1885,7 @@ lockdown).
 - Schema entity rename `PendingBan` → `PendingAction` across 6
   importers (manager, index, dataExport, devSuiteScaffold,
   guildQueries, tests).
+
 ## [3.1.42] - 2026-05-31
 
 ### Fixed

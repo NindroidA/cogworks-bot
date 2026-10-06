@@ -23,6 +23,7 @@ import {
   replyEphemeralError,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { editMemoryThreadTags } from '../../../utils/memory/threadHelpers';
 import { resolveConfigFromThread } from './channelPicker';
 
 const tl = lang.memory;
@@ -113,7 +114,8 @@ async function applyStatusChange(
     newTags.push(newStatusTag.discordTagId);
   }
 
-  await threadChannel.edit({ appliedTags: newTags });
+  // Unarchives a Completed (archived) thread in the same edit; unlocks it only when reopening.
+  await editMemoryThreadTags(threadChannel, newTags, { from: memoryItem.status, to: newStatusTag.name });
 
   memoryItem.status = newStatusTag.name;
   await memoryItemRepo.save(memoryItem);

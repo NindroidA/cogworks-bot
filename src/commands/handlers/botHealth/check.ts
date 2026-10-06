@@ -11,6 +11,7 @@ import { lang } from '../../../lang';
 import { isValidSnowflake } from '../../../utils/api/helpers';
 import { TIMEOUTS } from '../../../utils/constants';
 import { runHealthCheck } from '../../../utils/health/runner';
+import { HEALTH_SYSTEMS_NOT_CHECKED } from '../../../utils/health/systems';
 import type { HealthReport, HealthSystem } from '../../../utils/health/types';
 import { guardAdmin, guardAdminRateLimit } from '../../../utils/interactions/guardHelper';
 import { replyEphemeralError } from '../../../utils/interactions/replyHelper';
@@ -96,7 +97,11 @@ export async function botHealthCheckHandler(
     return;
   }
 
-  const opts: RenderOptions = guild.id === interaction.guildId ? {} : { guildName: guild.name };
+  const opts: RenderOptions = {
+    ...(guild.id === interaction.guildId ? {} : { guildName: guild.name }),
+    // A check of everything also names the systems that have no checks yet, so none is silently left out.
+    ...(system ? {} : { notCheckedYet: HEALTH_SYSTEMS_NOT_CHECKED }),
+  };
   const message = await interaction.editReply(renderView(report, { kind: 'summary' }, opts));
 
   const collector = message.createMessageComponentCollector({

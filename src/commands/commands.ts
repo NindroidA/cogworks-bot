@@ -3,7 +3,6 @@ import { BotConfig } from '../typeorm/entities/BotConfig';
 import {
   createRateLimitKey,
   enhancedLogger,
-  getGuildLang,
   healthMonitor,
   LogCategory,
   lang,
@@ -232,12 +231,10 @@ export const handleSlashCommand = async (client: Client, interaction: ChatInputC
     } else {
       const botConfig = await botConfigRepo.findOneBy({ guildId });
       if (!botConfig) {
-        // Guild has no BotConfig row yet — localize the reply to the guild's
-        // locale so users see the message in their chosen language even for
-        // this pre-setup edge case.
-        const glang = await getGuildLang(guildId);
-        enhancedLogger.warn(glang.botConfig.notFound, LogCategory.COMMAND_EXECUTION);
-        await replyEphemeralError(interaction, glang.botConfig.notFound);
+        // No BotConfig row means no saved locale, so the default (English)
+        // applies. getGuildLang would only re-run this lookup to get there.
+        enhancedLogger.warn(lang.botConfig.notFound, LogCategory.COMMAND_EXECUTION);
+        await replyEphemeralError(interaction, lang.botConfig.notFound);
       } else {
         await dispatchCommand(client, interaction, commandName);
       }

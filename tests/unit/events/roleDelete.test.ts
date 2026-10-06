@@ -2,7 +2,7 @@
  * roleDelete Event Handler Unit Tests
  *
  * Verifies the v3.1.32 descriptor pattern for role deletion:
- *  - All 9 entity-cleanup descriptors run for a single role-delete event
+ *  - All 10 entity-cleanup descriptors run for a single role-delete event
  *  - Promise.allSettled isolation — one cleaner failing doesn't abort siblings
  *  - Per-entity mutation: nullify scalar columns, filter array columns, remove
  *    rows that exist solely to reference the role
@@ -10,8 +10,18 @@
  *    that path with a tiny chainable stub that defers to the same row store.
  *  - Cache invalidations fire when expected (rules + reactionRole guild menu)
  *  - Bait channel manager cache flush is invoked on whitelist mutation
+ *  - v3.16.11: StaffRole/BotConfig match both stored formats (raw ID and legacy
+ *    `<@&id>`); onboarding role options, the raid alert role and ticket routing
+ *    rules are cleaned too
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, jest, mock, test } from 'bun:test';
+import { FindOperator } from 'typeorm';
+
+/** Equality, plus TypeORM `In([...])` — the StaffRole cleaner matches both stored formats. */
+function fieldMatches(actual: unknown, expected: unknown): boolean {
+  if (expected instanceof FindOperator) return expected.type === 'in' && (expected.value as unknown[]).includes(actual);
+  return actual === expected;
+}
 
 interface FakeRepoState {
   rows: Map<string, any>;
@@ -52,7 +62,9 @@ function makeFakeRepo(initialRows: any[] = []): FakeRepoState & {
       state.findCalls.push(opts);
       if (state.shouldThrowOn === 'find') throw new Error('boom');
       const where = opts?.where ?? {};
-      return [...state.rows.values()].filter(row => Object.entries(where).every(([k, v]) => (row as any)[k] === v));
+      return [...state.rows.values()].filter(row =>
+        Object.entries(where).every(([k, v]) => fieldMatches((row as any)[k], v)),
+      );
     },
     async save(entity: any) {
       state.saveCalls.push({ ...entity });
@@ -106,6 +118,7 @@ function resetFakeRepos() {
     'XPRoleReward',
     'OnboardingConfig',
     'BaitChannelConfig',
+    'TicketConfig',
   ]) {
     fakeRepos[name] = makeFakeRepo();
   }
@@ -116,6 +129,8 @@ const fakeInvalidateGuildMenuCache = jest.fn();
 
 mock.module('../../../src/utils/rules/rulesCache', () => ({
   invalidateRulesCache: fakeInvalidateRulesCache,
+  getCachedRulesConfig: jest.fn(() => null),
+  setCachedRulesConfig: jest.fn(),
 }));
 mock.module('../../../src/utils/reactionRole/menuCache', () => ({
   invalidateGuildMenuCache: fakeInvalidateGuildMenuCache,
@@ -158,6 +173,9 @@ function makeRole(opts: { guildId: string; roleId: string; name?: string }): any
   };
 }
 
+/** Snowflake-shaped ID — the BotConfig parser only accepts real IDs or `<@&id>`. */
+const SNOW = '123456789012345678';
+
 const mockClient: any = {
   baitChannelManager: { clearConfigCache: jest.fn() },
 };
@@ -178,7 +196,7 @@ describe('roleDelete event handler', () => {
       .filter(([_, repo]) => repo.findOneByCalls.length > 0 || repo.findCalls.length > 0 || repo.qbCalls.length > 0)
       .map(([name]) => name)
       .sort();
-    // 9 entities — the regression list. Removing a descriptor would fail this.
+    // 10 entities — the regression list. Removing a descriptor would fail this.
     expect(queriedEntities).toEqual(
       [
         'AnnouncementConfig',
@@ -188,6 +206,7 @@ describe('roleDelete event handler', () => {
         'ReactionRoleOption',
         'RulesConfig',
         'StaffRole',
+        'TicketConfig',
         'XPConfig',
         'XPRoleReward',
       ].sort(),
@@ -206,6 +225,19 @@ describe('roleDelete event handler', () => {
     expect(fakeRepos.BotConfig.saveCalls.length).toBe(1);
     expect(fakeRepos.BotConfig.saveCalls[0].globalStaffRole).toBeNull();
     expect(fakeRepos.BotConfig.saveCalls[0].enableGlobalStaffRole).toBe(false);
+  });
+
+  test('BotConfig: also clears a legacy <@&id> globalStaffRole', async () => {
+    fakeRepos.BotConfig.rows.set('1', {
+      id: 1,
+      guildId: 'g-1',
+      globalStaffRole: `<@&${SNOW}>`,
+      enableGlobalStaffRole: true,
+    });
+    const role = makeRole({ guildId: 'g-1', roleId: SNOW });
+    await roleDeleteHandler.execute(role, mockClient);
+    expect(fakeRepos.BotConfig.saveCalls.length).toBe(1);
+    expect(fakeRepos.BotConfig.saveCalls[0].globalStaffRole).toBeNull();
   });
 
   test('BotConfig: skips save when globalStaffRole does not match', async () => {
@@ -281,18 +313,18 @@ describe('roleDelete event handler', () => {
     expect(fakeRepos.AnnouncementConfig.saveCalls[0].defaultRoleId).toBeNull();
   });
 
-  test('StaffRole: removes all rows with matching role', async () => {
-    fakeRepos.StaffRole.rows.set('1', { id: 1, guildId: 'g-1', role: 'r-1' });
-    fakeRepos.StaffRole.rows.set('2', { id: 2, guildId: 'g-1', role: 'r-1' });
+  test('StaffRole: removes rows in both stored formats (raw ID + legacy <@&id>)', async () => {
+    fakeRepos.StaffRole.rows.set('1', { id: 1, guildId: 'g-1', role: SNOW });
+    fakeRepos.StaffRole.rows.set('2', { id: 2, guildId: 'g-1', role: `<@&${SNOW}>` });
     fakeRepos.StaffRole.rows.set('3', {
       id: 3,
       guildId: 'g-1',
-      role: 'unrelated',
+      role: '223456789012345678',
     });
-    const role = makeRole({ guildId: 'g-1', roleId: 'r-1' });
+    const role = makeRole({ guildId: 'g-1', roleId: SNOW });
     await roleDeleteHandler.execute(role, mockClient);
     expect(fakeRepos.StaffRole.removeCalls.length).toBe(1);
-    expect(fakeRepos.StaffRole.removeCalls[0].length).toBe(2);
+    expect(fakeRepos.StaffRole.removeCalls[0].map((r: any) => r.id).sort()).toEqual([1, 2]);
   });
 
   test('XPConfig: filters role out of ignoredRoles array', async () => {
@@ -353,6 +385,85 @@ describe('roleDelete event handler', () => {
     await roleDeleteHandler.execute(role, mockClient);
     expect(fakeRepos.OnboardingConfig.saveCalls.length).toBe(1);
     expect(fakeRepos.OnboardingConfig.saveCalls[0].completionRoleId).toBeNull();
+  });
+
+  test('OnboardingConfig: drops the role from role-select step options', async () => {
+    fakeRepos.OnboardingConfig.rows.set('1', {
+      id: 1,
+      guildId: 'g-1',
+      completionRoleId: 'other',
+      steps: [
+        { id: 'welcome', type: 'message', title: 'Hi', description: '', required: false },
+        {
+          id: 'pick',
+          type: 'role-select',
+          title: 'Pick',
+          description: '',
+          required: false,
+          options: [
+            { label: 'Gone', roleId: 'r-1' },
+            { label: 'Kept', roleId: 'r-2' },
+          ],
+        },
+      ],
+    });
+    const role = makeRole({ guildId: 'g-1', roleId: 'r-1' });
+    await roleDeleteHandler.execute(role, mockClient);
+    expect(fakeRepos.OnboardingConfig.saveCalls.length).toBe(1);
+    const saved = fakeRepos.OnboardingConfig.saveCalls[0];
+    expect(saved.completionRoleId).toBe('other');
+    expect(saved.steps[1].options).toEqual([{ label: 'Kept', roleId: 'r-2' }]);
+  });
+
+  test('OnboardingConfig: skips save when neither completion role nor options match', async () => {
+    fakeRepos.OnboardingConfig.rows.set('1', {
+      id: 1,
+      guildId: 'g-1',
+      completionRoleId: 'other',
+      steps: [{ id: 'pick', type: 'role-select', options: [{ label: 'Kept', roleId: 'r-2' }] }],
+    });
+    const role = makeRole({ guildId: 'g-1', roleId: 'r-1' });
+    await roleDeleteHandler.execute(role, mockClient);
+    expect(fakeRepos.OnboardingConfig.saveCalls.length).toBe(0);
+  });
+
+  test('BaitChannelConfig: nulls the raid alert role + flushes manager cache', async () => {
+    fakeRepos.BaitChannelConfig.rows.set('1', {
+      id: 1,
+      guildId: 'g-1',
+      whitelistedRoles: ['r-2'],
+      raidModeAlertRoleId: 'r-1',
+    });
+    const role = makeRole({ guildId: 'g-1', roleId: 'r-1' });
+    await roleDeleteHandler.execute(role, mockClient);
+    expect(fakeRepos.BaitChannelConfig.saveCalls.length).toBe(1);
+    expect(fakeRepos.BaitChannelConfig.saveCalls[0].raidModeAlertRoleId).toBeNull();
+    expect(fakeRepos.BaitChannelConfig.saveCalls[0].whitelistedRoles).toEqual(['r-2']);
+    expect(mockClient.baitChannelManager.clearConfigCache).toHaveBeenCalledWith('g-1');
+  });
+
+  test('TicketConfig: drops routing rules for the deleted staff role', async () => {
+    fakeRepos.TicketConfig.rows.set('1', {
+      id: 1,
+      guildId: 'g-1',
+      routingRules: [
+        { ticketTypeId: 'bug', staffRoleId: 'r-1' },
+        { ticketTypeId: 'appeal', staffRoleId: 'r-2', maxOpen: 3 },
+      ],
+    });
+    const role = makeRole({ guildId: 'g-1', roleId: 'r-1' });
+    await roleDeleteHandler.execute(role, mockClient);
+    expect(fakeRepos.TicketConfig.saveCalls.length).toBe(1);
+    expect(fakeRepos.TicketConfig.saveCalls[0].routingRules).toEqual([
+      { ticketTypeId: 'appeal', staffRoleId: 'r-2', maxOpen: 3 },
+    ]);
+  });
+
+  test('TicketConfig: skips save when no routing rule uses the role', async () => {
+    fakeRepos.TicketConfig.rows.set('1', { id: 1, guildId: 'g-1', routingRules: null });
+    const role = makeRole({ guildId: 'g-1', roleId: 'r-1' });
+    await roleDeleteHandler.execute(role, mockClient);
+    expect(fakeRepos.TicketConfig.saveCalls.length).toBe(0);
   });
 
   test('BaitChannelConfig: filters whitelistedRoles + flushes manager cache', async () => {

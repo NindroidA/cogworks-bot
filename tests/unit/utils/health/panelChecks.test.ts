@@ -18,7 +18,16 @@ const VOICE = '300000000000000004';
 const GONE = '300000000000000666';
 const MESSAGE = '400000000000000001';
 
-const { Administrator, ViewChannel, SendMessages, ManageChannels } = PermissionFlagsBits;
+const {
+  Administrator,
+  ViewChannel,
+  SendMessages,
+  SendMessagesInThreads,
+  EmbedLinks,
+  AttachFiles,
+  ReadMessageHistory,
+  ManageChannels,
+} = PermissionFlagsBits;
 
 function channels(
   overrides: Record<string, Partial<FakeChannelInit> & Record<string, unknown>> = {},
@@ -107,15 +116,74 @@ describe.each([
       expect(codes(await run(panelId, panelRows(config({ channelId: VOICE }))))).toEqual([`${panelId}.channel_type`]);
     });
 
-    test('fail: bot cannot post in the panel channel', async () => {
+    // Only the application panel is fetched and edited later (when positions change).
+    const editsPanel = system === 'application';
+
+    test('posted panel: missing permissions only matter for posting again (and editing, for applications)', async () => {
       const guild = { channels: channels({ [PANEL]: { botPermissions: [ViewChannel] } }) };
       const [f] = await run(panelId, panelRows(), guild);
       expect(f).toMatchObject({
         code: `${panelId}.channel_permissions`,
-        severity: 'block',
+        severity: editsPanel ? 'degraded' : 'cosmetic',
         repair: 'manual',
-        params: { channelId: PANEL, permissions: 'SendMessages, EmbedLinks, ReadMessageHistory' },
+        params: { channelId: PANEL, permissions: editsPanel ? 'SendMessages, ReadMessageHistory' : 'SendMessages' },
       });
+    });
+
+    test('posted panel: no Embed Links needed; Send Messages alone is cosmetic', async () => {
+      const viewOnly = { channels: channels({ [PANEL]: { botPermissions: [ViewChannel, SendMessages] } }) };
+      if (editsPanel) {
+        const [f] = await run(panelId, panelRows(), viewOnly);
+        expect(f).toMatchObject({ severity: 'degraded', params: { permissions: 'ReadMessageHistory' } });
+      } else expect(await run(panelId, panelRows(), viewOnly)).toEqual([]);
+      const noSend = { channels: channels({ [PANEL]: { botPermissions: [ViewChannel, ReadMessageHistory] } }) };
+      const [f] = await run(panelId, panelRows(), noSend);
+      expect(f).toMatchObject({ severity: 'cosmetic', params: { permissions: 'SendMessages' } });
+      const all = [ViewChannel, SendMessages, ReadMessageHistory];
+      expect(await run(panelId, panelRows(), { channels: channels({ [PANEL]: { botPermissions: all } }) })).toEqual([]);
+    });
+
+    test('panel not posted (blank messageId): reported without deep mode or any fetch', async () => {
+      let calls = 0;
+      const fetch = async () => {
+        calls++;
+        return { id: MESSAGE };
+      };
+      const guild = { channels: channels({ [PANEL]: { messages: { fetch } } }) };
+      for (const deep of [false, true]) {
+        const findings = await run(panelId, panelRows(config({ messageId: '' })), guild, { deep });
+        expect(findings).toEqual([
+          expect.objectContaining({
+            code: `${panelId}.message_missing`,
+            severity: 'degraded',
+            repair: 'confirm',
+            entity: configEntity,
+            rowId: 1,
+            field: 'messageId',
+            params: { channelId: PANEL },
+          }),
+        ]);
+        expect(findings[0].refId).toBeUndefined();
+      }
+      expect(calls).toBe(0);
+    });
+
+    test('panel not posted and the bot cannot post it: both degraded', async () => {
+      const guild = { channels: channels({ [PANEL]: { botPermissions: [ViewChannel] } }) };
+      const findings = await run(panelId, panelRows(config({ messageId: '' })), guild);
+      expect(findings.map(f => [f.code, f.severity])).toEqual([
+        [`${panelId}.channel_permissions`, 'degraded'],
+        [`${panelId}.message_missing`, 'degraded'],
+      ]);
+    });
+
+    test('a deleted or wrong-kind panel channel is not also reported as an unposted panel', async () => {
+      expect(codes(await run(panelId, panelRows(config({ channelId: GONE, messageId: '' }))))).toEqual([
+        `${panelId}.channel_missing`,
+      ]);
+      expect(codes(await run(panelId, panelRows(config({ channelId: VOICE, messageId: '' }))))).toEqual([
+        `${panelId}.channel_type`,
+      ]);
     });
 
     test('pass: no permission findings without a cached bot member', async () => {
@@ -136,7 +204,7 @@ describe.each([
       expect(findings).toEqual([
         expect.objectContaining({
           code: `${panelId}.message_missing`,
-          severity: 'block',
+          severity: 'degraded',
           repair: 'confirm',
           field: 'messageId',
           refId: MESSAGE,
@@ -219,11 +287,32 @@ describe.each([
 
     test('fail: bot cannot post or attach files in the forum', async () => {
       const guild = { channels: channels({ [ARCHIVE]: { botPermissions: [ViewChannel, SendMessages] } }) };
-      const [f] = await run(archiveId, archiveRows(), guild);
-      expect(f).toMatchObject({
-        code: `${archiveId}.channel_permissions`,
-        params: { permissions: 'SendMessagesInThreads, EmbedLinks, AttachFiles, ManageChannels' },
-      });
+      const findings = await run(archiveId, archiveRows(), guild);
+      expect(findings).toEqual([
+        expect.objectContaining({
+          code: `${archiveId}.channel_permissions`,
+          severity: 'block',
+          params: { channelId: ARCHIVE, permissions: 'SendMessagesInThreads, EmbedLinks, AttachFiles' },
+        }),
+        expect.objectContaining({ code: `${archiveId}.tag_permissions`, severity: 'degraded' }),
+      ]);
+    });
+
+    test('only Manage Channels missing: closes still work, new tags cannot be created (degraded)', async () => {
+      const allButManage = [ViewChannel, SendMessages, SendMessagesInThreads, EmbedLinks, AttachFiles];
+      const guild = { channels: channels({ [ARCHIVE]: { botPermissions: allButManage } }) };
+      expect(await run(archiveId, archiveRows(), guild)).toEqual([
+        expect.objectContaining({
+          code: `${archiveId}.tag_permissions`,
+          severity: 'degraded',
+          repair: 'manual',
+          field: 'channelId',
+          refId: ARCHIVE,
+          params: { channelId: ARCHIVE },
+        }),
+      ]);
+      const withManage = { channels: channels({ [ARCHIVE]: { botPermissions: [...allButManage, ManageChannels] } }) };
+      expect(await run(archiveId, archiveRows(), withManage)).toEqual([]);
     });
 
     const tags = (names: string[]) => names.map((name, i) => ({ id: `t${i}`, name }));

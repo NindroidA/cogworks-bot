@@ -827,20 +827,21 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 **`/bot-health check [system] [deep] [guild-id]`**
 - **Admin-only** (the bot owner can also run it); works even before `/bot-setup` has been run
 - Checks the saved Cogworks settings against the server's live channels, roles and slash commands, and reports what is broken or stale. It only reads; nothing is changed
-- `system` - (Optional) Check one system: Core (which includes the staff roles), Tickets, Applications, Announcements, Bait channel, Memory, Rules, Reaction roles, XP, Starboard, Onboarding (default: all)
+- `system` - (Optional) Check one system: Core (which includes the staff roles and the slash commands), Tickets, Applications, Announcements, Memory, Rules, Reaction roles, XP, Starboard, Onboarding (default: all). The bait channel has no checks yet; a check of all systems lists it as not checked yet
 - `deep` - (Optional) Also look up messages and threads through Discord (slower)
 - `guild-id` - (Optional, bot owner only) Check another server the bot is in
-- **Summary**: one line per system (✅ no problems, ⚠️ found, ❌ something is broken, ➖ not set up) and how many problems can be fixed automatically, need confirmation, or need a manual fix
-- **Details**: pick a system to page through its findings (10 per page); deleted channels and roles are shown by ID
-- **Export JSON**: attaches the full report (IDs only) to share with support
+- **Summary**: one line per system (✅ no problems, ⚠️ found, ❌ something is broken, ➖ not set up or not checked yet). Deep-mode lookups that were skipped are listed by what they cover; the per-run caps are fixed, so a second run skips the same ones
+- **Details**: pick a system to page through its findings (10 per page); deleted channels and roles are shown by ID. Each finding says what to do (or that nothing needs doing); the ones a later `/bot-health repair` will be able to fix say so. Nothing is fixed automatically yet
+- **Export JSON**: attaches the full report to share with support. It holds only IDs, finding codes and numbers: names, titles and other text from the server's settings are left out
 - **Rate limited**: one check per minute and one deep check per 10 minutes per server (not for the bot owner). A check that fails doesn't count, so it can be run again right away
 
 ### Data Export (GDPR Compliance)
 **`/data-export`**
 - **Admin-only command**
-- Exports all server data to JSON format
-- Sent via DM for privacy
-- **Rate limited**: Once per 24 hours per server
+- Exports every record Cogworks stores for the server as compressed JSON (`.json.gz`; open it with any unzip tool)
+- Sent via DM for privacy. If your DMs are closed, the file is attached to the command's private (ephemeral) reply instead
+- Files over Discord's 8 MB upload limit can't be sent yet. That attempt still counts as the day's export, since running it again builds the same file
+- **Rate limited**: Once per 24 hours per server. An export that fails to send (for example, both the DM and the private-reply fallback fail) doesn't count
 - **Includes**:
   - Bot configuration
   - Ticket configuration and active tickets
@@ -855,12 +856,14 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
   - Rules configuration
   - Reaction role menus and options
   - Memory configuration, items, and tags
-  - Bot status
+  - Starboard, XP, events, onboarding and analytics data
+  - Role permission grants (dashboard feature permissions)
+  - Setup progress (setup dashboard state)
   - Audit logs (dashboard actions)
   - Archived tickets and applications
 
 **Data Privacy:**
-- Data sent privately via DM
+- Data sent privately via DM (or the private reply when DMs are closed)
 - Comprehensive export for compliance
 - Automatic cleanup when bot leaves server
 - Full transparency of stored data
