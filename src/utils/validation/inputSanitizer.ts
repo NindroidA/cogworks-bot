@@ -116,6 +116,21 @@ export function truncateWithNotice(text: string, maxLength: number): string {
 }
 
 /**
+ * Clamps text to a Discord length limit (UTF-16 units, like Discord counts)
+ * with a trailing `…`, cutting on code points so an emoji's surrogate pair is
+ * never split. A lone surrogate can make Discord reject the whole payload.
+ */
+export function clampText(text: string, max: number): string {
+  if (text.length <= max) return text;
+  let out = '';
+  for (const char of text) {
+    if (out.length + char.length > max - 1) break;
+    out += char;
+  }
+  return `${out}…`;
+}
+
+/**
  * Removes zero-width and invisible Unicode characters from a string.
  * These can be used to bypass keyword detection or confuse display.
  */

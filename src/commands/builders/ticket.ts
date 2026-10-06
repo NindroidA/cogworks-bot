@@ -1,9 +1,4 @@
-import {
-  PermissionsBitField,
-  SlashCommandBuilder,
-  SlashCommandSubcommandBuilder,
-  SlashCommandSubcommandGroupBuilder,
-} from 'discord.js';
+import { SlashCommandBuilder, SlashCommandSubcommandBuilder, SlashCommandSubcommandGroupBuilder } from 'discord.js';
 import { lang } from '../../utils';
 
 const tl = lang.ticket.customTypes;
@@ -263,7 +258,8 @@ const routingGroup = new SlashCommandSubcommandGroupBuilder()
 export const ticket = new SlashCommandBuilder()
   .setName('ticket')
   .setDescription('Manage custom ticket types and import email tickets')
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   .addSubcommandGroup(typeGroup)
   .addSubcommandGroup(manageGroup)
   .addSubcommandGroup(workflowGroup)

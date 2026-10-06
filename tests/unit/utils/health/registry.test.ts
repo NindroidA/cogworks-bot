@@ -40,13 +40,14 @@ function commandPaths(): Map<string, Set<string>> {
 }
 
 describe('health check registry', () => {
-  test('has the core checks', () => {
+  test('has the core checks and the command sync check', () => {
     expect(getChecks('core').map(c => c.id)).toEqual([
       'core.global_staff_role',
       'core.locale',
       'core.staff_role',
       'core.guild_permission',
       'core.setup_state',
+      'core.commands',
     ]);
   });
 

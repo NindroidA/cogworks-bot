@@ -1,4 +1,4 @@
-import { PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
 import { createTextChannelOption } from './factories';
 
@@ -80,7 +80,8 @@ const validate = new SlashCommandSubcommandBuilder().setName('validate').setDesc
 export const reactionRole = new SlashCommandBuilder()
   .setName('reactionrole')
   .setDescription(tl.cmdDescrp)
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   .addSubcommand(create)
   .addSubcommand(add)
   .addSubcommand(remove)

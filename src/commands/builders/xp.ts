@@ -1,4 +1,4 @@
-import { PermissionsBitField, SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 
 /**
  * /rank [user] — View XP rank card
@@ -28,7 +28,8 @@ export const leaderboard = new SlashCommandBuilder()
 export const xpAdmin = new SlashCommandBuilder()
   .setName('xp')
   .setDescription('XP administration commands')
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   .addSubcommand(sub =>
     sub
       .setName('set')

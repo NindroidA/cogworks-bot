@@ -8,9 +8,10 @@
  * entity at `typeorm/entities/ticket/routingTypes.ts` and re-exported below.
  */
 
-import type { Guild, GuildMember } from 'discord.js';
+import { GatewayIntentBits, type Guild, type GuildMember, type Role } from 'discord.js';
 import type { RoutingRule, RoutingStrategy } from '../../typeorm/entities/ticket/routingTypes';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
+import type { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
 import { lazyRepo } from '../database/lazyRepo';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
@@ -80,6 +81,7 @@ const ticketRepo = lazyRepo(Ticket);
  * @param ticketTypeId - The ticket's custom type ID (or legacy type string)
  * @param routingRules - The guild's configured routing rules
  * @param strategy - The routing strategy to use
+ * @param excludeMemberId - A member never to pick (the ticket's opener)
  * @returns RoutingResult with the selected member or a reason for failure
  */
 export async function routeTicket(
@@ -87,6 +89,7 @@ export async function routeTicket(
   ticketTypeId: string | null,
   routingRules: RoutingRule[],
   strategy: RoutingStrategy,
+  excludeMemberId?: string,
 ): Promise<RoutingResult> {
   // 1. Find matching rule for this ticket type
   if (!ticketTypeId) {
@@ -99,7 +102,7 @@ export async function routeTicket(
   }
 
   // 2. Get online members with the staff role
-  const onlineStaff = await getOnlineStaffWithRole(guild, rule.staffRoleId);
+  const onlineStaff = await getOnlineStaffWithRole(guild, rule.staffRoleId, excludeMemberId);
   if (onlineStaff.length === 0) {
     enhancedLogger.info('Smart routing: no online staff for role', LogCategory.SYSTEM, {
       guildId: guild.id,
@@ -150,31 +153,111 @@ export async function routeTicket(
 // Staff availability
 // ============================================================================
 
+/** Guilds up to this size get a full member fetch: the member cache keeps only 200. */
+const MEMBER_FETCH_MAX_GUILD_SIZE = 1000;
+const MEMBER_FETCH_TIMEOUT_MS = 5_000;
+
 /**
- * Get guild members with a specific role who are currently online or idle.
- * Members with 'dnd' or 'offline' status are excluded.
+ * Get non-bot guild members with a specific role who are available: online or
+ * idle when presence data exists. Without the privileged GuildPresences intent
+ * no presence ever arrives, so every role member counts as available instead
+ * of nobody.
  */
-async function getOnlineStaffWithRole(guild: Guild, roleId: string): Promise<GuildMember[]> {
+async function getOnlineStaffWithRole(guild: Guild, roleId: string, excludeMemberId?: string): Promise<GuildMember[]> {
   try {
-    // Fetch members with the role (uses cache if available)
     const role = guild.roles.cache.get(roleId);
     if (!role) return [];
 
-    // Filter to online/idle presences
-    return role.members
-      .filter(member => {
-        if (member.user.bot) return false;
-        const presence = member.presence;
-        if (!presence) return false;
-        return presence.status === 'online' || presence.status === 'idle';
-      })
-      .map(m => m);
+    const hasPresences = guild.client.options.intents.has(GatewayIntentBits.GuildPresences);
+    const members = await getRoleMembers(guild, role);
+    return members.filter(member => {
+      if (member.user.bot || member.id === excludeMemberId) return false;
+      if (!hasPresences) return true;
+      const status = member.presence?.status;
+      return status === 'online' || status === 'idle';
+    });
   } catch (error) {
     enhancedLogger.error('Failed to fetch online staff', error as Error, LogCategory.ERROR, {
       guildId: guild.id,
       roleId,
     });
     return [];
+  }
+}
+
+/** A role's members. role.members reads the capped member cache, so small guilds fetch the full list first. */
+async function getRoleMembers(guild: Guild, role: Role): Promise<GuildMember[]> {
+  if (guild.memberCount <= MEMBER_FETCH_MAX_GUILD_SIZE) {
+    try {
+      const all = await guild.members.fetch({ time: MEMBER_FETCH_TIMEOUT_MS });
+      return [...all.filter(member => member.roles.cache.has(role.id)).values()];
+    } catch (error) {
+      enhancedLogger.warn('Smart routing: member fetch failed, using cached role members', LogCategory.SYSTEM, {
+        guildId: guild.id,
+        roleId: role.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return [...role.members.values()];
+}
+
+export type TicketRoutingConfig = Pick<
+  TicketConfig,
+  'smartRoutingEnabled' | 'enableWorkflow' | 'routingRules' | 'routingStrategy'
+>;
+
+/**
+ * Pick the staff member a new ticket is auto-assigned to, or null. Routing
+ * runs only with smart routing and the workflow system enabled and at least
+ * one rule. Never throws: a routing failure must not block ticket creation.
+ */
+export async function pickTicketAssignee(
+  guild: Guild,
+  ticketTypeId: string,
+  config: TicketRoutingConfig,
+  openerId: string,
+): Promise<GuildMember | null> {
+  if (!config.smartRoutingEnabled || !config.enableWorkflow || !config.routingRules?.length) return null;
+  try {
+    const strategy = config.routingStrategy || 'least-load';
+    const result = await routeTicket(guild, ticketTypeId, config.routingRules, strategy, openerId);
+    return result.member;
+  } catch (error) {
+    enhancedLogger.warn('Smart routing failed; ticket left unassigned', LogCategory.SYSTEM, {
+      guildId: guild.id,
+      ticketTypeId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+/** The part of a ticket channel {@link revokeAssigneeAccess} touches. */
+export interface AssigneeOverwriteHolder {
+  permissionOverwrites: { cache: { has(id: string): boolean }; delete(id: string): Promise<unknown> };
+}
+
+/**
+ * Remove a former assignee's member overwrite (granted by routing or the
+ * dashboard) when a ticket is unassigned or reassigned. The opener's own
+ * overwrite is never touched. Best effort: failures are logged, not thrown.
+ */
+export async function revokeAssigneeAccess(
+  channel: AssigneeOverwriteHolder | null,
+  ticket: { guildId: string; createdBy: string },
+  formerAssigneeId: string | null | undefined,
+): Promise<void> {
+  if (!channel || !formerAssigneeId || formerAssigneeId === ticket.createdBy) return;
+  if (!channel.permissionOverwrites.cache.has(formerAssigneeId)) return;
+  try {
+    await channel.permissionOverwrites.delete(formerAssigneeId);
+  } catch (error) {
+    enhancedLogger.warn('Failed to remove a former assignee from the ticket channel', LogCategory.PERMISSION, {
+      guildId: ticket.guildId,
+      memberId: formerAssigneeId,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 

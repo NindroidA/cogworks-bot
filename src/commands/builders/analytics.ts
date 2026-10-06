@@ -1,4 +1,4 @@
-import { PermissionFlagsBits, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
 import analyticsLang from '../../lang/en/analytics.json';
 
 const tl = analyticsLang.builder;
@@ -61,7 +61,8 @@ const setup = new SlashCommandSubcommandBuilder()
 export const analytics = new SlashCommandBuilder()
   .setName('analytics')
   .setDescription(tl.cmdDescrp)
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   .addSubcommand(overview)
   .addSubcommand(growth)
   .addSubcommand(channels)

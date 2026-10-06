@@ -5,6 +5,7 @@ import {
   ButtonStyle,
   type Client,
   MessageFlags,
+  OverwriteType,
   roleMention,
   type TextChannel,
 } from 'discord.js';
@@ -129,6 +130,25 @@ export const ticketAdminOnlyEvent = async (
         error instanceof Error ? error : undefined,
         LogCategory.COMMAND_EXECUTION,
         { guildId, roleId },
+      );
+    }
+  }
+
+  // Member overwrites beat role overwrites, so a routed or dashboard assignee
+  // would still see the channel. Hide every member but the opener and the bot.
+  const keepMemberIds = new Set([ticket.createdBy, interaction.client.user.id]);
+  const memberOverwrites = [...channel.permissionOverwrites.cache.values()].filter(
+    overwrite => overwrite.type === OverwriteType.Member && !keepMemberIds.has(overwrite.id),
+  );
+  for (const overwrite of memberOverwrites) {
+    try {
+      await channel.permissionOverwrites.edit(overwrite.id, { ViewChannel: false });
+    } catch (error) {
+      enhancedLogger.error(
+        'Failed to hide ticket channel from a member during admin-only',
+        error instanceof Error ? error : undefined,
+        LogCategory.COMMAND_EXECUTION,
+        { guildId, memberId: overwrite.id },
       );
     }
   }

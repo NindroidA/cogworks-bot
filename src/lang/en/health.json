@@ -3,7 +3,7 @@
     "builder": {
       "check": {
         "deep": "Also look up messages and threads through Discord (slower; once per 10 minutes)",
-        "descrp": "Check the saved settings against this server's channels and roles",
+        "descrp": "Check the saved settings against this server's channels, roles and commands",
         "guildId": "Bot owner only: check another server by its ID",
         "system": "Only check one system (default: all)"
       },
@@ -69,7 +69,7 @@
       "announcement": "Announcements",
       "application": "Applications",
       "baitchannel": "Bait channel",
-      "core": "Core (settings, staff roles, permissions)",
+      "core": "Core (settings, staff roles, permissions, commands)",
       "memory": "Memory",
       "onboarding": "Onboarding",
       "reactionRole": "Reaction roles",
@@ -101,6 +101,11 @@
     "core.guild_permission.error": "Couldn't check the feature permissions. Try again later.",
     "core.setup_state.unknown_system": "The setup dashboard has the unknown system `{systemId}` selected. `/bot-setup` ignores it, so no action is needed.",
     "core.setup_state.error": "Couldn't check the setup dashboard state. Try again later.",
+    "core.commands.no_scope": "Discord won't list this server's slash commands, which usually means the bot was added without the **applications.commands** scope. Add it by re-inviting the bot with https://discord.com/oauth2/authorize?client_id={botId}&scope=bot+applications.commands (settings are kept).",
+    "core.commands.missing": "Slash commands the bot should have here aren't registered ({count}): {names}. The bot registers its commands again when it restarts; if this is still reported after that, ask for help in the support server (`/server`).",
+    "core.commands.outdated": "Slash commands here don't match the current version ({count}): {names}. Their options or permissions changed. The bot registers its commands again when it restarts; if this is still reported after that, ask for help in the support server (`/server`).",
+    "core.commands.unexpected": "Slash commands are registered here that the bot no longer offers on this server ({count}): {names}. The bot replaces its commands when it restarts; if this is still reported after that, ask for help in the support server (`/server`).",
+    "core.commands.error": "Couldn't check the slash commands. Try again later.",
     "ticket.panel.panel_unset": "The ticket panel has no channel (it was deleted, or setup never picked one), so members can't open tickets. Post the panel again with `/ticket-setup`.",
     "ticket.panel.channel_missing": "The ticket panel channel (`{channelId}`) was deleted, so members can't open tickets. Post the panel again with `/ticket-setup`.",
     "ticket.panel.channel_type": "The ticket panel channel <#{channelId}> isn't a text channel. Pick a text channel with `/ticket-setup`.",

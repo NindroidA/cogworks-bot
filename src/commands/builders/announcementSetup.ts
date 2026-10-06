@@ -1,4 +1,4 @@
-import { PermissionsBitField, SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
 
 const tl = lang.announcement.setup;
@@ -7,7 +7,8 @@ const tl = lang.announcement.setup;
 export const announcementSetup = new SlashCommandBuilder()
   .setName('announcement-setup')
   .setDescription(tl.cmdDescrp)
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   .addRoleOption(option => option.setName('announcement-role').setDescription(tl.announcementRole).setRequired(false))
   .addChannelOption(option => option.setName('default-channel').setDescription(tl.defaultChannel).setRequired(false))
   .toJSON();

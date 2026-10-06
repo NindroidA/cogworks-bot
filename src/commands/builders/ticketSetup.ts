@@ -1,4 +1,4 @@
-import { ChannelType, PermissionsBitField, SlashCommandBuilder } from 'discord.js';
+import { ChannelType, SlashCommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
 import { createForumChannelOption, createTextChannelOption } from './factories';
 
@@ -8,7 +8,8 @@ const tl = lang.ticketSetup;
 export const ticketSetup = new SlashCommandBuilder()
   .setName('ticket-setup')
   .setDescription(tl.cmdDescrp)
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   .addChannelOption(option => createTextChannelOption(option, { description: tl.options.channel, required: false }))
   .addChannelOption(option =>
     createForumChannelOption(option, { name: 'archive', description: tl.options.archive, required: false }),
