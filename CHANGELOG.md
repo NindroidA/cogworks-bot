@@ -31,6 +31,14 @@ channel instead of unlocking it.
   already recorded and only adds channels it hasn't touched. Enter, release
   and the sweep now run one at a time per guild, so a release in progress
   can't be captured as the next raid's prior state.
+- **A release that can't finish no longer reports raid mode as over.**
+  Channels are restored before the raid is cleared in the database, so a
+  crash or shutdown mid-release leaves it active and the next boot or sweep
+  finishes it. The auto-release skips a guild that's in a Discord outage and
+  keeps a raid where no channel could be restored (for example, Manage Roles
+  revoked), retrying on the next sweep. Channels a release can't restore are
+  named in a warning, and a failed save of the snapshot row is logged as an
+  error.
 
 ## [3.16.3] - 2026-07-07
 

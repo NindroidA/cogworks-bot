@@ -11,17 +11,17 @@
  *
  * Sticky semantics: once entered, raid mode stays active until a mod
  * manually releases it (`/baitchannel raid release`) or the 4-hour cap
- * elapses (a one-minute sweep then releases it). Auto-release-on-quiet
- * was considered and rejected — the Wick precedent is that sticky+manual
- * is safer; otherwise the bot could un-lock during a brief raid pause and
- * let through a second wave.
+ * elapses. Auto-release-on-quiet was considered and rejected — the
+ * Wick precedent is that sticky+manual is safer; otherwise the bot
+ * could un-lock during a brief raid pause and let through a second
+ * wave.
  *
  * State surface:
  *   - In-memory: per-guild trigger timestamps (sliding window).
  *   - DB: `BaitChannelConfig.currentRaidModeUntil` is the source of
- *     truth — `null` means inactive; non-null means "locked, auto-release
- *     at this timestamp" (4h cap from entry). Bot restarts read this column
- *     to restore lockdown state.
+ *     truth — `null` means inactive; non-null means "active until this
+ *     timestamp" (4h cap from entry). Bot restarts read this column to
+ *     restore lockdown state.
  *   - BaitChannelLog: meta rows with `actionTaken='raid-mode-entered'`
  *     / `'raid-mode-released'` and `userId='SYSTEM'` track history. The
  *     entered row also persists the channel-permission snapshot.
@@ -192,9 +192,13 @@ export class RaidModeManager {
   }
 
   /**
-   * Manually release raid mode. Restores channel permissions, clears
-   * DB state, writes audit row. `onlyIfExpired` (auto-release) re-checks the
-   * cap inside the guild queue, so a raid re-entered meanwhile is left alone.
+   * Release raid mode. Restores channel permissions, then clears DB state
+   * and writes the audit row, so a crash or shutdown mid-release
+   * leaves the raid active for the next boot or sweep to finish.
+   * `onlyIfExpired` (auto-release) re-checks the cap inside the guild queue,
+   * so a raid re-entered meanwhile is left alone. It also returns false and
+   * keeps the raid for the next sweep when the guild is unavailable (outage:
+   * empty channel cache) or when no channel could be restored.
    */
   async releaseRaidMode(guild: Guild, releasedBy: string, reason?: string, onlyIfExpired = false): Promise<boolean> {
     return this.serialize(guild.id, async () => {
@@ -203,11 +207,9 @@ export class RaidModeManager {
       });
       if (!config) return false;
       if (!config.currentRaidModeUntil) return false; // not active
-      if (onlyIfExpired && config.currentRaidModeUntil.getTime() > Date.now()) return false;
+      if (onlyIfExpired && (config.currentRaidModeUntil.getTime() > Date.now() || !guild.available)) return false;
 
       const snapshot = await this.knownSnapshot(guild.id, config.currentRaidModeUntil);
-      config.currentRaidModeUntil = null;
-      await this.deps.configRepo.save(config);
 
       // Restore each channel's recorded prior. Without a complete snapshot,
       // lockable channels it doesn't cover fall back to inherit.
@@ -225,7 +227,19 @@ export class RaidModeManager {
           { guildId: guild.id, channels: fellBack },
         );
       }
-      await this.editChannels(guild, false, edits);
+      const { updated, failed } = await this.editChannels(guild, false, edits);
+      if (failed.length > 0) {
+        // Nothing restored (ManageRoles revoked, Discord down): the sweep keeps it and retries.
+        const retry = onlyIfExpired && updated === 0;
+        enhancedLogger.warn(
+          `Raid-mode release for ${guild.id}: could not restore @everyone SendMessages on ${failed.length} channel(s): ${failed.slice(0, 10).join(', ')}. ${retry ? 'Still active; the next sweep retries.' : 'Fix them by hand.'}`,
+          LogCategory.SECURITY,
+          { guildId: guild.id, failed },
+        );
+        if (retry) return false;
+      }
+
+      await this.deps.configRepo.update({ guildId: guild.id }, { currentRaidModeUntil: null });
       this.lockdownSnapshots.delete(guild.id);
 
       await this.writeMetaLog(guild, 'raid-mode-released', {
@@ -300,6 +314,7 @@ export class RaidModeManager {
     this.sweepTimer.unref();
   }
 
+  /** Stop the sweep. Call at the start of shutdown so a tick can't begin a release mid-exit. */
   stopAutoReleaseSweep(): void {
     if (this.sweepTimer) clearInterval(this.sweepTimer);
     this.sweepTimer = null;
@@ -461,12 +476,16 @@ export class RaidModeManager {
    * permissions.
    *
    * Best-effort: per-channel failures are logged but don't abort the
-   * sweep. Mods can manually fix stragglers if needed.
+   * sweep. Returns the number edited and the `#name`s that failed.
    */
-  private async editChannels(guild: Guild, lockdown: boolean, edits: Map<string, boolean | null>): Promise<void> {
+  private async editChannels(
+    guild: Guild,
+    lockdown: boolean,
+    edits: Map<string, boolean | null>,
+  ): Promise<{ updated: number; failed: string[] }> {
     const everyone = guild.roles.everyone;
     let updated = 0;
-    let failed = 0;
+    const failed: string[] = [];
 
     for (const [channelId, value] of edits) {
       const channel = guild.channels.cache.get(channelId);
@@ -477,7 +496,7 @@ export class RaidModeManager {
         await channel.permissionOverwrites.edit(everyone, { SendMessages: value });
         updated++;
       } catch (error) {
-        failed++;
+        failed.push(`#${channel.name}`);
         enhancedLogger.debug(`Raid-mode permission edit failed on #${channel.name}`, LogCategory.SECURITY, {
           guildId: guild.id,
           channelId,
@@ -487,10 +506,11 @@ export class RaidModeManager {
     }
 
     enhancedLogger.info(
-      `Raid-mode permission sweep (${lockdown ? 'lock' : 'unlock'}) for ${guild.id}: ${updated} updated, ${failed} failed`,
+      `Raid-mode permission sweep (${lockdown ? 'lock' : 'unlock'}) for ${guild.id}: ${updated} updated, ${failed.length} failed`,
       LogCategory.SECURITY,
-      { guildId: guild.id, lockdown, updated, failed },
+      { guildId: guild.id, lockdown, updated, failed: failed.length },
     );
+    return { updated, failed };
   }
 
   private async sendRaidAlert(
@@ -569,6 +589,18 @@ export class RaidModeManager {
         }),
       );
     } catch (error) {
+      if (action === 'raid-mode-entered') {
+        // This row is the only durable copy of the lockdown snapshot.
+        logError({
+          category: ErrorCategory.DATABASE,
+          severity: ErrorSeverity.HIGH,
+          message:
+            'Failed to save the raid-mode lockdown snapshot: if the bot restarts before release, locked channels fall back to inherit',
+          error,
+          context: { guildId: guild.id },
+        });
+        return;
+      }
       enhancedLogger.warn(`Failed to write raid-mode meta log: ${(error as Error).message}`, LogCategory.SECURITY, {
         guildId: guild.id,
       });
