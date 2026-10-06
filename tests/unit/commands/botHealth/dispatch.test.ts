@@ -11,6 +11,7 @@ import { lang } from '../../../../src/lang';
 import { DEFAULT_SYSTEM_STATES } from '../../../../src/typeorm/entities/SetupState';
 import { isCommandVisible } from '../../../../src/utils/setup/commandGating';
 import { makeFakeGuild } from '../../../helpers/fakeGuild';
+import { setBotConfigFindOneBy, sharedBotConfigRepo } from '../../../helpers/sharedBotConfigRepo';
 
 const G = '100000000000000001';
 
@@ -52,16 +53,6 @@ describe('/bot-health builder', () => {
 
 describe('dispatch without a BotConfig', () => {
   const botConfigLookups: unknown[] = [];
-  const fakeRepo = {
-    findOneBy: async (where: unknown) => {
-      botConfigLookups.push(where);
-      return null;
-    },
-    findOne: async () => null,
-    find: async () => [],
-    create: (row: unknown) => row,
-    save: async (row: unknown) => row,
-  };
   let originalGetRepository: unknown;
   let handleSlashCommand: typeof import('../../../../src/commands/commands').handleSlashCommand;
 
@@ -69,7 +60,11 @@ describe('dispatch without a BotConfig', () => {
     const { AppDataSource } = await import('../../../../src/typeorm');
     const ds = AppDataSource as unknown as { getRepository: unknown };
     originalGetRepository = ds.getRepository;
-    ds.getRepository = () => fakeRepo;
+    ds.getRepository = () => sharedBotConfigRepo;
+    setBotConfigFindOneBy(async where => {
+      botConfigLookups.push(where);
+      return null;
+    });
     handleSlashCommand = (await import('../../../../src/commands/commands')).handleSlashCommand;
   });
 
