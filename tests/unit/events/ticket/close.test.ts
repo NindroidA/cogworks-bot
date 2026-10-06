@@ -73,6 +73,17 @@ describe('ticketCloseEvent', () => {
     expect(archiveAndCloseTicket).not.toHaveBeenCalled();
   });
 
+  test('archive forum deleted (channelId blanked) → notConfigured, never closes', async () => {
+    const { deps, archivedTicketConfigRepo, ticketRepo, archiveAndCloseTicket, replyEphemeralError } = makeDeps();
+    archivedTicketConfigRepo.findOneBy.mockResolvedValue({ channelId: '' });
+
+    await ticketCloseEvent(client, makeInteraction(), deps);
+
+    expect(replyEphemeralError).toHaveBeenCalledWith(expect.anything(), tl.notConfigured);
+    expect(ticketRepo.update).not.toHaveBeenCalled();
+    expect(archiveAndCloseTicket).not.toHaveBeenCalled();
+  });
+
   test('no Ticket row → surfaces feedback and does not proceed', async () => {
     const { deps, ticketRepo, archiveAndCloseTicket, replyEphemeralError } = makeDeps();
     ticketRepo.findOneBy.mockResolvedValue(null);
