@@ -23,6 +23,7 @@
  */
 
 import * as realAdminOnlyModule from "../../../src/events/ticket/adminOnly";
+import * as realEmailImportModule from "../../../src/commands/handlers/ticket/emailImport";
 import {
   afterEach,
   beforeEach,
@@ -63,7 +64,10 @@ mock.module("../../../src/commands/handlers/ticket/typeAdd", () => ({
   buildTypeConfirmationEmbed: jest.fn().mockReturnValue({}),
 }));
 
+// Spread the real module so buildEmailTicketPermissions and the *Impl alias
+// used by handlers/ticket/emailImportPermissions.test.ts pass through.
 mock.module("../../../src/commands/handlers/ticket/emailImport", () => ({
+  ...realEmailImportModule,
   emailImportModalHandler: (...args: unknown[]) =>
     mockEmailImportModalHandler(...args),
 }));

@@ -16,6 +16,7 @@
  *   - application_modal_ submit: position not found → error reply
  *   - application_modal_ submit: rate limited → denial reply
  *   - application_modal_ submit: default field → channel created, reply sent
+ *   - application_modal_ submit: saved admin role missing from the guild → left out of overwrites
  *   - application_modal_ submit: custom fields → each field read from modal
  *   - showModal: title includes position title, fallback emoji, one row per field
  *
@@ -657,6 +658,33 @@ describe("handleApplicationInteraction", () => {
       expect(interaction._newChannel._sendCalls.length).toBeGreaterThanOrEqual(
         3,
       );
+    });
+
+    it("should leave saved admin roles that no longer exist out of the channel overwrites", async () => {
+      // v3.16.11: a role deleted while the bot was offline used to make
+      // guild.channels.create throw for every application in the guild.
+      const KEPT = "123456789012345678";
+      const DELETED = "223456789012345678";
+      DEFAULT_QUERY_BUILDER.getRawMany.mockResolvedValue([
+        { role: KEPT },
+        { role: `<@&${DELETED}>` },
+      ]);
+      const interaction = makeModalInteraction("application_modal_1", {
+        default_about: "text",
+      });
+      const guild = interaction.guild as {
+        roles: { cache: Map<string, unknown> };
+        channels: { _createCalls: { permissionOverwrites: { id: string }[] }[] };
+      };
+      guild.roles.cache = new Map([[KEPT, {}]]);
+
+      await handleApplicationInteraction(mockClient, interaction as never);
+
+      expect(guild.channels._createCalls).toHaveLength(1);
+      const ids = guild.channels._createCalls[0].permissionOverwrites.map(
+        (o) => o.id,
+      );
+      expect(ids).toEqual(["guild-123", "user-456", KEPT]);
     });
   });
 

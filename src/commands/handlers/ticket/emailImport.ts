@@ -436,3 +436,10 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
     await handleInteractionError(interaction, error, 'emailImportModalHandler');
   }
 }
+
+/**
+ * Untouched alias for suites that test the REAL handler (same pattern as
+ * ticketAdminOnlyEventImpl): ticketInteraction.test.ts mock.module()s this
+ * module process-globally and spreads the real exports, so this passes through.
+ */
+export const emailImportModalHandlerImpl = emailImportModalHandler;
