@@ -52,6 +52,13 @@ const fromTemplate = new SlashCommandSubcommandBuilder()
   )
   .addStringOption(option =>
     option.setName('start').setDescription(tl.fromTemplate.start).setRequired(true).setMinLength(10).setMaxLength(22),
+  )
+  .addChannelOption(option =>
+    option
+      .setName('channel')
+      .setDescription(tl.fromTemplate.channel)
+      .setRequired(false)
+      .addChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice),
   );
 
 /* =========================================================================
@@ -168,6 +175,13 @@ const recurring = new SlashCommandSubcommandBuilder()
         { name: 'Biweekly', value: 'biweekly' },
         { name: 'Monthly', value: 'monthly' },
       ),
+  )
+  .addChannelOption(option =>
+    option
+      .setName('channel')
+      .setDescription(tl.recurring.channel)
+      .setRequired(false)
+      .addChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice),
   );
 
 /* =========================================================================

@@ -6,9 +6,12 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
+import { DEFAULT_ANNOUNCEMENT_TEMPLATES } from "../../../../src/utils/announcement/defaultTemplates";
 import {
   detectDynamicPlaceholders,
   getAvailablePlaceholders,
+  modalPlaceholders,
   renderTemplate,
   type TemplatePlaceholderParams,
 } from "../../../../src/utils/announcement/templateEngine";
@@ -116,6 +119,46 @@ describe("detectDynamicPlaceholders()", () => {
     // {server} has requiresInput: false so should not be detected
     expect(dynamic.some((p) => p.name === "server")).toBe(false);
   });
+});
+
+// ===========================================================================
+// modalPlaceholders — the /announcement send parameters modal (v3.16.32)
+// ===========================================================================
+describe("modalPlaceholders()", () => {
+  test("asks for the time once when a template uses {time} and {time_relative}", () => {
+    const template = createTemplate({ body: "At {time} ({time_relative}), version {version}" });
+    expect(modalPlaceholders(template).map((p) => p.name)).toEqual(["version", "time"]);
+  });
+
+  test("keeps {time_relative} when it is the only time placeholder", () => {
+    const template = createTemplate({ body: "Starts {time_relative}" });
+    expect(modalPlaceholders(template).map((p) => p.name)).toEqual(["time_relative"]);
+  });
+
+  // The builders validate as the modal is built (45-char title and labels), so
+  // building it for each default template is the check. Two of them failed before.
+  test.each(DEFAULT_ANNOUNCEMENT_TEMPLATES.map((t) => [t.name, t] as const))(
+    "the send modal for the default %s template builds",
+    (_name, definition) => {
+      const template = createTemplate({ ...definition });
+      const modal = new ModalBuilder()
+        .setCustomId("announcement_send_params_1")
+        .setTitle(`${template.displayName} - Parameters`.slice(0, 45));
+      const fields = modalPlaceholders(template);
+      for (const placeholder of fields) {
+        expect(placeholder.description.length).toBeLessThanOrEqual(45);
+        modal.addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder()
+              .setCustomId(placeholder.name)
+              .setLabel(placeholder.description)
+              .setStyle(TextInputStyle.Short),
+          ),
+        );
+      }
+      if (fields.length > 0) expect(() => modal.toJSON()).not.toThrow();
+    },
+  );
 });
 
 // ===========================================================================

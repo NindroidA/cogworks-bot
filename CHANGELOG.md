@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.32] - 2026-10-06
+
+Applications, events and announcements hit fewer Discord limits
+(NindroidA/cogworks-bot#41). A long application answer no longer leaves a
+channel nobody can close, two default announcement templates can be sent
+again, voice and stage event templates work, and rescheduling an event keeps
+its custom reminders.
+
+### Fixed
+
+- **Long application answers.** An answer near 2000 characters (built-in
+  templates allow 2000, custom paragraph fields 4000) made the post fail after
+  the channel existed, so the application row never got its channel: Close and
+  `/application status`, `note` and `claim` said it didn't exist and the rest
+  of the answers were lost. Long answers are now split across messages, and the
+  channel is saved right after it's created, before anything is posted in it.
+  If the channel itself can't be created, the empty application row is removed
+  and a first attempt doesn't count against the daily limit.
+- **`/announcement send` for the default "Scheduled Maintenance" and "Scheduled
+  Update" templates** (and any template using `{time_relative}`) failed before
+  the form opened, because one field label was 47 characters (Discord allows
+  45). The label is shorter, labels and the form title are capped at 45, and a
+  template that uses both `{time}` and `{time_relative}` asks for the time once
+  (both are filled from it).
+- **`/application info` stopped working** in a channel once a recent internal
+  note was about 980+ characters (an embed field holds 1024). The notes list
+  shows the first 150 characters of each note.
+- **The application panel stopped updating** when a position's emoji wasn't a
+  real emoji (e.g. `staff`), more than 25 positions were active, or the text
+  went past 2000 characters, while every command still said it worked. An
+  invalid emoji now shows as 📝, only the first 25 active positions are listed
+  (Discord allows 25 buttons), and long descriptions are shortened to fit.
+  `/application position refresh` reports a failure, and add, remove, toggle
+  and reindex add a warning when the panel couldn't be updated or some
+  positions didn't fit.
+- **Voice and stage event templates never created an event.** `/event
+  from-template` and `/event recurring` have a new optional `channel` option
+  (voice or stage); the channel's type decides which kind of event it is, and
+  the next occurrence of a recurring event uses the same channel. Without a
+  channel they say so instead of failing. `/event recurring` only marks the
+  template recurring once its first event exists, and if saving fails after
+  that it warns instead of saying it failed (running it again would start a
+  second series).
+- **Rescheduling an event dropped its `/event remind` reminders.** Moving the
+  start time now moves every pending reminder by the same amount (ones that
+  would be in the past are dropped) and adds the default reminder only if the
+  event had none at that minute.
+- **A recurring chain could start from an event made by hand** in Discord with
+  the same title as a recurring template. Only events the bot created continue
+  a chain.
+- **Archived applications never got their position tag** when the title was
+  over 20 characters (Discord's tag-name limit), which covers 3 of the 5
+  built-in templates. Tag names are cut to 20 characters, dropping a trailing
+  " Application" first ("Developer Application" tags as "Developer"). Ticket
+  types with long names get their archive tag the same way, and the health
+  check matches tags by the same name.
+- **A custom workflow status named `closed`** (or `created`, `opened`,
+  `error`) made an application vanish from every lookup, so it couldn't be
+  closed or archived. `/application workflow-add-status` refuses those IDs and
+  `/application status` won't set them.
+
+### Security
+
+- Application answers are posted with mentions turned off, so an applicant
+  can't ping `@everyone`, `@here` or roles through the bot.
+- The application rate limit (2 a day) is counted per server instead of across
+  every server the bot is in.
+
 ## [3.16.31] - 2026-10-06
 
 Ticket fixes for type management, email import, restrictions and the SLA clock

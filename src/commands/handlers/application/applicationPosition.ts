@@ -20,6 +20,7 @@ import {
   replyEphemeralError,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { CUSTOM_EMOJI, isUnicodeEmoji } from '../../../utils/discord/emoji';
 import { getTemplate } from './applicationTemplates';
 
 const positionRepo = lazyRepo(Position);
@@ -105,7 +106,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
       });
 
       // update the application channel message
-      await updateApplicationMessage(interaction.client, guildId);
+      await syncPanel(interaction, guildId);
     } catch (error) {
       enhancedLogger.error(
         'Failed to add position',
@@ -158,7 +159,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
       });
 
       // update the application channel message
-      await updateApplicationMessage(interaction.client, guildId);
+      await syncPanel(interaction, guildId);
     } catch (error) {
       enhancedLogger.error(
         'Failed to remove position',
@@ -204,7 +205,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
       );
 
       // update the application channel message
-      await updateApplicationMessage(interaction.client, guildId);
+      await syncPanel(interaction, guildId);
     } catch (error) {
       enhancedLogger.error(
         'Failed to toggle position',
@@ -260,10 +261,14 @@ export async function applicationPositionHandler(_client: Client, interaction: C
     }
   } else if (subCommand === 'refresh') {
     try {
-      await updateApplicationMessage(interaction.client, guildId);
+      const result = await updateApplicationMessage(interaction.client, guildId);
+      if (result === 'failed' || result === 'no-panel') {
+        await replyEphemeralError(interaction, pl.failRefresh);
+        return;
+      }
 
       await interaction.reply({
-        content: pl.successRefresh,
+        content: result === 'truncated' ? `${pl.successRefresh}\n${pl.panelTooMany}` : pl.successRefresh,
         flags: [MessageFlags.Ephemeral],
       });
     } catch (error) {
@@ -307,7 +312,7 @@ export async function applicationPositionHandler(_client: Client, interaction: C
       });
 
       // Update the application channel message
-      await updateApplicationMessage(interaction.client, guildId);
+      await syncPanel(interaction, guildId);
     } catch (error) {
       enhancedLogger.error(
         'Failed to reindex positions',
@@ -323,21 +328,30 @@ export async function applicationPositionHandler(_client: Client, interaction: C
   }
 }
 
+/** What a panel re-render did: edited (`truncated`: some positions didn't fit), no panel set up yet, or Discord refused. */
+export type PanelUpdate = 'updated' | 'truncated' | 'no-panel' | 'failed';
+
+/** Re-renders the panel after a change. The change is saved either way, so a panel problem is only a warning. */
+async function syncPanel(interaction: ChatInputCommandInteraction<CacheType>, guildId: string): Promise<void> {
+  const result = await updateApplicationMessage(interaction.client, guildId);
+  const warning = result === 'failed' ? pl.panelUpdateFailed : result === 'truncated' ? pl.panelTooMany : null;
+  if (warning) await interaction.followUp({ content: warning, flags: [MessageFlags.Ephemeral] });
+}
+
 // function to update the application message with current positions
-export async function updateApplicationMessage(client: Client, guildId: string) {
+export async function updateApplicationMessage(client: Client, guildId: string): Promise<PanelUpdate> {
   try {
     const applicationConfigRepo = AppDataSource.getRepository(ApplicationConfig);
     const applicationConfig = await applicationConfigRepo.findOneBy({
       guildId,
     });
 
-    if (!applicationConfig) return;
+    if (!applicationConfig?.channelId || !applicationConfig.messageId) return 'no-panel';
 
     const channel = await client.channels.fetch(applicationConfig.channelId);
-    if (!channel?.isTextBased()) return;
+    if (!channel?.isTextBased()) return 'failed';
 
     const message = await channel.messages.fetch(applicationConfig.messageId);
-    if (!message) return;
 
     // get active positions
     const activePositions = await positionRepo.find({
@@ -346,19 +360,51 @@ export async function updateApplicationMessage(client: Client, guildId: string) 
     });
 
     // build the message content and components
-    const { content, components } = await buildApplicationMessage(activePositions);
+    const { content, components, hidden } = buildApplicationMessage(activePositions);
 
     await message.edit({
       content,
       components,
     });
+    return hidden > 0 ? 'truncated' : 'updated';
   } catch (error) {
     enhancedLogger.error(
       'Failed to update application message',
       error instanceof Error ? error : new Error(String(error)),
       LogCategory.COMMAND_EXECUTION,
+      { guildId },
     );
+    return 'failed';
   }
+}
+
+/** Discord allows 5 rows of 5 buttons and 2000 characters of content per message. */
+const PANEL_MAX_POSITIONS = 25;
+const PANEL_CONTENT_LIMIT = 2000;
+const DEFAULT_POSITION_EMOJI = '📝';
+
+/**
+ * The position's emoji when Discord takes it on a button, else 📝. Positions
+ * store free text (slash add, the edit modal, the dashboard), and one bad
+ * emoji made every edit of the panel fail.
+ */
+export function panelEmoji(emoji: string | null | undefined): string {
+  const value = emoji?.trim();
+  if (!value) return DEFAULT_POSITION_EMOJI;
+  return CUSTOM_EMOJI.test(value) || isUnicodeEmoji(value) ? value : DEFAULT_POSITION_EMOJI;
+}
+
+/** Shortens descriptions to `budget` characters in total: short ones stay whole, long ones share the rest. */
+function fitDescriptions(descriptions: string[], budget: number): string[] {
+  const fitted = [...descriptions];
+  let left = Math.max(0, budget);
+  const byLength = fitted.map((_, i) => i).sort((a, b) => fitted[a].length - fitted[b].length);
+  byLength.forEach((index, n) => {
+    const share = Math.floor(left / (byLength.length - n));
+    if (fitted[index].length > share) fitted[index] = share > 0 ? `${fitted[index].slice(0, share - 1)}…` : '';
+    left -= fitted[index].length;
+  });
+  return fitted;
 }
 
 // helper function to build the application message
@@ -367,22 +413,30 @@ export function buildApplicationMessage(positions: Position[]) {
 
   if (positions.length === 0) {
     content += pl.noneAvailable;
-    return { content, components: [] };
+    return { content, components: [], hidden: 0 };
   }
 
   content += pl.available;
 
-  const components = [];
+  // Positions past the 25th get no button, so they aren't listed either.
+  const shown = positions.slice(0, PANEL_MAX_POSITIONS);
+  const headings = shown.map(position => `## ${panelEmoji(position.emoji)} __${position.title}__\n`);
+  const budget = PANEL_CONTENT_LIMIT - content.length - headings.join('').length - 2 * shown.length;
+  const descriptions = fitDescriptions(
+    shown.map(position => position.description ?? ''),
+    budget,
+  );
+  content += shown.map((_, i) => `${headings[i]}${descriptions[i]}\n\n`).join('');
+
+  const components: ActionRowBuilder<ButtonBuilder>[] = [];
   const maxButtonsPerRow = 5;
-  let currentRow = [];
 
   // Track emoji usage for duplicate button style cycling
   const emojiUsageCount = new Map<string, number>();
   const styleCycle = [ButtonStyle.Primary, ButtonStyle.Secondary, ButtonStyle.Success, ButtonStyle.Danger];
 
-  for (const position of positions) {
-    const emoji = position.emoji || '📝';
-    content += `## ${emoji} __${position.title}__\n${position.description}\n\n`;
+  shown.forEach((position, i) => {
+    const emoji = panelEmoji(position.emoji);
 
     // Determine button style based on emoji usage count
     const usageCount = emojiUsageCount.get(emoji) || 0;
@@ -395,16 +449,12 @@ export function buildApplicationMessage(positions: Position[]) {
       .setStyle(buttonStyle)
       .setEmoji(emoji);
 
-    currentRow.push(button);
+    if (i % maxButtonsPerRow === 0) components.push(new ActionRowBuilder<ButtonBuilder>());
+    components[components.length - 1].addComponents(button);
+  });
 
-    // if row is full or this is the last position, add the row
-    if (currentRow.length === maxButtonsPerRow || position === positions[positions.length - 1]) {
-      components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(...currentRow));
-      currentRow = [];
-    }
-  }
-
-  return { content, components };
+  // Backstop in case the titles alone run past the limit.
+  return { content: content.slice(0, PANEL_CONTENT_LIMIT), components, hidden: positions.length - shown.length };
 }
 
 /**
