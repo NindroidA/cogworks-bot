@@ -399,6 +399,7 @@ src/
 │   ├── event/              # event template + reminder helpers
 │   ├── import/             # mee6 / bot-import helpers (some deferred)
 │   ├── interactions/       # guardHelper, confirmHelper, modalHelper (standardized patterns)
+│   ├── memory/             # threadHelpers (memory starter-message clamp, archived-thread tag edits)
 │   ├── monitoring/         # enhancedLogger, healthMonitor, healthServer, memoryWatchdog, errorReporter
 │   ├── offboarding/        # archiveCompiler, messageCleanup (for bot-reset)
 │   ├── onboarding/         # onboarding flow helpers

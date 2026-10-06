@@ -24,7 +24,8 @@ import {
   showAndAwaitModal,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
-import { resolveMemoryConfig } from './channelPicker';
+import { buildStarterContent, MEMORY_DESCRIPTION_MAX } from '../../../utils/memory/threadHelpers';
+import { replyFlowError, resolveMemoryConfig } from './channelPicker';
 import { createDefaultSelectionState, runTagSelectionCollector, type TagSelectionState } from './tagSelection';
 
 const tl = lang.memory;
@@ -114,20 +115,23 @@ export async function memoryCaptureHandler(interaction: ChatInputCommandInteract
 
   const messageInput = interaction.options.getString('message');
 
-  const config = await resolveMemoryConfig(interaction, guildId);
-  if (!config) return;
-
   if (!messageInput) {
     await replyEphemeralError(interaction, tl.capture.noReplyOrLink);
     return;
   }
 
-  // Resolve target message
-  const resolved = await resolveTargetMessage(interaction, messageInput, guildId);
-  if (!resolved) return;
+  // Resolve the target message before the forum picker, so input errors reply
+  // to the slash command and the picker's select only has to answer once.
+  const target = await resolveTargetMessage(interaction, messageInput, guildId);
+  if (!target) return;
 
-  const { message: targetMessage, channelId: sourceChannelId, messageId: sourceMessageId } = resolved;
+  const { message: targetMessage, channelId: sourceChannelId, messageId: sourceMessageId } = target;
   const sourceAuthor = targetMessage.author.displayName;
+
+  // 2+ forums: the picker's select owns the next response
+  const resolved = await resolveMemoryConfig(interaction, guildId);
+  if (!resolved) return;
+  const { config, source } = resolved;
 
   // Get available tags
   const categoryTags = await memoryTagRepo.find({
@@ -138,7 +142,7 @@ export async function memoryCaptureHandler(interaction: ChatInputCommandInteract
   });
 
   if (categoryTags.length === 0 || statusTags.length === 0) {
-    await replyEphemeralError(interaction, tl.add.noTagsConfigured);
+    await replyFlowError(source, tl.add.noTagsConfigured);
     return;
   }
 
@@ -157,7 +161,7 @@ export async function memoryCaptureHandler(interaction: ChatInputCommandInteract
     targetMessage.content.length > 200 ? `${targetMessage.content.slice(0, 200)}...` : targetMessage.content;
 
   await runTagSelectionCollector(
-    interaction,
+    source,
     categoryTags,
     statusTags,
     selectionState,
@@ -201,7 +205,7 @@ async function showCaptureModal(
     .setPlaceholder(tl.add.descriptionPlaceholder)
     .setStyle(TextInputStyle.Paragraph)
     .setRequired(false)
-    .setMaxLength(4000);
+    .setMaxLength(MEMORY_DESCRIPTION_MAX);
 
   modal.addComponents(
     new ActionRowBuilder<TextInputBuilder>().addComponents(titleInput),
@@ -254,16 +258,14 @@ async function handleCaptureModalSubmit(
     if (categoryTag?.discordTagId) appliedTags.push(categoryTag.discordTagId);
     if (statusTag?.discordTagId) appliedTags.push(statusTag.discordTagId);
 
-    let content = description ? `**Description:**\n\n${description}` : '';
-
+    let footer: string;
     if (selectionState.sourceChannelId && selectionState.sourceMessageId) {
       const sourceLink = `https://discord.com/channels/${guildId}/${selectionState.sourceChannelId}/${selectionState.sourceMessageId}`;
-      const footer = `-# ${tl.capture.sourceLabel} ${selectionState.sourceAuthor} - [Jump to message](${sourceLink})`;
-      content = content ? `${content}\n\n${footer}` : footer;
+      footer = `-# ${tl.capture.sourceLabel} ${selectionState.sourceAuthor} - [Jump to message](${sourceLink})`;
     } else {
-      const footer = `-# Captured by ${interaction.user.displayName}`;
-      content = content ? `${content}\n\n${footer}` : footer;
+      footer = `-# Captured by ${interaction.user.displayName}`;
     }
+    const content = buildStarterContent(description, footer);
 
     const thread = await forum.threads.create({
       name: title,
