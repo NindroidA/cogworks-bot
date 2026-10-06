@@ -9,13 +9,27 @@ import type { EntityTarget, ObjectLiteral, Repository } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
 import { GuildPermission } from '../../typeorm/entities/GuildPermission';
+import { MemoryConfig, MemoryItem, MemoryTag } from '../../typeorm/entities/memory';
+import { ReactionRoleMenu } from '../../typeorm/entities/reactionRole';
+import { RulesConfig } from '../../typeorm/entities/rules';
 import { SetupState } from '../../typeorm/entities/SetupState';
 import { StaffRole } from '../../typeorm/entities/StaffRole';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { classifyRestError, type RefStatus } from './refs';
 
 /** Guild-scoped entities checks can declare. Feature check modules add theirs here. */
-export const HEALTH_ENTITIES = { BotConfig, GuildPermission, SetupState, StaffRole };
+export const HEALTH_ENTITIES = {
+  BotConfig,
+  GuildPermission,
+  SetupState,
+  StaffRole,
+  // Moderation: ReactionRoleMenu loads its options eagerly (they have no guildId column).
+  RulesConfig,
+  ReactionRoleMenu,
+  MemoryConfig,
+  MemoryTag,
+  MemoryItem,
+};
 export type HealthEntityName = keyof typeof HEALTH_ENTITIES;
 export type HealthRow<K extends HealthEntityName> = InstanceType<(typeof HEALTH_ENTITIES)[K]>;
 

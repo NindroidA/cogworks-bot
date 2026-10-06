@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.23] - 2026-10-06
+
+Rules, reaction-role and memory checks for the upcoming `/bot-health` command
+(NindroidA/cogworks-bot#41). Internal only: the command isn't registered yet,
+so nothing a server sees changes in this release. The bait channel checks
+planned for this step come in a separate release to keep this one reviewable.
+
+### Added — rules, reaction-role and memory health checks (internal, no user-visible command yet)
+
+- **Rules**: the rules channel (deleted, not a text channel, or the bot can't
+  see reactions there), the rules message (deep mode only), the role it gives
+  (deleted, @everyone, managed by an integration, or at/above the bot's highest
+  role), Manage Roles, and an emoji a reaction can never match (plain text, or
+  a custom emoji saved as `name:id`, which the reaction handler doesn't compare).
+- **Reaction roles**: each menu's channel (Manage Messages too in unique mode),
+  message (deep mode only), unknown mode, no options or more than Discord's 20
+  reactions per message, and Manage Roles; each option's role (same rules as
+  `validateRoleForMenu`, returned as codes) and emoji, including two options on
+  the same emoji. Custom emoji compare by id, matching the reaction lookup once
+  #53 lands, so `<:x:id>`, `<a:x:id>` and `x:id` are one emoji and animated
+  emoji aren't flagged. Options have no `guildId` column, so an option whose
+  menu row is gone can't be tied to a guild and isn't checked.
+- **Memory**: each memory forum (deleted, not a forum, missing permissions,
+  set up twice) and its welcome post, tags whose memory channel is gone or
+  whose forum tag is missing, and memories whose memory channel is gone or
+  whose post was deleted. Archived posts aren't cached, so a deleted post is
+  only reported in deep mode, through the REST budget.
+- **Shared reference helpers** (`src/utils/health/checks/refHelpers.ts`): a
+  channel's type and the bot's permissions in it in one lookup, role
+  assignability, and deep-mode message and thread lookups that only report
+  "missing" on proof (Unknown Message / Unknown Channel).
+- English strings for every new finding code in `src/lang/en/health.json`.
+
 ## [3.16.21] - 2026-10-06
 
 Health-check engine, the foundation for the upcoming `/bot-health` command
