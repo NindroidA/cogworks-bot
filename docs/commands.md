@@ -831,7 +831,7 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 - `deep` - (Optional) Also look up messages and threads through Discord (slower)
 - `guild-id` - (Optional, bot owner only) Check another server the bot is in
 - **Summary**: one line per system (✅ no problems, ⚠️ found, ❌ something is broken, ➖ not set up or not checked yet). Deep-mode lookups that were skipped are listed by what they cover; the per-run caps are fixed, so a second run skips the same ones
-- **Details**: pick a system to page through its findings (10 per page); deleted channels and roles are shown by ID. Each finding says what to do (or that nothing needs doing); the ones a later `/bot-health repair` will be able to fix say so. Nothing is fixed automatically yet
+- **Details**: pick a system to page through its findings (10 per page); deleted channels and roles are shown by ID. Each finding ends with what to do (a command, the web dashboard, or a permission to grant) or says no action is needed. Nothing is changed by the check
 - **Export JSON**: attaches the full report to share with support. It holds only IDs, finding codes and numbers: names, titles and other text from the server's settings are left out
 - **Rate limited**: one check per minute and one deep check per 10 minutes per server (not for the bot owner). A check that fails doesn't count, so it can be run again right away
 

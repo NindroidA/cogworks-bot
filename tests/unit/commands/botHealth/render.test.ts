@@ -98,13 +98,15 @@ describe('findingField', () => {
     expect(field.value).not.toContain('/bot-health repair');
   });
 
-  test('no repair command yet: auto and confirm findings say the fix is coming, nothing promises it now', () => {
-    const auto = findingField(finding({ repair: 'auto' }));
-    expect(auto.value).toContain('\n_Can be fixed by /bot-health repair (coming soon)._\n`core.staff_role.missing`');
-    const confirm = findingField(finding({ repair: 'confirm' }));
-    expect(confirm.value).toContain('(coming soon), after you confirm._');
-    for (const field of [auto, confirm])
-      expect(`${field.name} ${field.value}`).not.toMatch(/automatically|can be fixed automatically/);
+  test('no repair command yet: the repair class never shows, whatever it is (it stays in the export)', () => {
+    const fields = (['auto', 'confirm', 'manual'] as const).map(repair => findingField(finding({ repair })));
+    for (const field of fields) {
+      expect(field).toEqual(fields[0]);
+      expect(field.value).toBe(
+        `The saved role "Mods" (\`${ROLE}\`) was deleted. New ticket channels skip it. No action is needed.\n\`core.staff_role.missing\``,
+      );
+      expect(`${field.name} ${field.value}`).not.toMatch(/repair|automatic|coming soon/i);
+    }
   });
 
   test('a code without a string falls back to the code itself', () => {
@@ -114,9 +116,7 @@ describe('findingField', () => {
   test('an oversized value is cut to 1024 and still shows the code', () => {
     const field = findingField(finding({ params: { roleId: ROLE, alias: 'y'.repeat(5_000) } }));
     expect(field.value.length).toBe(1024);
-    expect(
-      field.value.endsWith('…\n_Can be fixed by /bot-health repair (coming soon)._\n`core.staff_role.missing`'),
-    ).toBe(true);
+    expect(field.value.endsWith('…\n`core.staff_role.missing`')).toBe(true);
   });
 });
 
@@ -158,7 +158,7 @@ describe('paginateFindings', () => {
 });
 
 describe('buildSummaryEmbed', () => {
-  test('one line per system, a footer about the coming repair, colour from the worst status', () => {
+  test('one line per system, no footer, colour from the worst status', () => {
     const embed = buildSummaryEmbed(
       report({
         systems: {
@@ -176,15 +176,14 @@ describe('buildSummaryEmbed', () => {
     expect(lines).toContain('❌ **Tickets**: 1 found, something is broken');
     expect(lines).toContain('➖ **Memory**: not set up');
     expect(lines).toContain('✅ **Rules**: no problems');
-    expect(embed.footer?.text).toBe(
-      'Automatic fixes come with /bot-health repair in a later update. Until then, follow the steps in each finding.',
-    );
-    expect(embed.footer?.text).not.toMatch(/\d/);
+    // Repairable findings (counts.auto/confirm) don't change the summary: there's no repair command yet.
+    expect(embed.footer).toBeUndefined();
+    expect(JSON.stringify(embed)).not.toMatch(/repair|automatic/i);
     expect(embed.color).toBe(0xed4245);
     expect(embed.title).toBe('Server health');
   });
 
-  test('no footer when nothing the repair could fix was found', () => {
+  test('no footer for a clean report or manual-only findings either', () => {
     expect(buildSummaryEmbed(report()).toJSON().footer).toBeUndefined();
     const manualOnly = report({ counts: { auto: 0, confirm: 0, manual: 3 } });
     expect(buildSummaryEmbed(manualOnly).toJSON().footer).toBeUndefined();

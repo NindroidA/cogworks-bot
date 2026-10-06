@@ -67,21 +67,15 @@ function truncate(text: string, max: number): string {
 
 const SEVERITY_ORDER: Record<HealthSeverity, number> = { block: 0, degraded: 1, cosmetic: 2 };
 
-/** Under the text of a finding the coming repair command can fix (no repair runs yet). */
-const REPAIR_NOTE: Partial<Record<HealthFinding['repair'], string>> = {
-  auto: tl.repair.auto,
-  confirm: tl.repair.confirm,
-};
-
 /**
  * One embed field per finding: the severity as the name, the explanation (lang
  * string with its params) plus the stable code as the value. The lang strings
- * show a missing object as its raw ID and an existing one as a mention, and say
- * what to do; a finding the coming repair can fix also says so.
+ * show a missing object as its raw ID and an existing one as a mention, and end
+ * with what to do (or say nothing needs doing). No repair command exists yet, so
+ * the repair class only goes in the JSON export.
  */
 export function findingField(finding: HealthFinding): APIEmbedField {
-  const repair = REPAIR_NOTE[finding.repair];
-  const suffix = `${repair ? `\n_${repair}_` : ''}\n\`${finding.code}\``;
+  const suffix = `\n\`${finding.code}\``;
   const text = fillTemplate(findingStrings[finding.code] ?? finding.code, finding.params);
   return {
     name: truncate(tl.severity[finding.severity], 256),
@@ -161,8 +155,6 @@ export function buildSummaryEmbed(report: HealthReport, opts: RenderOptions = {}
     .setTitle(truncate(title, 256))
     .setColor(Colors.status[color])
     .setDescription(lines.join('\n'));
-  // No repair command yet: the repair classes stay in the JSON export, and the footer says what to do meanwhile.
-  if (report.counts.auto + report.counts.confirm > 0) embed.setFooter({ text: tl.summary.footer });
   const notChecked = report.notChecked.map(notCheckedText).join('\n');
   if (notChecked) embed.addFields({ name: tl.summary.notChecked, value: truncate(notChecked, 1024) });
   return embed;
