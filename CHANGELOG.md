@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.26] - 2026-10-06
+
+`/bot-health check`: server admins (and the bot owner) can now see what is
+broken or stale in their server's Cogworks setup, with no setup needed first
+(NindroidA/cogworks-bot#41). This is the first user-visible part of the health
+check: the command appears in every server, and it only reads. Checking the
+server's slash commands against the bot's comes
+in a separate release.
+
+### Added
+
+- **`/bot-health check [system] [deep]`** (Administrator, or the bot owner):
+  `system` picks Core (settings, staff roles, permissions), one `/bot-setup`
+  system that has checks, XP, the starboard or onboarding (the bait channel's
+  checks come later; a check of all systems lists it as not checked yet). It
+  runs the read-only health check and replies ephemerally with a summary (bot
+  version, check time, one line per system: ✅ no problems, ⚠️ n found, ❌ n
+  found with something broken, ➖ not set up). A select opens each system's
+  findings, 10 per page with Previous/Next, each explained in plain language
+  and ending with a step the admin can take (a real command, the web dashboard,
+  a permission to grant) or saying no action is needed, deleted objects shown as
+  raw IDs and existing ones as mentions, and every page kept inside Discord's
+  embed limits. Nothing is changed: each finding's repair class is only in the
+  export. Deep-mode lookups skipped by the
+  fixed per-run caps are listed by what they cover. **Export JSON** attaches the
+  full report with IDs, finding codes and numbers only (names, titles and other
+  text from the server's settings are left out) for support. The buttons stop
+  after 5 minutes.
+- It runs on a server without a BotConfig row (like `/bot-setup` and
+  `/bot-reset`), is never hidden by module gating, and is audit-logged. The
+  dashboard's command browser lists it under Setup with them.
+- **Rate limits** per server: one check a minute, one deep check every
+  10 minutes. The bot owner is not limited. A check that fails doesn't use up
+  the slot, so it can be run again right away.
+- **Owner-only `guild-id` option**: the bot owner can check another server the
+  bot is in, by ID; anyone else who passes it gets an error.
+
+### Changed
+
+- The dispatcher's no-BotConfig commands are a small route table
+  (`NO_CONFIG_ROUTES`) instead of an if/else chain.
+- Core finding texts end with a step: deleted, duplicate or old-format staff
+  roles, an unsupported server language and an unknown setup-dashboard system
+  are inert and say no action is needed; an invalid staff role names
+  `/role add staff` / `/role add admin`; a permission grant with an unknown
+  feature or level, or for a deleted role, says to remove it from the
+  dashboard's Permissions page.
+
 ## [3.16.25] - 2026-10-06
 
 Health checks for the community features: announcements, XP, the starboard and
