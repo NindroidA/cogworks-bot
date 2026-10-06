@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.14] - 2026-10-06
+
+Starboard fixes. With the client's reaction cache turned off, the starboard
+never saw more than one star, so it only ever posted at a threshold of 1.
+
+### Fixed
+
+- **Starboard reaches its threshold again.** The handler read
+  `reaction.count`, which is always 0 or 1 while `ReactionManager` caching is
+  disabled. It now reads the live count for the star emoji from the message
+  over REST, so a message with 3 stars posts at the default threshold of 3,
+  and removing a star updates the post with the real count.
+- **No duplicate starboard posts.** Stars that land together are serialized per
+  message, so the second one updates the first one's post instead of posting
+  again. If saving the entry still fails after posting, the post is deleted
+  instead of being left untracked.
+- **`/starboard` settings apply immediately.** `/starboard setup`, `config`,
+  `toggle`, `ignore` and `unignore` now clear the 5-minute config cache, so a
+  disabled starboard or newly ignored channel stops posting right away. A
+  missing starboard channel now disables starboard with a targeted update
+  instead of saving a possibly stale cached config.
+
+### Changed
+
+- **Fewer REST calls on reactions.** The starboard checks the guild's config,
+  the emoji and the channel on the partial reaction before fetching anything,
+  so reactions it doesn't care about no longer fetch the message. Stars on a
+  cached bot message are skipped before any REST call while `ignoreBots` is on.
+  Existing starboard posts are refreshed from their own embed (color and footer
+  only).
+
 ## [3.16.13] - 2026-10-06
 
 Auto-close now really closes tickets: it archives the transcript and deletes
