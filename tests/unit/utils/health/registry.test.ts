@@ -33,7 +33,7 @@ describe('health check registry', () => {
   });
 
   test('getChecks(system) filters', () => {
-    expect(getChecks('ticket')).toEqual([]);
+    expect(getChecks('ticket').every(c => c.system === 'ticket')).toBe(true);
     expect(getChecks().length).toBeGreaterThanOrEqual(getChecks('core').length);
   });
 });
