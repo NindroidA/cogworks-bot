@@ -89,7 +89,7 @@ export const xpSetup = new SlashCommandBuilder()
         option
           .setName('channel')
           .setDescription('The channel to ignore')
-          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice)
+          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice, ChannelType.GuildForum)
           .setRequired(true),
       ),
   )
@@ -101,7 +101,7 @@ export const xpSetup = new SlashCommandBuilder()
         option
           .setName('channel')
           .setDescription('The channel to unignore')
-          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice)
+          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice, ChannelType.GuildForum)
           .setRequired(true),
       ),
   )
@@ -114,7 +114,7 @@ export const xpSetup = new SlashCommandBuilder()
         option
           .setName('channel')
           .setDescription('The channel to set a multiplier for')
-          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice)
+          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice, ChannelType.GuildForum)
           .setRequired(true),
       )
       .addNumberOption(option =>
@@ -134,7 +134,7 @@ export const xpSetup = new SlashCommandBuilder()
         option
           .setName('channel')
           .setDescription('The channel to remove the multiplier from')
-          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice)
+          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice, ChannelType.GuildForum)
           .setRequired(true),
       ),
   )

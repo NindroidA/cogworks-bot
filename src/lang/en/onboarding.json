@@ -34,10 +34,10 @@
   "setup": {
     "enabled": "Onboarding flow has been **enabled**. New members will receive the onboarding DM.",
     "disabled": "Onboarding flow has been **disabled**.",
-    "noSteps": "Cannot enable onboarding: no steps have been configured. Add steps first with `/onboarding step add`.",
+    "noSteps": "Cannot enable onboarding: no steps have been configured. Add steps first with `/onboarding step-add`.",
     "alreadyEnabled": "Onboarding is already enabled.",
     "alreadyDisabled": "Onboarding is already disabled.",
-    "notConfigured": "Onboarding is not configured yet. Use `/onboarding step add` to add steps first."
+    "notConfigured": "Onboarding is not configured yet. Use `/onboarding step-add` to add steps first."
   },
   "config": {
     "welcomeMessage": {
@@ -54,13 +54,13 @@
   "step": {
     "added": "Step **{0}** added to the onboarding flow (position #{1}).",
     "removed": "Step **{0}** removed from the onboarding flow.",
-    "notFound": "Step not found. Use `/onboarding step list` to see all steps.",
+    "notFound": "Step not found. Use `/onboarding step-list` to see all steps.",
     "maxReached": "Maximum of 10 steps reached. Remove a step before adding a new one.",
     "duplicateId": "A step with that ID already exists. Choose a different title.",
     "modalTitle": "Add Onboarding Step",
     "list": {
       "title": "Onboarding Steps",
-      "empty": "No steps configured. Use `/onboarding step add` to add steps.",
+      "empty": "No steps configured. Use `/onboarding step-add` to add steps.",
       "footer": "{0} step(s) configured",
       "requiredLabel": "Required",
       "optionalLabel": "Optional"
@@ -80,12 +80,12 @@
     "sending": "Sending onboarding preview to your DMs...",
     "sent": "Onboarding preview sent! Check your DMs.",
     "failed": "Could not send preview. Make sure your DMs are open.",
-    "noSteps": "No steps configured. Add steps with `/onboarding step add` first."
+    "noSteps": "No steps configured. Add steps with `/onboarding step-add` first."
   },
   "resend": {
     "success": "Onboarding flow sent to {0}.",
     "failed": "Could not send onboarding to {0}. They may have DMs disabled.",
-    "noSteps": "No steps configured. Add steps with `/onboarding step add` first."
+    "noSteps": "No steps configured. Add steps with `/onboarding step-add` first."
   },
   "errors": {
     "notConfigured": "Onboarding is not configured for this server.",

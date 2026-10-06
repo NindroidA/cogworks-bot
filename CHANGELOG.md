@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.33] - 2026-10-06
+
+Community feature fixes (NindroidA/cogworks-bot#41): reaction-role, XP and
+onboarding configs can no longer be used to hand out roles the invoker
+couldn't assign themselves, keycap, flag and skin-tone emoji work in
+reaction-role menus, `/reactionrole` and `/onboarding` reply in time, voice XP
+stops paying for the AFK channel, and AutoMod backups restore what they saved.
+
+### Security
+
+- **Role-granting configs check the invoker.** `/reactionrole add`,
+  `/xp-setup role-reward-add` and `/onboarding completion-role` refuse
+  @everyone, managed roles, roles at or above the bot, and roles at or above
+  the invoker's own highest role (the server owner is exempt, as in Discord).
+  Roles with Administrator, Manage Server, Manage Roles, Manage Channels,
+  Manage Webhooks, Ban, Kick or Timeout Members need a server admin. The bot
+  grants these roles with its own Manage Roles, so with feature commands now
+  visible a delegated manager could otherwise give themselves Administrator.
+- **Level-up messages ping only the member.** The announcement is sent with
+  `allowedMentions` for that user, so a level-up template containing
+  `@everyone` or a role mention no longer pings anyone else.
+
+### Fixed
+
+- **Keycap, flag, skin-tone and ZWJ emoji are accepted** by `/reactionrole add`,
+  `/rules-setup` and the dashboard (`validateEmoji` now matches one RGI emoji).
+- **`/reactionrole add`, `remove` and `edit` reply in time.** They defer first,
+  and change only the reactions that changed: add reacts with the new emoji,
+  remove takes the bot's reaction off the removed option (it used to stay on
+  the menu), edit leaves reactions alone. Before, every option was re-reacted
+  before replying, so menus with many options hit the 3-second deadline.
+- **`/reactionrole delete` deletes Discord first.** When the menu message
+  can't be deleted (missing access, Discord error), the menu is kept and the
+  reply says so. Only a message or channel that is already gone lets the row go.
+- **`/reactionrole validate` reports deleted roles** (`roles.fetch` returns
+  null, it never threw) and no longer fails with many issues: the report lives
+  in the embed description, clamped to 4096 characters. The issue count shows
+  the number instead of a literal `{count}`.
+- **Voice XP is earned in segments.** Nothing counts in the server's AFK
+  channel, in an XP-ignored channel or while deafened; a segment closes when
+  the member stops earning or switches channels and pays at that channel's
+  multiplier. Voice level-ups now grant role rewards and are announced in the
+  level-up channel when one is set.
+- **Threads and forum posts count as their parent channel** for XP ignores and
+  multipliers, and `/xp-setup ignore-channel-*` and `multiplier-*` accept forum
+  channels.
+- **`/onboarding preview` and `resend` reply in time.** The flow now resolves
+  once the welcome DM is delivered and runs the steps in the background (each
+  step waits up to 24 hours, past the 15-minute interaction token). A preview
+  works while onboarding is disabled, shows every step, and saves no progress
+  and grants no roles. A resend resumes at the member's next step, or starts
+  over if they already finished.
+- **`/onboarding step-remove` autocomplete works** (the option was flagged but
+  never routed), a typed step title also matches, and `/onboarding step-list`
+  shows each step's ID. Onboarding hints name `/onboarding step-add` and
+  `step-list` (they said `step add`).
+- **AutoMod restore keeps the alert channel, exemptions, allow list and keyword
+  presets.** Alert rules used to fail because the channel was dropped. Backups
+  now include presets; exemptions that don't exist in this server are skipped,
+  a rule whose alert channel is missing isn't sent, and the result lists each
+  rule that wasn't restored with the reason.
+- **`/automod keyword remove` ignores case,** so keywords added with capitals in
+  Server Settings can be removed; `keyword add` treats a different-case copy as
+  a duplicate.
+
 ## [3.16.30] - 2026-10-06
 
 Feature commands are now visible to every member, so the dashboard's

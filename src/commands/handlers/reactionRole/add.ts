@@ -10,8 +10,8 @@ import {
   RateLimits,
   replyEphemeralError,
   updateMenuMessage,
+  validateAssignableRole,
   validateEmoji,
-  validateRoleForMenu,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { optionEmojiKey } from '../../../utils/reactionRole/optionEmoji';
@@ -45,6 +45,9 @@ export async function reactionRoleAddHandler(interaction: ChatInputCommandIntera
     return;
   }
 
+  // Reacting on the menu message can outlast the 3s reply deadline
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
   try {
     // Find the menu
     const menu = await menuRepo.findOne({
@@ -76,9 +79,11 @@ export async function reactionRoleAddHandler(interaction: ChatInputCommandIntera
       return;
     }
 
-    // Validate role
-    const botMember = await guild.members.fetchMe();
-    const roleValidation = validateRoleForMenu(role, guild, botMember.roles.highest.position);
+    // The bot grants the role, so check what the invoker may hand out (not just the bot)
+    const roleValidation = await validateAssignableRole(
+      { guild, user: interaction.user, memberPermissions: interaction.memberPermissions },
+      role,
+    );
     if (!roleValidation.valid) {
       await replyEphemeralError(interaction, roleValidation.error!);
       return;
@@ -103,15 +108,14 @@ export async function reactionRoleAddHandler(interaction: ChatInputCommandIntera
       relations: { options: true },
     });
     if (updatedMenu) {
-      await updateMenuMessage(updatedMenu, guild);
+      await updateMenuMessage(updatedMenu, guild, { add: [emoji] });
     }
 
-    await interaction.reply({
+    await interaction.editReply({
       content: tl.add.success
         .replace('{emoji}', emoji)
         .replace('{role}', `<@&${role.id}>`)
         .replace('{menu}', menu.name),
-      flags: [MessageFlags.Ephemeral],
     });
 
     enhancedLogger.info('Reaction role option added', LogCategory.COMMAND_EXECUTION, {

@@ -6,7 +6,7 @@
 
 import {
   AttachmentBuilder,
-  type AutoModerationActionType,
+  AutoModerationActionType,
   type AutoModerationRuleEventType,
   type AutoModerationRuleTriggerType,
   ButtonStyle,
@@ -17,6 +17,7 @@ import {
 } from 'discord.js';
 import {
   awaitConfirmation,
+  clampText,
   enhancedLogger,
   formatLang,
   handleInteractionError,
@@ -144,17 +145,32 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
     if (!result) return;
 
     let created = 0;
+    const failed: string[] = [];
     for (const serializedRule of backup.rules) {
       try {
+        const meta = serializedRule.triggerMetadata ?? {};
+        // An alert needs its channel; a backup from another server may not have it
+        const alertChannelMissing = serializedRule.actions.some(
+          a =>
+            a.type === AutoModerationActionType.SendAlertMessage &&
+            !guild.channels.cache.has(a.metadata?.channelId ?? ''),
+        );
+        if (alertChannelMissing) {
+          failed.push(`**${serializedRule.name}**: ${tl.restore.alertChannelMissing}`);
+          continue;
+        }
+
         const ruleConfig: AutoModRuleConfig = {
           name: serializedRule.name,
           eventType: serializedRule.eventType as AutoModerationRuleEventType,
           triggerType: serializedRule.triggerType as AutoModerationRuleTriggerType,
           triggerMetadata: {
-            keywordFilter: serializedRule.triggerMetadata?.keywordFilter,
-            regexPatterns: serializedRule.triggerMetadata?.regexPatterns,
-            mentionTotalLimit: serializedRule.triggerMetadata?.mentionTotalLimit,
-            mentionRaidProtectionEnabled: serializedRule.triggerMetadata?.mentionRaidProtectionEnabled,
+            keywordFilter: meta.keywordFilter,
+            regexPatterns: meta.regexPatterns,
+            mentionTotalLimit: meta.mentionTotalLimit,
+            mentionRaidProtectionEnabled: meta.mentionRaidProtectionEnabled,
+            allowList: meta.allowList?.length ? meta.allowList : undefined,
+            presets: meta.presets?.length ? meta.presets : undefined,
           },
           actions: serializedRule.actions.map(a => ({
             type: a.type as AutoModerationActionType,
@@ -162,15 +178,20 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
               ? {
                   durationSeconds: a.metadata.durationSeconds,
                   customMessage: a.metadata.customMessage,
+                  channelId: a.metadata.channelId,
                 }
               : undefined,
           })),
           enabled: serializedRule.enabled,
+          // Discord rejects unknown ids: keep the exemptions that exist in this server
+          exemptRoles: (serializedRule.exemptRoles ?? []).filter(id => guild.roles.cache.has(id)),
+          exemptChannels: (serializedRule.exemptChannels ?? []).filter(id => guild.channels.cache.has(id)),
         };
 
         await createAutoModRule(guild, ruleConfig);
         created++;
       } catch (error) {
+        failed.push(`**${serializedRule.name}**: ${error instanceof Error ? error.message : String(error)}`);
         enhancedLogger.warn(`Failed to restore rule: ${serializedRule.name}`, LogCategory.COMMAND_EXECUTION, {
           guildId: guild.id,
           error: String(error),
@@ -183,10 +204,13 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
       userId: interaction.user.id,
     });
 
+    const failedText = failed.length
+      ? `\n\n${formatLang(tl.restore.failedList, failed.length)}\n${failed.map(f => `- ${f}`).join('\n')}`
+      : '';
     const embed = new EmbedBuilder()
-      .setColor('#00FF00')
+      .setColor(failed.length ? '#FFA500' : '#00FF00')
       .setTitle(tl.restore.title)
-      .setDescription(formatLang(tl.restore.success, created));
+      .setDescription(clampText(`${formatLang(tl.restore.success, created)}${failedText}`, 4096));
 
     await result.interaction.editReply({
       content: '',

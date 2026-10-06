@@ -5,7 +5,16 @@
  * All validators return a consistent { valid, error? } pattern for easy error handling.
  */
 
-import { type Channel, ChannelType, type Guild, type GuildMember, type Role } from 'discord.js';
+import {
+  type Channel,
+  ChannelType,
+  type Guild,
+  type GuildMember,
+  PermissionFlagsBits,
+  PermissionsBitField,
+  type Role,
+} from 'discord.js';
+import { lang } from '../../lang';
 
 /**
  * Standard validation result format
@@ -77,6 +86,10 @@ export function validateMember(member: GuildMember | null | undefined): Validati
   return { valid: true };
 }
 
+/** One RGI emoji: keycaps, flags, skin tones and ZWJ sequences included. */
+// biome-ignore lint/complexity/useRegexLiterals: a `v`-flag literal needs an es2024 target (tsconfig is es2020)
+const RGI_EMOJI = new RegExp('^\\p{RGI_Emoji}$', 'v');
+
 /**
  * Validates that a string is a valid emoji for Discord reactions.
  * Accepts standard Unicode emoji or custom Discord emoji format.
@@ -89,10 +102,8 @@ export function validateEmoji(emoji: string): ValidationResult {
     return { valid: true };
   }
 
-  // Unicode emoji: single emoji character (including compound emoji with ZWJ/variation selectors)
-  // Strip variation selectors and ZWJ sequences, then check if it's a valid emoji
-  const emojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
-  if (emojiRegex.test(emoji)) {
+  // One unicode emoji, including keycaps, flags, skin tones and ZWJ sequences
+  if (RGI_EMOJI.test(emoji)) {
     return { valid: true };
   }
 
@@ -100,6 +111,59 @@ export function validateEmoji(emoji: string): ValidationResult {
     valid: false,
     error: 'Invalid emoji. Use a standard emoji or custom Discord emoji (<:name:id>).',
   };
+}
+
+/** Role permissions only a server admin may have the bot hand out: each is moderation or admin power. */
+const PRIVILEGED_ROLE_PERMISSIONS = [
+  PermissionFlagsBits.Administrator,
+  PermissionFlagsBits.ManageGuild,
+  PermissionFlagsBits.ManageRoles,
+  PermissionFlagsBits.ManageChannels,
+  PermissionFlagsBits.ManageWebhooks,
+  PermissionFlagsBits.BanMembers,
+  PermissionFlagsBits.KickMembers,
+  PermissionFlagsBits.ModerateMembers,
+];
+
+/** A role option as `getRole()` returns it (a cached Role or the raw API role). */
+export interface AssignableRoleInput {
+  id: string;
+  managed: boolean;
+  position: number;
+  permissions: Readonly<PermissionsBitField> | string;
+}
+
+/**
+ * Whether the invoker may set the bot up to grant this role (reaction roles,
+ * XP rewards, the onboarding completion role). The bot grants with its own
+ * Manage Roles, so Discord never checks the invoker: a feature manager could
+ * otherwise hand themselves Administrator. Rejects @everyone, managed roles
+ * and roles at or above the bot; for anyone but the owner, roles at or above
+ * their own highest role (Discord's rule); and, unless they have Administrator,
+ * roles with moderation or admin permissions.
+ */
+export async function validateAssignableRole(
+  interaction: { guild: Guild; user: { id: string }; memberPermissions: Readonly<PermissionsBitField> | null },
+  role: AssignableRoleInput,
+): Promise<ValidationResult> {
+  const { guild } = interaction;
+  const tl = lang.errors.assignableRole;
+  if (role.id === guild.id) return { valid: false, error: tl.everyone };
+  if (role.managed) return { valid: false, error: tl.managed };
+
+  const me = await guild.members.fetchMe();
+  if (role.position >= me.roles.highest.position) return { valid: false, error: tl.aboveBot };
+  if (interaction.user.id === guild.ownerId) return { valid: true };
+
+  const invoker = await guild.members.fetch(interaction.user.id);
+  if (role.position >= invoker.roles.highest.position) return { valid: false, error: tl.aboveInvoker };
+
+  const isAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ?? false;
+  const perms = typeof role.permissions === 'string' ? BigInt(role.permissions) : role.permissions;
+  if (!isAdmin && new PermissionsBitField(perms).any(PRIVILEGED_ROLE_PERMISSIONS)) {
+    return { valid: false, error: tl.privileged };
+  }
+  return { valid: true };
 }
 
 /**

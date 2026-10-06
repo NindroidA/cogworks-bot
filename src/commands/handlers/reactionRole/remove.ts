@@ -33,6 +33,9 @@ export async function reactionRoleRemoveHandler(interaction: ChatInputCommandInt
   const menuId = parseInt(interaction.options.getString('menu', true), 10);
   const emoji = interaction.options.getString('emoji', true).trim();
 
+  // Updating the menu message can outlast the 3s reply deadline
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
   try {
     const menu = await menuRepo.findOne({
       where: { id: menuId, guildId },
@@ -63,12 +66,11 @@ export async function reactionRoleRemoveHandler(interaction: ChatInputCommandInt
       relations: { options: true },
     });
     if (updatedMenu) {
-      await updateMenuMessage(updatedMenu, guild);
+      await updateMenuMessage(updatedMenu, guild, { remove: [option.emoji] });
     }
 
-    await interaction.reply({
+    await interaction.editReply({
       content: tl.remove.success.replace('{emoji}', emoji).replace('{menu}', menu.name),
-      flags: [MessageFlags.Ephemeral],
     });
 
     enhancedLogger.info('Reaction role option removed', LogCategory.COMMAND_EXECUTION, {

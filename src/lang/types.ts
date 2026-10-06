@@ -1368,6 +1368,13 @@ export interface LangErrors {
   rateLimit: string;
   timeout: string;
   notYourInteraction: string;
+  assignableRole: {
+    everyone: string;
+    managed: string;
+    aboveBot: string;
+    aboveInvoker: string;
+    privileged: string;
+  };
 }
 
 export interface LangMemory {
@@ -1756,6 +1763,7 @@ export interface LangReactionRole {
     error: string;
     confirmTitle: string;
     confirmMessage: string;
+    messageNotDeleted: string;
   };
   list: {
     title: string;

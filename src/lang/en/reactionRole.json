@@ -69,7 +69,8 @@
     "success": "Reaction role menu **{name}** deleted.",
     "error": "Failed to delete menu.",
     "confirmTitle": "Delete Reaction Role Menu",
-    "confirmMessage": "Are you sure you want to delete **{name}**? This will remove the menu message and all role options."
+    "confirmMessage": "Are you sure you want to delete **{name}**? This will remove the menu message and all role options.",
+    "messageNotDeleted": "Couldn't delete the menu message for **{name}**, so the menu was kept. Check that the bot can still see that channel, then try again."
   },
   "list": {
     "title": "Reaction Role Menus",
@@ -107,7 +108,7 @@
     "title": "Reaction Role Validation Report",
     "checking": "Validating reaction role menus...",
     "allValid": "All menus are healthy! No issues found.",
-    "issuesFound": "{count} issue(s) found across your reaction role menus.",
+    "issuesFound": "{0} issue(s) found across your reaction role menus.",
     "menuValid": "Menu **{name}**: All checks passed",
     "menuMissing": "Menu **{name}**: Message missing — the menu message was deleted from <#{channelId}>",
     "channelMissing": "Menu **{name}**: Channel missing — <#{channelId}> no longer exists",

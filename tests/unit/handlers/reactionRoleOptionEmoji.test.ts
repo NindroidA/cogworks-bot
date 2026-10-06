@@ -1,5 +1,14 @@
 /**
- * Reaction-role option emoji identity in the command and dashboard paths.
+ * Reaction-role commands: option emoji identity in the command and dashboard
+ * paths, plus the v3.16.33 fixes (deferred replies and targeted reaction
+ * changes on add/remove/edit, Discord-first delete, validate's role check and
+ * report size, the assignable-role check on add).
+ *
+ * Every reaction-role handler test lives in this file: each handler's lazyRepo
+ * caches the first fake it resolves, so a second file's fakes would never reach
+ * it.
+ *
+ * Option emoji identity:
  *
  * The reaction lookup keys custom emoji by id, so `<:x:id>`, `<a:x:id>` and a
  * renamed `<:y:id>` are one option there. `/reactionrole add`, `/reactionrole
@@ -12,6 +21,7 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, jest, test } from 'bun:test';
+import { PermissionFlagsBits, PermissionsBitField, Routes } from 'discord.js';
 import { lang } from '../../../src/lang';
 import { AppDataSource } from '../../../src/typeorm';
 
@@ -28,17 +38,29 @@ const ROLE_B = '600000000000000002';
 
 const state = {
   menu: null as Record<string, any> | null,
+  /** What the reload after a change returns (null: the handler skips updateMenuMessage) */
+  reloadMenu: null as Record<string, any> | null,
+  menus: [] as Array<Record<string, any>>,
   saved: [] as Array<Record<string, any>>,
   removed: [] as Array<Record<string, any>>,
+  menusRemoved: [] as Array<Record<string, any>>,
 };
 
 const fakeMenuRepo = {
   findOneCalls: 0,
   async findOne() {
     fakeMenuRepo.findOneCalls++;
-    // Only the first lookup returns the menu; the reload after a change returns
-    // null so the handlers skip updateMenuMessage (Discord I/O)
-    return fakeMenuRepo.findOneCalls === 1 ? state.menu : null;
+    return fakeMenuRepo.findOneCalls === 1 ? state.menu : state.reloadMenu;
+  },
+  async find() {
+    return state.menus;
+  },
+  async save(entity: Record<string, any>) {
+    return entity;
+  },
+  async remove(entity: Record<string, any>) {
+    state.menusRemoved.push(entity);
+    return entity;
   },
   create(data: Record<string, unknown>) {
     return { ...data };
@@ -70,29 +92,37 @@ function setMenu(options: Array<{ id: number; emoji: string; roleId: string }>) 
   state.menu = { id: 1, guildId, messageId: '300000000000000001', name: 'Colors', mode: 'normal', options };
 }
 
-function makeInteraction(strings: Record<string, string>, roleId = ROLE_B) {
-  return {
+function makeInteraction(strings: Record<string, string>, roleId = ROLE_B, guildExtra: Record<string, unknown> = {}) {
+  const interaction: any = {
     guildId,
     guild: {
       id: guildId,
       // Past the duplicate check: fail here so the test needs no role hierarchy
       members: { fetchMe: jest.fn(async () => Promise.reject(new Error('stop after the duplicate check'))) },
+      ...guildExtra,
     },
     user: { id: '500000000000000001' },
     member: { permissions: { has: () => true } },
+    memberPermissions: new PermissionsBitField(PermissionFlagsBits.Administrator),
     deferred: false,
     replied: false,
     isRepliable: () => true,
     options: {
       getString: (name: string) => strings[name] ?? null,
-      getRole: () => ({ id: roleId }),
+      getRole: () => ({ id: roleId, managed: false, position: 1, permissions: '0' }),
     },
     reply: jest.fn(async () => undefined),
-  } as any;
+    editReply: jest.fn(async () => undefined),
+  };
+  interaction.deferReply = jest.fn(async () => {
+    interaction.deferred = true;
+  });
+  return interaction;
 }
 
-function replyText(interaction: { reply: { mock: { calls: any[][] } } }): string {
-  return interaction.reply.mock.calls[0]?.[0]?.content ?? '';
+/** The handler's one reply: editReply once deferred, else reply. */
+function replyText(interaction: { reply: { mock: { calls: any[][] } }; editReply: { mock: { calls: any[][] } } }) {
+  return (interaction.editReply.mock.calls[0]?.[0]?.content ?? interaction.reply.mock.calls[0]?.[0]?.content ?? '') as string;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,6 +131,9 @@ function replyText(interaction: { reply: { mock: { calls: any[][] } } }): string
 
 let addHandler: typeof import('../../../src/commands/handlers/reactionRole/add').reactionRoleAddHandler;
 let removeHandler: typeof import('../../../src/commands/handlers/reactionRole/remove').reactionRoleRemoveHandler;
+let editHandler: typeof import('../../../src/commands/handlers/reactionRole/edit').reactionRoleEditHandler;
+let deleteHandler: typeof import('../../../src/commands/handlers/reactionRole/delete').reactionRoleDeleteHandler;
+let validateHandler: typeof import('../../../src/commands/handlers/reactionRole/validate').reactionRoleValidateHandler;
 let registerApi: typeof import('../../../src/utils/api/handlers/reactionRoleHandlers').registerReactionRoleHandlers;
 let originalGetRepository: ((entity: any) => unknown) | undefined;
 
@@ -113,6 +146,11 @@ beforeAll(async () => {
   };
   ({ reactionRoleAddHandler: addHandler } = await import('../../../src/commands/handlers/reactionRole/add'));
   ({ reactionRoleRemoveHandler: removeHandler } = await import('../../../src/commands/handlers/reactionRole/remove'));
+  ({ reactionRoleEditHandler: editHandler } = await import('../../../src/commands/handlers/reactionRole/edit'));
+  ({ reactionRoleDeleteHandler: deleteHandler } = await import('../../../src/commands/handlers/reactionRole/delete'));
+  ({ reactionRoleValidateHandler: validateHandler } = await import(
+    '../../../src/commands/handlers/reactionRole/validate'
+  ));
   ({ registerReactionRoleHandlers: registerApi } = await import(
     '../../../src/utils/api/handlers/reactionRoleHandlers'
   ));
@@ -129,8 +167,11 @@ beforeEach(() => {
   guildSeq++;
   guildId = `1000000000000${String(guildSeq).padStart(5, '0')}`;
   state.menu = null;
+  state.reloadMenu = null;
+  state.menus = [];
   state.saved = [];
   state.removed = [];
+  state.menusRemoved = [];
   fakeMenuRepo.findOneCalls = 0;
   fakeMenuRepo.menuCount = 0;
 });
@@ -292,5 +333,217 @@ describe('dashboard menu create', () => {
     expect(error).toMatchObject({ statusCode: 400 });
     expect(String((error as Error).message)).toContain('options[1]: duplicate emoji');
     expect(send).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// add / remove / edit: deferred reply, only the changed reactions
+// ---------------------------------------------------------------------------
+
+const CHANNEL_ID = '200000000000000001';
+const MESSAGE_ID = '300000000000000001';
+
+/** A guild whose menu message records edits, reactions and own-reaction deletes. */
+function menuGuild() {
+  const message = { edit: jest.fn(async () => undefined), react: jest.fn(async () => undefined) };
+  const channel = { isTextBased: () => true, messages: { fetch: jest.fn(async () => message) } };
+  const restDelete = jest.fn(async () => undefined);
+  const guild = {
+    channels: { fetch: jest.fn(async () => channel) },
+    members: {
+      fetchMe: jest.fn(async () => ({ roles: { highest: { position: 20 } } })),
+      fetch: jest.fn(async () => ({ roles: { highest: { position: 10 } } })),
+    },
+    ownerId: '500000000000000099',
+    client: { rest: { delete: restDelete } },
+  };
+  return { guild, message, restDelete };
+}
+
+function menuWith(options: Array<{ id: number; emoji: string; roleId: string; sortOrder?: number }>) {
+  return {
+    id: 1,
+    guildId,
+    channelId: CHANNEL_ID,
+    messageId: MESSAGE_ID,
+    name: 'Colors',
+    mode: 'normal',
+    options: options.map((o, i) => ({ sortOrder: i, ...o })),
+  };
+}
+
+describe('/reactionrole add, remove and edit change only what changed', () => {
+  test('add defers, reacts with the new emoji only, and answers with editReply', async () => {
+    setMenu([{ id: 1, emoji: '🔴', roleId: ROLE_A }]);
+    state.reloadMenu = menuWith([
+      { id: 1, emoji: '🔴', roleId: ROLE_A },
+      { id: 2, emoji: '1️⃣', roleId: ROLE_B },
+    ]);
+    const { guild, message } = menuGuild();
+    const interaction = makeInteraction({ menu: '1', emoji: '1️⃣' }, ROLE_B, guild);
+
+    await addHandler(interaction);
+
+    expect(interaction.deferReply).toHaveBeenCalledTimes(1);
+    expect(message.edit).toHaveBeenCalledTimes(1);
+    expect(message.react.mock.calls).toEqual([['1️⃣']]);
+    expect(interaction.reply).not.toHaveBeenCalled();
+    expect(replyText(interaction)).toContain('1️⃣');
+    expect(state.saved).toHaveLength(1);
+  });
+
+  test('add refuses a role above the invoker before saving anything', async () => {
+    setMenu([{ id: 1, emoji: '🔴', roleId: ROLE_A }]);
+    const { guild } = menuGuild();
+    const interaction = makeInteraction({ menu: '1', emoji: '🟢' }, ROLE_B, guild);
+    interaction.options.getRole = () => ({ id: ROLE_B, managed: false, position: 15, permissions: '0' });
+
+    await addHandler(interaction);
+
+    expect(replyText(interaction)).toContain(lang.errors.assignableRole.aboveInvoker);
+    expect(state.saved).toHaveLength(0);
+  });
+
+  test("remove takes the bot's own reaction off for the removed option", async () => {
+    setMenu([
+      { id: 1, emoji: '🔴', roleId: ROLE_A },
+      { id: 2, emoji: `<:blob:${EMOJI_ID}>`, roleId: ROLE_B },
+    ]);
+    state.reloadMenu = menuWith([{ id: 1, emoji: '🔴', roleId: ROLE_A }]);
+    const { guild, message, restDelete } = menuGuild();
+    const interaction = makeInteraction({ menu: '1', emoji: `<:blob:${EMOJI_ID}>` }, ROLE_B, guild);
+
+    await removeHandler(interaction);
+
+    expect(interaction.deferReply).toHaveBeenCalledTimes(1);
+    expect(message.react).not.toHaveBeenCalled();
+    expect(restDelete.mock.calls).toEqual([[Routes.channelMessageOwnReaction(CHANNEL_ID, MESSAGE_ID, `blob:${EMOJI_ID}`)]]);
+    expect(replyText(interaction)).not.toContain(tl.remove.notFound);
+  });
+
+  test('edit updates the embed without touching reactions', async () => {
+    state.menu = menuWith([
+      { id: 1, emoji: '🔴', roleId: ROLE_A },
+      { id: 2, emoji: '🟢', roleId: ROLE_B },
+    ]);
+    const { guild, message, restDelete } = menuGuild();
+    const interaction = makeInteraction({ menu: '1', name: 'Colours' }, ROLE_B, guild);
+
+    await editHandler(interaction);
+
+    expect(interaction.deferReply).toHaveBeenCalledTimes(1);
+    expect(message.edit).toHaveBeenCalledTimes(1);
+    expect(message.react).not.toHaveBeenCalled();
+    expect(restDelete).not.toHaveBeenCalled();
+    expect(replyText(interaction)).toContain('Colours');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// delete: Discord first
+// ---------------------------------------------------------------------------
+
+function deleteInteraction(channelFetch: () => Promise<unknown>) {
+  const button = { customId: 'rr-delete_yes', update: jest.fn(async () => undefined), editReply: jest.fn(async () => undefined) };
+  const interaction = makeInteraction({ menu: '1' }, ROLE_B, { channels: { fetch: jest.fn(channelFetch) } });
+  interaction.reply = jest.fn(async () => ({ awaitMessageComponent: async () => button }));
+  return { interaction, button };
+}
+
+function channelWithMessage(deleteResult: () => Promise<unknown>) {
+  const msg = { id: MESSAGE_ID, delete: jest.fn(deleteResult) };
+  return { isTextBased: () => true, messages: { fetch: async () => msg } };
+}
+
+describe('/reactionrole delete', () => {
+  test('keeps the menu when the message could not be deleted', async () => {
+    state.menu = menuWith([]);
+    const channel = channelWithMessage(() => Promise.reject(Object.assign(new Error('Missing Permissions'), { code: 50013 })));
+    const { interaction, button } = deleteInteraction(async () => channel);
+
+    await deleteHandler(interaction);
+
+    expect(state.menusRemoved).toHaveLength(0);
+    expect(button.editReply.mock.calls[0][0].content).toContain(tl.delete.messageNotDeleted.replace('{name}', 'Colors'));
+  });
+
+  test('keeps the menu when the channel cannot be read', async () => {
+    state.menu = menuWith([]);
+    const { interaction } = deleteInteraction(() =>
+      Promise.reject(Object.assign(new Error('Missing Access'), { code: 50001 })),
+    );
+
+    await deleteHandler(interaction);
+
+    expect(state.menusRemoved).toHaveLength(0);
+  });
+
+  test.each([
+    ['the message was deleted', () => async () => channelWithMessage(async () => undefined)],
+    [
+      'the message was already gone',
+      () => async () => channelWithMessage(() => Promise.reject(Object.assign(new Error('Unknown Message'), { code: 10008 }))),
+    ],
+    ['the channel was already gone', () => () => Promise.reject(Object.assign(new Error('Unknown Channel'), { code: 10003 }))],
+  ])('removes the menu when %s', async (_label, makeFetch) => {
+    state.menu = menuWith([]);
+    const { interaction, button } = deleteInteraction(makeFetch() as () => Promise<unknown>);
+
+    await deleteHandler(interaction);
+
+    expect(state.menusRemoved).toHaveLength(1);
+    expect(button.editReply.mock.calls[0][0].content).toBe(tl.delete.success.replace('{name}', 'Colors'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validate
+// ---------------------------------------------------------------------------
+
+const DELETED_ROLE = '600000000000000009';
+const FLAKY_ROLE = '600000000000000008';
+
+function validateInteraction(channelFetch: () => Promise<unknown>) {
+  return makeInteraction({}, ROLE_B, {
+    channels: { fetch: jest.fn(channelFetch) },
+    roles: {
+      fetch: jest.fn(async (id: string) => {
+        if (id === DELETED_ROLE) return null; // discord.js returns null for Unknown Role
+        if (id === FLAKY_ROLE) throw new Error('503 Service Unavailable');
+        return { id };
+      }),
+    },
+  });
+}
+
+describe('/reactionrole validate', () => {
+  test('reports a deleted role, but not one it could not check', async () => {
+    state.menus = [
+      menuWith([
+        { id: 1, emoji: '🔴', roleId: DELETED_ROLE },
+        { id: 2, emoji: '🟢', roleId: FLAKY_ROLE },
+        { id: 3, emoji: '🔵', roleId: ROLE_A },
+      ]),
+    ];
+    const interaction = validateInteraction(async () => ({ messages: { fetch: async () => ({}) } }));
+
+    await validateHandler(interaction);
+
+    const embed = interaction.editReply.mock.calls[0][0].embeds[0].data;
+    expect(embed.description).toContain('1 issue(s)');
+    expect(embed.description).toContain(tl.validate.roleMissing.replace('{name}', 'Colors').replace('{emoji}', '🔴'));
+    expect(embed.description).not.toContain('🟢');
+  });
+
+  test('a report with many issues still fits the embed', async () => {
+    state.menus = Array.from({ length: 80 }, (_, i) => ({ ...menuWith([]), name: `Menu number ${i}` }));
+    const interaction = validateInteraction(() => Promise.reject(Object.assign(new Error('Unknown Channel'), { code: 10003 })));
+
+    await validateHandler(interaction);
+
+    const embed = interaction.editReply.mock.calls[0][0].embeds?.[0]?.data;
+    expect(embed).toBeDefined();
+    expect(embed.description.length).toBeLessThanOrEqual(4096);
+    expect(embed.description.startsWith('80 issue(s)')).toBe(true);
   });
 });
