@@ -1,5 +1,5 @@
 /**
- * /bot-reset Handler Unit Tests (v3.16.9 regressions)
+ * /bot-reset Handler Unit Tests (v3.16.9 and v3.16.10 regressions)
  *
  * - Choosing "Save Data First" and then failing to deliver the archive used to
  *   purge everything anyway. Now nothing is deleted.
@@ -11,6 +11,10 @@
  * - A purge whose tables failed was reported as "Factory Reset Complete", and
  *   any error claimed data "may have been partially deleted", even before
  *   anything was.
+ * - (v3.16.10) With "Save Data First", cleanup deletes only what the archive
+ *   holds (an allow-list); anything else is kept and listed. Transcript
+ *   capture is timed from the slash command, and a summary the expired
+ *   interaction token can't show is DMed instead.
  *
  * Strategy: drive the handler with a fake interaction whose reply message
  * yields scripted button clicks, and inject fake reset steps (BotResetDeps).
@@ -18,6 +22,7 @@
 
 import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { type BotResetDeps, botResetHandler } from '../../../src/commands/handlers/botReset';
+import { TRANSCRIPT_CAPTURE_BUDGET_MS } from '../../../src/utils/archive/transcriptCapture';
 import { deleteAllGuildData } from '../../../src/utils/database/guildQueries';
 import { createRateLimitKey, rateLimiter } from '../../../src/utils/security/rateLimiter';
 import { type FakeRepo, makeRepo, patchRepositories } from '../utils/archive/fakeDiscord';
@@ -42,7 +47,9 @@ afterEach(() => {
   rateLimiter.destroy();
 });
 
-function makeInteraction(clicks: string[], opts: { dmFails?: boolean } = {}) {
+const COMMAND_AT = 1_790_000_000_000;
+
+function makeInteraction(clicks: string[], opts: { dmFails?: boolean; summaryFails?: boolean } = {}) {
   const queue = [...clicks];
   const calls = { replies: [] as any[], edits: [] as any[], updates: [] as any[], dms: [] as any[] };
   const message = {
@@ -56,6 +63,7 @@ function makeInteraction(clicks: string[], opts: { dmFails?: boolean } = {}) {
     guildId: GUILD,
     guild: { name: 'Test Guild' },
     commandName: 'bot-reset',
+    createdTimestamp: COMMAND_AT,
     member: { permissions: { has: () => true } },
     user: {
       id: 'admin-1',
@@ -71,11 +79,16 @@ function makeInteraction(clicks: string[], opts: { dmFails?: boolean } = {}) {
       return { resource: { message } };
     },
     editReply: async (o: any) => {
+      if (opts.summaryFails && o.embeds?.[0]?.data?.title === 'Factory Reset Complete') {
+        throw Object.assign(new Error('Invalid Webhook Token'), { code: 50027 });
+      }
       calls.edits.push(o);
     },
   };
   return { interaction: interaction as any, calls };
 }
+
+const COVERAGE = { read: new Map([['th-read', 'th-read-m0']]), gone: new Set(['th-gone']) };
 
 /** A client whose bait manager records cache clears into `order`. */
 const clientLogging = (order: string[]) =>
@@ -86,11 +99,14 @@ const clientLogging = (order: string[]) =>
     },
   }) as any;
 
-function makeDeps(opts: { sizeBytes?: number } = {}) {
+function makeDeps(opts: { sizeBytes?: number; kept?: string[] } = {}) {
   const order: string[] = [];
+  let cleanupOptions: unknown;
+  let compileOptions: unknown;
   const deps: BotResetDeps = {
-    compileGuildArchive: async () => {
+    compileGuildArchive: async (_guildId, _client, options) => {
       order.push('compile');
+      compileOptions = options;
       return {
         buffer: Buffer.from('archive'),
         filename: 'cogworks-archive.json.gz',
@@ -98,17 +114,17 @@ function makeDeps(opts: { sizeBytes?: number } = {}) {
           archivedTickets: 2,
           archivedApplications: 1,
           memoryItems: 0,
-          announcementLogs: 0,
-          auditLogs: 0,
-          baitLogs: 0,
-          totalEntries: 3,
+          transcripts: 3,
+          totalEntries: 12,
           compressedSizeBytes: opts.sizeBytes ?? 2048,
         },
+        coverage: COVERAGE,
       };
     },
-    cleanupGuildMessages: async () => {
+    cleanupGuildMessages: async (_client, _guildId, options) => {
       order.push('cleanup');
-      return { deleted: 4, failed: 0, details: [] };
+      cleanupOptions = options;
+      return { deleted: 4, failed: 0, details: [], keptChannelIds: opts.kept ?? [] };
     },
     deleteAllGuildData: async () => {
       order.push('purge');
@@ -118,7 +134,7 @@ function makeDeps(opts: { sizeBytes?: number } = {}) {
       order.push('register');
     },
   };
-  return { deps, order };
+  return { deps, order, cleanupOptions: () => cleanupOptions, compileOptions: () => compileOptions };
 }
 
 const lastEmbed = (calls: { edits: any[] }) => calls.edits.at(-1)?.embeds?.[0]?.data;
@@ -157,33 +173,42 @@ describe('/bot-reset', () => {
     expect(order).toEqual(['compile']);
     expect(calls.dms).toEqual([]);
     expect(lastEmbed(calls).title).toBe('Archive Too Large');
-    // Only ways out that can work: /data-export has the same 8 MB cap and covers more tables.
-    expect(lastEmbed(calls).description).not.toContain('/data-export');
+    // /archive cleanup only shrinks ticket/application archives; the message must not promise more.
+    expect(lastEmbed(calls).description).toContain("can't shrink memory items, XP, activity, analytics or log data");
     expect(lastEmbed(calls).description).toContain('No, Delete Everything');
+    // /data-export has the same 8 MB cap; it is only offered as smaller (no transcripts), not as a sure fix.
+    expect(lastEmbed(calls).description).toContain('may fit under the same 8 MB limit');
     expect(rateLimiter.getRemaining(LIMIT_KEY, 1)).toBe(1);
   });
 
-  test('the save prompt says the archive leaves out configurations and XP', async () => {
+  test('the save prompt says the archive holds every table plus transcripts', async () => {
     const { interaction, calls } = makeInteraction(['reset_continue', 'reset_cancel2']);
     const { deps } = makeDeps();
     await botResetHandler({} as any, interaction, deps);
 
     const stage2 = calls.updates[0].embeds[0].data.description as string;
-    expect(stage2).toContain('does not include configurations or XP data');
-    expect(stage2).toContain('/data-export');
+    expect(stage2).toContain('every Cogworks record for this server (configurations');
+    expect(stage2).toContain('XP data');
+    expect(stage2).toContain('text of every transcript');
   });
 
-  test('saved reset DMs the archive, purges, then re-registers commands and spends the day', async () => {
+  test('saved reset deletes only what the archive holds, purges, then re-registers commands', async () => {
     const { interaction, calls } = makeInteraction(SAVE);
-    const { deps, order } = makeDeps();
+    const { deps, order, cleanupOptions, compileOptions } = makeDeps({ kept: ['th-x'] });
     await botResetHandler(clientLogging(order), interaction, deps);
 
     expect(calls.dms).toHaveLength(1);
+    expect(calls.dms[0].content).toContain('12 entries + 3 transcripts');
     const bait = ['bait-config', 'bait-keywords'];
     expect(order).toEqual(['compile', 'cleanup', ...bait, 'purge', ...bait, 'register']);
+    // An allow-list: cleanup gets what the archive covers, not a list of what to spare.
+    expect(cleanupOptions()).toEqual({ exported: COVERAGE });
+    // The capture deadline counts from the slash command, not from the final click.
+    expect(compileOptions()).toEqual({ deadline: COMMAND_AT + TRANSCRIPT_CAPTURE_BUDGET_MS });
     const summary = lastEmbed(calls);
     expect(summary.title).toBe('Factory Reset Complete');
     expect(fieldsOf(summary).Commands).toBe('Reset to the setup commands');
+    expect(fieldsOf(summary)['Left in place']).toContain('<#th-x>');
     expect(rateLimiter.getRemaining(LIMIT_KEY, 1)).toBe(0);
 
     // The finished reset used up today's run.
@@ -194,12 +219,24 @@ describe('/bot-reset', () => {
 
   test('reset without saving skips the archive and still re-registers commands after the purge', async () => {
     const { interaction, calls } = makeInteraction(NO_SAVE);
+    const { deps, order, cleanupOptions } = makeDeps();
+    await botResetHandler({} as any, interaction, deps);
+
+    expect(order).toEqual(['cleanup', 'purge', 'register']);
+    expect(cleanupOptions()).toEqual({});
+    expect(calls.dms).toEqual([]);
+    expect(lastEmbed(calls).title).toBe('Factory Reset Complete');
+  });
+
+  test('a summary the expired token cannot show is DMed, and the finished reset keeps its limit spent', async () => {
+    const { interaction, calls } = makeInteraction(NO_SAVE, { summaryFails: true });
     const { deps, order } = makeDeps();
     await botResetHandler({} as any, interaction, deps);
 
     expect(order).toEqual(['cleanup', 'purge', 'register']);
-    expect(calls.dms).toEqual([]);
-    expect(lastEmbed(calls).title).toBe('Factory Reset Complete');
+    expect(calls.dms.at(-1).embeds[0].data.title).toBe('Factory Reset Complete');
+    expect(calls.edits.some(e => String(e.content ?? '').includes('An error occurred'))).toBe(false);
+    expect(rateLimiter.getRemaining(LIMIT_KEY, 1)).toBe(0);
   });
 
   test('a command refresh failure is reported, and the finished reset still counts', async () => {
