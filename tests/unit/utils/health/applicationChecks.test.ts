@@ -75,10 +75,9 @@ describe('application.position', () => {
     expect(f).toMatchObject({ code: 'application.position.too_many_active', severity: 'block', params: { count: 26 } });
   });
 
-  test('no open position: degraded only while the panel is posted', async () => {
-    const closed = [position({ isActive: false })];
-    expect(codes(await run(id, rows(closed)))).toEqual(['application.position.none_active']);
-    expect(await run(id, rows(closed, [{ ...config, channelId: '' }]))).toEqual([]);
+  test('no open position is not a finding: recruiting is closed and the panel says so', async () => {
+    expect(await run(id, rows([position({ isActive: false })]))).toEqual([]);
+    expect(await run(id, rows([]))).toEqual([]);
   });
 
   test('invalid emoji blocks an open position, and is cosmetic on a closed one', async () => {
