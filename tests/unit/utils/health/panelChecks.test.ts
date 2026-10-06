@@ -90,9 +90,49 @@ describe.each([
       expect(await run(panelId, panelRows())).toEqual([]);
     });
 
-    test('pass: nothing to check without a posted panel', async () => {
+    test('pass: nothing to check without a config row', async () => {
       expect(await run(panelId, { [configEntity]: [], [archiveEntity]: [] })).toEqual([]);
-      expect(await run(panelId, panelRows(config({ channelId: '', categoryId: null }), []))).toEqual([]);
+    });
+
+    test('fail: panel channel blanked by the delete event (panel_unset), category and archive still checked', async () => {
+      let calls = 0;
+      const fetch = async () => {
+        calls++;
+        return { id: MESSAGE };
+      };
+      const guild = { channels: channels({ [PANEL]: { messages: { fetch } } }) };
+      const blanked = config({ channelId: '', messageId: '' });
+      for (const deep of [false, true]) {
+        const findings = await run(panelId, panelRows(blanked), guild, { deep });
+        expect(findings).toEqual([
+          expect.objectContaining({
+            code: `${panelId}.panel_unset`,
+            system,
+            severity: 'block',
+            repair: 'manual',
+            entity: configEntity,
+            rowId: 1,
+            field: 'channelId',
+            params: {},
+          }),
+        ]);
+        expect(findings[0].refId).toBeUndefined();
+      }
+      expect(calls).toBe(0);
+    });
+
+    test('fail: setup that only picked a category, or with the panel and archive both deleted', async () => {
+      expect(codes(await run(panelId, panelRows(config({ channelId: '', messageId: '' }), [])))).toEqual([
+        `${panelId}.panel_unset`,
+        `${panelId}.archive_unset`,
+      ]);
+      const bothBlanked = panelRows(config({ channelId: '', messageId: '' }), [archive({ channelId: '' })]);
+      expect(codes(await run(panelId, bothBlanked))).toEqual([`${panelId}.panel_unset`, `${panelId}.archive_unset`]);
+      expect(codes(await run(panelId, panelRows(config({ channelId: '', categoryId: null }), [])))).toEqual([
+        `${panelId}.panel_unset`,
+        `${panelId}.category_unset`,
+        `${panelId}.archive_unset`,
+      ]);
     });
 
     test('fail: panel channel deleted', async () => {
@@ -155,7 +195,7 @@ describe.each([
         expect(findings).toEqual([
           expect.objectContaining({
             code: `${panelId}.message_missing`,
-            severity: 'degraded',
+            severity: 'block',
             repair: 'confirm',
             entity: configEntity,
             rowId: 1,
@@ -168,12 +208,12 @@ describe.each([
       expect(calls).toBe(0);
     });
 
-    test('panel not posted and the bot cannot post it: both degraded', async () => {
+    test('panel not posted (block, like a deleted channel) and the bot cannot post it (degraded)', async () => {
       const guild = { channels: channels({ [PANEL]: { botPermissions: [ViewChannel] } }) };
       const findings = await run(panelId, panelRows(config({ messageId: '' })), guild);
       expect(findings.map(f => [f.code, f.severity])).toEqual([
         [`${panelId}.channel_permissions`, 'degraded'],
-        [`${panelId}.message_missing`, 'degraded'],
+        [`${panelId}.message_missing`, 'block'],
       ]);
     });
 
@@ -204,7 +244,7 @@ describe.each([
       expect(findings).toEqual([
         expect.objectContaining({
           code: `${panelId}.message_missing`,
-          severity: 'degraded',
+          severity: 'block',
           repair: 'confirm',
           field: 'messageId',
           refId: MESSAGE,

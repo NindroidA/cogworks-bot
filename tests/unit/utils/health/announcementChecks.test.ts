@@ -3,7 +3,7 @@
  * rows (built-in defaults present, renderable color, embed limits).
  */
 import { describe, expect, test } from 'bun:test';
-import { ChannelType, PermissionFlagsBits } from 'discord.js';
+import { ChannelType, type Guild, PermissionFlagsBits } from 'discord.js';
 import { DEFAULT_ANNOUNCEMENT_TEMPLATES } from '../../../../src/utils/announcement/defaultTemplates';
 import { getChecks } from '../../../../src/utils/health/registry';
 import { makeCheckContext } from '../../../helpers/healthContext';
@@ -22,6 +22,7 @@ import {
   runOne,
   TEXT,
 } from './communityFixtures';
+import { withThreadFetch } from './moderationHelpers';
 
 const config = (overrides: Record<string, unknown> = {}) => ({
   id: 1,
@@ -58,6 +59,52 @@ describe('announcement.config', () => {
   test('pass: an uncached default channel may be an archived thread, so a miss is not proof', async () => {
     expect(await run({ defaultChannelId: GONE_CHANNEL })).toEqual([]);
     expect(await run({ defaultChannelId: GONE_CHANNEL }, { available: false })).toEqual([]);
+  });
+
+  describe('deep: one REST lookup confirms an uncached default channel', () => {
+    const deepRun = async (channelId: string, existing: string[] | 'error', deep = true) => {
+      let fetched: string[] = [];
+      const patch = (guild: Guild) => {
+        if (existing !== 'error') fetched = withThreadFetch(guild, existing);
+        else
+          (guild.channels as unknown as Record<string, unknown>).fetch = async (fetchedId: string) => {
+            fetched.push(fetchedId);
+            throw Object.assign(new Error('rest 503'), { status: 503 });
+          };
+      };
+      const rows = { AnnouncementConfig: [config({ defaultChannelId: channelId })] };
+      return { findings: await runOne(id, rows, {}, { deep, patch }), fetched: () => fetched };
+    };
+
+    test('fail: Unknown Channel (deleted while the bot was offline) is channel_missing', async () => {
+      const { findings, fetched } = await deepRun(GONE_CHANNEL, []);
+      expect(findings).toEqual([
+        expect.objectContaining({
+          code: 'announcement.config.channel_missing',
+          severity: 'degraded',
+          repair: 'auto',
+          entity: 'AnnouncementConfig',
+          field: 'defaultChannelId',
+          refId: GONE_CHANNEL,
+          params: { channelId: GONE_CHANNEL },
+        }),
+      ]);
+      expect(fetched()).toEqual([GONE_CHANNEL]);
+    });
+
+    test('pass: an archived thread found over REST, a failed lookup, or no deep mode', async () => {
+      expect((await deepRun(GONE_CHANNEL, [GONE_CHANNEL])).findings).toEqual([]);
+      expect((await deepRun(GONE_CHANNEL, 'error')).findings).toEqual([]);
+      const shallow = await deepRun(GONE_CHANNEL, [], false);
+      expect(shallow.findings).toEqual([]);
+      expect(shallow.fetched()).toEqual([]);
+    });
+
+    test('a cached channel is never fetched', async () => {
+      const { findings, fetched } = await deepRun(TEXT, []);
+      expect(findings).toEqual([]);
+      expect(fetched()).toEqual([]);
+    });
   });
 
   test('fail: not a text or announcement channel, including a cached thread', async () => {

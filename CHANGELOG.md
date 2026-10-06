@@ -57,9 +57,10 @@ release.
 ### Added — community feature health checks (internal, no user-visible command yet)
 
 - **Announcements**: the default channel is unset, not a text or announcement
-  channel (a thread included), or missing the bot's permissions (a default
-  channel that isn't cached could be an archived thread, so it isn't reported
-  as deleted); the ping role is deleted, or can't be pinged (not mentionable
+  channel (a thread included), or missing the bot's permissions; a default
+  channel that isn't cached could be an archived thread, so it's only reported
+  as deleted when deep mode's one REST lookup gets Unknown Channel (a channel
+  deleted while the bot was offline); the ping role is deleted, or can't be pinged (not mentionable
   and the bot lacks Mention Everyone; when the role is @everyone, which
   `/bot-setup` saves by default and which has no mentionable toggle, the
   finding says it can't ping everyone and points to picking a real role);
@@ -96,7 +97,12 @@ release.
   their own commands rather than `/bot-setup`), shared reference rules in
   `src/utils/health/checks/featureRefs.ts` (a channel the bot posts in, a role
   it grants using the reaction-role menu rules, lists of ids to prune), and an
-  English string for every new finding code.
+  English string for every new finding code. Each ends with a step the admin
+  can take (a real command such as `/starboard setup` or
+  `/xp-setup config setting:Level-Up Channel value:none`, the web dashboard for
+  templates and onboarding steps, or a permission to grant) or says no action
+  is needed (deleted ignored channels and roles, multiplier channels, reward
+  roles, and built-in templates added later).
 
 ## [3.16.23] - 2026-10-06
 
@@ -123,9 +129,10 @@ planned for this step come in a separate release to keep this one reviewable.
   mode, no options or more than Discord's 20 reactions per message, and Manage
   Roles; each option's role (same rules as `validateRoleForMenu`, returned as
   codes) and emoji, including two options on the same emoji. Custom emoji
-  compare by id, matching the reaction lookup once #53 lands, so `<:x:id>`,
-  `<a:x:id>`, `x:id` and the bare id (which the dashboard accepts) are one
-  emoji, and animated emoji aren't flagged. Options have no `guildId` column,
+  compare by id through the reaction lookup's own key (`optionEmojiKey` in
+  `utils/reactionRole/optionEmoji.ts`), so `<:x:id>`, `<a:x:id>`, `x:id` and the
+  bare id (which the dashboard accepts) are one emoji, and animated emoji aren't
+  flagged. Options have no `guildId` column,
   so an option whose menu row is gone can't be tied to a guild and isn't
   checked.
 - **Memory**: each memory forum (deleted, not a forum, missing permissions, set
@@ -133,8 +140,8 @@ planned for this step come in a separate release to keep this one reviewable.
   use, and warns that removing one also deletes its memories, tags and welcome
   post) and its welcome post, tags whose memory channel is gone, whose forum
   tag is missing or whose type isn't category or status, stale copies of a tag
-  left by earlier setup re-runs (removable by the coming repair, since
-  re-running setup keeps the linked copy and leaves them), and memories whose memory channel is
+  left by earlier setup re-runs (re-running setup keeps the linked copy and
+  leaves them), and memories whose memory channel is
   gone or whose post was deleted. Archived posts aren't cached, so a deleted
   post is only reported in deep mode, through the REST budget: at most 20 posts
   per run (the rest are listed as not checked), and none in a forum the bot
@@ -145,7 +152,10 @@ planned for this step come in a separate release to keep this one reviewable.
   assignability, and deep-mode message and thread lookups that only report
   "missing" on proof (Unknown Message / Unknown Channel).
 - English strings for every new finding code in `src/lang/en/health.json`. Each
-  names the command that fixes the problem, or says when no action is needed.
+  ends with a step the admin can take (a real command such as
+  `/reactionrole edit mode:normal`, `/bot-setup` for a memory tag missing from its
+  forum, or "Grant the bot Manage Roles") or says no action is needed (memory
+  tags and memories whose channel is gone, deleted memory posts).
 
 ### Changed — health-check engine REST budget (internal)
 
@@ -164,16 +174,19 @@ yet, so nothing a server sees changes in this release.
 
 ### Added — ticket and application health checks (internal, no user-visible command yet)
 
-- **Panels** (tickets and applications): the panel channel is gone or isn't a text
-  channel; the panel isn't posted (a blank message id, which the delete event leaves
+- **Panels** (tickets and applications): no panel channel at all (the channel delete
+  event blanks it and keeps the config row, and a setup that only picked a category
+  never set it), so members can't open anything; the panel channel is gone or isn't a
+  text channel; the panel isn't posted (a blank message id, which the delete event leaves
   behind, reported in every mode; in deep mode also a stored message id that no longer
-  exists, through the budgeted REST fetcher); the bot lacks View Channel / Send Messages
+  exists, through the budgeted REST fetcher), which also blocks members; the bot lacks View Channel / Send Messages
   in the panel channel (only needed to post the panel again, so with a panel posted
   it's a cosmetic note; no Embed Links, since neither panel sends an embed) or, for
   applications, View Channel / Read Message History (the posted panel isn't updated
   when positions change, degraded); the category for new channels is
   unset, gone, not a category, missing Manage Channels / Manage Roles, or at Discord's
-  50-channel limit; a posted panel with no archive forum, so nothing can be closed.
+  50-channel limit; no archive forum (or one the delete event blanked), so nothing can
+  be closed.
 - **Archive forums**: gone, not a forum, missing the permissions closes need, or at
   Discord's 20-tag limit while an active ticket type or position (or an
   Accepted / Rejected outcome) still has no tag. Missing Manage Channels is reported on
@@ -196,7 +209,7 @@ yet, so nothing a server sees changes in this release.
   (removing one needs confirmation: it keeps its reason and applies again if the type
   id is re-added), open tickets and applications whose channel was deleted, and
   tickets stuck in `created` without a channel for more than 10 minutes (a failed
-  creation).
+  creation). These can be closed from the web dashboard, which works without a channel.
 - The health loader reads only open `Ticket` and `Application` rows, so closed
   history never loads.
 

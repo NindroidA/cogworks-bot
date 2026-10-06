@@ -89,6 +89,7 @@ function inspectChannel(
 // ---------------------------------------------------------------------------
 
 export const PANEL_NAMES = [
+  'panel_unset',
   'channel_missing',
   'channel_type',
   'channel_permissions',
@@ -110,19 +111,17 @@ interface PanelConfig {
 }
 
 /**
- * A config without a panel channel reports nothing. With one, a blank `messageId` means
- * the panel isn't posted: the delete event clears it, and `/bot-setup` leaves it blank
- * when the post fails. `editsPanel`: the bot fetches and edits the posted panel later.
+ * The panel channel and its posted message. A blank `messageId` means the panel isn't
+ * posted: the delete event clears it, and `/bot-setup` leaves it blank when the post
+ * fails. `editsPanel`: the bot fetches and edits the posted panel later.
  */
-export async function checkPanel(
+async function checkPanelChannel(
   ctx: CheckContext,
   emit: Emit<(typeof PANEL_NAMES)[number]>,
   entity: string,
-  config: PanelConfig | undefined,
-  archiveChannelId: string | undefined,
-  options: { editsPanel?: boolean } = {},
+  config: PanelConfig,
+  options: { editsPanel?: boolean },
 ): Promise<HealthFinding[]> {
-  if (!config?.channelId) return [];
   const out: HealthFinding[] = [];
   const at: FindingTarget = { entity, rowId: config.id, field: 'channelId', refId: config.channelId };
   const posted = Boolean(config.messageId);
@@ -136,6 +135,7 @@ export async function checkPanel(
     out.push(emit('channel_permissions', severity, 'manual', { ...at, params: panel.params }));
   } else if (panel.problem)
     out.push(emit(`channel_${panel.problem}`, 'block', CHANNEL_REPAIR[panel.problem], { ...at, params: panel.params }));
+  // The panel is the only way in: without it nobody can open one (same effect as a deleted channel).
   const notPosted = (staleId?: string) => {
     const target: FindingTarget = {
       entity,
@@ -143,7 +143,7 @@ export async function checkPanel(
       field: 'messageId',
       params: { channelId: config.channelId },
     };
-    return emit('message_missing', 'degraded', 'confirm', staleId ? { ...target, refId: staleId } : target);
+    return emit('message_missing', 'block', 'confirm', staleId ? { ...target, refId: staleId } : target);
   };
   // A deleted channel or one of the wrong kind is reported above; this is the panel itself.
   if (!posted && panel.problem !== 'missing' && panel.problem !== 'type') out.push(notPosted());
@@ -155,6 +155,27 @@ export async function checkPanel(
     );
     if (fetched.status === 'missing') out.push(notPosted(config.messageId));
   }
+  return out;
+}
+
+/**
+ * A config row means setup started. A blank `channelId` is a panel nobody can click:
+ * the delete event blanks it (with `messageId`), and `/ticket-setup` or
+ * `/application-setup` with only a category never sets it. The category and archive
+ * are checked either way.
+ */
+export async function checkPanel(
+  ctx: CheckContext,
+  emit: Emit<(typeof PANEL_NAMES)[number]>,
+  entity: string,
+  config: PanelConfig | undefined,
+  archiveChannelId: string | undefined,
+  options: { editsPanel?: boolean } = {},
+): Promise<HealthFinding[]> {
+  if (!config) return [];
+  const out: HealthFinding[] = config.channelId
+    ? await checkPanelChannel(ctx, emit, entity, config, options)
+    : [emit('panel_unset', 'block', 'manual', { entity, rowId: config.id, field: 'channelId' })];
 
   const categoryAt: FindingTarget = { entity, rowId: config.id, field: 'categoryId' };
   if (!config.categoryId) out.push(emit('category_unset', 'block', 'manual', categoryAt));
@@ -174,6 +195,7 @@ export async function checkPanel(
   }
 
   // Closing archives the transcript first, so without the forum nothing can be closed.
+  // The delete event blanks a deleted forum's `channelId` and keeps the row, so blank counts as unset.
   if (!archiveChannelId) out.push(emit('archive_unset', 'block', 'manual', { entity, rowId: config.id }));
   return out;
 }
