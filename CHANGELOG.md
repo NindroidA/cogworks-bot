@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.16.35] - 2026-10-06
+## [3.16.22] - 2026-10-06
 
 `/import` now writes the XP it reports, plus a set of smaller core fixes:
 rules setup, automatic bot status, the command audit log, the RELEASE check
