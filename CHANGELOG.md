@@ -44,8 +44,10 @@ ticket marked `closed` with a live channel that nothing could close.
   the channel is deleted right after. The warning message in the archived
   transcript records why the ticket closed.
 - Auto-close skips a server that has no archive forum (never set up, or
-  deleted), logging a warning each hourly run, instead of warning tickets it
-  can't archive.
+  deleted while the bot was running), logging a warning each hourly run,
+  instead of warning tickets it can't archive. A forum deleted while the bot
+  was offline isn't detected yet: those tickets are still warned, and each
+  close attempt fails and is retried every hour.
 - A ticket whose warning can't be posted (for example, the bot lacks Send
   Messages there) is never auto-closed; the error is logged each run.
 
