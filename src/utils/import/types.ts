@@ -7,6 +7,10 @@
 export interface ImportOptions {
   overwrite?: boolean;
   dryRun?: boolean;
+  /** File content for file-based importers (CSV). Passed per call: importers are shared by every guild. */
+  content?: string;
+  /** Set by importManager: true once /import cancel was used. Long-running importers should stop. */
+  isCancelled?: () => boolean;
   onProgress?: (imported: number, total: number) => void;
 }
 
@@ -17,6 +21,8 @@ export interface ImportResult {
   failed: number;
   errors: string[];
   durationMs: number;
+  /** Parsed records for this call only; importManager hands them to the XP writer. */
+  records?: RawXpRecord[];
 }
 
 export interface BotImporter {
