@@ -34,7 +34,7 @@ import {
   toUnixSeconds,
 } from '../../../utils';
 import {
-  detectDynamicPlaceholders,
+  modalPlaceholders,
   renderTemplate,
   type TemplatePlaceholderParams,
 } from '../../../utils/announcement/templateEngine';
@@ -124,7 +124,7 @@ async function handleTemplateSend(
   if (!targetChannel) return;
 
   // Check for dynamic placeholders
-  const dynamicPlaceholders = detectDynamicPlaceholders(template);
+  const dynamicPlaceholders = modalPlaceholders(template);
 
   // channelId is set up-front so the {channel} placeholder resolves on BOTH the
   // modal and the no-placeholder paths (the modal path previously left it unset).
@@ -134,7 +134,7 @@ async function handleTemplateSend(
     // Open modal to collect placeholder values
     const modal = new ModalBuilder()
       .setCustomId(`announcement_send_params_${Date.now()}`)
-      .setTitle(`${template.displayName} - Parameters`);
+      .setTitle(`${template.displayName} - Parameters`.slice(0, 45));
 
     // Build modal fields for needed placeholders (max 5 modal fields)
     const fields = dynamicPlaceholders.slice(0, 5);
@@ -142,7 +142,7 @@ async function handleTemplateSend(
       const row = new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
           .setCustomId(placeholder.name)
-          .setLabel(placeholder.description)
+          .setLabel(placeholder.description.slice(0, 45))
           .setStyle(TextInputStyle.Short)
           .setRequired(placeholder.name !== 'duration')
           .setPlaceholder(placeholder.example),

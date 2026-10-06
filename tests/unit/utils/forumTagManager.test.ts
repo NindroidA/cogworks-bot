@@ -9,7 +9,13 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { applyForumTags, mergeForumTags, toForumTagEmoji } from '../../../src/utils/forumTagManager';
+import {
+  applyForumTags,
+  ensureForumTag,
+  forumTagName,
+  mergeForumTags,
+  toForumTagEmoji,
+} from '../../../src/utils/forumTagManager';
 
 function makeForum(liveTags: string[] | null, opts: { threadMissing?: boolean } = {}) {
   const applied: string[][] = [];
@@ -130,5 +136,40 @@ describe('toForumTagEmoji', () => {
     expect(toForumTagEmoji('🐛')).toEqual({ id: null, name: '🐛' });
     expect(toForumTagEmoji('<:cog:123456789012345678>')).toEqual({ id: '123456789012345678', name: 'cog' });
     expect(toForumTagEmoji(null)).toBeNull();
+  });
+});
+
+// v3.16.32: Discord caps tag names at 20 characters, so a longer position or
+// ticket type name was rejected on every close and never tagged.
+describe('forumTagName', () => {
+  test('short names are unchanged; long ones drop a trailing " Application", then cut at 20', () => {
+    expect(forumTagName('Moderator')).toBe('Moderator');
+    expect(forumTagName('Staff Application')).toBe('Staff Application');
+    expect(forumTagName('Developer Application')).toBe('Developer');
+    expect(forumTagName('Content Creator Application')).toBe('Content Creator');
+    expect(forumTagName('Hardware Support And Repairs')).toBe('Hardware Support And');
+  });
+});
+
+describe('ensureForumTag', () => {
+  test('finds the existing 20-char tag for a long name', async () => {
+    const forum = { id: 'f1', availableTags: [{ id: 't1', name: 'Developer' }], setAvailableTags: async () => {} };
+    // biome-ignore lint/suspicious/noExplicitAny: minimal ForumChannel test double
+    expect(await ensureForumTag(forum as any, 'position_1', 'Developer Application', null)).toBe('t1');
+  });
+
+  test('creates the tag under its 20-char name', async () => {
+    const sent: { name: string }[][] = [];
+    const forum = {
+      id: 'f1',
+      availableTags: [] as { id: string; name: string }[],
+      setAvailableTags: async (tags: { name: string }[]) => {
+        sent.push(tags);
+      },
+      fetch: async () => ({ availableTags: [{ id: 't9', name: 'Partnership' }] }),
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: minimal ForumChannel test double
+    expect(await ensureForumTag(forum as any, 'position_2', 'Partnership Application', null)).toBe('t9');
+    expect(sent[0][0].name).toBe('Partnership');
   });
 });

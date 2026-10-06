@@ -760,6 +760,127 @@ describe("handleApplicationInteraction", () => {
   });
 
   // =========================================================================
+  // application_modal_ submit — long answers, pings, rate limit (v3.16.32)
+  // =========================================================================
+
+  describe("application_modal_ submit — long answers, pings, rate limit", () => {
+    // No "x" anywhere in the welcome, header or label, so counting x's counts the answer.
+    const customFields: CustomField[] = [
+      { id: "field_about", label: "Tell us about yourself", style: "paragraph", required: true },
+    ];
+    let deleteSpy: SpyFn;
+    let resetSpy: SpyFn;
+
+    beforeEach(() => {
+      findOneSpy.mockResolvedValue(makePosition({ customFields }) as never);
+      deleteSpy = jest
+        .spyOn(Repository.prototype, "delete")
+        .mockResolvedValue({ affected: 1 } as never);
+      resetSpy = jest.spyOn(rateLimiter, "reset");
+    });
+
+    afterEach(() => {
+      deleteSpy.mockRestore();
+      resetSpy.mockRestore();
+    });
+
+    const sentContents = (interaction: ReturnType<typeof makeModalInteraction>) =>
+      (interaction._newChannel._sendCalls as { content: string }[]).map((c) => c.content);
+
+    it("splits a 4000-char answer into messages of at most 2000 chars without losing any of it", async () => {
+      const interaction = makeModalInteraction("application_modal_1", {
+        field_about: "x".repeat(4000),
+      });
+
+      await handleApplicationInteraction(mockClient, interaction as never);
+
+      const contents = sentContents(interaction);
+      for (const content of contents) expect(content.length).toBeLessThanOrEqual(2000);
+      expect(contents.join("").split("x").length - 1).toBe(4000);
+    });
+
+    it("splits long answers between words and keeps the label with the first part", async () => {
+      const interaction = makeModalInteraction("application_modal_1", {
+        field_about: "word ".repeat(600).trim(),
+      });
+
+      await handleApplicationInteraction(mockClient, interaction as never);
+
+      const answer = sentContents(interaction).filter((c) => c.includes("word"));
+      expect(answer.length).toBe(2);
+      expect(answer[0].startsWith("**Tell us about yourself:**\nword")).toBe(true);
+      for (const part of answer) {
+        expect(part.length).toBeLessThanOrEqual(2000);
+        expect(part.endsWith("word")).toBe(true);
+      }
+      expect(answer[1].startsWith("word")).toBe(true);
+    });
+
+    it("stores the channel before posting anything, so a failed send still leaves a findable application", async () => {
+      const interaction = makeModalInteraction("application_modal_1", { field_about: "short" });
+      const sendsAtFirstUpdate: number[] = [];
+      updateSpy.mockImplementation((async () => {
+        sendsAtFirstUpdate.push(interaction._newChannel._sendCalls.length);
+        return { affected: 1 };
+      }) as never);
+
+      await handleApplicationInteraction(mockClient, interaction as never);
+
+      expect(updateSpy.mock.calls[0]).toEqual([
+        { id: 42, guildId: "guild-123" },
+        { channelId: "new-channel-999", status: "opened" },
+      ]);
+      expect(sendsAtFirstUpdate[0]).toBe(0);
+    });
+
+    it("posts every message with pings turned off", async () => {
+      const interaction = makeModalInteraction("application_modal_1", {
+        field_about: "@everyone <@&123456789012345678>",
+      });
+
+      await handleApplicationInteraction(mockClient, interaction as never);
+
+      const sends = interaction._newChannel._sendCalls as { allowedMentions?: unknown }[];
+      expect(sends.length).toBeGreaterThanOrEqual(3);
+      for (const send of sends) expect(send.allowedMentions).toEqual({ parse: [] });
+    });
+
+    it("counts the rate limit per server", async () => {
+      const interaction = makeModalInteraction("application_modal_1", { field_about: "short" });
+
+      await handleApplicationInteraction(mockClient, interaction as never);
+
+      expect(rateLimiterCheckSpy.mock.calls[0][0]).toBe("user:user-456:guild:guild-123:application-create");
+    });
+
+    it("removes the row and gives the attempt back when the channel can't be created", async () => {
+      const interaction = makeModalInteraction("application_modal_1", { field_about: "short" });
+      (interaction.guild as { channels: { create: () => Promise<never> } }).channels.create = async () => {
+        throw new Error("Missing Permissions");
+      };
+
+      await handleApplicationInteraction(mockClient, interaction as never);
+
+      expect(deleteSpy).toHaveBeenCalledWith({ id: 42, guildId: "guild-123" });
+      expect(resetSpy).toHaveBeenCalledWith("user:user-456:guild:guild-123:application-create");
+      expect((interaction._replyCalls[0] as { content: string }).content).toContain("Could not create application");
+    });
+
+    it("keeps the row when the channel exists and a later send fails", async () => {
+      const interaction = makeModalInteraction("application_modal_1", { field_about: "short" });
+      interaction._newChannel.send = async () => {
+        throw new Error("Cannot send messages");
+      };
+
+      await handleApplicationInteraction(mockClient, interaction as never);
+
+      expect(updateSpy.mock.calls[0][1]).toEqual({ channelId: "new-channel-999", status: "opened" });
+      expect(deleteSpy).not.toHaveBeenCalled();
+      expect(resetSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
   // showModal — modal structure
   // =========================================================================
 

@@ -7,8 +7,10 @@
 import {
   type AutocompleteInteraction,
   type CacheType,
+  ChannelType,
   type ChatInputCommandInteraction,
   type Client,
+  type GuildScheduledEventCreateOptions,
   GuildScheduledEventEntityType,
   GuildScheduledEventPrivacyLevel,
   MessageFlags,
@@ -49,6 +51,39 @@ function mapEntityType(type: string): GuildScheduledEventEntityType {
     default:
       return GuildScheduledEventEntityType.External;
   }
+}
+
+/**
+ * The scheduled-event fields for one occurrence of a template. Voice and stage
+ * events need a channel: the `channel` option, whose type decides which of the
+ * two it is. Null when a voice or stage template gets none (Discord rejects it).
+ */
+export function templateEventData(
+  template: EventTemplate,
+  start: Date,
+  end: Date,
+  channel: { id: string; type: ChannelType } | null,
+): GuildScheduledEventCreateOptions | null {
+  const base = {
+    name: template.title,
+    scheduledStartTime: start,
+    scheduledEndTime: end,
+    privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
+    description: template.description || undefined,
+  };
+  if (mapEntityType(template.entityType) === GuildScheduledEventEntityType.External) {
+    return {
+      ...base,
+      entityType: GuildScheduledEventEntityType.External,
+      entityMetadata: { location: template.location || 'TBD' },
+    };
+  }
+  if (!channel) return null;
+  const entityType =
+    channel.type === ChannelType.GuildStageVoice
+      ? GuildScheduledEventEntityType.StageInstance
+      : GuildScheduledEventEntityType.Voice;
+  return { ...base, entityType, channel: channel.id };
 }
 
 /** Create a reminder for an event */
@@ -215,24 +250,14 @@ export async function handleFromTemplate(
   }
 
   const endDate = new Date(startDate.getTime() + template.defaultDurationMinutes * 60 * 1000);
+  const eventData = templateEventData(template, startDate, endDate, interaction.options.getChannel('channel', false));
+  if (!eventData) {
+    await replyEphemeralError(interaction, tl.errors.templateNeedsChannel);
+    return;
+  }
 
   try {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-
-    const entityType = mapEntityType(template.entityType);
-
-    const eventData: Parameters<typeof interaction.guild.scheduledEvents.create>[0] = {
-      name: template.title,
-      scheduledStartTime: startDate,
-      scheduledEndTime: endDate,
-      privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
-      entityType,
-      description: template.description || undefined,
-    };
-
-    if (entityType === GuildScheduledEventEntityType.External) {
-      eventData.entityMetadata = { location: template.location || 'TBD' };
-    }
 
     const scheduledEvent = await interaction.guild.scheduledEvents.create(eventData);
 
@@ -371,32 +396,22 @@ export async function handleRecurring(
     return;
   }
 
-  // Update template to be recurring
-  template.isRecurring = true;
-  template.recurringPattern = pattern;
-  await eventTemplateRepo.save(template);
-
   const endDate = new Date(startDate.getTime() + template.defaultDurationMinutes * 60 * 1000);
+  const eventData = templateEventData(template, startDate, endDate, interaction.options.getChannel('channel', false));
+  if (!eventData) {
+    await replyEphemeralError(interaction, tl.errors.templateNeedsChannel);
+    return;
+  }
 
   try {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-    const entityType = mapEntityType(template.entityType);
-
-    const eventData: Parameters<typeof interaction.guild.scheduledEvents.create>[0] = {
-      name: template.title,
-      scheduledStartTime: startDate,
-      scheduledEndTime: endDate,
-      privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
-      entityType,
-      description: template.description || undefined,
-    };
-
-    if (entityType === GuildScheduledEventEntityType.External) {
-      eventData.entityMetadata = { location: template.location || 'TBD' };
-    }
-
     const scheduledEvent = await interaction.guild.scheduledEvents.create(eventData);
+
+    // Only mark the template recurring once its first occurrence exists.
+    template.isRecurring = true;
+    template.recurringPattern = pattern;
+    await eventTemplateRepo.save(template);
 
     // Create auto-reminder
     if (config.reminderChannelId && config.defaultReminderMinutes > 0) {

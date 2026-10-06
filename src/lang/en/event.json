@@ -108,7 +108,8 @@
     "fromTemplate": {
       "descrp": "Create an event from a saved template.",
       "template": "Template to use",
-      "start": "Start time (YYYY-MM-DD HH:MM AM/PM)"
+      "start": "Start time (YYYY-MM-DD HH:MM AM/PM)",
+      "channel": "Voice or stage channel (needed for voice and stage templates)"
     },
     "cancel": {
       "descrp": "Cancel a scheduled event.",
@@ -141,13 +142,15 @@
       "descrp": "Create a recurring event from a template.",
       "template": "Recurring template to use",
       "start": "Start time for first occurrence (YYYY-MM-DD HH:MM AM/PM)",
-      "pattern": "Recurrence pattern"
+      "pattern": "Recurrence pattern",
+      "channel": "Voice or stage channel (needed for voice and stage templates)"
     }
   },
   "errors": {
     "notEnabled": "Scheduled events are not enabled. Run `/event setup enable` first.",
     "noPermission": "You need Administrator permissions to manage events.",
     "generic": "An error occurred while processing the event command.",
-    "fetchEvents": "Failed to fetch scheduled events."
+    "fetchEvents": "Failed to fetch scheduled events.",
+    "templateNeedsChannel": "This is a voice or stage template: pick the event's channel with the `channel` option."
   }
 }

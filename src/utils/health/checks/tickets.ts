@@ -9,6 +9,7 @@ import type { ForumChannel, GuildBasedChannel, GuildTextBasedChannel } from 'dis
 import type { CustomInputField } from '../../../typeorm/entities/shared/CustomInputField';
 import type { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { isValidSnowflake } from '../../api/helpers';
+import { forumTagName } from '../../forumTagManager';
 import { BUILTIN_TICKET_TYPE_IDS } from '../../ticket/builtinTypes';
 import { type CheckContext, type HealthEntityName, rowsOf } from '../context';
 import { defineCheck, type Emit, type FindingTarget } from '../define';
@@ -228,7 +229,7 @@ export function checkArchiveForum(
   // A full forum only hurts when a close needs a tag it doesn't have yet.
   const tags = (forum.channel as ForumChannel | undefined)?.availableTags ?? [];
   const existing = new Set(tags.map(tag => tag.name.toLowerCase()));
-  const untagged = [...new Set(tagNames)].filter(name => !existing.has(name.toLowerCase()));
+  const untagged = [...new Set(tagNames)].filter(name => !existing.has(forumTagName(name).toLowerCase()));
   if (tags.length >= LIMITS.forumTags && untagged.length > 0)
     out.push(
       emit('tags_full', 'degraded', 'manual', { ...at, params: { ...forum.params, names: untagged.join(', ') } }),
