@@ -72,6 +72,10 @@ the bot stops sending its Discord token to ninsys-api.
   before v3.16.0 began recording first responses don't raise SLA alerts.
   "Opened" comes from the ticket channel's creation time, so later messages
   or status changes on an old ticket don't make it look new.
+- A breached ticket whose alert can't be posted (no breach channel, or the
+  bot can't send there) is no longer rewritten and re-logged every 5
+  minutes. A failed alert is still retried on each check until it lands,
+  with an error logged only the first time.
 
 ### Security
 
