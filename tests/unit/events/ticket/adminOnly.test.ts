@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, jest, test } from 'bun:test';
+import { OverwriteType } from 'discord.js';
 import ticketLang from '../../../../src/lang/en/ticket.json';
 import generalLang from '../../../../src/lang/en/general.json';
 import { type AdminOnlyDeps, ticketAdminOnlyEventImpl as ticketAdminOnlyEvent } from '../../../../src/events/ticket/adminOnly';
@@ -45,17 +46,19 @@ function makeDeps(overrides: Partial<Record<keyof AdminOnlyDeps, unknown>> = {})
   };
 }
 
-function makeInteraction(userId = 'staff-9', guildRoleIds?: string[]) {
+function makeInteraction(userId = 'staff-9', guildRoleIds?: string[], overwrites: Array<{ id: string; type: number }> = []) {
   const sent: Array<{ content: string }> = [];
   const edits: Array<{ content?: string }> = [];
   const permEdits: Array<{ roleId: string; perms: unknown }> = [];
   const welcomeEdits: unknown[] = [];
   const permissionOverwrites = {
+    cache: new Map(overwrites.map(o => [o.id, o])),
     edit: jest.fn(async (roleId: string, perms: unknown) => {
       permEdits.push({ roleId, perms });
     }),
   };
   const interaction = {
+    client: { user: { id: 'bot-1' } },
     guildId: 'guild1',
     guild: guildRoleIds ? { roles: { cache: new Set(guildRoleIds) } } : undefined,
     channelId: 'chan1',
@@ -167,6 +170,24 @@ describe('ticketAdminOnlyEvent', () => {
     expect(welcomeEdits).toHaveLength(1); // Admin Only button stripped
     expect(ticketRepo.update).toHaveBeenCalledWith({ id: 3, guildId: 'guild1' }, { status: 'adminOnly' });
     expect(edits).toEqual([{ content: tl.success }]);
+  });
+
+  test('staff click also hides members with their own overwrite (a routed assignee), but not the opener or the bot', async () => {
+    const { deps, getStaffRoles } = makeDeps();
+    getStaffRoles.mockResolvedValue([{ role: ROLE_A }]);
+    const { interaction, permEdits } = makeInteraction('staff-9', [ROLE_A], [
+      { id: 'creator-1', type: OverwriteType.Member },
+      { id: 'bot-1', type: OverwriteType.Member },
+      { id: 'assignee-1', type: OverwriteType.Member },
+      { id: ROLE_A, type: OverwriteType.Role },
+    ]);
+
+    await ticketAdminOnlyEvent(client, interaction, deps);
+
+    expect(permEdits).toEqual([
+      { roleId: ROLE_A, perms: { ViewChannel: false } },
+      { roleId: 'assignee-1', perms: { ViewChannel: false } },
+    ]);
   });
 
   test('one role failing to hide does not abort the rest or strand the interaction', async () => {

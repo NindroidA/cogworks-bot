@@ -9,7 +9,12 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from 'bun:test';
 import { Collection, GatewayIntentBits, IntentsBitField } from 'discord.js';
 import { Repository } from 'typeorm';
-import { pickTicketAssignee, routeTicket, type TicketRoutingConfig } from '../../../../src/utils/ticket/smartRouter';
+import {
+  pickTicketAssignee,
+  revokeAssigneeAccess,
+  routeTicket,
+  type TicketRoutingConfig,
+} from '../../../../src/utils/ticket/smartRouter';
 
 const ROLE = '555555555555555555';
 const RULES = [{ ticketTypeId: 'bug_report', staffRoleId: ROLE }];
@@ -182,5 +187,41 @@ describe('pickTicketAssignee', () => {
     };
 
     expect(await pickTicketAssignee(guild as never, 'bug_report', ROUTING_ON, 'opener')).toBeNull();
+  });
+});
+
+describe('revokeAssigneeAccess', () => {
+  const TICKET = { guildId: 'guild1', createdBy: 'opener' };
+
+  function channelWith(ids: string[], fail = false) {
+    return {
+      permissionOverwrites: {
+        cache: new Map(ids.map(id => [id, {}])),
+        delete: jest.fn(async () => {
+          if (fail) throw new Error('Missing Permissions');
+        }),
+      },
+    };
+  }
+
+  test('deletes the former assignee member overwrite', async () => {
+    const channel = channelWith(['opener', 'staff1']);
+    await revokeAssigneeAccess(channel, TICKET, 'staff1');
+    expect(channel.permissionOverwrites.delete).toHaveBeenCalledWith('staff1');
+  });
+
+  test.each([
+    ['the opener', 'opener'],
+    ['nobody', null],
+    ['a member without an overwrite', 'manual1'],
+  ])('leaves overwrites alone for %s', async (_label, former) => {
+    const channel = channelWith(['opener', 'staff1']);
+    await revokeAssigneeAccess(channel, TICKET, former);
+    expect(channel.permissionOverwrites.delete).not.toHaveBeenCalled();
+  });
+
+  test('a failed delete is logged, not thrown', async () => {
+    const channel = channelWith(['staff1'], true);
+    await expect(revokeAssigneeAccess(channel, TICKET, 'staff1')).resolves.toBeUndefined();
   });
 });

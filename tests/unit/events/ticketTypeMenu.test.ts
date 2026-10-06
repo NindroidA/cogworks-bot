@@ -51,6 +51,13 @@ describe('buildTicketTypeOptions', () => {
     expect(good.emoji?.name).toBe('🐛');
   });
 
+  test('clamps a 99-character name plus emoji without leaving a lone surrogate', () => {
+    const long = { ...(type(1) as object), displayName: `${'a'.repeat(99)}🎫`, description: `${'d'.repeat(99)}🎫` };
+    const [option] = buildTicketTypeOptions([long as never]).map(o => o.toJSON());
+    expect(option.label).toBe(`${'a'.repeat(99)}…`);
+    expect(option.description).toBe(`${'d'.repeat(99)}…`);
+  });
+
   test('keeps a custom emoji', () => {
     const [option] = buildTicketTypeOptions([type(1, '<a:spin:123456789012345678>')]).map(o => o.toJSON());
     expect(option.emoji).toEqual({ name: 'spin', id: '123456789012345678', animated: true });

@@ -11,8 +11,8 @@
  * ticketStatusHandler takes its repos and the archive workflow through `deps`.
  */
 
-import { describe, expect, jest, test } from 'bun:test';
-import { Not } from 'typeorm';
+import { afterEach, beforeEach, describe, expect, jest, test } from 'bun:test';
+import { Not, Repository } from 'typeorm';
 import {
   type TicketStatusDeps,
   ticketAssignHandler,
@@ -157,5 +157,65 @@ describe('/ticket manage status', () => {
     expect(ticketRepo.save.mock.calls[0][0].status).toBe('in-progress');
     expect(interaction.channel.send).toHaveBeenCalledTimes(1);
     expect(archiveAndCloseTicket).not.toHaveBeenCalled();
+  });
+});
+
+// assign/unassign have no deps seam, so their repos are intercepted on the
+// TypeORM prototype (the ticketInteraction.test.ts approach).
+describe('/ticket manage assign | unassign: the former assignee loses channel access', () => {
+  const spies: Array<{ mockRestore(): void }> = [];
+  let ticket: Record<string, unknown>;
+
+  beforeEach(() => {
+    ticket = { id: 7, guildId: 'guild-wf-test', channelId: 'chan1', createdBy: 'opener', assignedTo: 'routed1' };
+    spies.push(
+      jest.spyOn(Repository.prototype, 'findOneBy').mockResolvedValue({ enableWorkflow: true } as never),
+      jest.spyOn(Repository.prototype, 'createQueryBuilder').mockImplementation((() => {
+        const qb = { where: () => qb, andWhere: () => qb, getOne: async () => ticket };
+        return qb;
+      }) as never),
+      jest.spyOn(Repository.prototype, 'save').mockResolvedValue({} as never),
+    );
+  });
+
+  afterEach(() => {
+    for (const spy of spies.splice(0)) spy.mockRestore();
+  });
+
+  function withOverwrites(ids: string[]) {
+    const interaction = makeInteraction();
+    const permissionOverwrites = {
+      cache: new Map(ids.map(id => [id, {}])),
+      delete: jest.fn().mockResolvedValue(undefined),
+    };
+    Object.assign(interaction.channel, { permissionOverwrites });
+    return { interaction, permissionOverwrites };
+  }
+
+  test('unassign removes the former assignee overwrite', async () => {
+    const { interaction, permissionOverwrites } = withOverwrites(['opener', 'routed1']);
+
+    await ticketUnassignHandler(interaction as never);
+
+    expect(permissionOverwrites.delete).toHaveBeenCalledWith('routed1');
+    expect(permissionOverwrites.delete).toHaveBeenCalledTimes(1);
+  });
+
+  test('reassigning removes the former assignee overwrite', async () => {
+    const { interaction, permissionOverwrites } = withOverwrites(['opener', 'routed1']);
+
+    await ticketAssignHandler(interaction as never); // getUser → u2
+
+    expect(ticket.assignedTo).toBe('u2');
+    expect(permissionOverwrites.delete).toHaveBeenCalledWith('routed1');
+  });
+
+  test('never removes the opener, even when they were the assignee', async () => {
+    ticket.assignedTo = 'opener';
+    const { interaction, permissionOverwrites } = withOverwrites(['opener']);
+
+    await ticketUnassignHandler(interaction as never);
+
+    expect(permissionOverwrites.delete).not.toHaveBeenCalled();
   });
 });

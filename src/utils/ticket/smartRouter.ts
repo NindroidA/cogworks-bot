@@ -233,6 +233,34 @@ export async function pickTicketAssignee(
   }
 }
 
+/** The part of a ticket channel {@link revokeAssigneeAccess} touches. */
+export interface AssigneeOverwriteHolder {
+  permissionOverwrites: { cache: { has(id: string): boolean }; delete(id: string): Promise<unknown> };
+}
+
+/**
+ * Remove a former assignee's member overwrite (granted by routing or the
+ * dashboard) when a ticket is unassigned or reassigned. The opener's own
+ * overwrite is never touched. Best effort: failures are logged, not thrown.
+ */
+export async function revokeAssigneeAccess(
+  channel: AssigneeOverwriteHolder | null,
+  ticket: { guildId: string; createdBy: string },
+  formerAssigneeId: string | null | undefined,
+): Promise<void> {
+  if (!channel || !formerAssigneeId || formerAssigneeId === ticket.createdBy) return;
+  if (!channel.permissionOverwrites.cache.has(formerAssigneeId)) return;
+  try {
+    await channel.permissionOverwrites.delete(formerAssigneeId);
+  } catch (error) {
+    enhancedLogger.warn('Failed to remove a former assignee from the ticket channel', LogCategory.PERMISSION, {
+      guildId: ticket.guildId,
+      memberId: formerAssigneeId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 // ============================================================================
 // Workload tracking
 // ============================================================================

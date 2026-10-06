@@ -24,6 +24,7 @@ import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
 import { UserTicketRestriction } from '../../typeorm/entities/ticket/UserTicketRestriction';
 import {
+  clampText,
   createPrivateChannelPermissions,
   createRateLimitKey,
   enhancedLogger,
@@ -46,7 +47,7 @@ import { chunkByMessageBoundary } from '../../utils/ticket/transcriptBuilder';
 import { ageVerifyMessage, ageVerifyModal } from './ageVerify';
 import { banAppealMessage, banAppealModal } from './banAppeal';
 import { bugReportMessage, bugReportModal } from './bugReport';
-import { customTicketOptions, ticketOptions } from './index';
+import { customTicketOptions, isUnicodeEmoji, ticketOptions } from './index';
 import { otherMessage, otherModal } from './other';
 import { playerReportMessage, playerReportModal } from './playerReport';
 
@@ -69,17 +70,6 @@ const BOT_TICKET_PERMISSIONS = [
   PermissionFlagsBits.ReadMessageHistory,
   PermissionFlagsBits.ManageChannels,
 ];
-
-/** Clamp text to a Discord length limit without splitting an emoji or other surrogate pair. */
-export function clampText(text: string, max: number): string {
-  if (text.length <= max) return text;
-  let out = '';
-  for (const char of text) {
-    if (out.length + char.length > max - 1) break;
-    out += char;
-  }
-  return `${out}…`;
-}
 
 /** True when the user may not open this type: a restriction, or a deactivated custom type. */
 async function isTypeBlocked(
@@ -123,8 +113,8 @@ function buildBuiltinTicketModal(typeId: string, modal: ModalBuilder): ModalBuil
  * just a heading and no body. (Prod incident 2026-05-05, ticket #112.)
  */
 export function buildCustomTicketModal(ticketType: CustomTicketType): ModalBuilder {
-  // Modal titles are plain text, so a `<:name:id>` custom emoji would show raw.
-  const emoji = ticketType.emoji && !ticketType.emoji.startsWith('<') ? ticketType.emoji : '🎫';
+  // Modal titles are plain text: a custom `<:name:id>` or text like `:ticket:` would show raw.
+  const emoji = isUnicodeEmoji(ticketType.emoji) ? ticketType.emoji : '🎫';
   const modal = new ModalBuilder()
     .setCustomId(`ticket_modal_${ticketType.typeId}`)
     .setTitle(clampText(`${emoji} ${ticketType.displayName}`, MODAL_TITLE_MAX));
@@ -494,6 +484,12 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
       ticketData.customTypeId = ticketType;
     }
 
+    // Smart routing (best effort: null on any failure or when it's off). It can
+    // take a few seconds (member fetch), so it runs before the row exists.
+    const assignee = modalTicketConfig
+      ? await pickTicketAssignee(guild, ticketType, modalTicketConfig, member.id)
+      : null;
+
     // The row comes first because the channel name carries its id; every
     // failure below rolls it back (see rollbackFailedTicket).
     const newTicket = ticketRepo.create(ticketData);
@@ -519,11 +515,6 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
         }
         return true;
       });
-
-    // Smart routing (best effort: null on any failure or when it's off).
-    const assignee = modalTicketConfig
-      ? await pickTicketAssignee(guild, ticketType, modalTicketConfig, member.id)
-      : null;
 
     const permOverwrites = createPrivateChannelPermissions(
       guildId,

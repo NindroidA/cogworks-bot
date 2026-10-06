@@ -21,6 +21,11 @@ ticket row behind.
   `assignedTo`/`assignedAt` are saved, and the channel gets the
   "automatically assigned" notice that pings them. The opener is never picked,
   and a routing failure only leaves the ticket unassigned.
+- **Assignee access follows the assignment.** Admin Only now also hides the
+  channel from members who have their own overwrite (a routed or dashboard
+  assignee), except the opener and the bot. `/ticket manage unassign`,
+  reassigning with `/ticket manage assign`, and reassigning from the dashboard
+  remove the previous assignee's member overwrite.
 - **Routing finds staff without presence data.** The bot runs without the
   privileged GuildPresences intent, so the online/idle filter matched nobody.
   Without that intent every non-bot member of the rule's role is now eligible
@@ -29,11 +34,13 @@ ticket row behind.
 - **Ticket types with long names open again.** The modal title and field
   labels are clamped to Discord's 45-character limit (without splitting an
   emoji), placeholders to 100, and stored min/max lengths are kept within
-  0-4000 with min no greater than max. A `<:name:id>` custom emoji is left out
-  of the modal title, which can't render it.
+  0-4000 with min no greater than max. The modal title shows the type's emoji
+  only when it is a unicode emoji; a custom `<:name:id>` or text like
+  `:ticket:` would show raw, so those fall back to 🎫.
 - **One bad emoji or a 26th type no longer breaks the ticket menu.** An emoji
   Discord won't accept (`:bug:`, plain text) falls back to 🎫 instead of failing
-  the whole menu, and the menu shows the first 25 types.
+  the whole menu, and the menu shows the first 25 types. Option labels and
+  descriptions are clamped to 100 without splitting an emoji.
 - **Restricted users and deactivated types are refused everywhere.** The legacy
   type buttons and the modal submit now check user restrictions and inactive
   types like the menu does, so the button fallback can't bypass them.
@@ -49,9 +56,10 @@ ticket row behind.
 - **Ticket answers can't ping @everyone or roles.** The opener's answers are
   sent with no allowed mentions, the welcome message can mention only the
   opener, and the staff ping can mention only the configured staff role.
-- **Ticket rate limits are per server.** The 3-per-hour limit is now counted
-  per user in each server instead of across every server the bot is in;
-  `/ticket email-import` shares the same per-server budget.
+- **Ticket rate limits are per server.** The 3-per-hour limit for tickets
+  opened from the panel is now counted per user in each server instead of
+  across every server the bot is in. `/ticket manage import-email` keeps its
+  per-user limit for now, so it no longer shares a budget with panel tickets.
 
 ## [3.16.22] - 2026-10-06
 

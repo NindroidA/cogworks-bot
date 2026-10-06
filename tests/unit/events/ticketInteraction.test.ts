@@ -39,6 +39,7 @@ import {
   GatewayIntentBits,
   IntentsBitField,
   MessageFlags,
+  PermissionFlagsBits,
 } from "discord.js";
 import { Repository } from "typeorm";
 
@@ -125,10 +126,7 @@ mock.module("../../../src/events/ticket", () => ({
 // Import the module under test AFTER all mock.module() calls
 // ---------------------------------------------------------------------------
 import { handleTicketInteraction } from "../../../src/events/ticketInteraction";
-import {
-  buildCustomTicketModal,
-  clampText,
-} from "../../../src/events/ticket/create";
+import { buildCustomTicketModal } from "../../../src/events/ticket/create";
 import { lang } from "../../../src/lang";
 import { PermissionSets } from "../../../src/utils/validation/permissionValidator";
 import {
@@ -963,7 +961,7 @@ describe("handleTicketInteraction", () => {
       await handleTicketInteraction(mockClient, interaction as never);
 
       const createArgs = guild.channels.create.mock.calls[0][0] as {
-        permissionOverwrites: Array<{ id: string }>;
+        permissionOverwrites: Array<{ id: string; allow?: unknown }>;
       };
       expect(createArgs.permissionOverwrites.map((o) => o.id)).toEqual([
         "guild123",
@@ -972,6 +970,16 @@ describe("handleTicketInteraction", () => {
         LEGACY,
         "bot123",
       ]);
+      // The bot's own overwrite keeps it in the channel without Administrator.
+      expect(createArgs.permissionOverwrites.at(-1)).toEqual({
+        id: "bot123",
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.ManageChannels,
+        ],
+      });
       const sent = guild._channel.send.mock.calls.map(
         (c: unknown[]) => (c[0] as { content?: string }).content ?? c[0],
       );
@@ -1199,6 +1207,10 @@ describe("handleTicketInteraction", () => {
           content: expect.stringContaining("<@staff1>"),
           allowedMentions: { users: ["staff1"] },
         });
+        // Routing (a member fetch of up to 5s) runs before the row is inserted.
+        expect(guild.members.fetch.mock.invocationCallOrder[0]).toBeLessThan(
+          saveSpy.mock.invocationCallOrder[0],
+        );
       });
 
       test("a routing failure leaves the ticket unassigned but still creates it", async () => {
@@ -1235,14 +1247,6 @@ describe("handleTicketInteraction", () => {
   // Custom ticket modal limits (#44)
   // -------------------------------------------------------------------------
   describe("custom ticket modal limits", () => {
-    test("clampText keeps surrogate pairs whole and marks the cut", () => {
-      expect(clampText("short", 45)).toBe("short");
-      const clamped = clampText(`${"a".repeat(43)}🎫🎫`, 45);
-      expect(clamped.length).toBeLessThanOrEqual(45);
-      expect(clamped.endsWith("…")).toBe(true);
-      expect(clamped).not.toMatch(/[\uD800-\uDBFF]…$/);
-    });
-
     test("clamps a long title and labels, drops a custom-emoji title prefix, and fixes min > max", () => {
       const modal = buildCustomTicketModal({
         typeId: "partner",
@@ -1269,6 +1273,29 @@ describe("handleTicketInteraction", () => {
       expect((input.placeholder as string).length).toBeLessThanOrEqual(100);
       expect(input.max_length).toBe(100);
       expect(input.min_length).toBe(100);
+    });
+
+    test.each([":ticket:", "bug"])(
+      "a text emoji (%s) in the title falls back to 🎫 instead of showing raw",
+      (emoji) => {
+        const json = buildCustomTicketModal({
+          typeId: "plain",
+          displayName: "Plain",
+          emoji,
+          customFields: null,
+        } as never).toJSON();
+        expect(json.title).toBe("🎫 Plain");
+      },
+    );
+
+    test("a unicode emoji stays in the title", () => {
+      const json = buildCustomTicketModal({
+        typeId: "plain",
+        displayName: "Plain",
+        emoji: "👍🏽",
+        customFields: null,
+      } as never).toJSON();
+      expect(json.title).toBe("👍🏽 Plain");
     });
 
     test("clamps a long type description used as the default placeholder", () => {
