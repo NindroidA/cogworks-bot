@@ -159,7 +159,7 @@ describe('buildSummaryEmbed', () => {
     ).toJSON();
     const lines = embed.description!.split('\n');
     expect(lines[0]).toBe('Cogworks v3.16.25 · checked <t:1791288000:f>');
-    expect(lines).toContain('⚠️ **Core (settings, staff roles, permissions, commands)**: 2 found');
+    expect(lines).toContain('⚠️ **Core (settings, staff roles, permissions)**: 2 found');
     expect(lines).toContain('❌ **Tickets**: 1 found, something is broken');
     expect(lines).toContain('➖ **Memory**: not set up');
     expect(lines).toContain('✅ **Rules**: no problems');

@@ -12,14 +12,13 @@ const strings = lang.health.findings as Record<string, string>;
 const allCodes = getChecks().flatMap(check => [...check.codes, `${check.id}.error`]);
 
 describe('health check registry', () => {
-  test('has the core checks and the command sync check', () => {
+  test('has the core checks', () => {
     expect(getChecks('core').map(c => c.id)).toEqual([
       'core.global_staff_role',
       'core.locale',
       'core.staff_role',
       'core.guild_permission',
       'core.setup_state',
-      'core.commands',
     ]);
   });
 
