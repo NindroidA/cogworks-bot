@@ -2,6 +2,7 @@ import { ReactionRoleMenu, type ReactionRoleOption } from '../../typeorm/entitie
 import { CACHE_TTL } from '../constants';
 import { createTtlCache } from '../database/configCache';
 import { lazyRepo } from '../database/lazyRepo';
+import { emojiLookupKey, parseOptionEmoji } from './optionEmoji';
 
 const menuRepo = lazyRepo(ReactionRoleMenu);
 
@@ -21,7 +22,8 @@ const menuCache = createTtlCache<string, CachedMenu>(CACHE_TTL.REACTION_ROLE_MEN
 function buildEmojiIndex(menu: ReactionRoleMenu): Map<string, ReactionRoleOption> {
   const map = new Map<string, ReactionRoleOption>();
   for (const option of menu.options) {
-    map.set(option.emoji, option);
+    const key = emojiLookupKey(parseOptionEmoji(option.emoji));
+    if (key) map.set(key, option);
   }
   return map;
 }
@@ -47,15 +49,18 @@ export async function getCachedMenu(messageId: string, guildId: string): Promise
   return menu;
 }
 
-/** O(1) emoji-to-option lookup for a cached menu */
+/**
+ * O(1) emoji-to-option lookup for a cached menu. Pass the reaction's emoji
+ * (`reaction.emoji`): custom emoji match by id, unicode emoji by name.
+ */
 export function getOptionByEmoji(
   messageId: string,
-  emoji: string,
-  emojiName: string | null,
+  emoji: { id: string | null; name: string | null },
 ): ReactionRoleOption | undefined {
   const cached = menuCache.get(messageId);
   if (!cached) return undefined;
-  return cached.emojiIndex.get(emoji) || (emojiName ? cached.emojiIndex.get(emojiName) : undefined);
+  const key = emojiLookupKey(emoji);
+  return key ? cached.emojiIndex.get(key) : undefined;
 }
 
 /** Invalidate cache for a specific menu (on add/remove/edit/delete) */
