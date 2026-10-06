@@ -1,6 +1,6 @@
 /**
  * Guild data export: the single list of guild-scoped entities that
- * /data-export serializes, kept out of the handler so other exports can reuse it.
+ * /data-export and the /bot-reset archive both serialize.
  *
  * Keep this in step with `deleteAllGuildData` (guildQueries.ts): anything the
  * purge deletes should be exportable first. A unit test diffs both lists

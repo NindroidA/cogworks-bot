@@ -30,18 +30,21 @@ import {
   type RateLimitConfig,
   rateLimiter,
 } from '../../utils';
+import { TRANSCRIPT_CAPTURE_BUDGET_MS } from '../../utils/archive/transcriptCapture';
 import { Colors } from '../../utils/colors';
 import { deleteAllGuildData } from '../../utils/database/guildQueries';
 import { compileGuildArchive } from '../../utils/offboarding/archiveCompiler';
 import { invalidateBaitCaches } from '../../utils/offboarding/guildCaches';
 import { MAX_EXPORT_ATTACHMENT_BYTES } from '../../utils/offboarding/guildDataExport';
-import { cleanupGuildMessages } from '../../utils/offboarding/messageCleanup';
+import { type CleanupOptions, cleanupGuildMessages } from '../../utils/offboarding/messageCleanup';
 import { clearGuildCommandSignature, registerGuildCommands } from '../../utils/setup/commandGating';
 
 const STAGE_TIMEOUT_MS = 60_000;
 const FINAL_STAGE_TIMEOUT_MS = 30_000;
 /** How many failed tables the summary names before "+N more". */
 const MAX_FAILED_LISTED = 10;
+/** How many kept threads/channels the summary names before "+N more". */
+const MAX_KEPT_LISTED = 15;
 
 /** One completed reset per guild per day. Spent at the final confirmation, given back if the reset doesn't finish. */
 const BOT_RESET_LIMIT: RateLimitConfig = {
@@ -92,8 +95,9 @@ export async function botResetHandler(
         'This will erase **ALL** Cogworks data and messages from this server.\n\n' +
           '**What will be removed:**\n' +
           '- All configurations (tickets, applications, announcements, bait, memory, rules, reaction roles)\n' +
-          '- All archived tickets and applications\n' +
-          '- All memory items and tags\n' +
+          '- All archived tickets and applications, including their transcript threads\n' +
+          '- All open ticket and application channels\n' +
+          '- All memory items, tags and threads\n' +
           '- All bot-sent messages (buttons, menus, embeds)\n' +
           '- All XP data, event data, analytics data\n' +
           '- All audit logs, bait detection logs and role permission grants\n' +
@@ -131,9 +135,9 @@ export async function botResetHandler(
       .setTitle('Save Your Data?')
       .setDescription(
         'Would you like an archive of your data sent to your DMs before everything is deleted?\n\n' +
-          'The archive is a compressed JSON file with your archived tickets and applications, memory items, and ' +
-          'announcement, audit and bait logs. It does not include configurations or XP data: for a copy of every ' +
-          'table, cancel and run `/data-export` first.\n\n' +
+          'The archive is a compressed JSON file with every Cogworks record for this server (configurations, tickets, ' +
+          'applications, memory items, XP data, logs) plus the text of every transcript, memory thread and open ticket ' +
+          'channel. Attachment files are not included.\n\n' +
           "If the archive can't be delivered, the reset stops and nothing is deleted.",
       );
 
@@ -203,7 +207,7 @@ export async function botResetHandler(
           .setTitle('Resetting...')
           .setDescription(
             saveData
-              ? 'Compiling archive and cleaning up. This may take a moment.'
+              ? 'Compiling archive (including transcripts) and cleaning up. This may take a few minutes.'
               : 'Cleaning up. This may take a moment.',
           ),
       ],
@@ -264,6 +268,31 @@ async function showAborted(
   });
 }
 
+function formatKeptChannels(ids: string[], saveData: boolean): string {
+  const listed = ids.slice(0, MAX_KEPT_LISTED).map(id => `<#${id}>`);
+  if (ids.length > MAX_KEPT_LISTED) listed.push(`+${ids.length - MAX_KEPT_LISTED} more`);
+  const why = saveData
+    ? "Not in the archive (couldn't be read, or opened or updated after it was made) or couldn't be deleted"
+    : "Couldn't be deleted";
+  return `${why}, so they were left alone. Review and delete them by hand:\n${listed.join(' ')}`;
+}
+
+/**
+ * Show the final summary. A big reset can outlast the 15-minute interaction
+ * token, so fall back to a DM; the reset itself has already finished.
+ */
+async function deliverSummary(interaction: ChatInputCommandInteraction<CacheType>, embed: EmbedBuilder) {
+  try {
+    await interaction.editReply({ embeds: [embed], components: [] });
+  } catch (error) {
+    enhancedLogger.warn('Could not show the reset summary; sending it by DM', LogCategory.COMMAND_EXECUTION, {
+      guildId: interaction.guildId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    await interaction.user.send({ embeds: [embed] }).catch(() => undefined);
+  }
+}
+
 /** What the summary says about the purge, and whether it finished. */
 function describePurge(purge: Awaited<ReturnType<typeof deleteAllGuildData>>): { complete: boolean; value: string } {
   if (!purge.success) {
@@ -282,9 +311,10 @@ function describePurge(purge: Awaited<ReturnType<typeof deleteAllGuildData>>): {
 
 /**
  * Execute the actual reset: optional archive DM (abort on failure, before
- * anything is deleted), message cleanup, cache clears, DB purge,
- * setup-command re-registration, and summary embed. Returns true only when the
- * whole purge finished, so the caller gives the daily limit back otherwise.
+ * anything is deleted), thread/channel/message cleanup (after a saved archive,
+ * only what it holds), cache clears, DB purge, setup-command re-registration,
+ * and summary embed. Returns true only when the whole purge finished, so the
+ * caller gives the daily limit back otherwise.
  */
 async function executeReset(
   client: Client,
@@ -297,10 +327,15 @@ async function executeReset(
   let deletionStarted = false;
   try {
     let sizeFormatted = '';
+    let cleanupOptions: CleanupOptions = {};
 
     // 1. Compile and send archive (if user chose to save). Every failure here aborts before any deletion.
     if (saveData) {
-      const archive = await deps.compileGuildArchive(guildId);
+      // The deadline counts from the slash command, whose token expires 15 minutes after it.
+      const commandAt = interaction.createdTimestamp ?? Date.now();
+      const archive = await deps.compileGuildArchive(guildId, client, {
+        deadline: commandAt + TRANSCRIPT_CAPTURE_BUDGET_MS,
+      });
       sizeFormatted = formatBytes(archive.stats.compressedSizeBytes);
 
       if (archive.stats.compressedSizeBytes > MAX_EXPORT_ATTACHMENT_BYTES) {
@@ -308,10 +343,13 @@ async function executeReset(
         await showAborted(
           interaction,
           'Archive Too Large',
-          `The archive is ${sizeFormatted}, which exceeds Discord's 8 MB DM limit, so nothing was deleted.\n\n` +
-            '`/archive cleanup` exports and clears old ticket and application archives, which can shrink it enough ' +
-            'to run `/bot-reset` again. It does not shrink memory items or the announcement, audit and bait logs. ' +
-            'Otherwise, run `/bot-reset` with **No, Delete Everything** (nothing is saved), or contact support.',
+          `The archive is ${sizeFormatted}, over Discord's 8 MB DM limit, and can't be split into parts yet, so ` +
+            'nothing was deleted.\n\n' +
+            'If most of it is archived tickets or applications, export and clear those (with their transcripts) using ' +
+            '`/archive cleanup`, then run `/bot-reset` again.\n\n' +
+            "`/archive cleanup` can't shrink memory items, XP, activity, analytics or log data. If that is most of it, " +
+            'run `/bot-reset` with **No, Delete Everything** (nothing is saved), or contact support. `/data-export` ' +
+            'skips transcripts, so it is smaller and may fit under the same 8 MB limit: try it first to save the tables.',
         );
         return false;
       }
@@ -321,7 +359,7 @@ async function executeReset(
           name: archive.filename,
         });
         await interaction.user.send({
-          content: `**Cogworks Archive** for ${interaction.guild!.name}\n${archive.stats.totalEntries} entries (${sizeFormatted} compressed)\nTickets: ${archive.stats.archivedTickets} | Applications: ${archive.stats.archivedApplications} | Memory: ${archive.stats.memoryItems}`,
+          content: `**Cogworks Archive** for ${interaction.guild!.name}\n${archive.stats.totalEntries} entries + ${archive.stats.transcripts} transcripts (${sizeFormatted} compressed)\nTickets: ${archive.stats.archivedTickets} | Applications: ${archive.stats.archivedApplications} | Memory: ${archive.stats.memoryItems}`,
           files: [attachment],
         });
       } catch {
@@ -337,11 +375,14 @@ async function executeReset(
         );
         return false;
       }
+
+      // Delete only what the archive holds: anything unreadable, opened or updated since stays in Discord.
+      cleanupOptions = { exported: archive.coverage };
     }
 
-    // 2. Clean up messages
+    // 2. Clean up messages, threads and open ticket/application channels
     deletionStarted = true;
-    const cleanup = await deps.cleanupGuildMessages(client, guildId);
+    const cleanup = await deps.cleanupGuildMessages(client, guildId, cleanupOptions);
 
     // 3. Clear caches. deleteAllGuildData drops the other per-guild caches itself; the bait
     //    caches live on the client, so clear them here, on both sides of the purge.
@@ -369,8 +410,8 @@ async function executeReset(
     // 6. Show summary
     const summaryFields = [
       {
-        name: 'Messages Cleaned',
-        value: `${cleanup.deleted} deleted`,
+        name: 'Discord Cleanup',
+        value: `${cleanup.deleted} messages, threads and channels deleted`,
         inline: true,
       },
       {
@@ -396,6 +437,14 @@ async function executeReset(
       });
     }
 
+    if (cleanup.keptChannelIds.length > 0) {
+      summaryFields.push({
+        name: 'Left in place',
+        value: formatKeptChannels(cleanup.keptChannelIds, saveData),
+        inline: false,
+      });
+    }
+
     const summaryEmbed = purge.complete
       ? new EmbedBuilder()
           .setColor(Colors.status.success)
@@ -411,13 +460,14 @@ async function executeReset(
           )
           .addFields(summaryFields);
 
-    await interaction.editReply({ embeds: [summaryEmbed], components: [] });
+    await deliverSummary(interaction, summaryEmbed);
 
     const logContext = {
       guildId,
       userId: interaction.user.id,
       dataSaved: saveData,
       messagesDeleted: cleanup.deleted,
+      channelsKept: cleanup.keptChannelIds.length,
       recordsPurged: purgeResult.total,
       failedTables: purgeResult.failed,
     };

@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.11] - 2026-10-06
+
+"Save Data First" on `/bot-reset` now archives every table plus the
+transcripts the reset deletes, and the reset deletes only what that archive
+holds. `/bot-reset` also removes open ticket and application channels instead
+of leaving them behind with no records.
+
+### Fixed
+
+- **"Save Data First" deleted the only copy of every transcript.** The archive
+  held just row metadata (thread ID, creator, type), then the reset deleted the
+  archive and memory forum threads holding the conversations. The archive now
+  includes the text of every archive thread, memory thread and open
+  ticket/application channel (attachments are listed but not downloaded),
+  using the transcript capture `/archive cleanup` got in 3.16.10. Deletion is
+  now an allow-list: only threads and channels the archive holds are deleted,
+  and only if they got no new message after they were read. Anything else
+  (unreadable, opened while the archive was being made, or a returning user's
+  archive thread that a new close appended to) is kept and listed in the
+  summary ("Left in place"). After a saved reset, the sweep for leftover bot
+  messages also skips every archive and memory forum thread, and doesn't run
+  if the threads to keep couldn't be listed.
+- **The `/bot-reset` archive left out most of the server's data.** It now uses
+  the same entity list as `/data-export`, so it includes XP, configurations and
+  open tickets/applications, and the "Save Your Data?" step says so. The file
+  is `cogworks-archive-v2`: it keeps v1's top-level tables and
+  `metadata.version`, which the dashboard's Archive Viewer reads, and adds
+  `metadata.guildName` and a `transcripts` object.
+- **`/bot-reset` left open ticket and application channels behind** with no
+  records behind them. They are now deleted (after their text goes into the
+  archive, if saving), and any channel or thread that couldn't be saved or
+  deleted is listed in the summary.
+- **"Archive Too Large" matches the bigger archive.** It says `/archive
+  cleanup` can shrink archived tickets and applications (with their
+  transcripts) but not memory items, XP, activity, analytics or log data, and
+  that otherwise the options are a reset with **No, Delete Everything** or
+  contacting support. `/data-export` skips transcripts, so it may fit under the
+  same 8 MB limit; the message suggests trying it first.
+- **Transcript capture is time-boxed.** It stops 8 minutes after the slash
+  command (not after the final click). If the 15-minute interaction token
+  still runs out, the summary is DMed instead, and the finished reset keeps
+  its daily limit spent.
+- The admin guide's `/bot-reset` section describes the new behavior.
+
 ## [3.16.10] - 2026-10-06
 
 `/archive cleanup` now keeps the transcripts it deletes, and deletes only what
