@@ -2,7 +2,7 @@ import { ReactionRoleMenu, type ReactionRoleOption } from '../../typeorm/entitie
 import { CACHE_TTL } from '../constants';
 import { createTtlCache } from '../database/configCache';
 import { lazyRepo } from '../database/lazyRepo';
-import { emojiLookupKey, parseOptionEmoji } from './optionEmoji';
+import { emojiLookupKey, optionEmojiKey } from './optionEmoji';
 
 const menuRepo = lazyRepo(ReactionRoleMenu);
 
@@ -22,8 +22,7 @@ const menuCache = createTtlCache<string, CachedMenu>(CACHE_TTL.REACTION_ROLE_MEN
 function buildEmojiIndex(menu: ReactionRoleMenu): Map<string, ReactionRoleOption> {
   const map = new Map<string, ReactionRoleOption>();
   for (const option of menu.options) {
-    const key = emojiLookupKey(parseOptionEmoji(option.emoji));
-    if (key) map.set(key, option);
+    map.set(optionEmojiKey(option.emoji), option);
   }
   return map;
 }

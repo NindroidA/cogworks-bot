@@ -15,11 +15,15 @@ within 2 seconds left the role on.
 
 - **Animated custom emoji work in reaction-role menus.** Options are matched by
   emoji id, so `<a:name:id>` options grant and remove their role, and a renamed
-  custom emoji keeps working.
+  custom emoji keeps working. `/reactionrole add`, `/reactionrole remove` and
+  the dashboard's menu create compare custom emoji by id too, so two spellings
+  of one emoji can't become two options that collide.
 - **Unique-mode menus clear the previous reaction.** With the client's reaction
   cache turned off, the old cache lookup never found anything. Picking a new
   option now removes the user's reaction from the option they switched away
-  from over REST, so switching back takes one click instead of two.
+  from over REST, so switching back takes one click instead of two. This needs
+  the bot to have Manage Messages in the menu channel; without it the reaction
+  stays and the bot logs a warning.
 - **Quick un-reacts are no longer dropped.** Reaction roles and the rules
   message used one 2-second cooldown for both adding and removing, so
   un-reacting within 2 seconds left the role on. Add and remove now have

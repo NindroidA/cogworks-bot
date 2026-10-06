@@ -32,6 +32,16 @@ export function emojiLookupKey(emoji: { id: string | null; name: string | null }
   return emoji.id ?? emoji.name;
 }
 
+/**
+ * Identity of a stored option emoji, the same key the reaction lookup uses.
+ * Compare options with this, not the raw string: `<:x:id>`, `<a:x:id>` and a
+ * renamed `<:y:id>` are one emoji and would collide in the lookup.
+ */
+export function optionEmojiKey(storedEmoji: string): string {
+  const { id, name } = parseOptionEmoji(storedEmoji);
+  return id ?? name;
+}
+
 /** REST route identifier for a stored option emoji: `name:id`, or the URL-encoded unicode emoji. */
 export function reactionRouteIdentifier(storedEmoji: string): string {
   const { id, name } = parseOptionEmoji(storedEmoji);

@@ -1,5 +1,5 @@
 import type { Client, MessageReaction, PartialMessageReaction, PartialUser, User } from 'discord.js';
-import { Routes } from 'discord.js';
+import { DiscordAPIError, Routes } from 'discord.js';
 import type { ReactionRoleOption } from '../typeorm/entities/reactionRole';
 import { enhancedLogger, fetchPartial, LogCategory, lang } from '../utils';
 import { ReactionCooldown } from '../utils/reactionCooldown';
@@ -30,7 +30,9 @@ function cooldownKey(messageId: string, optionId: number, direction: 'add' | 're
  * away from. Goes straight to REST because the client's reaction cache is
  * disabled (`message.reactions.cache` is always empty), and only targets
  * options whose role the member held, so a click costs one DELETE rather
- * than one per option on the tight reaction rate-limit bucket.
+ * than one per option on the tight reaction rate-limit bucket. Removing
+ * someone else's reaction needs Manage Messages in the menu channel; without
+ * it the DELETE fails with 50013, logged at warn so it shows up in the log.
  */
 async function removeUserReactions(
   client: Client,
@@ -48,7 +50,15 @@ async function removeUserReactions(
     ),
   );
   for (const result of results) {
-    if (result.status === 'rejected') {
+    if (result.status !== 'rejected') continue;
+    // 50013 = Missing Permissions
+    if (result.reason instanceof DiscordAPIError && result.reason.code === 50013) {
+      enhancedLogger.warn(
+        'Unique mode could not remove a reaction: the bot needs Manage Messages in the menu channel',
+        LogCategory.PERMISSION,
+        { ...logContext, channelId },
+      );
+    } else {
       enhancedLogger.debug('Failed to remove reaction in unique mode', LogCategory.SYSTEM, {
         ...logContext,
         error: String(result.reason),

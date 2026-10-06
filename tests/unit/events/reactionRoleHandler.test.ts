@@ -8,6 +8,7 @@
  *  - add and remove have separate cooldowns, so a quick un-react still
  *    removes the role
  *  - reactions on messages that aren't menus never trigger a fetch
+ *  - a unique-mode reaction DELETE refused for Missing Permissions logs at warn
  *
  * Other event tests mock.module() the menu cache process-wide, and Bun keeps
  * the first mock's export names. So this file loads the real menu cache
@@ -17,9 +18,10 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, jest, mock, test } from 'bun:test';
-import { Collection, Routes } from 'discord.js';
+import { Collection, DiscordAPIError, Routes } from 'discord.js';
 import { AppDataSource } from '../../../src/typeorm';
-import { parseOptionEmoji, reactionRouteIdentifier } from '../../../src/utils/reactionRole/optionEmoji';
+import { enhancedLogger } from '../../../src/utils/monitoring/enhancedLogger';
+import { optionEmojiKey, parseOptionEmoji, reactionRouteIdentifier } from '../../../src/utils/reactionRole/optionEmoji';
 
 const GUILD = '100000000000000001';
 const CHANNEL = '200000000000000001';
@@ -172,6 +174,16 @@ describe('stored option emoji', () => {
     expect(parseOptionEmoji(RED_CIRCLE)).toEqual({ id: null, name: RED_CIRCLE });
   });
 
+  test('every spelling of a custom emoji has the same option key', () => {
+    const key = optionEmojiKey(`<:blob:${BLOB_EMOJI_ID}>`);
+    expect(key).toBe(BLOB_EMOJI_ID);
+    expect(optionEmojiKey(`<a:blob:${BLOB_EMOJI_ID}>`)).toBe(key);
+    expect(optionEmojiKey(`<:renamed:${BLOB_EMOJI_ID}>`)).toBe(key);
+    expect(optionEmojiKey(`blob:${BLOB_EMOJI_ID}`)).toBe(key);
+    expect(optionEmojiKey(`<:blob:${PARTY_EMOJI_ID}>`)).not.toBe(key);
+    expect(optionEmojiKey(` ${RED_CIRCLE} `)).toBe(RED_CIRCLE);
+  });
+
   test('REST identifiers are name:id for custom emoji and URL-encoded unicode otherwise', () => {
     expect(reactionRouteIdentifier(`<a:partyblob:${PARTY_EMOJI_ID}>`)).toBe(`partyblob:${PARTY_EMOJI_ID}`);
     expect(reactionRouteIdentifier(RED_CIRCLE)).toBe(encodeURIComponent(RED_CIRCLE));
@@ -271,6 +283,79 @@ describe('unique mode', () => {
     expect(client.rest.delete).toHaveBeenCalledWith(
       Routes.channelMessageUserReaction(CHANNEL, messageId, `partyblob:${PARTY_EMOJI_ID}`, user.id),
     );
+  });
+
+  test('a reaction DELETE refused for Missing Permissions is logged at warn', async () => {
+    const messageId = addMenu('unique', [
+      { id: 1, emoji: RED_CIRCLE, roleId: RED },
+      { id: 2, emoji: BLUE_CIRCLE, roleId: BLUE },
+    ]);
+    const guild = makeGuild([RED]);
+    const client = {
+      rest: {
+        delete: jest.fn(async () => {
+          throw new DiscordAPIError(
+            { code: 50013, message: 'Missing Permissions' },
+            50013,
+            403,
+            'DELETE',
+            '/channels/x/messages/y/reactions/z/u',
+            {},
+          );
+        }),
+      },
+    } as any;
+    const warn = jest.spyOn(enhancedLogger, 'warn');
+
+    try {
+      await handlers.handleReactionRoleAdd(
+        makeReaction(guild, messageId, { id: null, name: BLUE_CIRCLE }),
+        nextUser(),
+        client,
+      );
+
+      // The role switch still happens; only the old reaction stays
+      expect([...guild.member.roles.cache.keys()]).toEqual([BLUE]);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain('Manage Messages');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('other reaction DELETE failures stay at debug', async () => {
+    const messageId = addMenu('unique', [
+      { id: 1, emoji: RED_CIRCLE, roleId: RED },
+      { id: 2, emoji: BLUE_CIRCLE, roleId: BLUE },
+    ]);
+    const client = {
+      rest: {
+        delete: jest.fn(async () => {
+          throw new DiscordAPIError(
+            { code: 10008, message: 'Unknown Message' },
+            10008,
+            404,
+            'DELETE',
+            '/channels/x/messages/y/reactions/z/u',
+            {},
+          );
+        }),
+      },
+    } as any;
+    const warn = jest.spyOn(enhancedLogger, 'warn');
+
+    try {
+      await handlers.handleReactionRoleAdd(
+        makeReaction(makeGuild([RED]), messageId, { id: null, name: BLUE_CIRCLE }),
+        nextUser(),
+        client,
+      );
+
+      expect(client.rest.delete).toHaveBeenCalledTimes(1);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   test('a first pick makes no REST calls', async () => {
