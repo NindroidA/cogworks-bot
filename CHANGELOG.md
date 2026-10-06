@@ -79,6 +79,43 @@ role permission grants and stops warm caches from acting on deleted config.
 - `/data-export` no longer includes the global `BotStatus` row, which exposed
   the bot owner's user ID to every guild admin.
 
+## [3.16.7] - 2026-10-06
+
+Analytics: the day that just ended is saved at midnight instead of thrown
+away, and a deploy or restart no longer drops the day so far.
+
+### Fixed
+
+- **Analytics lost every day's activity**: the midnight job flushed the new,
+  empty day and then deleted the day that had just ended, so `/analytics`
+  and the dashboard showed zero activity. Each buffered day now lands in its
+  own date's snapshot.
+- **Restarts dropped the day so far**: graceful shutdown now flushes the
+  buffered counters of analytics-enabled guilds (bounded to 5s so a slow
+  database can't hold up exit). A same-day re-flush (shutdown, then
+  midnight) merges top channels and the peak hour and keeps the larger
+  active-member count.
+- **Purged guilds got analytics rows back**: counters are only written for
+  guilds that have analytics enabled and are still joined; anything else is
+  discarded, so guildDelete / bot-reset purges stay purged.
+- **Counters piled up when no guild had analytics enabled**: the midnight
+  job returned early before cleaning stale in-memory counters; it now
+  always cleans them.
+- **Midnight wrote an empty row for the new day**: guilds with no activity
+  now get their member-count row for the day that just ended, so digests
+  and `/analytics overview` no longer show a 0 "today" right after midnight.
+  Weekly and monthly digests cover the 7 or 30 full UTC days that just
+  ended (the window used to hold only 6 or 29 of them).
+- **A late midnight run recorded the wrong day**: the run worked out "the day
+  that just ended" as the time a minute before it started, so a run that
+  fired more than a minute late (busy event loop, slow startup) saved and
+  digested the new day. Each run now belongs to the nearest UTC midnight.
+- **Snapshot dates depended on the host time zone**: a snapshot's day was
+  passed to MySQL as a JS Date, so on a host west of UTC rows were written
+  under the previous day and same-day lookups missed (a second flush then
+  hit the unique index). Snapshot writes, `/analytics overview` and digest
+  windows now pass the UTC day as a 'YYYY-MM-DD' string.
+
 ## [3.16.6] - 2026-10-06
 
 Runtime jobs: SLA breach alerts and event reminders actually run in

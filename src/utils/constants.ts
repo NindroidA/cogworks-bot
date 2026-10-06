@@ -55,6 +55,8 @@ export const INTERVALS = {
   API_REGISTER_RETRY_BASE: 30_000,
   /** ...capped at 5 minutes (the stats-sync cadence) */
   API_REGISTER_RETRY_MAX: 5 * 60 * 1000,
+  /** Graceful-shutdown budget for flushing in-memory analytics counters: 5 seconds */
+  ANALYTICS_SHUTDOWN_FLUSH: 5_000,
 } as const;
 
 /**

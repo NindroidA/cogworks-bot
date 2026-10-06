@@ -1,16 +1,19 @@
 /**
- * Boot helpers (v3.16.6): periodic job wiring and isolated init steps.
- * index.ts runs the bot on import, so the logic lives in src/utils/startup.ts
- * and is exercised here.
+ * Boot helpers: periodic job wiring and isolated init steps (v3.16.6), and the
+ * graceful-shutdown analytics flush (v3.16.7). index.ts runs the bot on import,
+ * so the logic lives in src/utils/startup.ts and is exercised here.
  */
 
-import { afterEach, describe, expect, jest, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, describe, expect, jest, test } from 'bun:test';
 import type { Client } from 'discord.js';
+import { AnalyticsConfig } from '../../../src/typeorm/entities/analytics/AnalyticsConfig';
+import { activityTracker } from '../../../src/utils/analytics/activityTracker';
 import { checkAndSendWeeklySummaries } from '../../../src/utils/baitChannel/weeklySummary';
 import { INTERVALS } from '../../../src/utils/constants';
 import { checkAndSendReminders } from '../../../src/utils/event/reminderChecker';
 import {
   createJobTick,
+  flushAnalyticsOnShutdown,
   PERIODIC_JOBS,
   runInitStep,
   startPeriodicJobs,
@@ -101,5 +104,54 @@ describe('runInitStep', () => {
     expect(await runInitStep('async reject', async () => Promise.reject(new Error('db lock timeout')))).toBe(false);
     expect(await runInitStep('ok', () => ran.push('ok'))).toBe(true);
     expect(ran).toEqual(['ok']);
+  });
+});
+
+describe('flushAnalyticsOnShutdown', () => {
+  const saved: { guildId: string; memberCount: number }[] = [];
+  let configFind: () => Promise<unknown> = async () => [];
+  let originalGetRepository: unknown;
+  let originalInitialized: boolean;
+  let AppDataSource: { getRepository: unknown; isInitialized: boolean };
+
+  beforeAll(async () => {
+    AppDataSource = (await import('../../../src/typeorm')).AppDataSource as unknown as typeof AppDataSource;
+    originalGetRepository = AppDataSource.getRepository;
+    originalInitialized = AppDataSource.isInitialized;
+    AppDataSource.isInitialized = true;
+    AppDataSource.getRepository = (entity: unknown) =>
+      entity === AnalyticsConfig
+        ? { find: () => configFind() }
+        : {
+            findOneBy: async () => null,
+            create: (row: { guildId: string; memberCount: number }) => row,
+            save: async (row: { guildId: string; memberCount: number }) => saved.push(row),
+          };
+  });
+
+  afterAll(() => {
+    AppDataSource.getRepository = originalGetRepository;
+    AppDataSource.isInitialized = originalInitialized;
+  });
+
+  test('writes the day so far for enabled guilds still in the cache; drops everyone else', async () => {
+    const enabled = `shutdown-enabled-${process.pid}`;
+    const optedOut = `shutdown-optout-${process.pid}`;
+    configFind = async () => [{ guildId: enabled }, { guildId: `shutdown-left-${process.pid}` }];
+    activityTracker.recordMessage(enabled, 'ch1', 'general', 'user1');
+    activityTracker.recordMessage(optedOut, 'ch1', 'general', 'user1');
+    const shuttingDown = { guilds: { cache: new Map([[enabled, { memberCount: 42 }]]) } } as unknown as Client;
+
+    await flushAnalyticsOnShutdown(shuttingDown);
+
+    expect(saved.map(r => [r.guildId, r.memberCount])).toEqual([[enabled, 42]]);
+    expect(activityTracker.hasCounters(optedOut)).toBe(false);
+  });
+
+  test('gives up after the timeout instead of blocking exit', async () => {
+    configFind = () => new Promise(() => {}); // DB never answers
+    const started = Date.now();
+    await flushAnalyticsOnShutdown({ guilds: { cache: new Map() } } as unknown as Client, 20);
+    expect(Date.now() - started).toBeLessThan(1000);
   });
 });

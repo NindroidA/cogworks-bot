@@ -71,7 +71,7 @@ import { ErrorSeverity, setupGlobalErrorHandlers } from './utils/errorHandler';
 import { errorReporter } from './utils/monitoring/errorReporter';
 import { setDescription, setStatus } from './utils/profileFunctions';
 import { registerGuildCommands } from './utils/setup/commandGating';
-import { runInitStep, startPeriodicJobs, stopPeriodicJobs } from './utils/startup';
+import { flushAnalyticsOnShutdown, runInitStep, startPeriodicJobs, stopPeriodicJobs } from './utils/startup';
 import { StatusManager } from './utils/status/statusManager';
 
 dotenv.config({ quiet: true }); // dotenv 17 logs an injection summary by default; keep prod logs clean
@@ -479,6 +479,9 @@ async function gracefulShutdown(signal: string) {
   rateLimiter.destroy();
   memoryWatchdog.stop();
   if (healthMonitorInterval) clearInterval(healthMonitorInterval);
+
+  // persist today's analytics counters so far (the midnight job adds the rest)
+  await flushAnalyticsOnShutdown(client);
 
   // stop bait channel activity flush and write remaining buffer to DB
   const extClient = client as ExtendedClient;
