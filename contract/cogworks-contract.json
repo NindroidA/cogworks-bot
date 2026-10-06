@@ -1,6 +1,6 @@
 {
   "contractVersion": "1",
-  "botVersion": "3.16.26",
+  "botVersion": "3.16.27",
   "features": {
     "keys": [
       "tickets",
@@ -36,7 +36,7 @@
         {
           "type": 1,
           "name": "check",
-          "description": "Check the saved settings against this server's channels and roles",
+          "description": "Check the saved settings against this server's channels, roles and commands",
           "options": [
             {
               "type": 3,
@@ -46,7 +46,7 @@
                   "value": "all"
                 },
                 {
-                  "name": "Core (settings, staff roles, permissions)",
+                  "name": "Core (settings, staff roles, permissions, commands)",
                   "value": "core"
                 },
                 {

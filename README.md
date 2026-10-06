@@ -21,7 +21,7 @@ All-in-one Discord server management. Tickets, applications, XP, reaction roles,
 
 Auto-detects your server's config, walks you through the rest, and creates channels matching your naming style.
 
-Something stopped working? `/bot-health check` lists what's broken (deleted channels or roles, missing permissions) and how to fix it.
+Something stopped working? `/bot-health check` lists what's broken (deleted channels or roles, missing permissions, out-of-date commands) and how to fix it.
 
 ## Features
 

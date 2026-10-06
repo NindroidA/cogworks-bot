@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.27] - 2026-10-06
+
+`/bot-health check` now also checks the server's slash commands against the
+set the bot would register there (NindroidA/cogworks-bot#41). It only reads:
+the bot registers its commands again whenever it restarts.
+
+### Added
+
+- **Slash-command sync check** (`core.commands`, under Core): compares the
+  server's registered commands (one Discord call) with the set the bot would
+  register there now, by name and type and then field by field; a field
+  Discord leaves out reads the same as an empty one, so an untouched server
+  shows no drift. Missing or out-of-date commands are degraded, leftover ones
+  are cleanup; admins can't re-register commands themselves, so the text says
+  the bot does it on its next restart and to ask in the support server
+  (`/server`) if the finding stays. Discord refusing the list (50001) means the
+  bot lacks the `applications.commands` scope and the finding links a
+  re-invite. A 5xx or a timeout is reported as
+  "couldn't check", never as drift.
+- The Core choice reads "Core (settings, staff roles, permissions, commands)"
+  again, and the command description, README and docs mention commands.
+
+### Changed
+
+- `filterCommandsByEnabled` in `utils/setup/commandGating.ts` is exported
+  (the command sync check's expected set).
+- The command list is one call from the shared 60-call deep-mode REST budget
+  (it runs in normal checks too), so in the worst case one fewer archived
+  memory post is looked up.
+
 ## [3.16.26] - 2026-10-06
 
 `/bot-health check`: server admins (and the bot owner) can now see what is
