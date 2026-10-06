@@ -7,6 +7,8 @@
 import type { Guild, GuildMember } from 'discord.js';
 import { type EntityTarget, type FindOptionsWhere, Not, type ObjectLiteral, type Repository } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
+import { AnnouncementConfig } from '../../typeorm/entities/announcement/AnnouncementConfig';
+import { AnnouncementTemplate } from '../../typeorm/entities/announcement/AnnouncementTemplate';
 import { Application } from '../../typeorm/entities/application/Application';
 import { ApplicationConfig } from '../../typeorm/entities/application/ApplicationConfig';
 import { ArchivedApplicationConfig } from '../../typeorm/entities/application/ArchivedApplicationConfig';
@@ -14,15 +16,19 @@ import { Position } from '../../typeorm/entities/application/Position';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
 import { GuildPermission } from '../../typeorm/entities/GuildPermission';
 import { MemoryConfig, MemoryItem, MemoryTag } from '../../typeorm/entities/memory';
+import { OnboardingConfig } from '../../typeorm/entities/onboarding/OnboardingConfig';
 import { ReactionRoleMenu } from '../../typeorm/entities/reactionRole';
 import { RulesConfig } from '../../typeorm/entities/rules';
 import { SetupState } from '../../typeorm/entities/SetupState';
 import { StaffRole } from '../../typeorm/entities/StaffRole';
+import { StarboardConfig } from '../../typeorm/entities/starboard/StarboardConfig';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { CustomTicketType } from '../../typeorm/entities/ticket/CustomTicketType';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
 import { UserTicketRestriction } from '../../typeorm/entities/ticket/UserTicketRestriction';
+import { XPConfig } from '../../typeorm/entities/xp/XPConfig';
+import { XPRoleReward } from '../../typeorm/entities/xp/XPRoleReward';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { classifyRestError, type RefStatus } from './refs';
 
@@ -48,6 +54,13 @@ export const HEALTH_ENTITIES = {
   MemoryConfig,
   MemoryTag,
   MemoryItem,
+  // Community features (checks/announcements, xp, starboard, onboarding)
+  AnnouncementConfig,
+  AnnouncementTemplate,
+  XPConfig,
+  XPRoleReward,
+  StarboardConfig,
+  OnboardingConfig,
 };
 export type HealthEntityName = keyof typeof HEALTH_ENTITIES;
 export type HealthRow<K extends HealthEntityName> = InstanceType<(typeof HEALTH_ENTITIES)[K]>;

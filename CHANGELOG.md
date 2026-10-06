@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.25] - 2026-10-06
+
+Health checks for the community features: announcements, XP, the starboard and
+onboarding (NindroidA/cogworks-bot#41). Internal only: the checks plug into the
+health-check engine from 3.16.21, and nothing a server sees changes until the
+`/bot-health` command ships. Events, analytics and XP imports follow in a later
+release.
+
+### Added — community feature health checks (internal, no user-visible command yet)
+
+- **Announcements**: the default channel is unset, not a text or announcement
+  channel (a thread included), or missing the bot's permissions; a default
+  channel that isn't cached could be an archived thread, so it's only reported
+  as deleted when deep mode's one REST lookup gets Unknown Channel (a channel
+  deleted while the bot was offline); the ping role is deleted, or can't be pinged (not mentionable
+  and the bot lacks Mention Everyone; when the role is @everyone, which
+  `/bot-setup` saves by default and which has no mentionable toggle, the
+  finding says it can't ping everyone and points to picking a real role);
+  built-in templates added after the server was set up are missing; a
+  template has a color the renderer can't parse or exceeds Discord's embed
+  limits, so it can't be sent.
+- **XP** (only while enabled): the level-up channel is deleted, can't hold
+  messages or is missing the bot's permissions (the bot grants reward roles
+  only after posting the level-up message, so the text says rewards are
+  skipped too); deleted ignored channels,
+  ignored roles and multiplier channels; multipliers of 0 or less; a minimum
+  XP per message above the maximum; reward roles that were deleted, are managed
+  or @everyone, or sit above the bot's highest role; Manage Roles missing; more
+  than one reward per level; more than 25 rewards.
+- **Starboard** (only while enabled): the channel is unset, deleted, can't hold
+  messages or is missing View Channel, Send Messages or Embed Links, or the
+  emoji can't match any reaction (all of these stop the starboard); Read
+  Message History missing (existing posts don't update their counts); a
+  threshold below 1; deleted ignored channels. Any unicode emoji passes,
+  including flags, skin tones, keycaps and ZWJ sequences.
+- **Onboarding** (only while enabled): no steps; a welcome message that,
+  with the server name and a member's display name filled in, is longer than
+  the 4,096 characters a Discord embed allows (the welcome DM fails and
+  onboarding never starts: for every member, or only for members with long
+  names); the completion role or a
+  role-select option is deleted, managed or @everyone, or above the bot; Manage
+  Roles missing; steps with a repeated id, an unknown type, an id too long for
+  the custom ids its type builds (`continue_` for message, channel-suggest and
+  custom-question steps, `accept_` for rules-accept, `confirmrole_` for
+  role-select steps with options; steps that send no buttons aren't checked),
+  more than 25 role options or the same role twice. A step that can't be sent
+  is rated as blocking when it's required.
+- New health systems `xp`, `starboard` and `onboarding` (features set up by
+  their own commands rather than `/bot-setup`), shared reference rules in
+  `src/utils/health/checks/featureRefs.ts` (a channel the bot posts in, a role
+  it grants using the reaction-role menu rules, lists of ids to prune), and an
+  English string for every new finding code. Each ends with a step the admin
+  can take (a real command such as `/starboard setup` or
+  `/xp-setup config setting:Level-Up Channel value:none`, the web dashboard for
+  templates and onboarding steps, or a permission to grant) or says no action
+  is needed (deleted ignored channels and roles, multiplier channels, reward
+  roles, and built-in templates added later).
+
 ## [3.16.24] - 2026-10-06
 
 Rules, reaction-role and memory checks for the upcoming `/bot-health` command
