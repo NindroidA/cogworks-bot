@@ -65,6 +65,18 @@ describe('applicationCloseEvent', () => {
     expect(archiveAndCloseApplication).not.toHaveBeenCalled();
   });
 
+  test('archive forum deleted (channelId blanked) → notConfigured, no flip or archive attempt', async () => {
+    const { deps, archivedApplicationConfigRepo, applicationRepo, archiveAndCloseApplication, replyEphemeralError } =
+      makeDeps();
+    archivedApplicationConfigRepo.findOneBy.mockResolvedValue({ channelId: '' });
+
+    await applicationCloseEvent(client, makeInteraction(), deps);
+
+    expect(replyEphemeralError).toHaveBeenCalledWith(expect.anything(), tl.notConfigured);
+    expect(applicationRepo.update).not.toHaveBeenCalled();
+    expect(archiveAndCloseApplication).not.toHaveBeenCalled();
+  });
+
   test('no application row → notFound feedback', async () => {
     const { deps, applicationRepo, archiveAndCloseApplication, replyEphemeralError } = makeDeps();
     applicationRepo.findOneBy.mockResolvedValue(null);

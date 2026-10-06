@@ -85,7 +85,8 @@ export function registerApplicationHandlers(
     });
 
     const archivedConfig = await archivedAppConfigRepo.findOneBy({ guildId });
-    if (!archivedConfig) throw ApiError.notFound('Archive config not found');
+    // A deleted archive forum blanks channelId (channelDelete) but keeps the row.
+    if (!archivedConfig?.channelId) throw ApiError.notFound('Archive config not found');
 
     // Mark closed — atomic flip so a concurrent close (or the Discord close
     // button) loses cleanly instead of both proceeding.

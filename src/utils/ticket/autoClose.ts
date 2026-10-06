@@ -18,6 +18,18 @@ const ticketRepo = lazyRepo(Ticket);
 const tl = lang.ticket.workflow;
 
 /**
+ * Stored statuses that mean the workflow's 'open'. Panel tickets are written as
+ * 'opened' and the column default is 'created', so an untouched ticket never
+ * literally says 'open'.
+ */
+export const OPEN_STATUS_ALIASES = ['open', 'opened', 'created'];
+
+/** Map a stored ticket status to its workflow status id. */
+export function toWorkflowStatusId(status: string): string {
+  return OPEN_STATUS_ALIASES.includes(status) ? 'open' : status;
+}
+
+/**
  * Check all guilds with auto-close enabled and process inactive tickets.
  * Called by a periodic interval (every hour).
  */
