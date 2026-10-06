@@ -448,7 +448,7 @@ describe('POST /applications/:id/archive', () => {
     expect(fakeArchiveAndCloseApp).not.toHaveBeenCalled();
   });
 
-  test('transient channel-fetch failure (non-10003): reverts status, returns failure (retryable)', async () => {
+  test('transient channel-fetch failure (non-10003): reverts status, 409 (retryable)', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,
       guildId: 'guild-1',
@@ -461,9 +461,9 @@ describe('POST /applications/:id/archive', () => {
     };
     (fakeClient.channels.fetch as any).mockRejectedValue(Object.assign(new Error('Service Unavailable'), { code: 0 }));
 
-    const result = await getRoute('POST /applications/:id/archive')('guild-1', {}, '/applications/7/archive');
-
-    expect(result).toEqual({ success: false, archived: false });
+    await expect(
+      getRoute('POST /applications/:id/archive')('guild-1', {}, '/applications/7/archive'),
+    ).rejects.toMatchObject({ statusCode: 409 });
     expect(applicationRepoState.updateCalls[0].partial).toEqual({
       status: 'closed',
     });
@@ -509,14 +509,10 @@ describe('POST /applications/:id/archive', () => {
       archived: false,
     });
 
-    const result = await getRoute('POST /applications/:id/archive')(
-      'guild-1',
-      { triggeredBy: 'r-1' },
-      '/applications/7/archive',
-    );
-
-    // Honest failure; channel preserved by the workflow.
-    expect(result).toEqual({ success: false, archived: false });
+    // Honest failure as a 409 (not a 200 {success:false}); channel preserved by the workflow.
+    await expect(
+      getRoute('POST /applications/:id/archive')('guild-1', { triggeredBy: 'r-1' }, '/applications/7/archive'),
+    ).rejects.toMatchObject({ statusCode: 409, message: expect.stringContaining('application left open') });
     // Status flipped to closed, then reverted to its prior value for retry.
     expect(applicationRepoState.updateCalls[0].partial).toEqual({
       status: 'closed',

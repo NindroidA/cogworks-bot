@@ -823,6 +823,18 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 - Shows WebSocket latency, API round-trip time, and uptime
 - Available to all users
 
+### Server Health Check
+**`/bot-health check [system] [deep] [guild-id]`**
+- **Admin-only** (the bot owner can also run it); works even before `/bot-setup` has been run
+- Checks the saved Cogworks settings against the server's live channels, roles and slash commands, and reports what is broken or stale. It only reads; nothing is changed
+- `system` - (Optional) Check one system: Core (which includes the staff roles and the slash commands), Tickets, Applications, Announcements, Memory, Rules, Reaction roles, XP, Starboard, Onboarding (default: all). The bait channel has no checks yet; a check of all systems lists it as not checked yet
+- `deep` - (Optional) Also look up messages and threads through Discord (slower)
+- `guild-id` - (Optional, bot owner only) Check another server the bot is in
+- **Summary**: one line per system (✅ no problems, ⚠️ found, ❌ something is broken, ➖ not set up or not checked yet). Deep-mode lookups that were skipped are listed by what they cover; the per-run caps are fixed, so a second run skips the same ones
+- **Details**: pick a system to page through its findings (10 per page); deleted channels and roles are shown by ID. Each finding ends with what to do (a command, the web dashboard, or a permission to grant) or says no action is needed. Nothing is changed by the check
+- **Export JSON**: attaches the full report to share with support. It holds only IDs, finding codes and numbers: names, titles and other text from the server's settings are left out
+- **Rate limited**: one check per minute and one deep check per 10 minutes per server (not for the bot owner). A check that fails doesn't count, so it can be run again right away
+
 ### Data Export (GDPR Compliance)
 **`/data-export`**
 - **Admin-only command**
@@ -873,6 +885,7 @@ All commands are protected with rate limiting:
 - **Reaction role changes**: 5 per hour per guild (add/remove/edit)
 - **Status commands**: 5 per hour (set/clear)
 - **Bot setup**: 5 per hour per guild
+- **Health check** (`/bot-health check`): 1 per minute per guild; deep checks 1 per 10 minutes
 - **Data export**: Once per 24 hours per guild
 - **Reaction cooldown**: 2 seconds per user on reaction-based features
 - **Global throttle**: 30 commands/minute per user
@@ -885,7 +898,7 @@ All commands are protected with rate limiting:
 
 ## Command Visibility and Access
 
-Server-wide and destructive commands are **hidden** from everyone without Discord's Administrator permission: `/bot-setup`, `/bot-reset`, `/data-export`, `/import`, `/archive`, `/migrate`, `/dev`, `/role`, and the bot-owner `/status`.
+Server-wide and destructive commands are **hidden** from everyone without Discord's Administrator permission: `/bot-setup`, `/bot-reset`, `/bot-health`, `/data-export`, `/import`, `/archive`, `/migrate`, `/dev`, `/role`, and the bot-owner `/status`.
 
 Every feature command is **visible to all members**: `/ticket`, `/ticket-setup`, `/application`, `/application-setup`, `/announcement`, `/announcement-setup`, `/memory`, `/memory-setup`, `/xp`, `/xp-setup`, `/starboard`, `/reactionrole`, `/rules-setup`, `/event`, `/onboarding`, `/automod`, `/analytics`, `/baitchannel` and the four right-click actions. Seeing a command doesn't grant it: each subcommand checks the member's feature access before doing anything, autocomplete suggestions need the same feature and level as their subcommand, and modal submits re-check access.
 
@@ -899,7 +912,7 @@ Member-facing commands need no grant: `/application check` (your own open applic
 
 | Level | Access |
 |-------|--------|
-| **Bot Owner** | Status commands (BOT_OWNER_ID env var) |
-| **Admin** | All commands + role management + setup + data export |
+| **Bot Owner** | Status commands, `/bot-health check` on any server (BOT_OWNER_ID env var) |
+| **Admin** | All commands + role management + setup + data export + health check |
 | **Feature grant** | The features and levels a dashboard role grant gives (see above) |
 | **User**  | Member-facing commands only (`/application check`, `/rank`, `/leaderboard`, `/ping`, `/coffee`, `/dashboard`) |

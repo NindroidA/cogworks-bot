@@ -68,6 +68,7 @@ const admin = (feature: Feature): Guard => ({ feature, level: 'admin' });
 /** Commands that keep a non-null default permission (hidden from members). */
 const HIDDEN_COMMANDS = [
   'archive',
+  'bot-health',
   'bot-reset',
   'bot-setup',
   'data-export',

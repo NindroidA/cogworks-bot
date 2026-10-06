@@ -58,7 +58,11 @@ export async function importStatusHandler(interaction: ChatInputCommandInteracti
               ? '\u274c'
               : log.status === 'cancelled'
                 ? '\u23f9\ufe0f'
-                : '\u23f3';
+                : log.status === 'dry_run'
+                  ? '\u{1f50d}'
+                  : log.status === 'no_changes'
+                    ? '\u2796'
+                    : '\u23f3';
 
         const duration = log.durationMs ? `${(log.durationMs / 1000).toFixed(1)}s` : 'N/A';
         const timestamp = toUnixSeconds(log.startedAt);

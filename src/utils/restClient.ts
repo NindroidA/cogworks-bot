@@ -1,13 +1,22 @@
 import { REST } from 'discord.js';
 
 /**
+ * `RELEASE=dev` check, normalized the same way as index.ts (case and spaces
+ * ignored, unset = prod). The old strict `=== 'dev'` let `RELEASE=Dev` log
+ * in as the dev bot while registering commands with the prod token and app id.
+ */
+export function isDevRelease(): boolean {
+  return (process.env.RELEASE || 'prod').toLowerCase().trim() === 'dev';
+}
+
+/**
  * Resolve the Discord application client ID from environment. Deferred so
  * importing this module does not require the env to be set — matching the
  * `getRest()` lazy pattern. Throws if both CLIENT_ID and DEV_CLIENT_ID are
  * unset in the respective mode.
  */
 export function getClientId(): string {
-  const id = process.env.RELEASE === 'dev' ? process.env.DEV_CLIENT_ID : process.env.CLIENT_ID;
+  const id = isDevRelease() ? process.env.DEV_CLIENT_ID : process.env.CLIENT_ID;
   if (!id) {
     throw new Error(
       'Discord client ID not configured — set CLIENT_ID (or DEV_CLIENT_ID when RELEASE=dev) before calling getClientId()',
@@ -26,7 +35,7 @@ let _rest: REST | null = null;
  */
 export function getRest(): REST {
   if (_rest) return _rest;
-  const token = process.env.RELEASE === 'dev' ? process.env.DEV_BOT_TOKEN : process.env.BOT_TOKEN;
+  const token = isDevRelease() ? process.env.DEV_BOT_TOKEN : process.env.BOT_TOKEN;
   if (!token) {
     throw new Error(
       'Discord bot token not configured — set BOT_TOKEN (or DEV_BOT_TOKEN when RELEASE=dev) before calling getRest()',

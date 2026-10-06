@@ -13,8 +13,11 @@ export type HealthSeverity = 'block' | 'degraded' | 'cosmetic';
 /** auto = deterministic, no information loss; confirm = admin picks it in the preview; manual = the report explains. */
 export type RepairClass = 'auto' | 'confirm' | 'manual';
 
-/** The `/bot-setup` system ids, plus `core` for BotConfig, staff roles, permissions and setup state. */
-export type HealthSystem = 'core' | keyof SystemStates;
+/**
+ * The `/bot-setup` system ids, `core` for BotConfig, staff roles, permissions and setup state,
+ * and the features set up by their own commands (XP, starboard, onboarding).
+ */
+export type HealthSystem = 'core' | keyof SystemStates | 'xp' | 'starboard' | 'onboarding';
 
 export type SystemHealthStatus = 'ok' | 'warn' | 'fail' | 'not_configured';
 
@@ -43,6 +46,8 @@ export interface HealthCheck {
   /** Every finding code the check can emit (the lang test asserts each has a string). */
   codes: readonly string[];
   run(ctx: CheckContext): HealthFinding[] | Promise<HealthFinding[]>;
+  /** `low`: its REST lookups only find cosmetic problems, so it runs after the other checks and the budget goes to them first. */
+  restPriority?: 'low';
   /** False when the guild has not set this up. Omitted = always configured. */
   isConfigured?(ctx: CheckContext): boolean;
 }

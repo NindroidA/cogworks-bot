@@ -25,7 +25,7 @@ grants see no change in who can run what: feature commands still answer
   role granted `tickets: manage` in the dashboard can now see and run
   `/ticket manage assign`. Before, every one of these was registered
   Administrator-only and Discord never delivered them to the role.
-- **Still Administrator-only:** `/bot-setup`, `/bot-reset`, `/data-export`,
+- **Still Administrator-only:** `/bot-setup`, `/bot-reset`, `/bot-health`, `/data-export`,
   `/import`, `/archive`, `/migrate`, `/dev` and `/role` (saved staff/admin
   roles, which has no feature grant), plus the bot-owner `/status`.
 - **`/application check` reaches applicants.** The applicant self-check was
@@ -65,6 +65,381 @@ grants see no change in who can run what: feature commands still answer
   guard, when a guard checks the wrong feature or a lower level, when an
   autocomplete route's feature or level differs from its subcommand's, or when
   a refused command is audited.
+
+## [3.16.28] - 2026-10-06
+
+Internal API fixes for the dashboard (NindroidA/cogworks-bot#41): the "Post
+rules message" button works, failed ticket closes and application archives
+report an error instead of success, dashboard config changes refresh the
+guild's command list, the internal API is tighter about what it accepts,
+and its bind address can be restricted to loopback.
+
+### Fixed
+
+- **Dashboard "Post rules message" always failed with "channelId is
+  required".** The dashboard saves the rules config itself and then sends only
+  who clicked; `POST /rules/setup` now posts from the stored config (body
+  fields still override). It runs the same checks as `/rules setup` before
+  posting (emoji format, @everyone, managed roles, roles at or above the bot,
+  a missing role, 2000-character messages). A missing Send Messages or Add
+  Reactions permission is a 403 that says so. If the reaction can't be added
+  or the config can't be saved, the posted message is deleted again. The
+  default text stays out of `customMessage`. A re-post in the same channel
+  removes the previous rules message once the new one is saved; after the
+  channel is changed on the dashboard, the old message stays in the old
+  channel and has to be deleted by hand.
+- **A failed dashboard ticket close or application archive showed as
+  success.** When the channel couldn't be read or the archive failed, the bot
+  reopened the ticket but answered 200 `{ success: false }`, which the
+  dashboard treated as done. These now return 409 with a reason ("ticket left
+  open"). A channel that is already gone still closes with 200.
+- **Dashboard config changes didn't update the command list.** `POST
+  /config/refresh` (called after the dashboard toggles the bait channel or
+  creates a memory or announcement config) now requests a debounced guild
+  command refresh, so `/baitchannel` and the other gated commands show or hide
+  without a restart.
+- **`/announcement send` validates the stored defaults.** The default
+  announcement channel and role are validated against the current server
+  before sending: a default channel that no longer resolves (for example, one
+  that was deleted) gets a clear invalid-channel error, and a default role the
+  server doesn't have is left out of the message.
+- **Dashboard reaction-role menus skipped the slash-command checks.** `POST
+  /reaction-roles` now enforces the 20-option and 25-menu limits, the emoji
+  format, and the role rules (exists in the server, not @everyone, not
+  managed, below the bot) before posting anything.
+
+### Security
+
+- **Guild routes only run behind `/internal/guilds/:id`.** Top-level and
+  guild routes shared one table, so a guild route called without the prefix
+  ran with an empty guild id and skipped the bot-in-guild check (for example
+  creating `guildId ''` setup or permission rows). They now live in separate
+  tables. A JSON body that isn't an object (`null`, an array, a string) is a
+  400 instead of a 500.
+- **Maintenance mode's auth check could crash the bot** on some malformed
+  `Authorization` headers. It now uses the full-mode `validateAuth`, and the
+  listener catches anything else. Both maintenance-mode servers also log a
+  listen error (for example a bad `BOT_INTERNAL_HOST` or a busy port) instead
+  of crashing.
+- **New `BOT_INTERNAL_HOST` setting for the internal API (3002) and health
+  server (3003) bind address**, maintenance mode included. The default stays
+  `0.0.0.0` (every interface), so nothing changes on deploy. Setting it to
+  `127.0.0.1` is recommended once ninsys-api is confirmed to reach the bot via
+  localhost (host networking): with `network_mode: host`, the default leaves
+  both ports open on the host's other interfaces.
+
+## [3.16.27] - 2026-10-06
+
+`/bot-health check` now also checks the server's slash commands against the
+set the bot would register there (NindroidA/cogworks-bot#41). It only reads:
+the bot registers its commands again whenever it restarts.
+
+### Added
+
+- **Slash-command sync check** (`core.commands`, under Core): compares the
+  server's registered commands (one Discord call) with the set the bot would
+  register there now, by name and type and then field by field; a field
+  Discord leaves out reads the same as an empty one, so an untouched server
+  shows no drift. Missing or out-of-date commands are degraded, leftover ones
+  are cleanup; admins can't re-register commands themselves, so the text says
+  the bot does it on its next restart and to ask in the support server
+  (`/server`) if the finding stays. Discord refusing the list (50001) means the
+  bot lacks the `applications.commands` scope and the finding links a
+  re-invite. A 5xx or a timeout is reported as
+  "couldn't check", never as drift.
+- The Core choice reads "Core (settings, staff roles, permissions, commands)"
+  again, and the command description, README and docs mention commands.
+
+### Changed
+
+- `filterCommandsByEnabled` in `utils/setup/commandGating.ts` is exported
+  (the command sync check's expected set).
+- The command list is one call from the shared 60-call deep-mode REST budget
+  (it runs in normal checks too), so in the worst case one fewer archived
+  memory post is looked up.
+
+## [3.16.26] - 2026-10-06
+
+`/bot-health check`: server admins (and the bot owner) can now see what is
+broken or stale in their server's Cogworks setup, with no setup needed first
+(NindroidA/cogworks-bot#41). This is the first user-visible part of the health
+check: the command appears in every server, and it only reads. Checking the
+server's slash commands against the bot's comes
+in a separate release.
+
+### Added
+
+- **`/bot-health check [system] [deep]`** (Administrator, or the bot owner):
+  `system` picks Core (settings, staff roles, permissions), one `/bot-setup`
+  system that has checks, XP, the starboard or onboarding (the bait channel's
+  checks come later; a check of all systems lists it as not checked yet). It
+  runs the read-only health check and replies ephemerally with a summary (bot
+  version, check time, one line per system: ✅ no problems, ⚠️ n found, ❌ n
+  found with something broken, ➖ not set up). A select opens each system's
+  findings, 10 per page with Previous/Next, each explained in plain language
+  and ending with a step the admin can take (a real command, the web dashboard,
+  a permission to grant) or saying no action is needed, deleted objects shown as
+  raw IDs and existing ones as mentions, and every page kept inside Discord's
+  embed limits. Nothing is changed: each finding's repair class is only in the
+  export. Deep-mode lookups skipped by the
+  fixed per-run caps are listed by what they cover. **Export JSON** attaches the
+  full report with IDs, finding codes and numbers only (names, titles and other
+  text from the server's settings are left out) for support. The buttons stop
+  after 5 minutes.
+- It runs on a server without a BotConfig row (like `/bot-setup` and
+  `/bot-reset`), is never hidden by module gating, and is audit-logged. The
+  dashboard's command browser lists it under Setup with them.
+- **Rate limits** per server: one check a minute, one deep check every
+  10 minutes. The bot owner is not limited. A check that fails doesn't use up
+  the slot, so it can be run again right away.
+- **Owner-only `guild-id` option**: the bot owner can check another server the
+  bot is in, by ID; anyone else who passes it gets an error.
+
+### Changed
+
+- The dispatcher's no-BotConfig commands are a small route table
+  (`NO_CONFIG_ROUTES`) instead of an if/else chain.
+- Core finding texts end with a step: deleted, duplicate or old-format staff
+  roles, an unsupported server language and an unknown setup-dashboard system
+  are inert and say no action is needed; an invalid staff role names
+  `/role add staff` / `/role add admin`; a permission grant with an unknown
+  feature or level, or for a deleted role, says to remove it from the
+  dashboard's Permissions page.
+
+## [3.16.25] - 2026-10-06
+
+Health checks for the community features: announcements, XP, the starboard and
+onboarding (NindroidA/cogworks-bot#41). Internal only: the checks plug into the
+health-check engine from 3.16.21, and nothing a server sees changes until the
+`/bot-health` command ships. Events, analytics and XP imports follow in a later
+release.
+
+### Added — community feature health checks (internal, no user-visible command yet)
+
+- **Announcements**: the default channel is unset, not a text or announcement
+  channel (a thread included), or missing the bot's permissions; a default
+  channel that isn't cached could be an archived thread, so it's only reported
+  as deleted when deep mode's one REST lookup gets Unknown Channel (a channel
+  deleted while the bot was offline); the ping role is deleted, or can't be pinged (not mentionable
+  and the bot lacks Mention Everyone; when the role is @everyone, which
+  `/bot-setup` saves by default and which has no mentionable toggle, the
+  finding says it can't ping everyone and points to picking a real role);
+  built-in templates added after the server was set up are missing; a
+  template has a color the renderer can't parse or exceeds Discord's embed
+  limits, so it can't be sent.
+- **XP** (only while enabled): the level-up channel is deleted, can't hold
+  messages or is missing the bot's permissions (the bot grants reward roles
+  only after posting the level-up message, so the text says rewards are
+  skipped too); deleted ignored channels,
+  ignored roles and multiplier channels; multipliers of 0 or less; a minimum
+  XP per message above the maximum; reward roles that were deleted, are managed
+  or @everyone, or sit above the bot's highest role; Manage Roles missing; more
+  than one reward per level; more than 25 rewards.
+- **Starboard** (only while enabled): the channel is unset, deleted, can't hold
+  messages or is missing View Channel, Send Messages or Embed Links, or the
+  emoji can't match any reaction (all of these stop the starboard); Read
+  Message History missing (existing posts don't update their counts); a
+  threshold below 1; deleted ignored channels. Any unicode emoji passes,
+  including flags, skin tones, keycaps and ZWJ sequences.
+- **Onboarding** (only while enabled): no steps; a welcome message that,
+  with the server name and a member's display name filled in, is longer than
+  the 4,096 characters a Discord embed allows (the welcome DM fails and
+  onboarding never starts: for every member, or only for members with long
+  names); the completion role or a
+  role-select option is deleted, managed or @everyone, or above the bot; Manage
+  Roles missing; steps with a repeated id, an unknown type, an id too long for
+  the custom ids its type builds (`continue_` for message, channel-suggest and
+  custom-question steps, `accept_` for rules-accept, `confirmrole_` for
+  role-select steps with options; steps that send no buttons aren't checked),
+  more than 25 role options or the same role twice. A step that can't be sent
+  is rated as blocking when it's required.
+- New health systems `xp`, `starboard` and `onboarding` (features set up by
+  their own commands rather than `/bot-setup`), shared reference rules in
+  `src/utils/health/checks/featureRefs.ts` (a channel the bot posts in, a role
+  it grants using the reaction-role menu rules, lists of ids to prune), and an
+  English string for every new finding code. Each ends with a step the admin
+  can take (a real command such as `/starboard setup` or
+  `/xp-setup config setting:Level-Up Channel value:none`, the web dashboard for
+  templates and onboarding steps, or a permission to grant) or says no action
+  is needed (deleted ignored channels and roles, multiplier channels, reward
+  roles, and built-in templates added later).
+
+## [3.16.24] - 2026-10-06
+
+Rules, reaction-role and memory checks for the upcoming `/bot-health` command
+(NindroidA/cogworks-bot#41). Internal only: the command isn't registered yet,
+so nothing a server sees changes in this release. The bait channel checks
+planned for this step come in a separate release to keep this one reviewable.
+
+### Added — rules, reaction-role and memory health checks (internal, no user-visible command yet)
+
+- **Rules**: the rules channel (deleted, a channel without a text chat, or the
+  bot can't see reactions there; the text chat of a voice or stage channel,
+  which the dashboard offers, counts as working; missing Send Messages or Add
+  Reactions is only degraded, and the text says they're needed to post the
+  message again, which re-running setup does after deleting the current one),
+  the rules message (deep mode
+  only, and still looked up when only Add Reactions or Send Messages is
+  missing), the role it gives (deleted, @everyone, managed by an integration, or
+  at/above the bot's highest role), Manage Roles, and an emoji a reaction can
+  never match (plain text, a bare digit, `#` or `*`, or a custom emoji saved as
+  `name:id`, which the reaction handler doesn't compare).
+- **Reaction roles**: each menu's channel (Manage Messages too in unique mode),
+  message (deep mode only, also when only Manage Messages is missing), unknown
+  mode, no options or more than Discord's 20 reactions per message, and Manage
+  Roles; each option's role (same rules as `validateRoleForMenu`, returned as
+  codes) and emoji, including two options on the same emoji. Custom emoji
+  compare by id through the reaction lookup's own key (`optionEmojiKey` in
+  `utils/reactionRole/optionEmoji.ts`), so `<:x:id>`, `<a:x:id>`, `x:id` and the
+  bare id (which the dashboard accepts) are one emoji, and animated emoji aren't
+  flagged. Options have no `guildId` column,
+  so an option whose menu row is gone can't be tied to a guild and isn't
+  checked.
+- **Memory**: each memory forum (deleted, not a forum, missing permissions, set
+  up twice: the text names both entries, says which one commands in its posts
+  use, and warns that removing one also deletes its memories, tags and welcome
+  post) and its welcome post, tags whose memory channel is gone, whose forum
+  tag is missing or whose type isn't category or status, stale copies of a tag
+  left by earlier setup re-runs (re-running setup keeps the linked copy and
+  leaves them), and memories whose memory channel is
+  gone or whose post was deleted. Archived posts aren't cached, so a deleted
+  post is only reported in deep mode, through the REST budget: at most 20 posts
+  per run (the rest are listed as not checked), and none in a forum the bot
+  can't see. The welcome post is still looked up when the bot can see the forum
+  but can't post in it.
+- **Shared reference helpers** (`src/utils/health/checks/refHelpers.ts`): a
+  channel's type and the bot's permissions in it in one lookup, role
+  assignability, and deep-mode message and thread lookups that only report
+  "missing" on proof (Unknown Message / Unknown Channel).
+- English strings for every new finding code in `src/lang/en/health.json`. Each
+  ends with a step the admin can take (a real command such as
+  `/reactionrole edit mode:normal`, `/bot-setup` for a memory tag missing from its
+  forum, or "Grant the bot Manage Roles") or says no action is needed (memory
+  tags and memories whose channel is gone, deleted memory posts).
+
+### Changed — health-check engine REST budget (internal)
+
+- Checks whose deep-mode lookups can only find cosmetic problems (memory posts
+  and welcome posts) run after the others, so the shared 60-call REST budget
+  goes to the rules and reaction-role message lookups first. Report order is
+  unchanged.
+- A lookup label can have its own call cap, and a label skipped over budget is
+  listed once in `notChecked` instead of once per skipped call.
+
+## [3.16.23] - 2026-10-06
+
+Ticket and application checks for the health-check engine (NindroidA/cogworks-bot#41,
+stacked on the engine from 3.16.21). Internal only: `/bot-health` isn't registered
+yet, so nothing a server sees changes in this release.
+
+### Added — ticket and application health checks (internal, no user-visible command yet)
+
+- **Panels** (tickets and applications): no panel channel at all (the channel delete
+  event blanks it and keeps the config row, and a setup that only picked a category
+  never set it), so members can't open anything; the panel channel is gone or isn't a
+  text channel; the panel isn't posted (a blank message id, which the delete event leaves
+  behind, reported in every mode; in deep mode also a stored message id that no longer
+  exists, through the budgeted REST fetcher), which also blocks members; the bot lacks View Channel / Send Messages
+  in the panel channel (only needed to post the panel again, so with a panel posted
+  it's a cosmetic note; no Embed Links, since neither panel sends an embed) or, for
+  applications, View Channel / Read Message History (the posted panel isn't updated
+  when positions change, degraded); the category for new channels is
+  unset, gone, not a category, missing Manage Channels / Manage Roles, or at Discord's
+  50-channel limit; no archive forum (or one the delete event blanked), so nothing can
+  be closed.
+- **Archive forums**: gone, not a forum, missing the permissions closes need, or at
+  Discord's 20-tag limit while an active ticket type or position (or an
+  Accepted / Rejected outcome) still has no tag. Missing Manage Channels is reported on
+  its own as degraded: closes still work, but new tags can't be created.
+- **Ticket types and positions**: more than 25 active, no active ticket type while a
+  panel is posted (nobody can open a ticket), more than one default type, a non-hex
+  type color, a type name that makes the form title longer than Discord's 45
+  characters, an emoji Discord won't accept, and form questions over Discord's limits
+  (missing or repeated ids, labels over 45, placeholders over 100, invalid length
+  limits, more than 5 questions). Ratings follow what the bot does: a type menu that
+  can't be sent (over 25 types or a rejected emoji) falls back to the 5 built-in ticket
+  types, and a ticket form shows only its first 5 questions, so those are degraded
+  rather than broken; positions have neither fallback. No open position is not a
+  finding: the panel says none are available (recruiting closed). In deep mode a custom
+  emoji is looked up on the server, on the other servers the bot is in (cache) and
+  among the bot's own emojis; one found nowhere was probably deleted, and is a cosmetic
+  note with a manual fix (no repair removes it). Problems on an inactive type or
+  position are cosmetic.
+- **Leftover rows**: user restrictions for a ticket type that no longer exists
+  (removing one needs confirmation: it keeps its reason and applies again if the type
+  id is re-added), open tickets and applications whose channel was deleted, and
+  tickets stuck in `created` without a channel for more than 10 minutes (a failed
+  creation). These can be closed from the web dashboard, which works without a channel.
+- The health loader reads only open `Ticket` and `Application` rows, so closed
+  history never loads.
+
+## [3.16.22] - 2026-10-06
+
+`/import` now writes the XP it reports, plus a set of smaller core fixes:
+rules setup, automatic bot status, the command audit log, the RELEASE check
+for command registration and the guild isolation script
+(NindroidA/cogworks-bot#41).
+
+### Fixed
+
+- **`/import mee6` and `/import csv` write XP.** Both parsed the records and
+  reported "Import complete! Imported: N" without writing a single XPUser row,
+  then blocked a retry for an hour. Records are now upserted into the guild's
+  XP table in one transaction, in chunks of 500. The level is recomputed from
+  XP with the bot's own curve (the source's level column is ignored). Without
+  `overwrite`, members who already have XP keep it and count as skipped; with
+  it, their XP, level and message count are replaced (voice minutes stay).
+  A database error rolls the whole import back and reports a failure.
+- **A failed MEE6 page fails the whole import.** A network or JSON error on
+  any page used to keep the pages fetched so far; now nothing is written, as
+  with a 403, 429 or 5xx response.
+- **Only an import that wrote rows starts the 1-hour cooldown.** An import
+  that wrote nothing (every member already had XP) is logged as `no_changes`
+  (➖ in `/import history`), a dry run as `dry_run` (🔍) and a failed write as
+  `failed`; none of them blocks the real import. A dry run also counts the
+  members it would skip, and dry runs are limited to one per server every 2
+  minutes so a MEE6 dry run can't hammer its API.
+- **`/import cancel` stops the import, including a write in progress.** The
+  writer checks before every chunk and before committing, so a cancel rolls
+  the whole write back and the log stays `cancelled`. The server's import
+  slot stays taken until the import has actually stopped.
+- **Imports in two servers at once can't mix their data.** The CSV text and
+  the parsed records travelled through fields on importers shared by every
+  server; they now travel with each call. A second import in the same server
+  is refused before the first one starts.
+- **`/rules-setup setup` no longer deletes the old rules message first.** It posts
+  and reacts on the new message and saves the config, then deletes the old
+  one. If the bot can't post or react (missing permission, an emoji from
+  another server), the new message is removed and the old message keeps
+  granting the role.
+- **An expired manual `/status set` now clears itself.** The health loop only
+  reset the status on a degraded → healthy change, so a 24-hour override
+  stayed until a restart. Every healthy check now reverts an expired override
+  to operational, resolves its incident and posts the resolution.
+- **A database outage now shows as "major outage".** That status is set when
+  the database is unreachable, but setting it read and saved the status row
+  first, so it always failed. The presence now changes without the database;
+  nothing is saved until it is back, and the presence recovers when it is.
+- **The command audit log only records commands that ran.** The "not
+  configured" reply is no longer logged. `/bot-reset` and `/data-export` write
+  their own row once the reset reaches the purge (or fails after deleting
+  something, marked `complete: false`) or the export is delivered, so a
+  cancelled, timed-out or rate-limited run no longer looks like a reset or an
+  export.
+- **`RELEASE=Dev` (any case or padding) registers commands with the dev bot.**
+  The shared REST client compared `RELEASE === 'dev'` strictly while the rest
+  of the bot normalizes it, so the dev bot could push its command set to the
+  production application.
+
+### Changed
+
+- **`scripts/verifyGuildIsolation.ts` rewritten; run it with
+  `bun run verify:isolation`.** It checked 6 tables, its cross-guild check
+  always passed and it exited 0 on failure. It now reads every guild-scoped
+  table (44) from the entity metadata, flags rows with a missing or malformed
+  guildId and memory items or tags whose memory config is missing or belongs
+  to another guild, uses a connection that never synchronizes or migrates,
+  and exits 1 on any problem.
 
 ## [3.16.21] - 2026-10-06
 

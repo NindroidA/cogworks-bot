@@ -18,6 +18,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { Client } from 'discord.js';
 import { version } from '../../../package.json';
+import { getBindHost } from '../api/bindHost';
 import { enhancedLogger, LogCategory } from './enhancedLogger';
 import { healthMonitor } from './healthMonitor';
 import { memoryWatchdog } from './memoryWatchdog';
@@ -128,10 +129,11 @@ class HealthServer {
       this.handleRequest(req, res);
     });
 
-    this.server.listen(port, '0.0.0.0', () => {
-      enhancedLogger.info(`Health server listening on 0.0.0.0:${port}`, LogCategory.SYSTEM, {
+    const host = getBindHost();
+    this.server.listen(port, host, () => {
+      enhancedLogger.info(`Health server listening on ${host}:${port}`, LogCategory.SYSTEM, {
         port,
-        host: '0.0.0.0',
+        host,
         endpoints: ['/health', '/health/ready', '/health/live'],
       });
     });

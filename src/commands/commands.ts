@@ -35,6 +35,7 @@ import {
 import { archiveCleanupHandler } from './handlers/archive/cleanup';
 import { automodHandler } from './handlers/automod';
 import { baitChannelHandler } from './handlers/baitChannel';
+import { botHealthHandler } from './handlers/botHealth';
 import { botResetHandler } from './handlers/botReset';
 import { botSetupHandler } from './handlers/botSetup/index';
 import { coffeeHandler } from './handlers/coffee';
@@ -179,6 +180,13 @@ const SUBCOMMAND_ROUTES: Record<string, Record<string, InteractionHandler>> = {
   },
 };
 
+/** Commands that run without a BotConfig row: setup, reset, and the health check (it must work on a half-set-up server). */
+const NO_CONFIG_ROUTES: Record<string, FullHandler> = {
+  'bot-setup': botSetupHandler,
+  'bot-reset': botResetHandler,
+  'bot-health': botHealthHandler,
+};
+
 const botConfigRepo = lazyRepo(BotConfig);
 
 // ---------------------------------------------------------------------------
@@ -218,11 +226,11 @@ export const handleSlashCommand = async (client: Client, interaction: ChatInputC
   }
 
   try {
-    // bot-setup and bot-reset are allowed without prior config
-    if (commandName === 'bot-setup') {
-      await botSetupHandler(client, interaction);
-    } else if (commandName === 'bot-reset') {
-      await botResetHandler(client, interaction);
+    let reachedHandler = true;
+    // bot-setup, bot-reset and bot-health run without prior config
+    const noConfigHandler = NO_CONFIG_ROUTES[commandName];
+    if (noConfigHandler) {
+      await noConfigHandler(client, interaction);
     } else {
       const botConfig = await botConfigRepo.findOneBy({ guildId });
       if (!botConfig) {
@@ -230,12 +238,14 @@ export const handleSlashCommand = async (client: Client, interaction: ChatInputC
         // applies. getGuildLang would only re-run this lookup to get there.
         enhancedLogger.warn(lang.botConfig.notFound, LogCategory.COMMAND_EXECUTION);
         await replyEphemeralError(interaction, lang.botConfig.notFound);
+        reachedHandler = false;
       } else {
         await dispatchCommand(client, interaction, commandName);
       }
     }
 
-    afterDispatch(interaction, commandName, guildId);
+    // A "not configured" reply ran nothing, so it is neither audited nor refreshed.
+    if (reachedHandler) afterDispatch(interaction, commandName, guildId);
 
     const executionTime = Date.now() - startTime;
     healthMonitor.recordCommand(commandName, executionTime, false);
@@ -454,9 +464,14 @@ async function dispatchApplicationCommand(
 // Audit logging
 // ---------------------------------------------------------------------------
 
+/**
+ * Audited whenever the handler returns. bot-reset and data-export are not
+ * listed: they write their own row once the reset or export actually happens,
+ * so a cancelled, timed-out or rate-limited run leaves no "command:bot-reset".
+ */
 const AUDITABLE_COMMANDS = new Set([
   'bot-setup',
-  'bot-reset',
+  'bot-health',
   'ticket-setup',
   'application-setup',
   'announcement-setup',
@@ -466,7 +481,6 @@ const AUDITABLE_COMMANDS = new Set([
   'baitchannel',
   'reactionrole',
   'starboard',
-  'data-export',
   'import',
   'xp-setup',
   'onboarding',
