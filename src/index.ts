@@ -65,15 +65,14 @@ import { initContentBurstDetector, stopContentBurstDetector } from './utils/bait
 import { JoinVelocityTracker } from './utils/baitChannel/joinVelocityTracker';
 import { initRaidModeManager } from './utils/baitChannel/raidModeManager';
 import { initRetryQueue, stopRetryQueue } from './utils/baitChannel/retryQueue';
-import { checkAndSendWeeklySummaries } from './utils/baitChannel/weeklySummary';
 import { startLogCleanup, stopLogCleanup } from './utils/database/logCleanup';
 import { baitChannelIdsBackfill } from './utils/database/migrations/baitChannelIdsBackfill';
 import { ErrorSeverity, setupGlobalErrorHandlers } from './utils/errorHandler';
 import { errorReporter } from './utils/monitoring/errorReporter';
 import { setDescription, setStatus } from './utils/profileFunctions';
 import { registerGuildCommands } from './utils/setup/commandGating';
+import { runInitStep, startPeriodicJobs, stopPeriodicJobs } from './utils/startup';
 import { StatusManager } from './utils/status/statusManager';
-import { checkAndAutoCloseTickets } from './utils/ticket/autoClose';
 
 dotenv.config({ quiet: true }); // dotenv 17 logs an injection summary by default; keep prod logs clean
 
@@ -191,12 +190,15 @@ import { getRest } from './utils/restClient';
 if (!process.env.API_URL && !IS_DEV) {
   enhancedLogger.warn('API_URL not set in production — guild webhooks will be disabled', LogCategory.SYSTEM);
 }
-const apiConnector = new APIConnector(process.env.API_URL || (IS_DEV ? 'http://localhost:3001' : ''), TOKEN);
+// Authenticates with COGWORKS_API_TOKEN; falls back (deprecated, warns once) to the bot token.
+const apiConnector = new APIConnector(
+  process.env.API_URL || (IS_DEV ? 'http://localhost:3001' : ''),
+  process.env.COGWORKS_API_TOKEN,
+  TOKEN,
+);
 
-// Interval refs (set in clientReady, cleared on shutdown)
+// Interval ref (set in clientReady, cleared on shutdown); the periodic checkers live in utils/startup.ts
 let healthMonitorInterval: ReturnType<typeof setInterval> | null = null;
-let weeklySummaryInterval: ReturnType<typeof setInterval> | null = null;
-let autoCloseInterval: ReturnType<typeof setInterval> | null = null;
 
 // listen for interactions
 client.on('interactionCreate', async interaction => {
@@ -292,156 +294,165 @@ client.once('clientReady', async () => {
   console.log(`${E.id} ${tl.clientIdLabel}${CLIENT}`);
   console.log(tl.envSeparator);
 
-  // initialize bait channel manager
-  const baitChannelManager = new BaitChannelManager(
-    client,
-    AppDataSource.getRepository(BaitChannelConfig),
-    AppDataSource.getRepository(BaitChannelLog),
-    AppDataSource.getRepository(UserActivity),
-    AppDataSource.getRepository(PendingAction),
-    AppDataSource.getRepository(BaitKeyword),
-    AppDataSource.getRepository(IdempotencyKey),
-  );
-  await baitChannelManager.initialize();
-  baitChannelManager.startActivityFlush();
+  // Each step below is isolated: a failure is logged and the rest still run,
+  // so one DB hiccup can't leave the internal API, timers or watchdog off.
+  // Fast local steps first; slow or external ones (raid restore, API
+  // registration, command registration) last.
+
+  // Bait channel manager + join velocity tracker, attached to the client as
+  // soon as they're ready — messageCreate skips bait tracking until they are
+  // (the ticket activity update runs either way).
+  await runInitStep('bait channel manager', async () => {
+    const baitChannelManager = new BaitChannelManager(
+      client,
+      AppDataSource.getRepository(BaitChannelConfig),
+      AppDataSource.getRepository(BaitChannelLog),
+      AppDataSource.getRepository(UserActivity),
+      AppDataSource.getRepository(PendingAction),
+      AppDataSource.getRepository(BaitKeyword),
+      AppDataSource.getRepository(IdempotencyKey),
+    );
+    await baitChannelManager.initialize();
+    baitChannelManager.startActivityFlush();
+
+    const joinVelocityTracker = new JoinVelocityTracker();
+    joinVelocityTracker.startCleanupInterval();
+    baitChannelManager.setJoinVelocityTracker(joinVelocityTracker);
+
+    extClient.baitChannelManager = baitChannelManager;
+    extClient.joinVelocityTracker = joinVelocityTracker;
+    console.log(`${E.target} ${tl.baitChannelInit}`);
+    enhancedLogger.info('Bait channel manager initialized', LogCategory.SYSTEM);
+  });
 
   // retry queue picks up actions that returned 'queued' from the executor
   // (Discord 429/5xx, network) and orphaned grace rows after a bot restart
-  const retryQueue = initRetryQueue({
-    client,
-    pendingActionRepo: AppDataSource.getRepository(PendingAction),
-    idempotencyRepo: AppDataSource.getRepository(IdempotencyKey),
-  });
-  retryQueue.start();
+  await runInitStep('bait retry queue', () =>
+    initRetryQueue({
+      client,
+      pendingActionRepo: AppDataSource.getRepository(PendingAction),
+      idempotencyRepo: AppDataSource.getRepository(IdempotencyKey),
+    }).start(),
+  );
 
-  // raid mode manager — guild-wide lockdown when bait actions stack rapidly
+  // raid mode manager — guild-wide lockdown when bait actions stack rapidly.
+  // Created now; its boot-time lockdown restore runs near the end.
   const raidMgr = initRaidModeManager({
     configRepo: AppDataSource.getRepository(BaitChannelConfig),
     logRepo: AppDataSource.getRepository(BaitChannelLog),
   });
   raidMgr.setGuildFetcher(async (id: string) => client.guilds.fetch(id).catch(() => null));
-  // Boot-time recovery for raid lockdowns the bot was running before
-  // shutdown. Re-applies permission overwrites — idempotent on the
-  // Discord side, so doubly-locked channels are a no-op.
-  await raidMgr.restoreActiveLockdowns();
 
   // content-burst detector — same content posted in N channels in M seconds
-  initContentBurstDetector();
+  await runInitStep('content burst detector', () => initContentBurstDetector());
 
-  // initialize join velocity tracker for burst detection
-  const joinVelocityTracker = new JoinVelocityTracker();
-  joinVelocityTracker.startCleanupInterval();
-  baitChannelManager.setJoinVelocityTracker(joinVelocityTracker);
-
-  // attach to client for access in events and commands
-  (client as ExtendedClient).baitChannelManager = baitChannelManager;
-  (client as ExtendedClient).joinVelocityTracker = joinVelocityTracker;
-  console.log(`${E.target} ${tl.baitChannelInit}`);
-  enhancedLogger.info('Bait channel manager initialized', LogCategory.SYSTEM);
-
-  // initialize status manager
+  // status manager (constructed synchronously, so the internal API's status
+  // routes have it even if the initial presence update fails)
   const statusManager = new StatusManager(client, IS_DEV);
-  (client as ExtendedClient).statusManager = statusManager;
-  await statusManager.updatePresence(); // Set initial presence from DB
+  extClient.statusManager = statusManager;
   healthMonitor.setStatusManager(statusManager);
+  await runInitStep('initial presence', () => statusManager.updatePresence()); // Set initial presence from DB
   enhancedLogger.info('Status manager initialized', LogCategory.SYSTEM);
 
   // set bot profile customizations (with dev mode indicator)
-  setDescription(client, IS_DEV);
-  setStatus(client, IS_DEV);
-
-  // connect to API server (skip in dev mode)
-  if (!IS_DEV) {
-    await apiConnector.registerBot(client);
-
-    if (apiConnector.isConnectedToAPI()) {
-      console.log(`${E.ok} ${tl.apiConnected}`);
-      enhancedLogger.info('Connected to API server successfully', LogCategory.API);
-      apiConnector.startStatsSync(client);
-    } else {
-      console.warn(`${E.warn} ${tl.apiContinueWarning}`);
-      enhancedLogger.warn('API registration failed, continuing without it', LogCategory.API);
-    }
-  } else {
-    console.log(`${E.wrench} ${tl.apiSkipDev}`);
-    enhancedLogger.info(tl.apiSkipDev, LogCategory.SYSTEM);
-  }
+  await runInitStep('bot profile', () => {
+    setDescription(client, IS_DEV);
+    setStatus(client, IS_DEV);
+  });
 
   // Initialize internal API server (for dashboard integration)
   if (process.env.COGWORKS_INTERNAL_API_TOKEN) {
-    internalApiServer.initialize(client);
+    await runInitStep('internal API server', async () => {
+      internalApiServer.initialize(client);
 
-    // Register status handlers (needs statusManager which is created above)
-    const { registerStatusHandlers } = await import('./utils/api/handlers/statusHandlers');
-    internalApiServer.registerLateRoutes(routes => registerStatusHandlers(client, statusManager, routes));
+      const { registerStatusHandlers } = await import('./utils/api/handlers/statusHandlers');
+      internalApiServer.registerLateRoutes(routes => registerStatusHandlers(client, statusManager, routes));
 
-    const INTERNAL_API_PORT = Number.parseInt(process.env.BOT_INTERNAL_PORT || '3002', 10);
-    internalApiServer.start(INTERNAL_API_PORT);
+      const INTERNAL_API_PORT = Number.parseInt(process.env.BOT_INTERNAL_PORT || '3002', 10);
+      internalApiServer.start(INTERNAL_API_PORT);
+    });
   }
 
-  // start periodic health status logging (every 5 minutes)
-  healthMonitorInterval = setInterval(async () => {
-    await healthMonitor.logHealthStatus();
-  }, INTERVALS.HEALTH_STATUS);
+  await runInitStep('periodic jobs', () => {
+    // start periodic health status logging (every 5 minutes)
+    healthMonitorInterval = setInterval(async () => {
+      await healthMonitor.logHealthStatus();
+    }, INTERVALS.HEALTH_STATUS);
 
-  // start daily log cleanup (bait channel logs: 90d, announcement logs: 365d)
-  startLogCleanup();
+    // start daily log cleanup (bait channel logs: 90d, announcement logs: 365d)
+    startLogCleanup();
 
-  // start per-minute cleanup loops for interactive field editors. Previously
-  // these ticked at module-import time; now they start here so importing the
-  // modules doesn't kick off timers in tests/tooling.
-  startFieldDraftCleanup();
-  startFieldSessionCleanup();
+    // start per-minute cleanup loops for interactive field editors. Previously
+    // these ticked at module-import time; now they start here so importing the
+    // modules doesn't kick off timers in tests/tooling.
+    startFieldDraftCleanup();
+    startFieldSessionCleanup();
 
-  // rateLimiter's internal cleanup timer is deferred here too — v3.1.x
-  // init-coupling cleanup.
-  rateLimiter.startCleanup();
+    // rateLimiter's internal cleanup timer is deferred here too — v3.1.x
+    // init-coupling cleanup.
+    rateLimiter.startCleanup();
+
+    // weekly bait summary, ticket auto-close, SLA breach alerts, event reminders
+    startPeriodicJobs(client);
+
+    // Start daily analytics snapshot job (midnight UTC)
+    startSnapshotJob(client);
+    enhancedLogger.info('Analytics snapshot job scheduled', LogCategory.SYSTEM);
+    enhancedLogger.info('Periodic health monitoring started (5 minute intervals)', LogCategory.SYSTEM);
+  });
 
   // Initialize memory watchdog — register tracked maps and start
-  memoryWatchdog.setClient(client);
-  memoryWatchdog.trackMap('rateLimiter', () => rateLimiter.getSize());
-  const baitMaps = (client as ExtendedClient).baitChannelManager.getTrackedMaps();
-  for (const [name, _size] of Object.entries(baitMaps)) {
-    memoryWatchdog.trackMap(`bait.${name}`, () => (client as ExtendedClient).baitChannelManager.getTrackedMaps()[name]);
+  await runInitStep('memory watchdog', () => {
+    memoryWatchdog.setClient(client);
+    memoryWatchdog.trackMap('rateLimiter', () => rateLimiter.getSize());
+    const baitMaps = extClient.baitChannelManager?.getTrackedMaps() ?? {};
+    for (const name of Object.keys(baitMaps)) {
+      memoryWatchdog.trackMap(`bait.${name}`, () => extClient.baitChannelManager.getTrackedMaps()[name]);
+    }
+    memoryWatchdog.start();
+    enhancedLogger.info('Memory watchdog started', LogCategory.SYSTEM);
+  });
+
+  // connect to API server (skip in dev mode, and when API_URL is unset, which
+  // was already warned about at boot). Not awaited: registration keeps
+  // retrying in the background until ninsys-api answers.
+  if (IS_DEV) {
+    console.log(`${E.wrench} ${tl.apiSkipDev}`);
+    enhancedLogger.info(tl.apiSkipDev, LogCategory.SYSTEM);
+  } else if (process.env.API_URL) {
+    void apiConnector.connect(client).then(connected => {
+      if (connected) {
+        console.log(`${E.ok} ${tl.apiConnected}`);
+        enhancedLogger.info('Connected to API server successfully', LogCategory.API);
+      } else {
+        console.warn(`${E.warn} ${tl.apiContinueWarning}`);
+        enhancedLogger.warn('API registration failed, continuing and retrying in the background', LogCategory.API);
+      }
+    });
   }
-  memoryWatchdog.start();
-  enhancedLogger.info('Memory watchdog started', LogCategory.SYSTEM);
 
-  // Start weekly summary check (hourly, fires Sunday 00:xx UTC)
-  weeklySummaryInterval = setInterval(() => {
-    checkAndSendWeeklySummaries(client).catch(error => {
-      enhancedLogger.error('Weekly summary check failed', error as Error, LogCategory.ERROR);
-    });
-  }, INTERVALS.WEEKLY_SUMMARY);
-
-  // Start auto-close ticket check (hourly)
-  autoCloseInterval = setInterval(() => {
-    checkAndAutoCloseTickets(client).catch(error => {
-      enhancedLogger.error('Auto-close ticket check failed', error as Error, LogCategory.ERROR);
-    });
-  }, INTERVALS.AUTO_CLOSE_CHECK);
-
-  // Start daily analytics snapshot job (midnight UTC)
-  startSnapshotJob(client);
-  enhancedLogger.info('Analytics snapshot job scheduled', LogCategory.SYSTEM);
-
-  enhancedLogger.info('Periodic health monitoring started (5 minute intervals)', LogCategory.SYSTEM);
+  // Boot-time recovery for raid lockdowns the bot was running before
+  // shutdown. Re-applies permission overwrites — idempotent on the
+  // Discord side, so doubly-locked channels are a no-op.
+  await runInitStep('raid lockdown restore', () => raidMgr.restoreActiveLockdowns());
 
   // Register commands for guilds the bot is in but have no BotConfig
   // (e.g., after /bot-reset or if the bot was added while offline)
-  const botConfigRepo = AppDataSource.getRepository(BotConfig);
-  const configuredGuildIds = new Set((await botConfigRepo.find()).map(c => c.guildId));
-  const unconfiguredGuilds = client.guilds.cache.filter(g => !configuredGuildIds.has(g.id));
-  if (unconfiguredGuilds.size > 0) {
-    const results = await Promise.allSettled(
-      // Filtered per guild — with no config yet, only always-visible commands register.
-      unconfiguredGuilds.map(guild => registerGuildCommands(guild.id)),
-    );
-    const registered = results.filter(r => r.status === 'fulfilled').length;
-    if (registered > 0) {
-      enhancedLogger.info(`Registered commands for ${registered} unconfigured guild(s)`, LogCategory.SYSTEM);
+  await runInitStep('unconfigured guild commands', async () => {
+    const botConfigRepo = AppDataSource.getRepository(BotConfig);
+    const configuredGuildIds = new Set((await botConfigRepo.find()).map(c => c.guildId));
+    const unconfiguredGuilds = client.guilds.cache.filter(g => !configuredGuildIds.has(g.id));
+    if (unconfiguredGuilds.size > 0) {
+      const results = await Promise.allSettled(
+        // Filtered per guild — with no config yet, only always-visible commands register.
+        unconfiguredGuilds.map(guild => registerGuildCommands(guild.id)),
+      );
+      const registered = results.filter(r => r.status === 'fulfilled').length;
+      if (registered > 0) {
+        enhancedLogger.info(`Registered commands for ${registered} unconfigured guild(s)`, LogCategory.SYSTEM);
+      }
     }
-  }
+  });
 
   // just a lil line for the console
   console.log(tl.line);
@@ -462,12 +473,11 @@ async function gracefulShutdown(signal: string) {
   stopRulesCooldownCleanup();
   stopLogCleanup();
   stopSnapshotJob();
+  stopPeriodicJobs();
   healthMonitor.stopPeriodicChecks();
   rateLimiter.destroy();
   memoryWatchdog.stop();
   if (healthMonitorInterval) clearInterval(healthMonitorInterval);
-  if (weeklySummaryInterval) clearInterval(weeklySummaryInterval);
-  if (autoCloseInterval) clearInterval(autoCloseInterval);
 
   // stop bait channel activity flush and write remaining buffer to DB
   const extClient = client as ExtendedClient;

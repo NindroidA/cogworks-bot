@@ -6,10 +6,12 @@
  * configured breach channel and marks tickets as breached.
  */
 
-import { type Client, EmbedBuilder, type TextChannel } from 'discord.js';
+import { type Client, EmbedBuilder, SnowflakeUtil, type TextChannel } from 'discord.js';
 import { lang } from '../../lang';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
+import { isValidSnowflake } from '../api/helpers';
+import { SCHEDULER_GUARDS } from '../constants';
 import { lazyRepo } from '../database/lazyRepo';
 import { formatLang } from '../index';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
@@ -20,7 +22,7 @@ const tl = lang.ticket.sla;
 
 /**
  * Check all guilds with SLA enabled and process breach alerts.
- * Called by a periodic interval (every hour).
+ * Scheduled every INTERVALS.SLA_CHECK by startPeriodicJobs (utils/startup.ts).
  */
 export async function checkAndAlertSlaBreaches(client: Client): Promise<void> {
   try {
@@ -73,11 +75,16 @@ async function processGuildSla(client: Client, config: TicketConfig): Promise<vo
       const targetMinutes = getSlaTargetForTicket(config, ticket);
       const targetMs = targetMinutes * 60 * 1000;
 
+      // Opened before firstResponseAt was recorded: NULL means "unknown", not "no reply".
+      if (getTicketOpenedAt(ticket) < SCHEDULER_GUARDS.SLA_TRACKED_SINCE_MS) continue;
+
       // Use the ticket's creation time approximated by first status history entry or lastActivityAt
       const createdTime = getTicketCreationTime(ticket);
       const elapsed = now - createdTime;
 
       if (elapsed < targetMs) continue;
+      // Already flagged and still no channel to alert: nothing new to write or log.
+      if (ticket.slaBreached && !breachChannel) continue;
 
       // SLA breached
       const elapsedMinutes = Math.floor(elapsed / 60_000);
@@ -166,4 +173,17 @@ export function getTicketCreationTime(ticket: Ticket): number {
   }
   // Fallback to lastActivityAt (which is set on creation)
   return new Date(ticket.lastActivityAt).getTime();
+}
+
+/**
+ * When the ticket was opened. Its channel is created with it, so the channel
+ * ID's snowflake timestamp is exact; lastActivityAt moves with every message
+ * and statusHistory starts at the first status change. Falls back to
+ * getTicketCreationTime when there's no channel.
+ */
+export function getTicketOpenedAt(ticket: Ticket): number {
+  if (ticket.channelId && isValidSnowflake(ticket.channelId)) {
+    return SnowflakeUtil.timestampFrom(ticket.channelId);
+  }
+  return getTicketCreationTime(ticket);
 }
