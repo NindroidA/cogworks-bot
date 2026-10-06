@@ -8,7 +8,13 @@
 
 import type { CacheType, ChatInputCommandInteraction, Client, MessageComponentInteraction } from 'discord.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, EmbedBuilder, MessageFlags } from 'discord.js';
-import { DEFAULT_LOCALE, invalidateGuildLocaleCache, isSupportedLocale, SUPPORTED_LOCALES } from '../../../lang';
+import {
+  DEFAULT_LOCALE,
+  getLocaleLabel,
+  invalidateGuildLocaleCache,
+  isSupportedLocale,
+  SUPPORTED_LOCALES,
+} from '../../../lang';
 import { BotConfig } from '../../../typeorm/entities/BotConfig';
 import { SetupState, type SystemStates } from '../../../typeorm/entities/SetupState';
 import {
@@ -26,14 +32,6 @@ import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { checkboxGroup, labelWrap, radioGroup, rawModal } from '../../../utils/modalComponents';
 import { buildDashboardEmbed, buildSystemSelector, detectSystemStates, mergeStates, SYSTEMS } from './setupDashboard';
 import { runSystemFlow } from './systemFlows';
-
-const LOCALE_LABELS: Record<string, string> = {
-  en: 'English',
-  es: 'Español',
-  'pt-BR': 'Português (Brasil)',
-  fr: 'Français',
-  de: 'Deutsch',
-};
 
 const setupStateRepo = lazyRepo(SetupState);
 const botConfigRepo = lazyRepo(BotConfig);
@@ -359,7 +357,7 @@ async function collectDashboardInteractions(
           radioGroup(
             'setup_locale',
             SUPPORTED_LOCALES.map(code => ({
-              label: LOCALE_LABELS[code] ?? code,
+              label: getLocaleLabel(code),
               value: code,
               default: code === currentLocale,
             })),
@@ -448,9 +446,15 @@ async function collectDashboardInteractions(
   });
 }
 
-function buildDashboardButtons(
+/**
+ * Dashboard action row. The Language button only shows when there is a locale
+ * to choose between, so it stays hidden while English is the only one and
+ * reappears by itself when a translation is registered in `src/lang`.
+ */
+export function buildDashboardButtons(
   states: SystemStates,
   selectedSystems: string[] | null,
+  showLanguage = SUPPORTED_LOCALES.length > 1,
 ): ActionRowBuilder<ButtonBuilder> {
   // Check if all enabled systems are complete
   const enabledSystems = selectedSystems ? SYSTEMS.filter(s => selectedSystems.includes(s.id)) : SYSTEMS;
@@ -467,11 +471,15 @@ function buildDashboardButtons(
       .setLabel('Manage Systems')
       .setStyle(ButtonStyle.Primary)
       .setEmoji('⚙️'),
-    new ButtonBuilder()
-      .setCustomId('setup_language')
-      .setLabel('Language')
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji('🌐'),
+    ...(showLanguage
+      ? [
+          new ButtonBuilder()
+            .setCustomId('setup_language')
+            .setLabel('Language')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('🌐'),
+        ]
+      : []),
     new ButtonBuilder().setCustomId('setup_reset').setLabel('Reset Setup').setStyle(ButtonStyle.Danger).setEmoji('🔄'),
   );
 }

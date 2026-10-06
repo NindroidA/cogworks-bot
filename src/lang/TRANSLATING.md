@@ -1,39 +1,80 @@
 # Translating Cogworks Bot
 
-Cogworks ships with English (`en`) as the reference language. Every other locale
-lives in a sibling directory under [`src/lang/`](.) and can be translated
-independently. Missing keys in any non-English locale **transparently fall back
-to English**, so partial translations are welcome.
+Cogworks ships in English (`en`) only. The locale machinery is still in place,
+so a translation can be added without touching the rest of the code: you add
+**only the strings you have translated**, and every file or key you leave out
+**falls back to English** at runtime. Partial translations are welcome.
+
+(Earlier releases carried `es`, `pt-BR`, `fr` and `de` directories, but they
+were untranslated copies of an old English snapshot, so 3.16.19 removed them.
+Guilds that had picked one of those now read English.)
 
 ## Layout
 
 ```
 src/lang/
-├── en/             ← reference, always complete
-├── es/             ← Spanish
-├── pt-BR/          ← Brazilian Portuguese
-├── fr/             ← French
-├── de/             ← German
-└── index.ts        ← loader + fallback proxy
+├── en/             ← reference, always complete (one JSON file per feature)
+├── <code>/         ← a translation: only the files and keys it translates
+├── index.ts        ← LOCALE_REGISTRY + loader + English fallback Proxy
+└── types.ts        ← the Language shape (derived from the English files)
 ```
 
-Each locale directory mirrors the English one: same filenames (`ticket.json`,
-`application.json`, …), same key structure. The loader at
-[`src/lang/index.ts`](./index.ts) wraps every locale in a Proxy that defers to
-English for any missing key, so you can translate one file at a time.
+A translation file mirrors the English file of the same name (`ticket.json`,
+`general.json`, …) but contains **only the keys you translated**, at the same
+nesting. For example, a Spanish `src/lang/es/ticket.json` that translates two
+strings is just:
 
-## Adding or updating a translation
+```json
+{
+  "created": "Tu ticket fue creado: ",
+  "setup": {
+    "createTicket": "Crear ticket"
+  }
+}
+```
 
-1. **Pick the locale directory** you want to work on (e.g. `src/lang/es/`).
-2. **Open the JSON file** whose strings you want to translate (e.g. `ticket.json`).
-3. **Translate the values** — keep the keys and JSON structure identical to
-   English. Only the string values change.
-4. **Preserve formatting tokens** (see below).
-5. **Test locally** by running the bot with `RELEASE=dev` and setting your test
-   guild's locale via `/bot-setup` → Language.
+Everything else in `ticket.json`, and every file you didn't create, reads from
+English. Don't copy the English files as a starting point: untranslated copies
+stop picking up English fixes and new keys.
 
-You do not need to translate every file or every key. Anything missing falls
-back to English at runtime.
+## Adding a new locale
+
+1. Create `src/lang/<code>/` named after the BCP-47 code (`es`, `pt-BR`,
+   `fr-CA`, `ja`, …) and add the JSON files you've translated, each holding only
+   its translated keys.
+2. In [`src/lang/index.ts`](./index.ts), import those files and add one entry to
+   `LOCALE_REGISTRY`:
+
+   ```ts
+   import generalEs from './es/general.json';
+   import ticketEs from './es/ticket.json';
+
+   const LOCALE_REGISTRY = {
+     en: { label: 'English', modules: englishModules },
+     es: { label: 'Español', modules: { general: generalEs, ticket: ticketEs } },
+   } satisfies Record<string, LocaleDefinition>;
+   ```
+
+   `label` is the native name shown in the picker. The module keys are the
+   English file names without `.json`.
+3. That's the whole registration. `SUPPORTED_LOCALES` is derived from the
+   registry, and the **Language** button on the `/bot-setup` dashboard appears
+   automatically once more than one locale is registered. No database migration is needed:
+   `BotConfig.locale` already stores the code. (See "Wiring and testing" for
+   where translated strings actually show up.)
+
+To translate more strings later, add keys to the existing files or add new
+files and list them in the locale's `modules`.
+
+## Wiring and testing
+
+Translated strings only appear where code reads the guild's language with
+`await getGuildLang(guildId)` instead of the English `lang` export. Today every
+call site uses `lang`, so shipping the first real translation also means
+switching the call sites it covers to `getGuildLang`.
+
+To test, run the bot with `RELEASE=dev`, open `/bot-setup`, click **Language**,
+pick your locale, and exercise the commands you wired up.
 
 ## Formatting tokens & placeholders
 
@@ -48,6 +89,8 @@ tokens exactly as-is; only translate the surrounding prose.
 - Emoji (`🎫`, `⚠️`, …) — leave in place unless a different symbol is more
   idiomatic in your locale.
 - Newlines (`\n`) — preserve; they separate sections in embeds and replies.
+- Arrays (for example `general.presenceMessages`) are replaced as a whole: if
+  you translate one, provide the full list.
 
 ## Tone and voice
 
@@ -61,25 +104,14 @@ tokens exactly as-is; only translate the surrounding prose.
 ## Quality checklist before opening a PR
 
 - [ ] JSON is valid (no trailing commas, matched braces).
-- [ ] Keys match English exactly; only values changed.
+- [ ] Every key exists in the English file at the same path (a misspelled key is
+      silently ignored and the English string shows instead).
+- [ ] The files contain only translated strings, not untranslated English copies.
 - [ ] Placeholders (`{...}`, `<@...>`, `\n`) are preserved.
 - [ ] Strings aren't truncated — Discord embeds render multi-line text fine, but
       some select-menu labels have 100-character limits. Test any string that
       appears in a select menu.
-- [ ] No English left in the files you touched (unless a term is intentionally
-      untranslated, e.g. a proper noun).
-- [ ] Ran `bun run check` and `bun test` locally.
-
-## Adding a brand-new locale
-
-1. Create a new directory under `src/lang/` named after the BCP-47 code
-   (`fr-CA`, `ja`, `zh-Hant`, …).
-2. Copy `src/lang/en/*.json` into it as a starting scaffold.
-3. Add the locale code to the `SUPPORTED_LOCALES` array in
-   [`src/lang/index.ts`](./index.ts).
-4. Add a friendly label for it to `LOCALE_LABELS` in
-   [`src/commands/handlers/botSetup/index.ts`](../commands/handlers/botSetup/index.ts).
-5. Open a PR — the review will cover code + a spot-check of your translations.
+- [ ] Ran `bun run check` and `bun run test` locally.
 
 ## Questions?
 

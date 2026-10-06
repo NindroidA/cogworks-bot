@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.20] - 2026-10-06
+
+Language cleanup: English is the only shipped locale. The Spanish, Portuguese
+(Brazil), French and German options were untranslated copies of an old English
+snapshot (every string matched English, and about 40 newer keys were missing),
+so picking one changed nothing. The locale machinery stays so a real
+translation can be added later as a partial set of files.
+
+### Changed
+
+- **Removed the `es`, `pt-BR`, `fr` and `de` locale directories** (96 JSON
+  files). Guilds that had picked one of them read English, as they effectively
+  did already. No migration: `BotConfig.locale` keeps its value, and unknown
+  codes resolve to English.
+- **The `/bot-setup` Language button is hidden while English is the only
+  locale.** It comes back automatically once a second locale is registered.
+- **Adding a locale is now one `LOCALE_REGISTRY` entry** in `src/lang/index.ts`
+  (label + modules) plus a partial JSON set holding only the translated keys.
+  `SUPPORTED_LOCALES` and the picker labels derive from the registry, and
+  `TRANSLATING.md` describes the partial-file workflow.
+- The "no Bot Config" reply for unconfigured guilds reads the English string
+  directly instead of looking up a locale the guild can't have saved yet.
+
+### Fixed
+
+- A partial locale that omits `ticket.json` or `roles.json` no longer throws
+  while building its language object; the derived `ticketSetup`, `addRole`,
+  `removeRole` and `getRoles` keys fall back to English.
+
+### Removed
+
+- The unused hard-coded `cogdeck` language block.
+
 ## [3.16.19] - 2026-10-06
 
 Dependency security sweep. `bun audit` reported 36 advisories (17 high, 15
