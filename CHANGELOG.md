@@ -64,10 +64,14 @@ Ticket fixes for type management, email import, restrictions and the SLA clock
 
 ### Changed
 
-- Opening the email-import modal counts against a per-user, per-server limit
-  (it was per user across every server).
+- Opening the email-import modal has its own 3-per-hour limit; it is now
+  counted per user in each server too, like the submit's ticket limit since
+  3.16.29 (it was counted across every server the bot is in).
 - `/dev-test sla-backdate-ticket` changes a ticket's last activity, which no
-  longer moves the SLA clock for a ticket with a channel.
+  longer moves the SLA clock for a ticket with a channel; its reply and the
+  dev-suite SLA checklist now say to use a 1-minute target and wait.
+- `/ticket type default` uses the same single transaction as Set as Default.
+
 ## [3.16.30] - 2026-10-06
 
 Feature commands are now visible to every member, so the dashboard's

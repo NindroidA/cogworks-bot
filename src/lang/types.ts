@@ -559,7 +559,6 @@ export interface LangTicket {
       error: string;
       notFound: string;
       noTypes: string;
-      cancelled: string;
     };
     emailImport: {
       cmdDescrp: string;
@@ -600,10 +599,8 @@ export interface LangTicket {
       alreadyRestricted: string;
       notRestricted: string;
       error: string;
-      cancelled: string;
       noRestrictions: string;
       currentRestrictions: string;
-      notYourInteraction: string;
       saved: string;
       footer: string;
     };

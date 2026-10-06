@@ -21,6 +21,7 @@ import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketT
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import {
+  clampText,
   createPrivateChannelPermissions,
   enhancedLogger,
   extractIdFromMention,
@@ -216,17 +217,6 @@ export function buildEmailTicketPermissions(opts: {
   return permissionOverwrites;
 }
 
-/** Cut text to at most `max` UTF-16 units (what discord.js checks) without splitting a surrogate pair. */
-function clampEmbedText(text: string, max: number): string {
-  if (text.length <= max) return text;
-  let out = '';
-  for (const ch of text) {
-    if (out.length + ch.length > max - 1) break;
-    out += ch;
-  }
-  return `${out}…`;
-}
-
 /** Discord limits: field value 1,024 characters, message content 2,000. */
 const FIELD_VALUE_MAX = 1024;
 const MESSAGE_MAX = 2000;
@@ -248,7 +238,7 @@ export function buildEmailTicketEmbed(opts: {
   attachmentUrls: string[];
 }) {
   const embed = new EmbedBuilder()
-    .setTitle(clampEmbedText(`📧 Email Import: ${opts.subject}`, 256))
+    .setTitle(clampText(`📧 Email Import: ${opts.subject}`, 256))
     .setColor(opts.embedColor as `#${string}`)
     .setDescription(opts.body.substring(0, 4096))
     .addFields(
@@ -412,7 +402,11 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
         embeds: [embed],
         components: [buttonRow],
       });
-      for (const content of attachmentMessages) await ticketChannel.send({ content });
+      // Imported text: no pings (a URL can contain @everyone), and no previews
+      // (an unfurl would fetch the sender's pre-signed links).
+      for (const content of attachmentMessages) {
+        await ticketChannel.send({ content, allowedMentions: { parse: [] }, flags: MessageFlags.SuppressEmbeds });
+      }
 
       // Save ticket to database
       const ticketRepo = AppDataSource.getRepository(Ticket);

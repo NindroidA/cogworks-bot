@@ -22,6 +22,9 @@ import {
 import { AppDataSource } from '../../../../src/typeorm';
 import type { CustomTicketType } from '../../../../src/typeorm/entities/ticket/CustomTicketType';
 
+/** No lone surrogate (an emoji cut in half makes Discord reject the payload). */
+const isWellFormed = (text: string) => !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(text);
+
 const GUILD = 'guild-user-restrict';
 const types = Array.from(
   { length: 55 },
@@ -88,6 +91,13 @@ describe('diffRestrictionSubmit', () => {
 test('restrictionModalTitle stays within the 45-character modal title limit', () => {
   expect(restrictionModalTitle('A'.repeat(32))).toHaveLength(45);
   expect(restrictionModalTitle('Sam')).toBe('Restrictions: Sam');
+});
+
+test('restrictionModalTitle never cuts an emoji in half', () => {
+  // 'Restrictions: ' + 30 letters is 44 units; the emoji would straddle the limit
+  const title = restrictionModalTitle(`${'A'.repeat(30)}🙂🙂`);
+  expect(title.length).toBeLessThanOrEqual(45);
+  expect(isWellFormed(title)).toBe(true);
 });
 
 describe('single-type toggle', () => {

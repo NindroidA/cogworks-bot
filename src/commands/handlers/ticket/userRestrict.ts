@@ -12,6 +12,7 @@ import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketT
 import { UserTicketRestriction } from '../../../typeorm/entities/ticket/UserTicketRestriction';
 import {
   awaitConfirmation,
+  clampText,
   enhancedLogger,
   guardFeatureAccess,
   handleInteractionError,
@@ -242,7 +243,7 @@ export function diffRestrictionSubmit(
 
 /** Modal titles are capped at 45 characters. */
 export function restrictionModalTitle(displayName: string): string {
-  return `Restrictions: ${displayName}`.slice(0, 45);
+  return clampText(`Restrictions: ${displayName}`, 45);
 }
 
 /**

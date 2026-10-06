@@ -2,16 +2,21 @@
  * /ticket type list (v3.16.31).
  *
  * - Set as Default saved every row one by one from a shared array (issue #2);
- *   it is now two updates in one transaction.
+ *   it is now two updates in one transaction, which /ticket type default
+ *   also uses.
  * - The summary embed added one field per type with no cap, so 26 types (or a
  *   few long descriptions) broke Discord's 25-field / 6,000-character limits
  *   and the command failed. It now stops in time and says how many are hidden.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, jest, test } from 'bun:test';
+import { typeDefaultHandler } from '../../../../src/commands/handlers/ticket/typeDefault';
 import { buildSummaryEmbed, setDefaultTicketType } from '../../../../src/commands/handlers/ticket/typeList';
 import { AppDataSource } from '../../../../src/typeorm';
 import type { CustomTicketType } from '../../../../src/typeorm/entities/ticket/CustomTicketType';
+
+/** No lone surrogate (an emoji cut in half makes Discord reject the payload). */
+const isWellFormed = (text: string) => !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(text);
 
 describe('setDefaultTicketType', () => {
   const updates: { entity: string; where: object; set: object }[] = [];
@@ -28,11 +33,48 @@ describe('setDefaultTicketType', () => {
       });
   });
 
+  type RepoGetter = { getRepository: (entity: { name?: string }) => unknown };
+  let originalGetRepository: RepoGetter['getRepository'];
+  const typeRow = { guildId: 'g1', typeId: 'player_report', displayName: 'Player Report', isActive: true };
+
+  beforeAll(() => {
+    originalGetRepository = (AppDataSource as unknown as RepoGetter).getRepository;
+    (AppDataSource as unknown as RepoGetter).getRepository = entity => {
+      if (entity?.name === 'CustomTicketType') return { findOne: async () => typeRow };
+      throw new Error(`typeList test: unexpected repo ${entity?.name}`);
+    };
+  });
+
   afterAll(() => {
     (AppDataSource as unknown as Tx).transaction = originalTransaction;
+    (AppDataSource as unknown as RepoGetter).getRepository = originalGetRepository;
+  });
+
+  test('/ticket type default goes through the same transaction', async () => {
+    updates.length = 0;
+    const interaction = {
+      guildId: 'g1',
+      guild: {},
+      user: { id: 'admin-1' },
+      member: { permissions: { has: () => true } },
+      options: { getString: () => 'player_report' },
+      deferred: false,
+      replied: false,
+      isRepliable: () => true,
+      reply: jest.fn(async () => undefined),
+    };
+
+    await typeDefaultHandler(interaction as never);
+
+    expect(updates.map(u => u.where)).toEqual([
+      { guildId: 'g1', isDefault: true },
+      { guildId: 'g1', typeId: 'player_report' },
+    ]);
+    expect(interaction.reply).toHaveBeenCalledTimes(1);
   });
 
   test('clears the old default and sets the new one in one transaction, scoped to the guild', async () => {
+    updates.length = 0;
     await setDefaultTicketType('g1', 'bug_report');
 
     expect(updates).toEqual([
@@ -83,6 +125,16 @@ describe('buildSummaryEmbed', () => {
     const shown = json.fields?.length ?? 0;
     expect(shown).toBeLessThan(25);
     expect(json.footer?.text).toContain(`${25 - shown} more`);
+  });
+
+  test('an emoji at the name or description limit is never cut in half', () => {
+    const [type] = makeTypes(1, `${'d'.repeat(98)}🙂🙂`);
+    const json = buildSummaryEmbed([{ ...type, displayName: `${'N'.repeat(252)}🙂🙂` } as CustomTicketType]).toJSON();
+    const field = json.fields?.[0];
+    expect(field?.name.length).toBeLessThanOrEqual(256);
+    expect(isWellFormed(field?.name ?? '')).toBe(true);
+    expect(isWellFormed(field?.value ?? '')).toBe(true);
+    expect(field?.value).toContain('…');
   });
 
   test('a few types: all shown, no footer', () => {

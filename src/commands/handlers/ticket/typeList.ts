@@ -14,6 +14,7 @@ import {
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import {
+  clampText,
   enhancedLogger,
   formatLang,
   guardFeatureAccess,
@@ -303,10 +304,9 @@ export function buildSummaryEmbed(types: CustomTicketType[]): EmbedBuilder {
     const defaultTag = type.isDefault ? tl.defaultLabel : '';
     const ping = type.pingStaffOnCreate ? '🔔' : '🔕';
     const text = type.description ?? '';
-    const short = text.length > SUMMARY_DESC_CHARS ? `${text.slice(0, SUMMARY_DESC_CHARS - 1)}…` : text;
-    const desc = short ? `\n*${short}*` : '';
+    const desc = text ? `\n*${clampText(text, SUMMARY_DESC_CHARS)}*` : '';
     const namePrefix = type.emoji ? `${type.emoji} ` : '';
-    const name = `${namePrefix}${type.displayName}${defaultTag}`.slice(0, 256);
+    const name = clampText(`${namePrefix}${type.displayName}${defaultTag}`, 256);
     const value = `**ID:** \`${type.typeId}\` · **Status:** ${status} · **Ping:** ${ping}${desc}`;
     if (shown === SUMMARY_MAX_FIELDS || total + name.length + value.length > SUMMARY_MAX_CHARS) break;
     embed.addFields({ name, value, inline: false });
@@ -325,7 +325,7 @@ function buildSummaryComponents(types: CustomTicketType[]): ActionRowBuilder<Str
       // Discord caps select-menu options at 25 — typeIds beyond 25 fall off
       // the picker; admins can still hit them via /ticket type edit.
       types.slice(0, 25).map(type => ({
-        label: type.displayName.slice(0, 100),
+        label: clampText(type.displayName, 100),
         value: type.typeId,
         description: type.typeId.slice(0, 100),
         // parseEmoji splits a custom emoji (<:name:id>) into name + id

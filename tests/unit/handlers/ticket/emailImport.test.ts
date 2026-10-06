@@ -17,7 +17,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, jest, test } from 'bun:test';
-import { ChannelType } from 'discord.js';
+import { ChannelType, MessageFlags } from 'discord.js';
 import {
   buildEmailTicketEmbed,
   emailImportHandler,
@@ -25,6 +25,9 @@ import {
 } from '../../../../src/commands/handlers/ticket/emailImport';
 import { AppDataSource } from '../../../../src/typeorm';
 import { createRateLimitKey, RateLimits, rateLimiter } from '../../../../src/utils/security/rateLimiter';
+
+/** No lone surrogate (an emoji cut in half makes Discord reject the payload). */
+const isWellFormed = (text: string) => !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(text);
 
 const GUILD_A = '100000000000000001';
 const GUILD_B = '100000000000000002';
@@ -94,7 +97,7 @@ describe('buildEmailTicketEmbed', () => {
     const title = embed.toJSON().title ?? '';
     expect(title.length).toBeLessThanOrEqual(256);
     expect(title.endsWith('…')).toBe(true);
-    expect(title.isWellFormed()).toBe(true);
+    expect(isWellFormed(title)).toBe(true);
   });
 
   test('short attachment links stay in the embed', () => {
@@ -155,7 +158,7 @@ describe('emailImportModalHandler', () => {
   });
 
   /** Each call uses its own importer: the submit shares the 3-per-hour ticket budget. */
-  function submitInteraction(userId: string, send: () => Promise<unknown>) {
+  function submitInteraction(userId: string, send: () => Promise<unknown>, attachments = '') {
     const channel = {
       id: 'channel-1',
       send: jest.fn(send),
@@ -167,12 +170,13 @@ describe('emailImportModalHandler', () => {
       senderName: 'Jane',
       subject: 'Help',
       body: 'Hello',
-      attachments: '',
+      attachments,
     };
     const interaction = {
       isRepliable: () => true,
       guildId: GUILD_A,
       user: { id: userId },
+      member: { permissions: { has: () => true } },
       client: { user: { id: 'bot-1' } },
       replied: false,
       deferred: false,
@@ -203,6 +207,24 @@ describe('emailImportModalHandler', () => {
       typeId: 'email_import',
       isActive: false,
     });
+    expect(channel.delete).not.toHaveBeenCalled();
+  });
+
+  test('attachment links posted after the embed ping nobody and show no previews', async () => {
+    ticketTypeRow = { typeId: 'email_import', embedColor: '#7289da' };
+    failSave = false;
+    const urls = [1, 2, 3].map(i => `https://x.example/@everyone/${i}?sig=${'s'.repeat(400)}`).join('\n');
+    const { interaction, channel } = submitInteraction('importer-links', async () => ({ id: 'message-1' }), urls);
+
+    await emailImportModalHandler(interaction as never);
+
+    const followUps = (channel.send.mock.calls as unknown as [Record<string, unknown>][]).slice(1).map(c => c[0]);
+    expect(followUps.length).toBeGreaterThan(0);
+    for (const message of followUps) {
+      expect(message.content).toContain('@everyone');
+      expect(message.allowedMentions).toEqual({ parse: [] });
+      expect(message.flags).toBe(MessageFlags.SuppressEmbeds);
+    }
     expect(channel.delete).not.toHaveBeenCalled();
   });
 

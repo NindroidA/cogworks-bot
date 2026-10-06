@@ -136,8 +136,7 @@
       "success": "Ticket type **{0}** has been deleted!",
       "error": "Failed to delete ticket type!",
       "notFound": "Ticket type not found!",
-      "noTypes": "No custom ticket types found!",
-      "cancelled": "Ticket type deletion cancelled."
+      "noTypes": "No custom ticket types found!"
     },
     "emailImport": {
       "cmdDescrp": "Import a ticket from email",
@@ -178,10 +177,8 @@
       "alreadyRestricted": "{user} is already restricted from creating **{type}** tickets.",
       "notRestricted": "{user} is not restricted from creating **{type}** tickets.",
       "error": "Failed to update user restriction!",
-      "cancelled": "Action cancelled.",
       "noRestrictions": "No restrictions configured for {user}.",
       "currentRestrictions": "**Current Restrictions:**",
-      "notYourInteraction": "You cannot interact with this message.",
       "saved": "Restrictions saved successfully!",
       "footer": "Click a ticket type to toggle restriction"
     }
