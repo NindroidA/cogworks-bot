@@ -109,10 +109,10 @@ describe('ticket.type', () => {
     ]);
   });
 
-  test('no active type: degraded only while the panel is posted', async () => {
+  test('no active type: block (nobody can open a ticket) only while the panel is posted', async () => {
     const inactive = [type({ isActive: false })];
     const [f] = await run(id, rows(inactive));
-    expect(f).toMatchObject({ code: 'ticket.type.none_active', severity: 'degraded', repair: 'manual' });
+    expect(f).toMatchObject({ code: 'ticket.type.none_active', severity: 'block', repair: 'manual' });
     expect(await run(id, rows(inactive, [{ ...config, channelId: '' }]))).toEqual([]);
     expect(await run(id, rows(inactive, []))).toEqual([]);
   });
@@ -334,7 +334,7 @@ describe('ticket.restriction', () => {
     expect(f).toMatchObject({
       code: 'ticket.restriction.unknown_type',
       severity: 'cosmetic',
-      repair: 'auto',
+      repair: 'confirm',
       entity: 'UserTicketRestriction',
       rowId: 7,
       params: { typeId: 'old_type', userId: '600000000000000001' },
