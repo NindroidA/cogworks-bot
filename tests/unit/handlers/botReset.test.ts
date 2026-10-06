@@ -157,7 +157,20 @@ describe('/bot-reset', () => {
     expect(order).toEqual(['compile']);
     expect(calls.dms).toEqual([]);
     expect(lastEmbed(calls).title).toBe('Archive Too Large');
+    // Only ways out that can work: /data-export has the same 8 MB cap and covers more tables.
+    expect(lastEmbed(calls).description).not.toContain('/data-export');
+    expect(lastEmbed(calls).description).toContain('No, Delete Everything');
     expect(rateLimiter.getRemaining(LIMIT_KEY, 1)).toBe(1);
+  });
+
+  test('the save prompt says the archive leaves out configurations and XP', async () => {
+    const { interaction, calls } = makeInteraction(['reset_continue', 'reset_cancel2']);
+    const { deps } = makeDeps();
+    await botResetHandler({} as any, interaction, deps);
+
+    const stage2 = calls.updates[0].embeds[0].data.description as string;
+    expect(stage2).toContain('does not include configurations or XP data');
+    expect(stage2).toContain('/data-export');
   });
 
   test('saved reset DMs the archive, purges, then re-registers commands and spends the day', async () => {

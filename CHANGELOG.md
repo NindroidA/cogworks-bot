@@ -32,6 +32,12 @@ day's reset on a run that didn't finish.
 - **Every reset error said data "may have been partially deleted"**, even when
   the archive step failed before anything was deleted. It now says nothing was
   deleted in that case.
+- **The "Save Your Data?" step said the archive held XP data and
+  configurations.** It holds archived tickets and applications, memory items,
+  and announcement, audit and bait logs; the step now says so and points to
+  `/data-export` for every table. "Archive Too Large" no longer suggests
+  `/data-export` (same 8 MB cap, more tables), and says `/archive cleanup`
+  only shrinks the ticket and application archives.
 - The admin guide's `/bot-reset` section describes the new behavior.
 
 ## [3.16.8] - 2026-10-06

@@ -131,7 +131,9 @@ export async function botResetHandler(
       .setTitle('Save Your Data?')
       .setDescription(
         'Would you like an archive of your data sent to your DMs before everything is deleted?\n\n' +
-          'The archive includes all tickets, applications, memory items, XP data, and configurations in a compressed JSON file.\n\n' +
+          'The archive is a compressed JSON file with your archived tickets and applications, memory items, and ' +
+          'announcement, audit and bait logs. It does not include configurations or XP data: for a copy of every ' +
+          'table, cancel and run `/data-export` first.\n\n' +
           "If the archive can't be delivered, the reset stops and nothing is deleted.",
       );
 
@@ -306,9 +308,10 @@ async function executeReset(
         await showAborted(
           interaction,
           'Archive Too Large',
-          `The archive is ${sizeFormatted}, which exceeds Discord's 8 MB DM limit, so nothing was deleted. ` +
-            'To shrink it, export and clear old ticket and application archives with `/archive cleanup`, then run ' +
-            '`/bot-reset` again. Or save your data with `/data-export`, then run `/bot-reset` with **No, Delete Everything**.',
+          `The archive is ${sizeFormatted}, which exceeds Discord's 8 MB DM limit, so nothing was deleted.\n\n` +
+            '`/archive cleanup` exports and clears old ticket and application archives, which can shrink it enough ' +
+            'to run `/bot-reset` again. It does not shrink memory items or the announcement, audit and bait logs. ' +
+            'Otherwise, run `/bot-reset` with **No, Delete Everything** (nothing is saved), or contact support.',
         );
         return false;
       }
