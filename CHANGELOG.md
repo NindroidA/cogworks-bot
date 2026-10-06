@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.16.37] - 2026-10-06
+## [3.16.30] - 2026-10-06
 
 Feature commands are now visible to every member, so the dashboard's
 per-role feature grants finally work for slash commands and right-click
@@ -65,6 +65,61 @@ grants see no change in who can run what: feature commands still answer
   guard, when a guard checks the wrong feature or a lower level, when an
   autocomplete route's feature or level differs from its subcommand's, or when
   a refused command is audited.
+
+## [3.16.29] - 2026-10-06
+
+Ticket creation robustness (NindroidA/cogworks-bot#41): smart routing now
+actually assigns tickets, long or oddly configured ticket types can be opened
+again, and a failed creation no longer leaves an orphan channel or a broken
+ticket row behind.
+
+### Fixed
+
+- **Smart routing assigns new tickets.** `routeTicket` was only ever called by
+  the dev test command, so `/ticket routing` rules did nothing. Ticket creation
+  now routes when smart routing and the workflow system are on and a rule
+  matches the type: the picked staff member gets a channel overwrite,
+  `assignedTo`/`assignedAt` are saved, and the channel gets the
+  "automatically assigned" notice that pings them. The opener is never picked,
+  and a routing failure only leaves the ticket unassigned.
+- **Assignee access follows the assignment.** Admin Only now also hides the
+  channel from members who have their own overwrite (a routed or dashboard
+  assignee), except the opener and the bot. `/ticket manage unassign`,
+  reassigning with `/ticket manage assign`, and reassigning from the dashboard
+  remove the previous assignee's member overwrite.
+- **Routing finds staff without presence data.** The bot runs without the
+  privileged GuildPresences intent, so the online/idle filter matched nobody.
+  Without that intent every non-bot member of the rule's role is now eligible
+  (with it, the online/idle filter still applies). Guilds up to 1,000 members
+  fetch the member list first, since the member cache keeps only 200.
+- **Ticket types with long names open again.** The modal title and field
+  labels are clamped to Discord's 45-character limit (without splitting an
+  emoji), placeholders to 100, and stored min/max lengths are kept within
+  0-4000 with min no greater than max. The modal title shows the type's emoji
+  only when it is a unicode emoji; a custom `<:name:id>` or text like
+  `:ticket:` would show raw, so those fall back to 🎫.
+- **One bad emoji or a 26th type no longer breaks the ticket menu.** An emoji
+  Discord won't accept (`:bug:`, plain text) falls back to 🎫 instead of failing
+  the whole menu, and the menu shows the first 25 types. Option labels and
+  descriptions are clamped to 100 without splitting an emoji.
+- **Restricted users and deactivated types are refused everywhere.** The legacy
+  type buttons and the modal submit now check user restrictions and inactive
+  types like the menu does, so the button fallback can't bypass them.
+- **No more orphan channels or broken rows.** The reply is deferred before any
+  work, the channel id is saved right after the channel is created, and if
+  setup fails before the welcome message is posted the channel is deleted and
+  then the row (Discord first). A failure after the welcome keeps the linked
+  ticket, and the opener is pointed at it.
+- **The bot keeps access to the ticket channels it creates.** Each ticket
+  channel gets an overwrite for the bot (View Channel, Send Messages, Read
+  Message History, Manage Channels), so a bot without Administrator can post the
+  welcome message and read the channel for transcripts.
+- **Ticket answers can't ping @everyone or roles.** The opener's answers are
+  sent with no allowed mentions, the welcome message can mention only the
+  opener, and the staff ping can mention only the configured staff role.
+- **Ticket rate limits are per server.** The 3-per-hour ticket limit, shared
+  by panel tickets and `/ticket manage import-email`, is now counted per user
+  in each server instead of across every server the bot is in.
 
 ## [3.16.28] - 2026-10-06
 

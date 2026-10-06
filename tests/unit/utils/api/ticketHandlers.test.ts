@@ -441,6 +441,34 @@ describe('POST /tickets/:id/assign', () => {
     );
   });
 
+  test('reassigning removes the former assignee overwrite, never the opener', async () => {
+    const FORMER = '223456789012345678';
+    ticketRepoState.findOneByResult = {
+      id: 42,
+      guildId: 'guild-1',
+      status: 'open',
+      channelId: 'ticket-channel-1',
+      createdBy: 'opener-1',
+      assignedTo: FORMER,
+    };
+    const permissionOverwrites = {
+      cache: new Map([[FORMER, {}], ['opener-1', {}]]),
+      create: jest.fn(async () => undefined),
+      delete: jest.fn(async () => undefined),
+    };
+    const original = fakeAssignChannel.permissionOverwrites;
+    fakeAssignChannel.permissionOverwrites = permissionOverwrites;
+    try {
+      await getAssignHandler()('guild-1', { userId: ASSIGNEE }, '/tickets/42/assign');
+    } finally {
+      fakeAssignChannel.permissionOverwrites = original;
+    }
+
+    expect(permissionOverwrites.delete).toHaveBeenCalledWith(FORMER);
+    expect(permissionOverwrites.delete).toHaveBeenCalledTimes(1);
+    expect(permissionOverwrites.create).toHaveBeenCalledWith(ASSIGNEE, expect.anything());
+  });
+
   test('rejects a non-snowflake userId before any write', async () => {
     ticketRepoState.findOneByResult = {
       id: 42,

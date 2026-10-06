@@ -35,6 +35,7 @@ import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { toWorkflowStatusId } from '../../../utils/ticket/autoClose';
 import { claimAndArchiveTicket, reportTicketCloseOutcome } from '../../../utils/ticket/claimAndArchive';
 import { archiveAndCloseTicket } from '../../../utils/ticket/closeWorkflow';
+import { revokeAssigneeAccess } from '../../../utils/ticket/smartRouter';
 import { findStatusById, appendStatusHistory as sharedAppendHistory } from '../../../utils/workflow/workflowHelpers';
 
 const tl = lang.ticket.workflow;
@@ -250,6 +251,12 @@ async function closeTicketFromStatus(
 // /ticket assign <user>
 // ============================================================================
 
+/** The command's channel when it can hold permission overwrites (not a thread). */
+function overwriteHolder(interaction: ChatInputCommandInteraction<CacheType>) {
+  const channel = interaction.channel;
+  return channel && 'permissionOverwrites' in channel ? channel : null;
+}
+
 export async function ticketAssignHandler(interaction: ChatInputCommandInteraction<CacheType>) {
   const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
   if (!guard.allowed) return;
@@ -270,11 +277,13 @@ export async function ticketAssignHandler(interaction: ChatInputCommandInteracti
   }
 
   const user = interaction.options.getUser('user', true);
+  const formerAssignee = ticket.assignedTo;
 
   ticket.assignedTo = user.id;
   ticket.assignedAt = new Date();
   ticket.lastActivityAt = new Date();
   await ticketRepo.save(ticket);
+  if (formerAssignee !== user.id) await revokeAssigneeAccess(overwriteHolder(interaction), ticket, formerAssignee);
 
   const embed = new EmbedBuilder().setDescription(formatLang(tl.assigned, `<@${user.id}>`)).setColor(0x5865f2);
 
@@ -328,6 +337,7 @@ export async function ticketUnassignHandler(interaction: ChatInputCommandInterac
   ticket.assignedAt = null;
   ticket.lastActivityAt = new Date();
   await ticketRepo.save(ticket);
+  await revokeAssigneeAccess(overwriteHolder(interaction), ticket, previousAssignee);
 
   const embed = new EmbedBuilder().setDescription(tl.unassigned).setColor(0x808080);
 
