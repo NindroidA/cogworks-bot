@@ -29,7 +29,6 @@ import {
   EmbedBuilder,
   type ForumChannel,
   type Guild,
-  type GuildForumTagData,
   MessageFlags,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
@@ -43,7 +42,6 @@ import { Position } from '../../../typeorm/entities/application/Position';
 import { BotConfig } from '../../../typeorm/entities/BotConfig';
 import { type BaitActionType, BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import { MemoryConfig } from '../../../typeorm/entities/memory/MemoryConfig';
-import { MemoryTag, type MemoryTagType } from '../../../typeorm/entities/memory/MemoryTag';
 import {
   DEFAULT_SYSTEM_STATES,
   type PartialSystemData,
@@ -67,11 +65,12 @@ import { Colors } from '../../../utils/colors';
 import { upsertGuildEntity } from '../../../utils/database/guildQueries';
 import { channelSelect, checkbox, labelWrap, radioGroup, rawModal, roleSelect } from '../../../utils/modalComponents';
 import { type CreatedChannels, createSystemChannels, type SystemType } from '../../../utils/setup/channelCreator';
-import { BAIT_CHANNEL_WARNING, DEFAULT_MEMORY_TAGS } from '../../../utils/setup/channelDefaults';
+import { BAIT_CHANNEL_WARNING } from '../../../utils/setup/channelDefaults';
 import { detectGuildChannelFormat } from '../../../utils/setup/channelFormatDetector';
 import { requestGuildCommandRefresh } from '../../../utils/setup/commandGating';
 import { seedDefaultTemplates } from '../announcement/templates';
 import { buildApplicationMessage } from '../application/applicationPosition';
+import { seedMemoryTags } from '../memory/defaultTags';
 
 const VALID_BAIT_ACTIONS: BaitActionType[] = ['ban', 'kick', 'timeout', 'log-only'];
 
@@ -846,7 +845,12 @@ const memoryConfig: SimpleSystemConfig<MemoryData, 'memory'> = {
   },
   apply: async (guildId, data, { guild }) => {
     const repo = AppDataSource.getRepository(MemoryConfig);
-    let config = await repo.findOneBy({ guildId });
+    // Prefer the config already on this forum: in a multi-forum guild,
+    // findOneBy({ guildId }) is arbitrary and would repoint another forum's
+    // config here.
+    let config =
+      (await repo.findOneBy({ guildId, forumChannelId: data.forumChannelId })) ?? (await repo.findOneBy({ guildId }));
+    const forumChanged = config?.forumChannelId !== data.forumChannelId;
     if (!config)
       config = repo.create({
         guildId,
@@ -857,14 +861,20 @@ const memoryConfig: SimpleSystemConfig<MemoryData, 'memory'> = {
     await repo.save(config);
 
     // Seed default forum tags + create welcome thread (matches both auto & manual paths).
+    // Seeding is additive: it keeps the forum's own tags, leaves rows still
+    // linked to one of them alone and upserts the rest, so a re-run on the same
+    // forum changes nothing.
     try {
       const forum = (await guild.channels.fetch(data.forumChannelId)) as ForumChannel;
-      await createDefaultMemoryTags(guildId, config.id, forum);
+      await seedMemoryTags(guildId, config.id, forum);
 
-      const welcomeThread = await createMemoryWelcomeThread(forum);
-      if (welcomeThread) {
-        config.messageId = welcomeThread;
-        await repo.save(config);
+      // A re-run on the same forum keeps its existing welcome thread.
+      if (forumChanged || !config.messageId) {
+        const welcomeThread = await createMemoryWelcomeThread(forum);
+        if (welcomeThread) {
+          config.messageId = welcomeThread;
+          await repo.save(config);
+        }
       }
     } catch (_error) {
       enhancedLogger.warn('Failed to seed default memory tags during setup', LogCategory.COMMAND_EXECUTION, {
@@ -874,51 +884,6 @@ const memoryConfig: SimpleSystemConfig<MemoryData, 'memory'> = {
   },
   toPartialData: data => ({ forumChannelId: data.forumChannelId }),
 };
-
-/**
- * Create default forum tags for a memory channel.
- * Matches the logic in memory/setup.ts createDefaultTags().
- */
-async function createDefaultMemoryTags(guildId: string, configId: number, forum: ForumChannel) {
-  const allTags: GuildForumTagData[] = [];
-  const dbTags: Partial<MemoryTag>[] = [];
-
-  for (const tag of DEFAULT_MEMORY_TAGS.category) {
-    allTags.push({ name: tag.name, emoji: { id: null, name: tag.emoji } });
-    dbTags.push({
-      guildId,
-      memoryConfigId: configId,
-      name: tag.name,
-      emoji: tag.emoji,
-      tagType: 'category' as MemoryTagType,
-      isDefault: true,
-    });
-  }
-
-  for (const tag of DEFAULT_MEMORY_TAGS.status) {
-    allTags.push({ name: tag.name, emoji: { id: null, name: tag.emoji } });
-    dbTags.push({
-      guildId,
-      memoryConfigId: configId,
-      name: tag.name,
-      emoji: tag.emoji,
-      tagType: 'status' as MemoryTagType,
-      isDefault: true,
-    });
-  }
-
-  const updatedForum = await forum.setAvailableTags(allTags);
-
-  for (const dbTag of dbTags) {
-    const discordTag = updatedForum.availableTags.find(t => t.name === dbTag.name);
-    if (discordTag) {
-      dbTag.discordTagId = discordTag.id;
-    }
-  }
-
-  const memoryTagRepo = AppDataSource.getRepository(MemoryTag);
-  await memoryTagRepo.save(dbTags as MemoryTag[]);
-}
 
 /**
  * Create a pinned welcome thread in a memory forum channel.
