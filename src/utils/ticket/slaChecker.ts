@@ -83,8 +83,9 @@ async function processGuildSla(client: Client, config: TicketConfig): Promise<vo
       const elapsed = now - createdTime;
 
       if (elapsed < targetMs) continue;
-      // Already flagged and still no channel to alert: nothing new to write or log.
-      if (ticket.slaBreached && !breachChannel) continue;
+      // Already flagged on an earlier tick: only a delivered alert is new.
+      const alreadyFlagged = ticket.slaBreached;
+      if (alreadyFlagged && !breachChannel) continue;
 
       // SLA breached
       const elapsedMinutes = Math.floor(elapsed / 60_000);
@@ -112,14 +113,24 @@ async function processGuildSla(client: Client, config: TicketConfig): Promise<vo
           await breachChannel.send({ embeds: [embed] });
           notified = true;
         } catch (error) {
-          enhancedLogger.error(
-            'Failed to send SLA breach alert',
-            error instanceof Error ? error : new Error(String(error)),
-            LogCategory.ERROR,
-            { guildId: config.guildId, ticketId: ticket.id },
-          );
+          // Retried every tick until it lands (e.g. once the bot gets Send
+          // Messages there); only the first failure is worth an error.
+          if (alreadyFlagged) {
+            enhancedLogger.debug('SLA breach alert retry failed', LogCategory.SYSTEM, {
+              guildId: config.guildId,
+              ticketId: ticket.id,
+            });
+          } else {
+            enhancedLogger.error(
+              'Failed to send SLA breach alert',
+              error instanceof Error ? error : new Error(String(error)),
+              LogCategory.ERROR,
+              { guildId: config.guildId, ticketId: ticket.id },
+            );
+          }
         }
       }
+      if (alreadyFlagged && !notified) continue;
 
       // Targeted UPDATE, not save(): a full-entity save would write back the
       // firstResponseAt we loaded as NULL, clobbering a value captured
@@ -130,7 +141,7 @@ async function processGuildSla(client: Client, config: TicketConfig): Promise<vo
         { slaBreached: true, slaBreachNotified: notified },
       );
 
-      enhancedLogger.info('SLA breach detected', LogCategory.SYSTEM, {
+      enhancedLogger.info(alreadyFlagged ? 'SLA breach alert delivered' : 'SLA breach detected', LogCategory.SYSTEM, {
         guildId: config.guildId,
         ticketId: ticket.id,
         elapsedMinutes,
