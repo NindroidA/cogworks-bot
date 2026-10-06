@@ -95,7 +95,27 @@ describe('application.position', () => {
     const custom = position({ emoji: `<:apply:${EMOJI}>` });
     expect(await run(id, rows([custom]))).toEqual([]);
     const [f] = await run(id, rows([custom]), { deep: true, emojis });
-    expect(f).toMatchObject({ code: 'application.position.emoji_missing', refId: EMOJI, repair: 'confirm' });
+    expect(f).toMatchObject({
+      code: 'application.position.emoji_missing',
+      refId: EMOJI,
+      severity: 'cosmetic',
+      repair: 'manual',
+    });
+  });
+
+  test('more than 5 form questions block an open position (apply.ts adds them all)', async () => {
+    const fields = Array.from({ length: 6 }, (_, i) => ({
+      id: `q${i}`,
+      label: `Q${i}`,
+      style: 'short',
+      required: true,
+    }));
+    fields[5].label = '';
+    const findings = await run(id, rows([position({ customFields: fields })]));
+    expect(findings.map(f => [f.code, f.severity])).toEqual([
+      ['application.position.too_many_fields', 'block'],
+      ['application.position.field_label', 'block'],
+    ]);
   });
 
   test('form questions: a label over 45 characters breaks the form', async () => {

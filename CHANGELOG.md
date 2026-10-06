@@ -21,13 +21,18 @@ yet, so nothing a server sees changes in this release.
 - **Archive forums**: gone, not a forum, missing the permissions closes need, or at
   Discord's 20-tag limit while an active ticket type or position (or an
   Accepted / Rejected outcome) still has no tag.
-- **Ticket types and positions**: more than 25 active (the type menu and the
-  application panel's buttons hold 25), none active while a panel is posted, more
-  than one default type, a non-hex type color, a type name that makes the form title
-  longer than Discord's 45 characters, an emoji Discord won't accept (custom emoji
-  still on the server is a deep-mode REST check), and form questions over Discord's
-  limits (more than 5, missing or repeated ids, labels over 45, placeholders over 100,
-  invalid length limits). Problems on an inactive type or position are cosmetic.
+- **Ticket types and positions**: more than 25 active, none active while a panel is
+  posted, more than one default type, a non-hex type color, a type name that makes the
+  form title longer than Discord's 45 characters, an emoji Discord won't accept, and
+  form questions over Discord's limits (missing or repeated ids, labels over 45,
+  placeholders over 100, invalid length limits, more than 5 questions). Ratings follow
+  what the bot does: a type menu that can't be sent (over 25 types or a rejected emoji)
+  falls back to the 5 built-in ticket types, and a ticket form shows only its first 5
+  questions, so those are degraded rather than broken; positions have neither fallback.
+  In deep mode a custom emoji is looked up on the server, on the other servers the bot
+  is in and among the bot's own emojis; one found nowhere is only a cosmetic note with
+  a manual fix, since it may still work. Problems on an inactive type or position are
+  cosmetic.
 - **Leftover rows**: user restrictions for a ticket type that no longer exists,
   open tickets and applications whose channel was deleted, and tickets stuck in
   `created` without a channel for more than 10 minutes (a failed creation).

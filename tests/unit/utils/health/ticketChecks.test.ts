@@ -22,11 +22,13 @@ const EMOJI = '500000000000000001';
 const OTHER_EMOJI = '500000000000000002';
 
 type EmojiFetch = () => Promise<Map<string, unknown>>;
+/** `guild.client`: other servers' emoji caches and the bot's own (application) emoji. */
+type FakeClient = { guilds: { cache: Map<string, unknown> }; application: { emojis: { fetch: EmojiFetch } } | null };
 
 async function run(
   checkId: string,
   rows: LoadedRows,
-  opts: { guild?: FakeGuildInit; deep?: boolean; emojis?: EmojiFetch } = {},
+  opts: { guild?: FakeGuildInit; deep?: boolean; emojis?: EmojiFetch; client?: FakeClient } = {},
 ): Promise<HealthFinding[]> {
   const check = getChecks().find(c => c.id === checkId);
   if (!check) throw new Error(`no check ${checkId}`);
@@ -39,6 +41,7 @@ async function run(
     ...opts.guild,
   });
   if (opts.emojis) Object.assign(guild, { emojis: { fetch: opts.emojis } });
+  if (opts.client) Object.assign(guild, { client: opts.client });
   return (await runCheck(check, makeCheckContext({ guild, rows, deep: opts.deep }))).findings;
 }
 
@@ -93,11 +96,16 @@ describe('ticket.type', () => {
     expect(await run(id, rows(types))).toEqual([]);
   });
 
-  test('more than 25 active types break the type menu', async () => {
+  test('more than 25 active types: the menu falls back to the 5 built-in types (degraded)', async () => {
     expect(await run(id, rows(Array.from({ length: 25 }, () => type())))).toEqual([]);
     const findings = await run(id, rows(Array.from({ length: 26 }, () => type())));
     expect(findings).toEqual([
-      expect.objectContaining({ code: 'ticket.type.too_many_active', severity: 'block', params: { count: 26 } }),
+      expect.objectContaining({
+        code: 'ticket.type.too_many_active',
+        severity: 'degraded',
+        repair: 'manual',
+        params: { count: 26 },
+      }),
     ]);
   });
 
@@ -145,26 +153,97 @@ describe('ticket.type', () => {
     expect(await run(id, rows(ok.map(emoji => type({ emoji }))))).toEqual([]);
   });
 
-  test('emoji: text that is not an emoji is rejected by Discord', async () => {
+  test('emoji Discord rejects: degraded while active (built-in fallback), cosmetic while inactive', async () => {
     for (const emoji of ['abc', ':bug:', '😀😀', '<:bug:12>']) {
       const [f] = await run(id, rows([type({ emoji })]));
-      expect(f).toMatchObject({ code: 'ticket.type.emoji_invalid', severity: 'block', repair: 'confirm' });
+      expect(f).toMatchObject({ code: 'ticket.type.emoji_invalid', severity: 'degraded', repair: 'confirm' });
       expect(f.params.emoji).toBe(emoji);
     }
+    const [inactive] = await run(id, rows([type(), type({ emoji: 'abc', isActive: false })]));
+    expect(inactive).toMatchObject({ code: 'ticket.type.emoji_invalid', severity: 'cosmetic' });
   });
 
-  test('deep: custom emoji no longer on the server; one listing for the whole run', async () => {
+  test('deep: custom emoji not on the server is cosmetic and manual; one listing per check', async () => {
     let calls = 0;
     const emojis: EmojiFetch = async () => {
       calls++;
       return new Map([[EMOJI, {}]]);
     };
-    const types = [type({ emoji: `<:bug:${EMOJI}>` }), type({ emoji: `<:gone:${OTHER_EMOJI}>` })];
+    const types = [
+      type({ emoji: `<:bug:${EMOJI}>` }),
+      type({ emoji: `<:gone:${OTHER_EMOJI}>` }),
+      type({ emoji: OTHER_EMOJI }),
+    ];
     const findings = await run(id, rows(types), { deep: true, emojis });
     expect(findings).toEqual([
-      expect.objectContaining({ code: 'ticket.type.emoji_missing', refId: OTHER_EMOJI, rowId: types[1].id }),
+      expect.objectContaining({
+        code: 'ticket.type.emoji_missing',
+        severity: 'cosmetic',
+        repair: 'manual',
+        refId: OTHER_EMOJI,
+        rowId: types[1].id,
+      }),
+      expect.objectContaining({ code: 'ticket.type.emoji_missing', rowId: types[2].id }),
     ]);
     expect(calls).toBe(1);
+  });
+
+  describe('deep: emoji the bot can use from elsewhere are not flagged', () => {
+    const gone = [type({ emoji: `<:gone:${OTHER_EMOJI}>` })];
+    const serverEmojis: EmojiFetch = async () => new Map();
+    const fakeGuildWith = (guildId: string, emojiIds: string[]) => ({
+      id: guildId,
+      emojis: { cache: new Map(emojiIds.map(e => [e, {}])) },
+    });
+    const client = (o: Partial<FakeClient> = {}): FakeClient => ({
+      guilds: { cache: new Map() },
+      application: { emojis: { fetch: async () => new Map() } },
+      ...o,
+    });
+
+    test("the bot's own (application) emoji, listed once per check", async () => {
+      let calls = 0;
+      const application = {
+        emojis: {
+          fetch: async () => {
+            calls++;
+            return new Map([[OTHER_EMOJI, {}]]);
+          },
+        },
+      };
+      const both = [...gone, type({ emoji: `<a:spin:${OTHER_EMOJI}>` })];
+      expect(await run(id, rows(both), { deep: true, emojis: serverEmojis, client: client({ application }) })).toEqual(
+        [],
+      );
+      expect(calls).toBe(1);
+    });
+
+    test("another server the bot is in (from the cache); this server's cache doesn't count", async () => {
+      const elsewhere = new Map([['900000000000000001', fakeGuildWith('900000000000000001', [OTHER_EMOJI])]]);
+      expect(
+        await run(id, rows(gone), {
+          deep: true,
+          emojis: serverEmojis,
+          client: client({ guilds: { cache: elsewhere } }),
+        }),
+      ).toEqual([]);
+      // This server's own cache can be stale, so only the fresh listing counts for it.
+      const stale = new Map([[G, fakeGuildWith(G, [OTHER_EMOJI])]]);
+      const [f] = await run(id, rows(gone), {
+        deep: true,
+        emojis: serverEmojis,
+        client: client({ guilds: { cache: stale } }),
+      });
+      expect(f).toMatchObject({ code: 'ticket.type.emoji_missing', severity: 'cosmetic', repair: 'manual' });
+    });
+
+    test('a failed listing of the bot emoji is not proof; no application still reports', async () => {
+      const failing = { emojis: { fetch: () => Promise.reject({ status: 503 }) } };
+      const opts = { deep: true, emojis: serverEmojis };
+      expect(await run(id, rows(gone), { ...opts, client: client({ application: failing }) })).toEqual([]);
+      const [f] = await run(id, rows(gone), { ...opts, client: client({ application: null }) });
+      expect(f).toMatchObject({ code: 'ticket.type.emoji_missing', severity: 'cosmetic', repair: 'manual' });
+    });
   });
 
   test('custom emoji are not resolved without deep, or when the listing fails', async () => {
@@ -180,17 +259,35 @@ describe('ticket.type', () => {
     expect(calls).toBe(1);
   });
 
-  test('more than 5 form questions', async () => {
+  test('more than 5 form questions: the form shows the first 5, so degraded (cosmetic while inactive)', async () => {
     const fields = Array.from({ length: 6 }, (_, i) => field({ id: `q${i}` }));
     const findings = await run(id, rows([type({ customFields: fields })]));
     expect(findings).toEqual([
       expect.objectContaining({
         code: 'ticket.type.too_many_fields',
+        severity: 'degraded',
+        repair: 'confirm',
         field: 'customFields',
         params: expect.anything(),
       }),
     ]);
     expect(findings[0].params.count).toBe(6);
+    const [inactive] = await run(id, rows([type(), type({ customFields: fields, isActive: false })]));
+    expect(inactive).toMatchObject({ code: 'ticket.type.too_many_fields', severity: 'cosmetic' });
+  });
+
+  test('questions past the 5th are never shown, so only the first 5 are checked', async () => {
+    const shown = Array.from({ length: 5 }, (_, i) => field({ id: `q${i}` }));
+    const dropped = [field({ id: 'q0', label: '' }), field({ id: '', maxLength: 5000 })];
+    const findings = await run(id, rows([type({ customFields: [...shown, ...dropped] })]));
+    expect(findings.map(f => f.code)).toEqual(['ticket.type.too_many_fields']);
+    // A problem in the first 5 still breaks the form.
+    const broken = [field({ id: 'q0', label: '' }), ...shown.slice(1), field({ id: 'q5' })];
+    const both = await run(id, rows([type({ customFields: broken })]));
+    expect(both.map(f => [f.code, f.severity])).toEqual([
+      ['ticket.type.too_many_fields', 'degraded'],
+      ['ticket.type.field_label', 'block'],
+    ]);
   });
 
   test.each([

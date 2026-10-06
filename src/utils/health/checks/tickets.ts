@@ -191,12 +191,36 @@ const isUnicodeEmoji = (value: string) =>
 
 /**
  * Checks a stored emoji (select option or button): a custom emoji (`<a:name:id>` or its
- * bare id) or one unicode emoji. Whether a custom emoji still exists is a REST call
- * (the emoji cache goes stale without the GuildExpressions intent), so only deep mode
- * checks it, with one listing per check run.
+ * bare id) or one unicode emoji. `severity` rates one Discord rejects.
+ *
+ * Whether a custom emoji still exists is a REST call (the emoji cache goes stale without
+ * the GuildExpressions intent), so only deep mode checks it, with one listing per check.
+ * Discord also takes the bot's own (application) emoji and emoji from other servers the
+ * bot is in, so one missing from this server isn't proof it's broken: it is only
+ * reported when it's in neither, as `cosmetic` with a `manual` repair. A failed listing
+ * reports nothing.
  */
 export function emojiChecker(ctx: CheckContext) {
-  let known: Promise<Set<string> | null> | undefined;
+  const listing = (label: string, call: () => Promise<Map<string, unknown>>) =>
+    ctx.rest.fetch(label, call).then(outcome => (outcome.status === 'ok' ? new Set(outcome.value.keys()) : null));
+  let onServer: Promise<Set<string> | null> | undefined;
+  let own: Promise<Set<string> | null> | undefined;
+  /** True when the bot can use the emoji, false when it found it nowhere, null when a listing failed. */
+  const usable = async (id: string): Promise<boolean | null> => {
+    onServer ??= listing('guild emojis', () => ctx.guild.emojis.fetch());
+    const server = await onServer;
+    if (!server) return null;
+    if (server.has(id)) return true;
+    const client = ctx.guild.client;
+    // Other servers come from the cache: a stale entry can only hide a finding.
+    for (const guild of client?.guilds.cache.values() ?? [])
+      if (guild.id !== ctx.guild.id && guild.emojis.cache.has(id)) return true;
+    const application = client?.application;
+    if (!application) return false;
+    own ??= listing('application emojis', () => application.emojis.fetch());
+    const bot = await own;
+    return bot ? bot.has(id) : null;
+  };
   return async (
     emoji: string | null | undefined,
     emit: Emit<(typeof EMOJI_NAMES)[number]>,
@@ -208,12 +232,8 @@ export function emojiChecker(ctx: CheckContext) {
     const match = CUSTOM_EMOJI.exec(emoji);
     if (!match) return isUnicodeEmoji(emoji) ? [] : [emit('emoji_invalid', severity, 'confirm', target)];
     if (!ctx.deep) return [];
-    known ??= ctx.rest
-      .fetch('guild emojis', () => ctx.guild.emojis.fetch())
-      .then(outcome => (outcome.status === 'ok' ? new Set(outcome.value.keys()) : null));
-    const ids = await known;
     const id = match[1] ?? match[2];
-    return ids && !ids.has(id) ? [emit('emoji_missing', severity, 'confirm', { ...target, refId: id })] : [];
+    return (await usable(id)) === false ? [emit('emoji_missing', 'cosmetic', 'manual', { ...target, refId: id })] : [];
   };
 }
 
@@ -227,22 +247,31 @@ function lengthsValid(min: unknown, max: unknown): boolean {
   return !min || !max || (min as number) <= (max as number);
 }
 
-/** Modal inputs, checked as the builders and Discord check them when the modal opens: any violation fails every open. */
+/**
+ * Modal inputs, checked as the builders and Discord check them when the modal opens: any
+ * violation fails every open. `truncatesAt`: the modal shows only the first N questions
+ * (tickets), so extra ones are never asked rather than breaking the form, and only the
+ * shown ones are checked.
+ */
 export function checkCustomFields(
   emit: Emit<(typeof FIELD_NAMES)[number]>,
   fields: unknown,
   at: FindingTarget,
   severity: HealthSeverity,
+  options: { truncatesAt?: number } = {},
 ): HealthFinding[] {
   if (!Array.isArray(fields)) return [];
   const out: HealthFinding[] = [];
   const target: FindingTarget = { ...at, field: 'customFields' };
-  if (fields.length > LIMITS.modalFields)
-    out.push(
-      emit('too_many_fields', severity, 'confirm', { ...target, params: { ...at.params, count: fields.length } }),
-    );
+  const { truncatesAt } = options;
+  if (fields.length > (truncatesAt ?? LIMITS.modalFields)) {
+    // The form still opens; the questions past the cut are never asked.
+    const overflow: HealthSeverity = truncatesAt !== undefined && severity === 'block' ? 'degraded' : severity;
+    const params = { ...at.params, count: fields.length };
+    out.push(emit('too_many_fields', overflow, 'confirm', { ...target, params }));
+  }
   const seen = new Set<string>();
-  fields.forEach((raw, index) => {
+  fields.slice(0, truncatesAt).forEach((raw, index) => {
     const field = (raw ?? {}) as Partial<CustomInputField>;
     const params = { ...at.params, input: index + 1, label: String(field.label ?? '') };
     const flag = (name: (typeof FIELD_NAMES)[number]) =>
@@ -319,9 +348,10 @@ const types = defineCheck(
     const active = rows.filter(type => type.isActive);
     const out: HealthFinding[] = [];
     const all: FindingTarget = { entity: 'CustomTicketType', field: 'isActive' };
-    // The type picker is one select menu.
+    // The type picker is one select menu. When it can't be sent (over 25 options, or an
+    // emoji Discord rejects), createTicketButton falls back to the 5 built-in type buttons.
     if (active.length > LIMITS.selectOptions)
-      out.push(emit('too_many_active', 'block', 'manual', { ...all, params: { count: active.length } }));
+      out.push(emit('too_many_active', 'degraded', 'manual', { ...all, params: { count: active.length } }));
     if (active.length === 0 && rowsOf(ctx, 'TicketConfig')[0]?.channelId)
       out.push(emit('none_active', 'degraded', 'manual', all));
     const defaults = rows.filter(type => type.isDefault);
@@ -346,8 +376,11 @@ const types = defineCheck(
         const target = { ...at, field: 'displayName', params: { ...params, length: title.length } };
         out.push(emit('title_too_long', severity, 'manual', target));
       }
-      out.push(...(await checkEmoji(type.emoji, emit, at, severity)));
-      out.push(...checkCustomFields(emit, type.customFields, at, severity));
+      // A rejected emoji only costs the type menu (see the fallback above).
+      const menuSeverity: HealthSeverity = type.isActive ? 'degraded' : 'cosmetic';
+      out.push(...(await checkEmoji(type.emoji, emit, at, menuSeverity)));
+      // buildCustomTicketModal shows the first 5 questions and drops the rest.
+      out.push(...checkCustomFields(emit, type.customFields, at, severity, { truncatesAt: LIMITS.modalFields }));
     }
     return out;
   },
