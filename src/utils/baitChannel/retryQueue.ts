@@ -21,10 +21,16 @@
  *   - `queued` again → attempts++, set expiresAt to next backoff
  *   - `failed` (terminal) → set `deadAt = now()`, leave the row for mod
  *     review via the dashboard's pending-actions list (Phase 6 API)
+ *
+ * Grace rows (attempts = 0) are never executed here. The manager's timer
+ * settles them against current config, test mode, whitelist and whether the
+ * user deleted their message; this queue knows none of that. A grace row
+ * still present well past its window lost its timer, so it is dropped.
  */
 
 import type { Client, Guild } from 'discord.js';
 import { IsNull, LessThan, type Repository } from 'typeorm';
+import type { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelConfig';
 import type { IdempotencyKey } from '../../typeorm/entities/bait/IdempotencyKey';
 import type { PendingAction, PendingActionType } from '../../typeorm/entities/bait/PendingAction';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
@@ -32,6 +38,14 @@ import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { executeBanAction } from './banExecutor';
 
 const TICK_INTERVAL_MS = 15_000;
+
+/**
+ * A grace row only counts as orphaned this long after its window closed. The
+ * live timer fires at about expiresAt and then awaits a REST fetch before it
+ * removes the row, and DATETIME rounding can make expiresAt up to 0.5s early,
+ * so a smaller margin would sweep rows the timer still owns.
+ */
+export const ORPHAN_GRACE_MARGIN_MS = 60_000;
 
 /**
  * Backoff schedule. Index = attempts that have already happened (0-indexed).
@@ -52,7 +66,16 @@ export interface RetryQueueDeps {
    * the sibling banExecutor suite).
    */
   executeBanAction?: typeof executeBanAction;
+  /**
+   * The guild's current bait config (test mode, delete window, timeout
+   * length). Defaults to the client-attached manager's cached lookup.
+   */
+  getConfig?: (guildId: string) => Promise<BaitChannelConfig | null>;
 }
+
+type ClientWithBaitConfig = Client & {
+  baitChannelManager?: { getCachedConfig(guildId: string): Promise<BaitChannelConfig | null> };
+};
 
 export class RetryQueue {
   private interval: ReturnType<typeof setInterval> | null = null;
@@ -153,20 +176,17 @@ export class RetryQueue {
 
       // Filter to retry rows (attempts >= 1). Grace-period rows
       // (attempts = 0) are owned by the manager's setTimeout — we leave
-      // them alone unless they're way overdue (cleanup pass below).
+      // them alone unless they're well past the margin (cleanup pass below).
       const retryRows = due.filter(r => (r.attempts ?? 0) >= 1);
-      const orphanedGrace = due.filter(r => (r.attempts ?? 0) === 0);
+      const orphanCutoff = Date.now() - ORPHAN_GRACE_MARGIN_MS;
+      const orphanedGrace = due.filter(r => (r.attempts ?? 0) === 0 && r.expiresAt.getTime() < orphanCutoff);
 
       for (const row of retryRows) {
         await this.processRow(row);
       }
 
-      // Orphaned grace rows: setTimeout was lost across a bot restart and
-      // the row is now past its grace window. Treat them as immediate
-      // executions — but only if the executor confirms via REST, since the
-      // member may have left during the offline window.
       for (const row of orphanedGrace) {
-        await this.processOrphanedGrace(row);
+        await this.dropOrphanedGrace(row);
       }
     } catch (error) {
       logError({
@@ -222,21 +242,16 @@ export class RetryQueue {
     await this.deps.pendingActionRepo.save(row);
   }
 
-  private async processOrphanedGrace(row: PendingAction): Promise<void> {
-    // Bot restarted past the grace window. Either:
-    //  - User is still here → execute the configured action now.
-    //  - User has left → REST ban still works (leave-tolerant).
-    // Both cases route through `attemptAction` (REST executor).
-    const guild = await this.deps.client.guilds.fetch(row.guildId).catch(() => null);
-    if (!guild) {
-      row.deadAt = new Date();
-      row.lastError = 'guild not accessible (orphaned grace)';
-      await this.deps.pendingActionRepo.save(row);
-      return;
-    }
-
+  /**
+   * A grace row whose timer is gone (lost across a restart, or its delete
+   * failed). Drop it without acting: nothing here can tell whether the user
+   * deleted their message, got whitelisted, or the guild switched to test
+   * mode, and boot-time restore never acts on grace rows either.
+   */
+  private async dropOrphanedGrace(row: PendingAction): Promise<void> {
+    await this.deps.pendingActionRepo.remove(row);
     enhancedLogger.warn(
-      `Orphaned grace row promoted to retry queue (${row.action} on ${row.userId} in ${row.guildId})`,
+      `Dropped orphaned bait grace row without acting (${row.action} on ${row.userId} in ${row.guildId})`,
       LogCategory.SECURITY,
       {
         guildId: row.guildId,
@@ -244,23 +259,18 @@ export class RetryQueue {
         age: Date.now() - row.createdAt.getTime(),
       },
     );
-
-    // Don't pre-consume an attempt — `processRow`'s failure path will
-    // increment from 0→1 on the first failure, then 1→2, then 2→3
-    // (dead-letter). That gives the row the full 3 attempts the
-    // documented backoff promises. If we'd pre-set attempts=1 here, we'd
-    // only get 2 Discord retries before dead-lettering.
-    await this.processRow(row);
   }
 
   /**
    * Attempt the action via the REST executor. The action stored on the row
    * is authoritative — we don't re-resolve via config (config may have
    * changed since the original detection, but the row's `action` is what
-   * the user is owed).
+   * the user is owed). Test mode is the exception: a guild in test mode
+   * gets a dry run, never a real action.
    */
   private async attemptAction(guild: Guild, row: PendingAction): Promise<{ status: string; failureReason?: string }> {
     const member = await guild.members.fetch(row.userId).catch(() => null);
+    const config = await this.loadConfig(row.guildId);
 
     // For timeout, we need a live member. If they're gone, demote to softban
     // so the action still has effect (messages get purged, account barred for
@@ -278,12 +288,31 @@ export class RetryQueue {
         action,
         reason: `cogworks:bait retry attempt=${row.attempts + 1} score=${row.suspicionScore}`,
         executorId: this.deps.client.user?.id ?? null,
-        deleteMessageSeconds: action === 'ban' || action === 'softban' ? 24 * 3600 : undefined,
-        timeoutMs: action === 'timeout' ? 60 * 60 * 1000 : undefined,
+        deleteMessageSeconds:
+          action === 'ban' || action === 'softban' ? (config?.deleteMessageHours ?? 24) * 3600 : undefined,
+        timeoutMs: action === 'timeout' ? (config?.timeoutDurationMinutes ?? 60) * 60 * 1000 : undefined,
         member: member ?? undefined,
+        testMode: config?.testMode === true,
       },
       this.deps.idempotencyRepo,
     );
+  }
+
+  private async loadConfig(guildId: string): Promise<BaitChannelConfig | null> {
+    try {
+      if (this.deps.getConfig) return await this.deps.getConfig(guildId);
+      const manager = (this.deps.client as ClientWithBaitConfig).baitChannelManager;
+      return manager ? await manager.getCachedConfig(guildId) : null;
+    } catch (error) {
+      logError({
+        category: ErrorCategory.DATABASE,
+        severity: ErrorSeverity.LOW,
+        message: 'Bait retry queue could not load guild config; using defaults',
+        error,
+        context: { guildId },
+      });
+      return null;
+    }
   }
 
   private async alertDeadLetter(row: PendingAction): Promise<void> {

@@ -187,6 +187,21 @@ function isTerminalDiscordError(error: unknown): boolean {
   return error instanceof DiscordAPIError && TERMINAL_DISCORD_CODES.has(Number(error.code));
 }
 
+/**
+ * Is the user banned in this guild right now? `null` when we can't tell
+ * (no BAN_MEMBERS, or the request failed). A softban lifts any ban already in
+ * place, so the leave paths check this before softbanning someone who left:
+ * the leave may have been a ban by a mod or another bot.
+ */
+export async function fetchBanState(guild: Guild, userId: string): Promise<boolean | null> {
+  try {
+    await guild.bans.fetch({ user: userId, force: true });
+    return true;
+  } catch (error) {
+    return error instanceof DiscordAPIError && Number(error.code) === 10026 ? false : null;
+  }
+}
+
 export async function executeBanAction(
   opts: BanExecutorOptions,
   idempotencyRepo: Repository<IdempotencyKey>,

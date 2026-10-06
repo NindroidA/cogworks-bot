@@ -1064,6 +1064,7 @@ export interface LangBaitChannel {
     activated: string;
     released: string;
     notActive: string;
+    guildUnavailable: string;
     unknownSubcommand: string;
     error: string;
   };
@@ -1351,6 +1352,7 @@ export interface LangDataExport {
   footer: string;
   dmSuccess: string;
   dmFailed: string;
+  tooLarge: string;
   error: string;
   starting: string;
   completed: string;
@@ -2040,9 +2042,6 @@ export interface Language {
   addRole: LangRoles['addRole'];
   removeRole: LangRoles['removeRole'];
   getRoles: LangRoles['getRoles'];
-  cogdeck: {
-    cmdDescrp: string;
-  };
   announcement: LangAnnouncement;
   baitChannel: LangBaitChannel;
   dataExport: LangDataExport;

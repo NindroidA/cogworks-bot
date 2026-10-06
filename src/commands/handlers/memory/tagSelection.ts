@@ -2,7 +2,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  type ChatInputCommandInteraction,
   EmbedBuilder,
   type MessageComponentInteraction,
   MessageFlags,
@@ -11,6 +10,7 @@ import {
 } from 'discord.js';
 import type { MemoryTag } from '../../../typeorm/entities/memory';
 import { Colors, lang } from '../../../utils';
+import { type MemoryFlowInteraction, replyFlow } from './channelPicker';
 
 const tl = lang.memory;
 
@@ -118,9 +118,13 @@ function buildTagSelectionEmbed(state: TagSelectionState, config: TagSelectionCo
 /**
  * Run the tag selection collector flow.
  * Returns the final selection state when user clicks Continue, or null if cancelled/timed out.
+ *
+ * `source` is the slash command, or the channel picker's select when the guild
+ * has 2+ memory forums (see `resolveMemoryConfig`). `onContinue` gets the
+ * Continue click unacknowledged: it must answer it itself (showModal or update).
  */
 export async function runTagSelectionCollector(
-  interaction: ChatInputCommandInteraction,
+  source: MemoryFlowInteraction,
   categoryTags: MemoryTag[],
   statusTags: MemoryTag[],
   state: TagSelectionState,
@@ -141,16 +145,15 @@ export async function runTagSelectionCollector(
 
   const initialComponents = buildTagSelectionComponents(categoryOptions, statusOptions, state, config);
 
-  const response = await interaction.reply({
+  const response = await replyFlow(source, {
     embeds: [buildTagSelectionEmbed(state, config)],
     components: [initialComponents.categorySelect, initialComponents.statusSelect, initialComponents.buttonRow],
-    flags: [MessageFlags.Ephemeral],
   });
 
   const collector = response.createMessageComponentCollector({ time: 120000 });
 
   collector.on('collect', async i => {
-    if (i.user.id !== interaction.user.id) {
+    if (i.user.id !== source.user.id) {
       await i.reply({
         content: lang.errors.notYourInteraction,
         flags: [MessageFlags.Ephemeral],
@@ -198,7 +201,7 @@ export async function runTagSelectionCollector(
 
   collector.on('end', (_, reason) => {
     if (reason === 'time') {
-      interaction.editReply({ content: lang.errors.timeout, embeds: [], components: [] }).catch(() => null);
+      source.editReply({ content: lang.errors.timeout, embeds: [], components: [] }).catch(() => null);
     }
   });
 }
