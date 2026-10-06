@@ -17,6 +17,22 @@ export interface GuardResult {
 
 type KeyScope = 'user' | 'guild' | 'userGuild';
 
+/**
+ * Interactions a guard refused (permission or rate limit). The slash-command
+ * dispatcher skips its audit row and command refresh for these: nothing ran.
+ */
+const refusedInteractions = new WeakSet<Interaction>();
+
+function refuse(interaction: Interaction): GuardResult {
+  refusedInteractions.add(interaction);
+  return { allowed: false };
+}
+
+/** True when a guard* wrapper refused this interaction. */
+export function wasRefusedByGuard(interaction: Interaction): boolean {
+  return refusedInteractions.has(interaction);
+}
+
 interface GuardOptions {
   /** Rate limit key action name (e.g., 'ticket-create') */
   action: string;
@@ -44,11 +60,11 @@ async function applyRateLimit(interaction: Interaction, options: GuardOptions): 
   let key: string;
   switch (scope) {
     case 'guild':
-      if (!guildId) return { allowed: false };
+      if (!guildId) return refuse(interaction);
       key = createRateLimitKey.guild(guildId, options.action);
       break;
     case 'userGuild':
-      if (!guildId) return { allowed: false };
+      if (!guildId) return refuse(interaction);
       key = createRateLimitKey.userGuild(userId, guildId, options.action);
       break;
     default:
@@ -64,7 +80,7 @@ async function applyRateLimit(interaction: Interaction, options: GuardOptions): 
       });
     }
     enhancedLogger.rateLimit(`Rate limit hit: ${options.action}`, userId, guildId ?? 'unknown');
-    return { allowed: false };
+    return refuse(interaction);
   }
 
   return { allowed: true };
@@ -80,7 +96,7 @@ async function applyRateLimit(interaction: Interaction, options: GuardOptions): 
  */
 export async function guardAdmin(interaction: Interaction): Promise<GuardResult> {
   if (!interaction.isRepliable()) {
-    return { allowed: false };
+    return refuse(interaction);
   }
 
   const adminCheck = requireAdmin(interaction);
@@ -89,7 +105,7 @@ export async function guardAdmin(interaction: Interaction): Promise<GuardResult>
       content: adminCheck.message,
       flags: [MessageFlags.Ephemeral],
     });
-    return { allowed: false };
+    return refuse(interaction);
   }
 
   return { allowed: true };
@@ -107,7 +123,7 @@ export async function guardAdmin(interaction: Interaction): Promise<GuardResult>
  */
 export async function guardOwner(interaction: Interaction): Promise<GuardResult> {
   if (!interaction.isRepliable()) {
-    return { allowed: false };
+    return refuse(interaction);
   }
 
   const ownerCheck = requireBotOwner(interaction.user.id);
@@ -116,7 +132,7 @@ export async function guardOwner(interaction: Interaction): Promise<GuardResult>
       content: ownerCheck.message,
       flags: [MessageFlags.Ephemeral],
     });
-    return { allowed: false };
+    return refuse(interaction);
   }
 
   return { allowed: true };
@@ -136,7 +152,7 @@ export async function guardOwner(interaction: Interaction): Promise<GuardResult>
 export async function guardAdminRateLimit(interaction: Interaction, options: GuardOptions): Promise<GuardResult> {
   if (!interaction.isRepliable()) {
     enhancedLogger.warn('guardAdminRateLimit called with non-repliable interaction', LogCategory.COMMAND_EXECUTION);
-    return { allowed: false };
+    return refuse(interaction);
   }
 
   if (!options.skipPermissionCheck) {
@@ -146,7 +162,7 @@ export async function guardAdminRateLimit(interaction: Interaction, options: Gua
         content: adminCheck.message,
         flags: [MessageFlags.Ephemeral],
       });
-      return { allowed: false };
+      return refuse(interaction);
     }
   }
 
@@ -169,7 +185,7 @@ export async function guardFeatureAccess(
   feature: Feature,
   requiredLevel: Level,
 ): Promise<GuardResult> {
-  if (!interaction.isRepliable()) return { allowed: false };
+  if (!interaction.isRepliable()) return refuse(interaction);
 
   const result = await hasFeatureAccess(interaction, feature, requiredLevel);
   if (!result.allowed) {
@@ -177,7 +193,7 @@ export async function guardFeatureAccess(
       content: result.message ?? "❌ You don't have permission to use this command.",
       flags: [MessageFlags.Ephemeral],
     });
-    return { allowed: false };
+    return refuse(interaction);
   }
 
   return { allowed: true };
@@ -205,7 +221,7 @@ export async function guardFeatureRateLimit(
 ): Promise<GuardResult> {
   if (!interaction.isRepliable()) {
     enhancedLogger.warn('guardFeatureRateLimit called with non-repliable interaction', LogCategory.COMMAND_EXECUTION);
-    return { allowed: false };
+    return refuse(interaction);
   }
 
   if (!options.skipPermissionCheck) {
@@ -215,7 +231,7 @@ export async function guardFeatureRateLimit(
         content: featureCheck.message ?? "❌ You don't have permission to use this command.",
         flags: [MessageFlags.Ephemeral],
       });
-      return { allowed: false };
+      return refuse(interaction);
     }
   }
 

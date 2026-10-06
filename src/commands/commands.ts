@@ -9,6 +9,7 @@ import {
   RateLimits,
   rateLimiter,
   replyEphemeralError,
+  wasRefusedByGuard,
 } from '../utils';
 import { writeAuditLog } from '../utils/api/handlers/auditHelper';
 import { lazyRepo } from '../utils/database/lazyRepo';
@@ -243,11 +244,8 @@ export const handleSlashCommand = async (client: Client, interaction: ChatInputC
       }
     }
 
-    // A "not configured" reply ran nothing, so it is not audited.
-    if (reachedHandler) logCommandAudit(interaction, commandName, guildId);
-    // If this was a setup command that may have toggled a gated module on/off,
-    // refresh the guild's visible commands (debounced, no-op when unchanged).
-    maybeRefreshCommandsAfterSetup(commandName, guildId);
+    // A "not configured" reply ran nothing, so it is neither audited nor refreshed.
+    if (reachedHandler) afterDispatch(interaction, commandName, guildId);
 
     const executionTime = Date.now() - startTime;
     healthMonitor.recordCommand(commandName, executionTime, false);
@@ -274,11 +272,36 @@ export const handleSlashCommand = async (client: Client, interaction: ChatInputC
   }
 };
 
+/** Injectable seam for {@link afterDispatch}; production callers omit it. */
+export interface AfterDispatchDeps {
+  logCommandAudit: typeof logCommandAudit;
+  maybeRefreshCommandsAfterSetup: typeof maybeRefreshCommandsAfterSetup;
+}
+
+/**
+ * Audit row + command refresh after a command ran. A setup command may have
+ * toggled a gated module, so the guild's visible commands are refreshed
+ * (debounced, no-op when unchanged). Skipped when a guard refused: nothing
+ * ran, the audit row would carry the refused member's name, and a spammed
+ * refused *-setup would keep restarting the refresh debounce.
+ */
+export function afterDispatch(
+  interaction: ChatInputCommandInteraction<CacheType>,
+  commandName: string,
+  guildId: string,
+  deps: AfterDispatchDeps = { logCommandAudit, maybeRefreshCommandsAfterSetup },
+): void {
+  if (wasRefusedByGuard(interaction)) return;
+  deps.logCommandAudit(interaction, commandName, guildId);
+  deps.maybeRefreshCommandsAfterSetup(commandName, guildId);
+}
+
 // ---------------------------------------------------------------------------
 // Dispatcher logic
 // ---------------------------------------------------------------------------
 
-async function dispatchCommand(
+/** Route a command to its handler. Exported for the command-visibility guard test. */
+export async function dispatchCommand(
   client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
   commandName: string,

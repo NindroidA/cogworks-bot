@@ -1,4 +1,4 @@
-import { PermissionsBitField, SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { lang } from '../../lang';
 import { createTextChannelOption } from './factories';
 
@@ -7,7 +7,8 @@ const tl = lang.starboard.builder;
 export const starboard = new SlashCommandBuilder()
   .setName('starboard')
   .setDescription(tl.cmdDescrp)
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   .addSubcommand(sub =>
     sub
       .setName('setup')

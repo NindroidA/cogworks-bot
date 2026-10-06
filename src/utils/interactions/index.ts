@@ -10,6 +10,7 @@ export {
   guardFeatureAccess,
   guardFeatureRateLimit,
   guardOwner,
+  wasRefusedByGuard,
 } from './guardHelper';
 export {
   extractModalBoolean,

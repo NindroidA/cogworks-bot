@@ -1,4 +1,4 @@
-import { PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
 import { createTextChannelOption } from './factories';
 
@@ -21,7 +21,8 @@ const remove = new SlashCommandSubcommandBuilder().setName('remove').setDescript
 export const rulesSetup = new SlashCommandBuilder()
   .setName('rules-setup')
   .setDescription(tl.cmdDescrp)
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   .addSubcommand(setup)
   .addSubcommand(view)
   .addSubcommand(remove)
