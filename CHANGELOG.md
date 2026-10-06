@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.16.11] - 2026-10-06
+## [3.16.12] - 2026-10-06
 
 One staff-role format. Saved staff roles came in two shapes — `/role add`
 stored the `<@&id>` mention while the dashboard and `/bot-setup` store the raw
@@ -50,6 +50,155 @@ without a migration (NindroidA/cogworks-bot#41).
   saved in either format as already saved, and rejects `@everyone`.
 - **`/role list` shows every saved role as a mention**, whichever format it was
   stored in.
+
+## [3.16.11] - 2026-10-06
+
+"Save Data First" on `/bot-reset` now archives every table plus the
+transcripts the reset deletes, and the reset deletes only what that archive
+holds. `/bot-reset` also removes open ticket and application channels instead
+of leaving them behind with no records.
+
+### Fixed
+
+- **"Save Data First" deleted the only copy of every transcript.** The archive
+  held just row metadata (thread ID, creator, type), then the reset deleted the
+  archive and memory forum threads holding the conversations. The archive now
+  includes the text of every archive thread, memory thread and open
+  ticket/application channel (attachments are listed but not downloaded),
+  using the transcript capture `/archive cleanup` got in 3.16.10. Deletion is
+  now an allow-list: only threads and channels the archive holds are deleted,
+  and only if they got no new message after they were read. Anything else
+  (unreadable, opened while the archive was being made, or a returning user's
+  archive thread that a new close appended to) is kept and listed in the
+  summary ("Left in place"). After a saved reset, the sweep for leftover bot
+  messages also skips every archive and memory forum thread, and doesn't run
+  if the threads to keep couldn't be listed.
+- **The `/bot-reset` archive left out most of the server's data.** It now uses
+  the same entity list as `/data-export`, so it includes XP, configurations and
+  open tickets/applications, and the "Save Your Data?" step says so. The file
+  is `cogworks-archive-v2`: it keeps v1's top-level tables and
+  `metadata.version`, which the dashboard's Archive Viewer reads, and adds
+  `metadata.guildName` and a `transcripts` object.
+- **`/bot-reset` left open ticket and application channels behind** with no
+  records behind them. They are now deleted (after their text goes into the
+  archive, if saving), and any channel or thread that couldn't be saved or
+  deleted is listed in the summary.
+- **"Archive Too Large" matches the bigger archive.** It says `/archive
+  cleanup` can shrink archived tickets and applications (with their
+  transcripts) but not memory items, XP, activity, analytics or log data, and
+  that otherwise the options are a reset with **No, Delete Everything** or
+  contacting support. `/data-export` skips transcripts, so it may fit under the
+  same 8 MB limit; the message suggests trying it first.
+- **Transcript capture is time-boxed.** It stops 8 minutes after the slash
+  command (not after the final click). If the 15-minute interaction token
+  still runs out, the summary is DMed instead, and the finished reset keeps
+  its daily limit spent.
+- The admin guide's `/bot-reset` section describes the new behavior.
+
+## [3.16.10] - 2026-10-06
+
+`/archive cleanup` now keeps the transcripts it deletes, and deletes only what
+its export actually holds.
+
+### Fixed
+
+- **`/archive cleanup` deleted the only copy of every transcript.** The export
+  held just row metadata (thread ID, creator, type), then "Yes" deleted the
+  forum threads holding the conversations. The file now includes each
+  thread's message text (attachments are listed but not downloaded), as
+  `cogworks-archive-v2`: the v1 tables stay at the top level for the
+  dashboard's Archive Viewer, and a `transcripts` object is added.
+- **"Yes" deleted more than was exported.** It deleted every archived row,
+  including rows archived after the export and rows whose thread failed to
+  delete. Deletion is now an allow-list of the exported rows: each thread is
+  deleted only if the export read it and it has no newer message (a returning
+  user's next ticket, say), and each row right after its thread, only while it
+  still points there. Anything else is kept and counted in the summary.
+- **Deletion was offered when the DM failed.** No deletion is offered unless
+  the file reached the admin's DMs and is under 8 MB ("Archive Not
+  Delivered"), and the reply says the forum threads are deleted too.
+- **`/archive cleanup` spent its daily limit when nothing was delivered** (or
+  there was nothing to export), and refused with `/data-export` wording. The
+  limit is given back in those cases, and the refusal names `/archive cleanup`.
+- **The reply could get stuck on "Deleting archived entries..."** A DB error
+  during "Yes" now reports what was deleted before it, and a summary edit
+  that fails after the deletion finished (Discord error, expired token) is
+  logged instead of rejecting the button handler.
+- The admin guide's `/archive cleanup` section describes the new behavior.
+
+## [3.16.9] - 2026-10-06
+
+`/bot-reset` no longer deletes everything after failing to deliver the archive
+the admin asked for, no longer removes `/bot-setup`, and no longer spends the
+day's reset on a run that didn't finish.
+
+### Fixed
+
+- **`/bot-reset` purged everything after the archive DM failed.** If the admin
+  chose to save and the archive can't be delivered (DMs closed, file over
+  8 MB), the reset now stops before deleting anything.
+- **`/bot-reset` removed `/bot-setup`.** It replaced the guild's commands with
+  an empty list. It now re-registers the command set after the purge, which
+  leaves `/bot-setup` and the other setup commands available.
+- **`/bot-reset` spent its daily limit before the confirmations**, so Cancel,
+  a timeout or "Archive Too Large" locked the admin out for 24 hours (with a
+  refusal that talked about data exports). The limit is now checked up front,
+  spent at the final confirmation, and given back if the reset aborts, fails
+  or doesn't finish. The refusal names `/bot-reset`.
+- **A partly failed purge was reported as "Factory Reset Complete".**
+  `deleteAllGuildData` swallowed each table's error and returned success. It
+  now reports the tables it couldn't purge (`failed`): `/bot-reset` shows
+  "Factory Reset Incomplete" with those tables and gives the daily limit back
+  so it can be run again, and guild leave logs them as a warning.
+- **Every reset error said data "may have been partially deleted"**, even when
+  the archive step failed before anything was deleted. It now says nothing was
+  deleted in that case.
+- **The "Save Your Data?" step said the archive held XP data and
+  configurations.** It holds archived tickets and applications, memory items,
+  and announcement, audit and bait logs; the step now says so and points to
+  `/data-export` for every table. "Archive Too Large" no longer suggests
+  `/data-export` (same 8 MB cap, more tables), and says `/archive cleanup`
+  only shrinks the ticket and application archives.
+- The admin guide's `/bot-reset` section describes the new behavior.
+
+## [3.16.8] - 2026-10-06
+
+`/data-export` now reaches the admin and covers every guild table, and the
+guild purge (used by `/bot-reset` and when the bot leaves a server) removes
+role permission grants and stops warm caches from acting on deleted config.
+
+### Fixed
+
+- **Warm caches outlived a purge.** XP, starboard, rules, reaction-role menu,
+  locale and permission caches are now dropped before and after
+  `deleteAllGuildData` (for `/bot-reset` and guild leave), so XP and starboard
+  rows stop being re-created for up to five minutes afterwards. `/bot-reset`
+  and guild leave also clear the bait config and keyword caches on both sides
+  of the purge (reset used to clear only the config cache, and only before;
+  guild leave didn't clear them, so a kick and re-invite within five minutes
+  kept acting on the deleted bait config). `XPConfig` is
+  now deleted before `XPUser`. The starboard config cache moved to
+  `utils/starboard/configCache.ts` so the purge can reach it.
+- **`/data-export`** is gzipped compact JSON instead of pretty-printed, checks
+  the 8 MB upload limit, and when the DM fails it attaches the file to the
+  ephemeral reply instead of pointing at a download button that didn't exist.
+  Its daily limit is given back when delivery fails, but an export too large
+  to upload still counts, since running it again would build the same file.
+  Compression no longer blocks the event loop. The entity list
+  moved to `utils/offboarding/guildDataExport.ts` so other exports can reuse it.
+  The `/data-export` sections of the admin guide and `docs/commands.md`
+  describe the new file, the fallback and when the daily limit counts.
+
+### Security
+
+- **Role permission grants (`GuildPermission`) survived `/bot-reset` and the
+  guild-leave purge**, so a role granted dashboard access before a factory
+  reset kept it afterwards. They are now purged (and their cache dropped), and
+  included in `/data-export`, along with `SetupState`. A unit test now diffs
+  the purge and export lists against the DataSource so a new entity can't be
+  missed again.
+- `/data-export` no longer includes the global `BotStatus` row, which exposed
+  the bot owner's user ID to every guild admin.
 
 ## [3.16.7] - 2026-10-06
 

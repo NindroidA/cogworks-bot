@@ -1,72 +1,109 @@
 /**
  * Archive Exporter
  *
- * Exports archived tickets or applications into a compressed JSON file
- * in the cogworks-archive-v1 format. Optionally fetches forum thread
- * messages for richer transcripts.
+ * Exports archived tickets or applications into a compressed JSON file in the
+ * cogworks-archive-v2 format, including the transcript text read from each
+ * row's forum thread (the only place a transcript lives), then deletes only
+ * what the file actually covers: rows still pointing at the thread that was
+ * read, whose thread got no new message since.
  */
 
 import { gzipSync } from 'node:zlib';
-import type { Client, ForumChannel } from 'discord.js';
+import type { Client } from 'discord.js';
+import { In, IsNull } from 'typeorm';
+import { version } from '../../../package.json';
 import { AppDataSource } from '../../typeorm';
 import { ArchivedApplication } from '../../typeorm/entities/application/ArchivedApplication';
-import { ArchivedApplicationConfig } from '../../typeorm/entities/application/ArchivedApplicationConfig';
 import { ArchivedTicket } from '../../typeorm/entities/ticket/ArchivedTicket';
-import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
-import { verifiedThreadDelete } from '../discord/verifiedDelete';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+import {
+  captureTranscripts,
+  deleteIfExported,
+  type ExportCoverage,
+  exportCoverage,
+  TRANSCRIPT_EXPORT_NOTE,
+} from './transcriptCapture';
 
 export type ArchiveSystem = 'tickets' | 'applications' | 'all';
+
+/** An exported row and the thread it pointed at then; the row is deleted only while it still points there. */
+export interface ExportedRow {
+  id: number;
+  threadId: string | null;
+}
+
+/** What the export file covers, per table, plus what it saw of each thread. */
+export interface ArchiveExportCoverage {
+  tickets: ExportedRow[];
+  applications: ExportedRow[];
+  threads: ExportCoverage;
+}
 
 export interface ArchiveExportResult {
   buffer: Buffer;
   filename: string;
   entryCount: number;
   compressedSizeBytes: number;
+  /** Rows safe to delete: exported, and their transcript is in the file (or their thread is already gone). */
+  deletable: ArchiveExportCoverage;
+  /** Threads that could not be read. They and their rows are kept. */
+  unreadableCount: number;
+}
+
+interface ArchivedRow {
+  id: number;
+  messageId: string | null;
 }
 
 /**
  * Export archived data for a specific system into a compressed JSON file.
  */
-export async function exportArchives(guildId: string, system: ArchiveSystem): Promise<ArchiveExportResult> {
-  const data: Record<string, unknown[]> = {};
-  let totalEntries = 0;
+export async function exportArchives(
+  guildId: string,
+  system: ArchiveSystem,
+  client: Client,
+): Promise<ArchiveExportResult> {
+  const tickets: ArchivedTicket[] =
+    system === 'applications' ? [] : await AppDataSource.getRepository(ArchivedTicket).find({ where: { guildId } });
+  const apps: ArchivedApplication[] =
+    system === 'tickets' ? [] : await AppDataSource.getRepository(ArchivedApplication).find({ where: { guildId } });
+  const rows: ArchivedRow[] = [...tickets, ...apps];
+  const totalEntries = rows.length;
 
-  if (system === 'tickets' || system === 'all') {
-    const tickets = await AppDataSource.getRepository(ArchivedTicket).find({
-      where: { guildId },
-    });
-    data.archivedTickets = tickets;
-    totalEntries += tickets.length;
-  }
-
-  if (system === 'applications' || system === 'all') {
-    const apps = await AppDataSource.getRepository(ArchivedApplication).find({
-      where: { guildId },
-    });
-    data.archivedApplications = apps;
-    totalEntries += apps.length;
-  }
+  const capture = await captureTranscripts(
+    client,
+    guildId,
+    rows.map(r => r.messageId).filter((id): id is string => !!id),
+  );
+  const unreadable = new Set(capture.unreadable);
+  const deletableRows = (list: ArchivedRow[]): ExportedRow[] =>
+    list.filter(r => !r.messageId || !unreadable.has(r.messageId)).map(r => ({ id: r.id, threadId: r.messageId }));
 
   const archive = {
-    format: 'cogworks-archive-v1',
+    format: 'cogworks-archive-v2',
     metadata: {
       guildId,
+      guildName: client.guilds.cache.get(guildId)?.name ?? null,
       exportDate: new Date().toISOString(),
+      version,
       system,
       entryCount: totalEntries,
-      version: '3.0.0',
+      transcriptCount: Object.keys(capture.transcripts).length,
+      unreadableThreadIds: capture.unreadable,
+      note: TRANSCRIPT_EXPORT_NOTE,
     },
-    ...data,
+    ...(system === 'applications' ? {} : { archivedTickets: tickets }),
+    ...(system === 'tickets' ? {} : { archivedApplications: apps }),
+    transcripts: capture.transcripts,
   };
 
-  const json = JSON.stringify(archive);
-  const compressed = gzipSync(Buffer.from(json));
+  const compressed = gzipSync(Buffer.from(JSON.stringify(archive)));
 
   enhancedLogger.info(`Archive exported: ${system}`, LogCategory.COMMAND_EXECUTION, {
     guildId,
     system,
     entryCount: totalEntries,
+    unreadableThreads: unreadable.size,
     compressedSizeBytes: compressed.length,
   });
 
@@ -75,104 +112,75 @@ export async function exportArchives(guildId: string, system: ArchiveSystem): Pr
     filename: `cogworks-archive-${system}-${guildId}-${Date.now()}.json.gz`,
     entryCount: totalEntries,
     compressedSizeBytes: compressed.length,
+    deletable: {
+      tickets: deletableRows(tickets),
+      applications: deletableRows(apps),
+      threads: exportCoverage(capture),
+    },
+    unreadableCount: unreadable.size,
   };
 }
 
-/**
- * Delete archived entries from the database AND their Discord forum threads.
- */
-export async function deleteArchivedEntries(
-  guildId: string,
-  system: ArchiveSystem,
-  client?: Client,
-): Promise<{ deleted: number; threadsDeleted: number }> {
-  let deleted = 0;
-  let threadsDeleted = 0;
-
-  if (system === 'tickets' || system === 'all') {
-    // Delete forum threads before DB records
-    if (client) {
-      threadsDeleted += await deleteForumThreads(client, guildId, 'tickets');
-    }
-    const result = await AppDataSource.getRepository(ArchivedTicket).delete({
-      guildId,
-    });
-    deleted += result.affected || 0;
-  }
-
-  if (system === 'applications' || system === 'all') {
-    if (client) {
-      threadsDeleted += await deleteForumThreads(client, guildId, 'applications');
-    }
-    const result = await AppDataSource.getRepository(ArchivedApplication).delete({ guildId });
-    deleted += result.affected || 0;
-  }
-
-  enhancedLogger.info(`Archived entries deleted: ${system}`, LogCategory.COMMAND_EXECUTION, {
-    guildId,
-    system,
-    deleted,
-    threadsDeleted,
-  });
-
-  return { deleted, threadsDeleted };
+export interface ArchiveDeleteResult {
+  deleted: number;
+  threadsDeleted: number;
+  /** Rows kept because their thread changed since the export (new message, new thread) or couldn't be deleted. */
+  kept: number;
 }
 
 /**
- * Delete forum threads for archived entries before removing DB records.
+ * Delete the exported archived rows and their forum threads: thread first, and
+ * a row only once its thread is confirmed gone. Rows created after the export
+ * are never in `exported`, and a row whose thread changed after the export (a
+ * returning user's re-close appends to their existing thread, or re-creates a
+ * missing one) is kept along with that thread.
+ *
+ * `progress` is updated after every row, so if a DB or Discord error stops the
+ * cleanup part-way, the caller can still say what was deleted before it.
  */
-async function deleteForumThreads(client: Client, guildId: string, type: 'tickets' | 'applications'): Promise<number> {
-  let count = 0;
+export async function deleteArchivedEntries(
+  guildId: string,
+  exported: ArchiveExportCoverage,
+  client: Client,
+  progress: ArchiveDeleteResult = { deleted: 0, threadsDeleted: 0, kept: 0 },
+): Promise<ArchiveDeleteResult> {
+  await deleteRowsWithThreads(client, guildId, ArchivedTicket, exported.tickets, exported.threads, progress);
+  await deleteRowsWithThreads(client, guildId, ArchivedApplication, exported.applications, exported.threads, progress);
 
-  try {
-    // Resolve config + entries based on type
-    const archiveConfig =
-      type === 'tickets'
-        ? await AppDataSource.getRepository(ArchivedTicketConfig).findOneBy({
-            guildId,
-          })
-        : await AppDataSource.getRepository(ArchivedApplicationConfig).findOneBy({ guildId });
-    if (!archiveConfig?.channelId) return 0;
+  enhancedLogger.info('Archived entries deleted', LogCategory.COMMAND_EXECUTION, { guildId, ...progress });
+  return progress;
+}
 
-    const entries =
-      type === 'tickets'
-        ? await AppDataSource.getRepository(ArchivedTicket).find({
-            where: { guildId },
-          })
-        : await AppDataSource.getRepository(ArchivedApplication).find({
-            where: { guildId },
-          });
+async function deleteRowsWithThreads(
+  client: Client,
+  guildId: string,
+  entity: typeof ArchivedTicket | typeof ArchivedApplication,
+  exported: ExportedRow[],
+  threads: ExportCoverage,
+  progress: ArchiveDeleteResult,
+): Promise<void> {
+  if (exported.length === 0) return;
+  const exportedThread = new Map(exported.map(r => [r.id, r.threadId]));
+  const repo = AppDataSource.getRepository<ArchivedRow & { guildId: string }>(entity);
+  const rows = await repo.find({ where: { guildId, id: In([...exportedThread.keys()]) } });
 
-    const forumChannel = (await client.channels
-      .fetch(archiveConfig.channelId)
-      .catch(() => null)) as ForumChannel | null;
-    if (!forumChannel || !('threads' in forumChannel)) return 0;
-
-    for (const entry of entries) {
-      if (!entry.messageId) continue;
-      const thread = await forumChannel.threads.fetch(entry.messageId).catch(() => null);
-      if (!thread) continue;
-      // Use the verified helper so an "already gone" thread counts as success
-      // and a genuine deletion failure is logged instead of silently swallowed.
-      const result = await verifiedThreadDelete(thread, { guildId, label: 'archive thread' });
-      if (result.success) {
-        count++;
-      } else {
-        enhancedLogger.warn('Failed to delete an archive forum thread during cleanup', LogCategory.COMMAND_EXECUTION, {
-          guildId,
-          type,
-          threadId: entry.messageId,
-          error: result.error,
-        });
-      }
+  for (const row of rows) {
+    const threadId = row.messageId;
+    if (threadId !== exportedThread.get(row.id)) {
+      progress.kept++; // repointed to a thread the export never read
+      continue;
     }
-  } catch (error) {
-    enhancedLogger.warn(`Failed to delete some forum threads during archive cleanup`, LogCategory.COMMAND_EXECUTION, {
-      guildId,
-      type,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    if (threadId) {
+      const outcome = await deleteIfExported(client, guildId, threads, threadId, 'archive thread');
+      if (outcome === 'failed' || outcome === 'kept') {
+        progress.kept++; // thread still holds content: keep its row
+        continue;
+      }
+      if (outcome === 'deleted') progress.threadsDeleted++;
+    }
+    // Only while the row still points there: a close that found the thread gone may have just repointed it.
+    const { affected } = await repo.delete({ guildId, id: row.id, messageId: threadId ?? IsNull() });
+    if (affected) progress.deleted += affected;
+    else progress.kept++;
   }
-
-  return count;
 }

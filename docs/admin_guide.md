@@ -1420,10 +1420,11 @@ Right-click a user and select "Manage Restrictions" to view and modify their tic
 /data-export
 ```
 
-Exports all data from every configured system (tickets, applications, announcements, bait channel, rules, reaction roles, memory, starboard, XP, events, onboarding, analytics, AutoMod, archives, audit logs, and bot status).
+Exports every record Cogworks stores for your server (tickets, applications, announcements, bait channel, rules, reaction roles, memory, starboard, XP, events, onboarding, analytics, AutoMod, archives, audit logs, role permission grants and setup progress).
 
-- Sent via **DM** as a **JSON file**
-- Rate limited: once per 24 hours
+- Sent via **DM** as a compressed JSON file (`.json.gz`; open it with any unzip tool). If your DMs are closed, the file is attached to the command's private reply instead.
+- Files over Discord's 8 MB upload limit can't be sent yet. That attempt still counts as the day's export, since running it again builds the same file.
+- Rate limited: once per 24 hours (an export that fails to send, for example when both the DM and the fallback fail, doesn't count)
 - Admin-only command
 
 ### Bot Reset (Factory Reset)
@@ -1432,7 +1433,13 @@ Exports all data from every configured system (tickets, applications, announceme
 /bot-reset
 ```
 
-Complete factory reset: removes all configuration and data. Compiles an archive before deletion (sent via DM). Requires confirmation. **Irreversible** — use `/data-export` first if you want a backup.
+Complete factory reset: removes all configuration and data, Cogworks' panels and messages, the archive forum threads, memory threads, and any **open** ticket and application channels. `/bot-setup` and the other setup commands stay available; module commands come back when you set the module up again. Three confirmation steps. **Irreversible.**
+
+- **Save Data First** DMs you a `.json.gz` archive of every record plus the text of every transcript, memory thread and open ticket/application channel. Attachment files are not included. If the archive can't be sent (DMs closed, or over 8 MB), the reset stops and nothing is deleted.
+- With Save Data First, only the threads and channels the archive holds are deleted. Any that couldn't be read, or that were opened or got new messages while the archive was being made, are left in place and listed in the summary.
+- An archive over 8 MB can't be split yet. `/archive cleanup` can shrink the archived tickets and applications in it, but not memory items, XP, activity, analytics or log data; if those make up most of it, reset with **No, Delete Everything** or contact support. `/data-export` skips transcripts, so it may fit under the same 8 MB limit: try it first to save the tables.
+- If some tables can't be purged, the summary says **Factory Reset Incomplete** and lists them; run `/bot-reset` again to finish.
+- Rate limited: one completed reset per 24 hours (cancelling, or a reset that stops or doesn't finish, doesn't count)
 
 ### Archive Cleanup
 
@@ -1442,7 +1449,13 @@ Complete factory reset: removes all configuration and data. Compiles an archive 
 /archive cleanup system:all
 ```
 
-Exports archived records as JSON (via DM), then removes them from the database. Forum posts in Discord remain. Use this to reduce database size over time.
+Exports archived records **and their transcript text** as a `.json.gz` file via DM, then asks whether to delete them. **Yes** deletes the exported records **and their forum threads** in Discord. Attachment files in those threads are not in the file.
+
+- A thread that couldn't be read, or that got a new message before you confirmed (for example, a returning user's next ticket closed), is kept along with its record.
+- If the DM fails or the file is over 8 MB, nothing is offered for deletion.
+- Rate limited: one export per 24 hours (an export that delivers nothing doesn't count)
+
+Use this to reduce database size over time.
 
 ### Data Deletion
 

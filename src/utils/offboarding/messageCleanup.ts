@@ -3,8 +3,16 @@
  *
  * Three-phase teardown of all Cogworks-sent content in a guild:
  *  1. Tracked messages — fetch (channelId, messageId) pairs from config entities
- *  2. Forum threads — delete archived ticket/application/memory threads
+ *  2. Threads + channels — delete archived ticket/application/memory threads and
+ *     open ticket/application channels (when the caller exported them first,
+ *     only the ones the export covers and that haven't changed since)
  *  3. Untracked bot messages — Discord's guild message-search API (with channel-scan fallback)
+ *
+ * Every thread/channel that is kept or fails to delete is reported in
+ * `keptChannelIds`, and phase 3 leaves the messages inside it alone. When the
+ * caller exported first, phase 3 also skips every thread in the archive and
+ * memory forums (an orphaned archive thread with no DB row is in no export),
+ * and it doesn't run at all if phase 2 couldn't list what to keep.
  *
  * Each phase is split into its own function so the orchestration in
  * `cleanupGuildMessages` reads top-to-bottom and the phases can be
@@ -12,7 +20,9 @@
  */
 
 import { ChannelType, type Client, type ForumChannel, type TextChannel } from 'discord.js';
+import { IsNull, Not } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
+import { Application } from '../../typeorm/entities/application/Application';
 import { ApplicationConfig } from '../../typeorm/entities/application/ApplicationConfig';
 import { ArchivedApplication } from '../../typeorm/entities/application/ArchivedApplication';
 import { ArchivedApplicationConfig } from '../../typeorm/entities/application/ArchivedApplicationConfig';
@@ -22,13 +32,32 @@ import { ReactionRoleMenu } from '../../typeorm/entities/reactionRole';
 import { RulesConfig } from '../../typeorm/entities/rules';
 import { ArchivedTicket } from '../../typeorm/entities/ticket/ArchivedTicket';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
+import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
+import { deleteChannelById, deleteIfExported, type ExportCoverage } from '../archive/transcriptCapture';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
-interface CleanupResult {
+export interface CleanupResult {
   deleted: number;
   failed: number;
   details: string[];
+  /** Threads/channels left in Discord: not covered by the export, changed since, or failed to delete. */
+  keptChannelIds: string[];
+}
+
+export interface CleanupOptions {
+  /**
+   * What the caller's export covers. When set, phase 2 deletes only those
+   * threads/channels, and only while unchanged; anything else (unreadable,
+   * opened or archived after the export, or with newer messages) is kept.
+   */
+  exported?: ExportCoverage;
+}
+
+/** What phase 3 must not touch: kept threads/channels, and every thread inside `keepParents`. */
+interface SweepScope {
+  keep: ReadonlySet<string>;
+  keepParents: ReadonlySet<string>;
 }
 
 interface TrackedMessageRef {
@@ -139,77 +168,91 @@ async function deleteTrackedMessages(client: Client, refs: TrackedMessageRef[], 
 }
 
 /**
- * Phase 2: delete forum threads created by Cogworks (archived ticket forum
- * posts, archived application forum posts, memory item threads). Each forum
- * is handled the same way: fetch parent forum, iterate child entries, delete
- * each thread (or skip if already gone).
+ * Phase 2: delete the threads and channels Cogworks created that hold
+ * conversation content: archived ticket/application forum posts, memory item
+ * threads, and still-open ticket/application channels (their DB rows are
+ * purged next, so leaving them would strand them with dead Close buttons).
+ * Returns false if the targets couldn't be listed or the walk stopped early.
  */
-async function deleteForumThreads(client: Client, guildId: string, result: CleanupResult): Promise<void> {
+async function deleteContentChannels(
+  client: Client,
+  guildId: string,
+  exported: ExportCoverage | undefined,
+  result: CleanupResult,
+): Promise<boolean> {
   try {
-    const archTicketConfig = await AppDataSource.getRepository(ArchivedTicketConfig).findOneBy({ guildId });
-    if (archTicketConfig?.channelId) {
-      const archivedTickets = await AppDataSource.getRepository(ArchivedTicket).find({ where: { guildId } });
-      await deleteForumEntries(
-        client,
-        archTicketConfig.channelId,
-        archivedTickets.map(t => t.messageId).filter((id): id is string => !!id),
-        result,
-      );
-    }
+    const openWhere = { guildId, status: Not('closed'), channelId: Not(IsNull()) };
+    const [archivedTickets, archivedApps, memoryItems, openTickets, openApps] = await Promise.all([
+      AppDataSource.getRepository(ArchivedTicket).find({ where: { guildId } }),
+      AppDataSource.getRepository(ArchivedApplication).find({ where: { guildId } }),
+      AppDataSource.getRepository(MemoryItem).find({ where: { guildId } }),
+      AppDataSource.getRepository(Ticket).find({ where: openWhere }),
+      AppDataSource.getRepository(Application).find({ where: openWhere }),
+    ]);
+    type Target = [channelId: string | null, label: string];
+    const targets: Target[] = [
+      ...archivedTickets.map((t): Target => [t.messageId, 'archived ticket thread']),
+      ...archivedApps.map((a): Target => [a.messageId, 'archived application thread']),
+      ...memoryItems.map((i): Target => [i.threadId, 'memory thread']),
+      ...openTickets.map((t): Target => [t.channelId, 'open ticket channel']),
+      ...openApps.map((a): Target => [a.channelId, 'open application channel']),
+    ];
 
-    const archAppConfig = await AppDataSource.getRepository(ArchivedApplicationConfig).findOneBy({ guildId });
-    if (archAppConfig?.channelId) {
-      const archivedApps = await AppDataSource.getRepository(ArchivedApplication).find({ where: { guildId } });
-      await deleteForumEntries(
-        client,
-        archAppConfig.channelId,
-        archivedApps.map(a => a.messageId).filter((id): id is string => !!id),
-        result,
-      );
+    const seen = new Set<string>();
+    for (const [channelId, label] of targets) {
+      if (!channelId || seen.has(channelId)) continue;
+      seen.add(channelId);
+      const outcome = exported
+        ? await deleteIfExported(client, guildId, exported, channelId, label)
+        : await deleteChannelById(client, guildId, channelId, label);
+      if (outcome === 'deleted') result.deleted++;
+      if (outcome === 'kept') result.keptChannelIds.push(channelId);
+      if (outcome === 'failed') {
+        result.failed++;
+        result.keptChannelIds.push(channelId);
+        result.details.push(`Failed: ${label}`);
+      }
     }
-
-    const memoryConfigs = await AppDataSource.getRepository(MemoryConfig).find({ where: { guildId } });
-    for (const memConfig of memoryConfigs) {
-      if (!memConfig.forumChannelId) continue;
-      const memoryItems = await AppDataSource.getRepository(MemoryItem).find({
-        where: { guildId, memoryConfigId: memConfig.id },
-      });
-      await deleteForumEntries(
-        client,
-        memConfig.forumChannelId,
-        memoryItems.map(i => i.threadId).filter((id): id is string => !!id),
-        result,
-      );
-    }
+    return true;
   } catch (error) {
-    enhancedLogger.warn('Forum thread cleanup partially failed', LogCategory.COMMAND_EXECUTION, {
+    enhancedLogger.warn('Thread/channel cleanup partially failed', LogCategory.COMMAND_EXECUTION, {
       guildId,
       error: error instanceof Error ? error.message : String(error),
     });
+    return false;
   }
 }
 
-/** Helper: delete a list of thread IDs from a forum channel. Best-effort. */
-async function deleteForumEntries(
-  client: Client,
-  forumChannelId: string,
-  threadIds: string[],
-  result: CleanupResult,
-): Promise<void> {
-  if (threadIds.length === 0) return;
-  const forumChannel = (await client.channels.fetch(forumChannelId).catch(() => null)) as ForumChannel | null;
-  if (!forumChannel || forumChannel.type !== ChannelType.GuildForum) return;
+/** Forums whose threads hold transcripts or memory discussions: the ticket/application archives and memory forums. */
+async function transcriptForumIds(guildId: string): Promise<Set<string>> {
+  const [ticketArchive, appArchive, memoryConfigs] = await Promise.all([
+    AppDataSource.getRepository(ArchivedTicketConfig).findOneBy({ guildId }),
+    AppDataSource.getRepository(ArchivedApplicationConfig).findOneBy({ guildId }),
+    AppDataSource.getRepository(MemoryConfig).find({ where: { guildId } }),
+  ]);
+  const ids = [ticketArchive?.channelId, appArchive?.channelId, ...memoryConfigs.map(c => c.forumChannelId)];
+  return new Set(ids.filter((id): id is string => !!id));
+}
 
-  for (const threadId of threadIds) {
-    try {
-      const thread = await forumChannel.threads.fetch(threadId).catch(() => null);
-      if (thread) {
-        await thread.delete('Bot reset cleanup');
-        result.deleted++;
-      }
-    } catch {
-      /* thread already gone */
-    }
+/**
+ * Phase 3's scope after an export: kept channels plus every archive/memory
+ * forum thread, since the export holds only the threads phase 2 matched to a
+ * DB row. Null (skip phase 3) when phase 2 failed or the forums can't be read.
+ */
+async function exportedSweepScope(guildId: string, phase2Ok: boolean, keep: Set<string>): Promise<SweepScope | null> {
+  if (!phase2Ok) return null;
+  try {
+    return { keep, keepParents: await transcriptForumIds(guildId) };
+  } catch (error) {
+    enhancedLogger.warn(
+      'Could not list transcript forums; skipping the bot-message sweep',
+      LogCategory.COMMAND_EXECUTION,
+      {
+        guildId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
+    return null;
   }
 }
 
@@ -222,15 +265,16 @@ async function searchAndDeleteUntrackedMessages(
   client: Client,
   guildId: string,
   trackedMessageIds: Set<string>,
+  scope: SweepScope,
   result: CleanupResult,
 ): Promise<void> {
   const botId = client.user?.id;
   if (!botId) return;
 
   try {
-    const usedSearch = await deleteViaSearchApi(client, guildId, botId, trackedMessageIds, result);
+    const usedSearch = await deleteViaSearchApi(client, guildId, botId, trackedMessageIds, scope, result);
     if (!usedSearch) {
-      await deleteViaChannelScan(client, guildId, botId, result);
+      await deleteViaChannelScan(client, guildId, botId, scope, result);
     }
   } catch (error) {
     enhancedLogger.warn('Phase 2 message-search cleanup failed', LogCategory.COMMAND_EXECUTION, {
@@ -250,6 +294,7 @@ async function deleteViaSearchApi(
   guildId: string,
   botId: string,
   trackedMessageIds: Set<string>,
+  { keep, keepParents }: SweepScope,
   result: CleanupResult,
 ): Promise<boolean> {
   const rest = client.rest;
@@ -275,9 +320,11 @@ async function deleteViaSearchApi(
       const msg = Array.isArray(messageGroup) ? messageGroup[0] : messageGroup;
       if (!msg?.id || !msg?.channel_id) continue;
       if (trackedMessageIds.has(msg.id)) continue; // already deleted in phase 1
+      if (keep.has(msg.channel_id)) continue; // kept thread/channel: its messages are the content
 
       try {
         const channel = await client.channels.fetch(msg.channel_id).catch(() => null);
+        if (channel?.isThread() && channel.parentId && keepParents.has(channel.parentId)) continue;
         if (channel?.isTextBased()) {
           const fetchedMsg = await (channel as TextChannel).messages.fetch(msg.id).catch(() => null);
           if (fetchedMsg) {
@@ -305,13 +352,14 @@ async function deleteViaChannelScan(
   client: Client,
   guildId: string,
   botId: string,
+  { keep, keepParents }: SweepScope,
   result: CleanupResult,
 ): Promise<void> {
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return;
 
   // Plain text channels
-  const textChannels = guild.channels.cache.filter(ch => ch.isTextBased() && !ch.isThread());
+  const textChannels = guild.channels.cache.filter(ch => ch.isTextBased() && !ch.isThread() && !keep.has(ch.id));
   for (const [, channel] of textChannels) {
     try {
       const messages = await (channel as TextChannel).messages.fetch({ limit: 50 });
@@ -330,13 +378,16 @@ async function deleteViaChannelScan(
   }
 
   // Forum channels — messages live inside threads
-  const forumChannels = guild.channels.cache.filter(ch => ch.type === ChannelType.GuildForum);
+  const forumChannels = guild.channels.cache.filter(
+    ch => ch.type === ChannelType.GuildForum && !keepParents.has(ch.id),
+  );
   for (const [, forum] of forumChannels) {
     try {
       const active = await (forum as ForumChannel).threads.fetchActive();
       const archived = await (forum as ForumChannel).threads.fetchArchived();
       for (const threads of [active.threads, archived.threads]) {
         for (const [, thread] of threads) {
+          if (keep.has(thread.id)) continue;
           try {
             const messages = await thread.messages.fetch({ limit: 50 });
             const botMessages = messages.filter((m: any) => m.author.id === botId);
@@ -364,21 +415,33 @@ async function deleteViaChannelScan(
  *
  * Three phases run in sequence (each phase mutates `result`):
  *   1. Tracked messages from config entities
- *   2. Forum threads created by Cogworks
- *   3. Untracked bot messages via search API + scan fallback
+ *   2. Threads + open channels created by Cogworks (only what `exported` covers, when set)
+ *   3. Untracked bot messages via search API + scan fallback, outside kept channels
+ *      (and, after an export, outside the archive/memory forums; skipped if phase 2 failed)
  */
-export async function cleanupGuildMessages(client: Client, guildId: string): Promise<CleanupResult> {
-  const result: CleanupResult = { deleted: 0, failed: 0, details: [] };
+export async function cleanupGuildMessages(
+  client: Client,
+  guildId: string,
+  options: CleanupOptions = {},
+): Promise<CleanupResult> {
+  const result: CleanupResult = { deleted: 0, failed: 0, details: [], keptChannelIds: [] };
 
   const tracked = await collectTrackedMessages(guildId);
   await deleteTrackedMessages(client, tracked, result);
-  await deleteForumThreads(client, guildId, result);
-  await searchAndDeleteUntrackedMessages(client, guildId, new Set(tracked.map(t => t.messageId)), result);
+  const phase2Ok = await deleteContentChannels(client, guildId, options.exported, result);
+  const keep = new Set(result.keptChannelIds);
+  const scope = options.exported
+    ? await exportedSweepScope(guildId, phase2Ok, keep)
+    : { keep, keepParents: new Set<string>() };
+  if (scope) {
+    await searchAndDeleteUntrackedMessages(client, guildId, new Set(tracked.map(t => t.messageId)), scope, result);
+  }
 
   enhancedLogger.info('Guild message cleanup complete', LogCategory.COMMAND_EXECUTION, {
     guildId,
     deleted: result.deleted,
     failed: result.failed,
+    kept: result.keptChannelIds.length,
   });
 
   return result;
