@@ -46,11 +46,29 @@ describe('onboarding.config', () => {
     }
   });
 
-  test('fail: welcome message over 2000 is cosmetic, over 4096 blocks', async () => {
-    const [long] = await run({ welcomeMessage: 'x'.repeat(2001) });
-    expect(long).toMatchObject({ code: 'onboarding.config.welcome_too_long', severity: 'cosmetic' });
-    const [huge] = await run({ welcomeMessage: 'x'.repeat(4097) });
-    expect(huge).toMatchObject({ code: 'onboarding.config.welcome_too_long', severity: 'block' });
+  test('welcome message: judged as rendered (server and member names filled in), not by stored length', async () => {
+    // The stored text is capped at 2000 characters; only the rendered embed can pass Discord's 4096.
+    expect(await run({ welcomeMessage: 'x'.repeat(2000) })).toEqual([]);
+    // {user} becomes a display name of 1 to 32 characters: too long only for members with long names.
+    const [some] = await run({ welcomeMessage: '{user}'.repeat(200) });
+    expect(some).toMatchObject({
+      code: 'onboarding.config.welcome_too_long',
+      severity: 'degraded',
+      repair: 'manual',
+      field: 'welcomeMessage',
+      params: { length: 6400 },
+    });
+    // {server} with a 100-character server name: too long for every member, so onboarding never starts.
+    const rows = { OnboardingConfig: [onboarding({ welcomeMessage: '{server}'.repeat(250) })] };
+    const longName = (guild: { name: string }) => {
+      guild.name = 'n'.repeat(100);
+    };
+    const [all] = await runOne(id, rows, {}, { patch: longName });
+    expect(all).toMatchObject({
+      code: 'onboarding.config.welcome_too_long',
+      severity: 'block',
+      params: { length: 25000 },
+    });
   });
 
   test('fail: completion role deleted (auto), above the bot, or managed', async () => {
@@ -97,12 +115,27 @@ describe('onboarding.config', () => {
     expect(optional).toMatchObject({ severity: 'degraded' });
   });
 
-  test('fail: step id too long for its longest custom id; pass at the limit', async () => {
-    // 'onboarding_continue_' is 20 characters, 'onboarding_confirmrole_' 23.
-    expect(await run({ steps: [step({ id: 'a'.repeat(80) })] })).toEqual([]);
-    expect(codes(await run({ steps: [step({ id: 'a'.repeat(81) })] }))).toEqual(['onboarding.config.step_id_too_long']);
-    expect(codes(await run({ steps: [roleStep([ROLE], { id: 'a'.repeat(78) })] }))).toEqual([
-      'onboarding.config.step_id_too_long',
+  test('fail: step id too long for the longest custom id its type builds; pass at the limit', async () => {
+    const tooLong = ['onboarding.config.step_id_too_long'];
+    // message, channel-suggest, custom-question: 'onboarding_continue_' (20 characters).
+    for (const type of ['message', 'channel-suggest', 'custom-question']) {
+      expect(await run({ steps: [step({ type, id: 'a'.repeat(80) })] })).toEqual([]);
+      expect(codes(await run({ steps: [step({ type, id: 'a'.repeat(81) })] }))).toEqual(tooLong);
+    }
+    // rules-accept: only 'onboarding_accept_' (18).
+    expect(await run({ steps: [step({ type: 'rules-accept', id: 'a'.repeat(82) })] })).toEqual([]);
+    expect(codes(await run({ steps: [step({ type: 'rules-accept', id: 'a'.repeat(83) })] }))).toEqual(tooLong);
+    // role-select with options: 'onboarding_confirmrole_' (23).
+    expect(await run({ steps: [roleStep([ROLE], { id: 'a'.repeat(77) })] })).toEqual([]);
+    expect(codes(await run({ steps: [roleStep([ROLE], { id: 'a'.repeat(78) })] }))).toEqual(tooLong);
+  });
+
+  test('pass: steps that send no components have no custom id to overflow', async () => {
+    // A role-select step without options sends only its embed.
+    expect(await run({ completionRoleId: null, steps: [roleStep([], { id: 'a'.repeat(150) })] })).toEqual([]);
+    // An unknown type sends nothing: only the type is reported.
+    expect(codes(await run({ steps: [step({ type: 'quiz', id: 'a'.repeat(150) })] }))).toEqual([
+      'onboarding.config.step_unknown_type',
     ]);
   });
 

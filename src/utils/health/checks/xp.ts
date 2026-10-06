@@ -81,16 +81,18 @@ const roleRewards = defineCheck(
     if (rows.length > 25) out.push(emit('too_many', 'cosmetic', 'manual', all));
     // Grant failures are only debug-logged (xpMessageHandler), so members silently miss their rewards.
     if (rows.length > 0 && botLacks(ctx, 'ManageRoles')) out.push(emit('no_manage_roles', 'degraded', 'manual', all));
-    const firstAtLevel = new Map<number, number>();
+    const firstAtLevel = new Map<number, { id: number; roleId: string }>();
     for (const row of rows) {
       const { id, level } = row;
       const at: FindingTarget = { entity: 'XPRoleReward', rowId: id, field: 'roleId', params: { level } };
       // One reward per level is enforced by /xp-setup only (no unique index). Both are granted,
       // but `/xp-setup role-reward-remove` only ever removes the first.
       const kept = firstAtLevel.get(level);
-      const params = { level, keptRowId: kept ?? id };
-      if (kept === undefined) firstAtLevel.set(level, id);
-      else out.push(emit('duplicate_level', 'cosmetic', 'confirm', { ...at, field: 'level', params }));
+      if (!kept) firstAtLevel.set(level, { id, roleId: row.roleId });
+      else {
+        const params = { level, roleId: row.roleId, keptRowId: kept.id, keptRoleId: kept.roleId };
+        out.push(emit('duplicate_level', 'cosmetic', 'confirm', { ...at, field: 'level', params }));
+      }
       // roleDelete removes the reward when its role goes.
       out.push(...assignableRoleFindings(ctx, emit, 'role', row.roleId, at, { severity: 'cosmetic', repair: 'auto' }));
     }

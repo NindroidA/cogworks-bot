@@ -15,7 +15,7 @@ const config = defineCheck(
     id: 'announcement.config',
     system: 'announcement',
     entities: ['AnnouncementConfig'],
-    names: ['channel_unset', ...channelNames('channel'), 'role_missing', 'role_not_mentionable'],
+    names: ['channel_unset', ...channelNames('channel'), 'role_missing', 'role_everyone', 'role_not_mentionable'],
     isConfigured: ctx => rowsOf(ctx, 'AnnouncementConfig').length > 0,
   },
   (ctx, emit) => {
@@ -36,6 +36,11 @@ const config = defineCheck(
     const roleAt: FindingTarget = { ...at, field: 'defaultRoleId', refId: roleId, params: { roleId } };
     const role = resolveRole(ctx.guild, roleId);
     if (role.status === 'missing') out.push(emit('role_missing', 'degraded', 'auto', roleAt));
+    // @everyone (what /bot-setup's auto-create saves) has no mentionable toggle, so "make it
+    // mentionable" can't apply: without MentionEveryone it can't ping everyone at all.
+    else if (roleId === ctx.guildId) {
+      if (botLacks(ctx, 'MentionEveryone')) out.push(emit('role_everyone', 'degraded', 'manual', roleAt));
+    }
     // Templates with "mention role" ping it; a non-mentionable role only pings with MentionEveryone.
     else if (role.status === 'ok' && !role.value.mentionable && botLacks(ctx, 'MentionEveryone'))
       out.push(emit('role_not_mentionable', 'degraded', 'manual', roleAt));

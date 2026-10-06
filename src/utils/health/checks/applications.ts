@@ -36,6 +36,8 @@ const panel = defineCheck(
       'ApplicationConfig',
       rowsOf(ctx, 'ApplicationConfig')[0],
       rowsOf(ctx, 'ArchivedApplicationConfig')[0]?.channelId,
+      // updateApplicationMessage fetches and edits the panel whenever positions change.
+      { editsPanel: true },
     ),
 );
 
@@ -64,7 +66,7 @@ const positions = defineCheck(
     id: 'application.position',
     system: 'application',
     entities: ['Position', 'ApplicationConfig'],
-    names: ['too_many_active', 'none_active', ...EMOJI_NAMES, ...FIELD_NAMES],
+    names: ['too_many_active', ...EMOJI_NAMES, ...FIELD_NAMES],
     isConfigured: hasRow('ApplicationConfig'),
   },
   async (ctx, emit) => {
@@ -75,8 +77,7 @@ const positions = defineCheck(
     // The panel has one Apply button per position, and a message holds 5 rows of 5.
     if (active.length > LIMITS.panelButtons)
       out.push(emit('too_many_active', 'block', 'manual', { ...all, params: { count: active.length } }));
-    if (active.length === 0 && rowsOf(ctx, 'ApplicationConfig')[0]?.channelId)
-      out.push(emit('none_active', 'degraded', 'manual', all));
+    // No open position is a supported state (recruiting closed): the panel says none are available.
 
     const checkEmoji = emojiChecker(ctx);
     for (const position of rows) {

@@ -9,9 +9,37 @@ import type { HealthCheck, HealthFinding } from '../types';
 import { assignableRoleFindings, botLacks, roleNames } from './featureRefs';
 
 const STEP_TYPES = new Set(['message', 'role-select', 'channel-suggest', 'rules-accept', 'custom-question']);
-/** Discord caps custom ids at 100; role-select steps build the longest (`onboarding_confirmrole_<id>`). */
-const idTooLong = (step: Partial<OnboardingStepDef>, id: string) =>
-  (step.type === 'role-select' ? 'onboarding_confirmrole_' : 'onboarding_continue_').length + id.length > 100;
+/**
+ * The longest custom id prefix each step type sends (`sendStep` in `onboardingEngine.ts`), or null
+ * when it sends no components: a role-select step without options and an unknown type.
+ */
+function longestIdPrefix(step: Partial<OnboardingStepDef>): string | null {
+  switch (step.type) {
+    case 'message':
+    case 'channel-suggest':
+    case 'custom-question':
+      return 'onboarding_continue_'; // and onboarding_skip_
+    case 'rules-accept':
+      return 'onboarding_accept_';
+    case 'role-select':
+      // onboarding_roleselect_ and onboarding_skip_ are shorter.
+      return Array.isArray(step.options) && step.options.length > 0 ? 'onboarding_confirmrole_' : null;
+    default:
+      return null;
+  }
+}
+/** Discord caps custom ids at 100 characters. */
+const idTooLong = (step: Partial<OnboardingStepDef>, id: string) => {
+  const prefix = longestIdPrefix(step);
+  return prefix !== null && prefix.length + id.length > 100;
+};
+/** Discord's embed description limit, which the welcome DM's text goes into. */
+const EMBED_DESCRIPTION = 4096;
+/** Display names (nickname or global name) are at most 32 characters. */
+const LONGEST_NAME = 'x'.repeat(32);
+/** The welcome text as `sendWelcomeMessage` renders it. */
+const renderWelcome = (text: string, server: string, user: string) =>
+  text.replace(/{server}/g, server).replace(/{user}/g, user);
 /** The roleDelete cleaner nulls a deleted completion role; a deleted step role is lossless to drop. */
 const DELETED_ROLE = { severity: 'degraded', repair: 'auto' } as const;
 
@@ -48,10 +76,16 @@ const config = defineCheck(
     const list = Array.isArray(steps) ? (steps as Partial<OnboardingStepDef>[]) : [];
     // With no steps the engine skips the whole flow, completion role included.
     if (list.length === 0) out.push(emit('no_steps', 'block', 'manual', at('steps')));
-    // /onboarding allows 2000 characters; past 4096 (the embed limit) the welcome DM fails and the flow stops.
-    const welcomeLength = String(row.welcomeMessage ?? '').length;
-    if (welcomeLength > 2000)
-      out.push(emit('welcome_too_long', welcomeLength > 4096 ? 'block' : 'cosmetic', 'manual', at('welcomeMessage')));
+    // The stored text is at most 2000 characters, but {server} (the server name, up to 100) and
+    // {user} (the member's display name) can push the rendered embed past 4096: then the welcome
+    // DM fails and onboarding never starts. For everyone, or only for members with long names.
+    const welcome = String(row.welcomeMessage ?? '');
+    const shortest = renderWelcome(welcome, ctx.guild.name, 'x').length;
+    const longest = renderWelcome(welcome, ctx.guild.name, LONGEST_NAME).length;
+    if (longest > EMBED_DESCRIPTION) {
+      const severity = shortest > EMBED_DESCRIPTION ? 'block' : 'degraded';
+      out.push(emit('welcome_too_long', severity, 'manual', at('welcomeMessage', { length: longest })));
+    }
     const completion = row.completionRoleId;
     if (completion)
       out.push(
