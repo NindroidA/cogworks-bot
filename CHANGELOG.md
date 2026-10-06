@@ -47,6 +47,92 @@ release.
   it grants using the reaction-role menu rules, lists of ids to prune), and an
   English string for every new finding code.
 
+## [3.16.23] - 2026-10-06
+
+Rules, reaction-role and memory checks for the upcoming `/bot-health` command
+(NindroidA/cogworks-bot#41). Internal only: the command isn't registered yet,
+so nothing a server sees changes in this release. The bait channel checks
+planned for this step come in a separate release to keep this one reviewable.
+
+### Added — rules, reaction-role and memory health checks (internal, no user-visible command yet)
+
+- **Rules**: the rules channel (deleted, a channel without a text chat, or the
+  bot can't see reactions there; the text chat of a voice or stage channel,
+  which the dashboard offers, counts as working), the rules message (deep mode
+  only, and still looked up when only Add Reactions or Send Messages is
+  missing), the role it gives (deleted, @everyone, managed by an integration, or
+  at/above the bot's highest role), Manage Roles, and an emoji a reaction can
+  never match (plain text, a bare digit, `#` or `*`, or a custom emoji saved as
+  `name:id`, which the reaction handler doesn't compare).
+- **Reaction roles**: each menu's channel (Manage Messages too in unique mode),
+  message (deep mode only, also when only Manage Messages is missing), unknown
+  mode, no options or more than Discord's 20 reactions per message, and Manage
+  Roles; each option's role (same rules as `validateRoleForMenu`, returned as
+  codes) and emoji, including two options on the same emoji. Custom emoji
+  compare by id, matching the reaction lookup once #53 lands, so `<:x:id>`,
+  `<a:x:id>`, `x:id` and the bare id (which the dashboard accepts) are one
+  emoji, and animated emoji aren't flagged. Options have no `guildId` column,
+  so an option whose menu row is gone can't be tied to a guild and isn't
+  checked.
+- **Memory**: each memory forum (deleted, not a forum, missing permissions, set
+  up twice) and its welcome post, tags whose memory channel is gone, whose forum
+  tag is missing or whose type isn't category or status, stale copies of a tag
+  left by earlier setup re-runs (reported as removable, since re-running setup
+  keeps the linked copy and leaves them), and memories whose memory channel is
+  gone or whose post was deleted. Archived posts aren't cached, so a deleted
+  post is only reported in deep mode, through the REST budget: at most 20 posts
+  per run (the rest are listed as not checked), and none in a forum the bot
+  can't see. The welcome post is still looked up when the bot can see the forum
+  but can't post in it.
+- **Shared reference helpers** (`src/utils/health/checks/refHelpers.ts`): a
+  channel's type and the bot's permissions in it in one lookup, role
+  assignability, and deep-mode message and thread lookups that only report
+  "missing" on proof (Unknown Message / Unknown Channel).
+- English strings for every new finding code in `src/lang/en/health.json`.
+
+### Changed — health-check engine REST budget (internal)
+
+- Checks whose deep-mode lookups can only find cosmetic problems (memory posts
+  and welcome posts) run after the others, so the shared 60-call REST budget
+  goes to the rules and reaction-role message lookups first. Report order is
+  unchanged.
+- A lookup label can have its own call cap, and a label skipped over budget is
+  listed once in `notChecked` instead of once per skipped call.
+
+## [3.16.22] - 2026-10-06
+
+Ticket and application checks for the health-check engine (NindroidA/cogworks-bot#41,
+stacked on the engine from 3.16.21). Internal only: `/bot-health` isn't registered
+yet, so nothing a server sees changes in this release.
+
+### Added — ticket and application health checks (internal, no user-visible command yet)
+
+- **Panels** (tickets and applications): the panel channel is gone, isn't a text
+  channel, or the bot can't post in it; the panel message was deleted (deep mode
+  only, through the budgeted REST fetcher); the category for new channels is unset,
+  gone, not a category, missing Manage Channels / Manage Roles, or at Discord's
+  50-channel limit; a posted panel with no archive forum, so nothing can be closed.
+- **Archive forums**: gone, not a forum, missing the permissions closes need, or at
+  Discord's 20-tag limit while an active ticket type or position (or an
+  Accepted / Rejected outcome) still has no tag.
+- **Ticket types and positions**: more than 25 active, none active while a panel is
+  posted, more than one default type, a non-hex type color, a type name that makes the
+  form title longer than Discord's 45 characters, an emoji Discord won't accept, and
+  form questions over Discord's limits (missing or repeated ids, labels over 45,
+  placeholders over 100, invalid length limits, more than 5 questions). Ratings follow
+  what the bot does: a type menu that can't be sent (over 25 types or a rejected emoji)
+  falls back to the 5 built-in ticket types, and a ticket form shows only its first 5
+  questions, so those are degraded rather than broken; positions have neither fallback.
+  In deep mode a custom emoji is looked up on the server, on the other servers the bot
+  is in and among the bot's own emojis; one found nowhere is only a cosmetic note with
+  a manual fix, since it may still work. Problems on an inactive type or position are
+  cosmetic.
+- **Leftover rows**: user restrictions for a ticket type that no longer exists,
+  open tickets and applications whose channel was deleted, and tickets stuck in
+  `created` without a channel for more than 10 minutes (a failed creation).
+- The health loader reads only open `Ticket` and `Application` rows, so closed
+  history never loads.
+
 ## [3.16.21] - 2026-10-06
 
 Health-check engine, the foundation for the upcoming `/bot-health` command

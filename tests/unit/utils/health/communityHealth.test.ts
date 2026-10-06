@@ -4,7 +4,12 @@
  * problem, stay guild-scoped, and never write.
  */
 import { describe, expect, test } from 'bun:test';
-import { HEALTH_ENTITIES, repoRowLoader } from '../../../../src/utils/health/context';
+import {
+  HEALTH_ENTITIES,
+  HEALTH_ENTITY_WHERE,
+  type HealthEntityName,
+  repoRowLoader,
+} from '../../../../src/utils/health/context';
 import { getChecks } from '../../../../src/utils/health/registry';
 import { runHealthCheck } from '../../../../src/utils/health/runner';
 import { makeFakeGuild } from '../../../helpers/fakeGuild';
@@ -78,7 +83,9 @@ describe('messy legacy guild (real registry and repo loader)', () => {
 
     for (const [name, repo] of Object.entries(fakes)) {
       expect({ name, writes: writeCallCount(repo) }).toEqual({ name, writes: 0 });
-      expect({ name, finds: repo.findCalls }).toEqual({ name, finds: [{ where: { guildId: G } }] });
+      // Open tickets and applications only (HEALTH_ENTITY_WHERE); guildId always.
+      const where = { ...HEALTH_ENTITY_WHERE[name as HealthEntityName], guildId: G };
+      expect({ name, finds: repo.findCalls }).toEqual({ name, finds: [{ where }] });
     }
   });
 

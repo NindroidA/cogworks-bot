@@ -46,6 +46,8 @@ export interface HealthCheck {
   /** Every finding code the check can emit (the lang test asserts each has a string). */
   codes: readonly string[];
   run(ctx: CheckContext): HealthFinding[] | Promise<HealthFinding[]>;
+  /** `low`: its REST lookups only find cosmetic problems, so it runs after the other checks and the budget goes to them first. */
+  restPriority?: 'low';
   /** False when the guild has not set this up. Omitted = always configured. */
   isConfigured?(ctx: CheckContext): boolean;
 }

@@ -36,7 +36,15 @@ export async function runHealthCheck(
     rows: await loadRows(guild.id, entities, deps.loadRows),
   };
 
-  const results = await Promise.all(checks.map(check => runCheck(check, ctx)));
+  // Checks whose REST lookups are only cosmetic run last, so block-level lookups get the shared budget first.
+  // Results keep registry order, which is the report order.
+  const results: CheckResult[] = [];
+  for (const low of [false, true]) {
+    const phase = checks.map(async (check, i) => {
+      if ((check.restPriority === 'low') === low) results[i] = await runCheck(check, ctx);
+    });
+    await Promise.all(phase);
+  }
 
   const notChecked: string[] = [];
   if (!guild.available) notChecked.push('guild-cache-unavailable');

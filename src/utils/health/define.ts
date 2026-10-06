@@ -20,13 +20,14 @@ interface CheckMeta<N extends string> {
   /** Every finding the check can emit. Typed, so `emit` only accepts these, and each needs a lang string. */
   names: readonly N[];
   isConfigured?: (ctx: CheckContext) => boolean;
+  restPriority?: HealthCheck['restPriority'];
 }
 
 export function defineCheck<N extends string>(
   meta: CheckMeta<N>,
   run: (ctx: CheckContext, emit: Emit<N>) => HealthFinding[] | Promise<HealthFinding[]>,
 ): HealthCheck {
-  const { id, system, entities, names, isConfigured } = meta;
+  const { id, system, entities, names, isConfigured, restPriority } = meta;
   const emit: Emit<N> = (name, severity, repair, at) => ({
     code: `${id}.${name}`,
     system,
@@ -35,5 +36,6 @@ export function defineCheck<N extends string>(
     params: {},
     ...at,
   });
-  return { id, system, entities, codes: names.map(name => `${id}.${name}`), run: ctx => run(ctx, emit), isConfigured };
+  const codes = names.map(name => `${id}.${name}`);
+  return { id, system, entities, codes, run: ctx => run(ctx, emit), isConfigured, restPriority };
 }
