@@ -5,9 +5,11 @@
  * - 63: /memory update-tags must acknowledge Continue before editReply.
  * - 64: with 2+ memory forums, the flow answers from the channel picker's
  *   select (update / showModal), never by replying to the slash command again.
+ *   Capture resolves its target message before showing the picker.
  * - 68: the add modal's description fits the 2000-char starter message.
  * - 73: reopening a Completed (archived + locked) item unarchives and unlocks
- *   in the same edit that changes its tags; any other change keeps the lock.
+ *   in the same edit that changes its tags (update-tags, update-status and the
+ *   in-thread /memory update); any other change keeps the lock.
  * - 74: status autocomplete is scoped to the picked item's forum, and a
  *   same-named status from another forum is re-resolved by name.
  *
@@ -21,6 +23,7 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { ChannelType } from 'discord.js';
 import { lang } from '../../../../src/lang';
 
 type Row = Record<string, any>;
@@ -61,7 +64,9 @@ const benignRepo = {
 
 let handlers: {
   memoryAddHandler: typeof import('../../../../src/commands/handlers/memory/add').memoryAddHandler;
+  memoryCaptureHandler: typeof import('../../../../src/commands/handlers/memory/capture').memoryCaptureHandler;
   memoryTagsHandler: typeof import('../../../../src/commands/handlers/memory/tags').memoryTagsHandler;
+  memoryUpdateHandler: typeof import('../../../../src/commands/handlers/memory/update').memoryUpdateHandler;
   memoryUpdateTagsHandler: typeof import('../../../../src/commands/handlers/memory/updateTags').memoryUpdateTagsHandler;
   memoryUpdateStatusHandler: typeof import('../../../../src/commands/handlers/memory/updateStatus').memoryUpdateStatusHandler;
   memoryAutocomplete: typeof import('../../../../src/commands/handlers/memory/autocomplete').memoryAutocomplete;
@@ -76,7 +81,9 @@ beforeAll(async () => {
 
   handlers = {
     memoryAddHandler: (await import('../../../../src/commands/handlers/memory/add')).memoryAddHandler,
+    memoryCaptureHandler: (await import('../../../../src/commands/handlers/memory/capture')).memoryCaptureHandler,
     memoryTagsHandler: (await import('../../../../src/commands/handlers/memory/tags')).memoryTagsHandler,
+    memoryUpdateHandler: (await import('../../../../src/commands/handlers/memory/update')).memoryUpdateHandler,
     memoryUpdateTagsHandler: (await import('../../../../src/commands/handlers/memory/updateTags'))
       .memoryUpdateTagsHandler,
     memoryUpdateStatusHandler: (await import('../../../../src/commands/handlers/memory/updateStatus'))
@@ -305,12 +312,12 @@ const callNames = (rec: Recorder) => rec.calls.map(c => c[0]);
 // ---------------------------------------------------------------------------
 
 describe('2+ memory forums: the flow answers from the picker select (audit 64)', () => {
-  function pickerSetup(action?: string) {
+  function pickerSetup(strings: Record<string, string> = {}) {
     seedTwoForums('g-mf');
     const guild = makeGuild({});
     const choiceUser = { id: '' };
     const choice = makeComponent(choiceUser, guild, { customId: 'memory_channel_picker', values: ['502'] });
-    const slash = makeSlash({ guildId: 'g-mf', guild, pick: choice.c, strings: action ? { action } : {} });
+    const slash = makeSlash({ guildId: 'g-mf', guild, pick: choice.c, strings });
     choiceUser.id = slash.i.user.id;
     return { slash, choice, guild };
   }
@@ -339,7 +346,7 @@ describe('2+ memory forums: the flow answers from the picker select (audit 64)',
   });
 
   test('/memory tags action:add opens the modal from the picker select', async () => {
-    const { slash, choice } = pickerSetup('add');
+    const { slash, choice } = pickerSetup({ action: 'add' });
     await handlers.memoryTagsHandler(slash.i);
 
     expect(callNames(slash.rec)).toEqual(['reply']);
@@ -347,12 +354,56 @@ describe('2+ memory forums: the flow answers from the picker select (audit 64)',
   });
 
   test('/memory tags action:list replaces the picker with the tag list', async () => {
-    const { slash, choice } = pickerSetup('list');
+    const { slash, choice } = pickerSetup({ action: 'list' });
     await handlers.memoryTagsHandler(slash.i);
 
     expect(callNames(slash.rec)).toEqual(['reply']);
     expect(callNames(choice.rec)).toEqual(['update']);
     expect(JSON.stringify(choice.rec.calls[0][1].embeds)).toContain('Bug');
+  });
+
+  test('/memory capture: the target message is fetched before the picker, then the flow continues from the select', async () => {
+    const { slash, choice, guild } = pickerSetup({ message: '123456789012345678' });
+    const callsAtFetch: string[][] = [];
+    slash.i.channelId = 'c-src';
+    slash.i.channel = {
+      isTextBased: () => true,
+      messages: {
+        fetch: async () => {
+          callsAtFetch.push(callNames(slash.rec));
+          return { author: { displayName: 'Sam' }, content: 'Crash on boot' };
+        },
+      },
+    };
+    await handlers.memoryCaptureHandler(slash.i);
+
+    expect(callsAtFetch).toEqual([[]]); // fetched once, before the picker reply
+    expect(callNames(slash.rec)).toEqual(['reply']); // the picker, once
+    expect(callNames(choice.rec)).toEqual(['update']);
+    const shown = choice.rec.calls[0][1];
+    expect(JSON.stringify(shown.components[0])).toContain('"value":"521"');
+    expect(JSON.stringify(shown.embeds)).toContain('Crash on boot');
+
+    const collector = choice.rec.collector!;
+    await collector.handlers.collect(
+      makeComponent(choice.c.user, guild, { customId: 'memory_capture_category', values: ['521'] }).c,
+    );
+    const cont = makeComponent(choice.c.user, guild, { customId: 'memory_capture_continue' });
+    await collector.handlers.collect(cont.c);
+
+    expect(cont.rec.calls[0][0]).toBe('showModal');
+    const modal = cont.rec.calls[0][1].toJSON();
+    expect(modal.custom_id).toBe('memory_capture_modal_521_522');
+    expect(modal.components[1].components[0].max_length).toBe(1800);
+  });
+
+  test('/memory capture: a bad message input is answered on the slash command, with no picker', async () => {
+    const { slash, choice } = pickerSetup({ message: 'not a link' });
+    await handlers.memoryCaptureHandler(slash.i);
+
+    expect(callNames(slash.rec)).toEqual(['reply']);
+    expect(slash.rec.calls[0][1].content).toContain(lang.memory.capture.invalidInput);
+    expect(choice.rec.calls).toEqual([]);
   });
 });
 
@@ -503,6 +554,47 @@ describe('/memory update-status (audit 73, audit 74)', () => {
     await handlers.memoryUpdateStatusHandler(slash.i);
 
     expect(slash.rec.calls[0][1].content).toContain(lang.memory.tags.edit.tagNotFound);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// audit 73 — in-thread /memory update
+// ---------------------------------------------------------------------------
+
+describe('in-thread /memory update (audit 73)', () => {
+  test('Completed to Open unarchives and unlocks in the tag edit', async () => {
+    const guildId = 'g-up';
+    db.MemoryConfig.push({ id: 901, guildId, forumChannelId: 'f-up', channelName: 'Memory', sortOrder: 0 });
+    db.MemoryTag.push(
+      tag(911, 901, 'Open', 'status', 'u-open', guildId),
+      tag(912, 901, 'Completed', 'status', 'u-done', guildId),
+    );
+    const item = { id: 6, guildId, memoryConfigId: 901, threadId: 't-up', title: 'Old bug', status: 'Completed' };
+    db.MemoryItem.push(item);
+    const thread = makeThread('t-up', { archived: true, locked: true, appliedTags: ['u-done', 'manual'] });
+    Object.assign(thread, { type: ChannelType.PublicThread, parentId: 'f-up', name: 'Old bug' });
+    const guild = makeGuild({});
+
+    const slash = makeSlash({ guildId, guild });
+    slash.i.channel = thread;
+    await handlers.memoryUpdateHandler(slash.i);
+    const collector = slash.rec.collector!;
+
+    const user = slash.i.user;
+    await collector.handlers.collect(
+      makeComponent(user, guild, { customId: 'memory_update_status', values: ['911'] }).c,
+    );
+    const confirm = makeComponent(user, guild, { customId: 'memory_update_confirm' });
+    await collector.handlers.collect(confirm.c);
+
+    expect(callNames(confirm.rec)).toEqual(['update']);
+    // Unarchived + unlocked in the same edit; the hand-added tag survives
+    expect(thread.edits).toEqual([{ appliedTags: ['manual', 'u-open'], archived: false, locked: false }]);
+    expect(thread.log).toEqual([]); // not locked or archived again
+    expect(item.status).toBe('Open');
+    const last = slash.rec.calls.at(-1)!;
+    expect(last[0]).toBe('editReply');
+    expect(last[1].content).toContain(lang.memory.update.success);
   });
 });
 
