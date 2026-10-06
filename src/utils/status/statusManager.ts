@@ -22,6 +22,10 @@ export class StatusManager {
   private client: Client;
   private isDev: boolean;
   private statusRepo = AppDataSource.getRepository(BotStatus);
+  /** Last row read from the database, used while it can't be read. */
+  private lastKnown: BotStatus | null = null;
+  /** Level the presence currently shows. A level set during a DB outage is never saved, so the row can't tell. */
+  private presenceLevel: StatusLevel | null = null;
 
   constructor(client: Client, isDev: boolean) {
     this.client = client;
@@ -45,6 +49,7 @@ export class StatusManager {
       });
       await this.statusRepo.save(status);
     }
+    this.lastKnown = status;
     return status;
   }
 
@@ -108,29 +113,55 @@ export class StatusManager {
     return status;
   }
 
-  /** Auto-set status from health checks (respects manual override) */
+  /**
+   * Auto-set status from health checks (respects manual override). Also called
+   * on every healthy tick, so an expired manual override is reverted. When the
+   * database can't be read (the usual cause of 'major-outage'), only the
+   * presence changes; nothing is saved until the database is back.
+   */
   async autoSetStatus(level: StatusLevel): Promise<void> {
-    const status = await this.getStatus();
+    let status: BotStatus | null = null;
+    try {
+      status = await this.getStatus();
+    } catch (error) {
+      enhancedLogger.warn('Status row unreadable; updating presence only', LogCategory.DATABASE, {
+        level,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
-    if (this.isManualOverrideActive(status)) {
+    const known = status ?? this.lastKnown;
+    if (known && this.isManualOverrideActive(known)) {
       enhancedLogger.debug('Auto-status skipped: manual override active', LogCategory.SYSTEM);
       return;
     }
 
-    if (status.level === level) return; // No change
+    if (this.presenceLevel === level && (!status || status.level === level)) return; // No change
 
+    if (!status) {
+      await this.updatePresence({ ...known, level, isManualOverride: false, message: null } as BotStatus);
+      return;
+    }
+
+    const overrideExpired = status.isManualOverride;
     status.level = level;
     status.startedAt = level === 'operational' ? null : status.startedAt || new Date();
     status.updatedBy = null; // Automated
     status.isManualOverride = false;
+    status.manualOverrideExpiresAt = null;
 
-    await this.statusRepo.save(status);
     await this.updatePresence(status);
+    try {
+      await this.statusRepo.save(status);
+    } catch (error) {
+      enhancedLogger.error('Failed to save auto-set status', error as Error, LogCategory.DATABASE, { level });
+    }
     invalidateStatusBannerCache();
 
     // Auto-create/resolve incidents
     if (level === 'operational') {
       await this.resolveOpenIncidents(null);
+      if (overrideExpired) await this.postResolutionToStatusChannel();
     } else {
       await this.createIncident(level, 'Auto-detected status change');
     }
@@ -152,6 +183,7 @@ export class StatusManager {
     if (!status) {
       status = await this.getStatus();
     }
+    this.presenceLevel = status.level;
 
     // Dev mode shows dev status only when operational
     if (this.isDev && status.level === 'operational') {
