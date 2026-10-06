@@ -1,6 +1,7 @@
 import type { Client, ForumChannel } from 'discord.js';
 import { MemoryConfig, MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import { lazyRepo } from '../../database/lazyRepo';
+import { buildStarterContent, MEMORY_TITLE_MAX } from '../../memory/threadHelpers';
 import { ApiError } from '../apiError';
 import { optionalNumber, optionalString, requireNumber, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
@@ -17,6 +18,11 @@ export function registerMemoryHandlers(client: Client, routes: Map<string, Route
     const title = requireString(body, 'title');
     const description = optionalString(body, 'description');
     const createdBy = requireString(body, 'createdBy');
+    // The title becomes the thread name, which Discord caps at 100: reject it
+    // here (400) instead of failing in threads.create (500).
+    if (title.length > MEMORY_TITLE_MAX) {
+      throw ApiError.badRequest(`title must be at most ${MEMORY_TITLE_MAX} characters`);
+    }
 
     const config = await memoryConfigRepo.findOneBy({
       guildId,
@@ -48,9 +54,8 @@ export function registerMemoryHandlers(client: Client, routes: Map<string, Route
     });
     if (statusTag?.discordTagId) appliedTags.push(statusTag.discordTagId);
 
-    const content = description
-      ? `**Description:**\n\n${description}\n\n-# Created via dashboard`
-      : '-# Created via dashboard';
+    // Clamped to the 2000-char starter message, with a visible notice when cut
+    const content = buildStarterContent(description ?? '', '-# Created via dashboard');
 
     const thread = await forum.threads.create({
       name: title,

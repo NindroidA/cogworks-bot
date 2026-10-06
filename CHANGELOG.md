@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.17] - 2026-10-06
+
+Memory command fixes — multi-forum guilds, reopening items, and long text.
+Several `/memory` flows failed outright: update-tags on every run, and add,
+capture and tags in any guild with 2+ memory forums.
+
+### Fixed
+
+- **`/memory update-tags` works again.** Clicking Continue now acknowledges
+  the click before editing the reply; it used to fail with "This interaction
+  failed" on every run, leaving the item untouched.
+- **Guilds with 2+ memory forums can use `/memory add`, `capture` and
+  `tags`.** After the forum picker, the flow continues from the picker (it
+  replaces the picker message or opens the modal from it) instead of replying
+  a second time, which threw and froze on "Processing...".
+- **Completed items can be reopened.** Status and tag changes on an archived
+  (Completed) thread now unarchive it in the same edit; Discord rejected the
+  old edit, so `/memory update-status` back to Open always failed. The thread
+  is unlocked only when the item moves off Completed, so a lock a moderator
+  set on an open item stays, and `update-tags` archives the thread again
+  afterwards unless it reopened the item.
+- **`/memory update-status` works for items in a second or third forum.** The
+  status autocomplete is scoped to the picked item's forum, and a same-named
+  status from another forum is resolved by name instead of answering "Memory
+  item not found". An unknown status now gets a status error.
+- **Long descriptions no longer fail to post.** The add/capture description
+  is capped at 1800 characters (was 4000) so it fits the 2000-character forum
+  starter message, and anything that still overflows is cut with a visible
+  "(content truncated)" notice. Dashboard creates (`POST /memory/create`) clamp
+  the description the same way and answer a title over 100 characters (the
+  thread name limit) with a 400 instead of a 500.
+
 ## [3.16.16] - 2026-10-06
 
 Reaction-role and rules-reaction fixes. Animated custom emoji never granted
