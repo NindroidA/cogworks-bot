@@ -16,7 +16,6 @@ import {
   replyEphemeralError,
   toUnixSeconds,
 } from '../../../utils';
-import type { CsvImporter } from '../../../utils/import/csvImporter';
 import { importManager } from '../../../utils/import/importManager';
 
 const tl = lang.import.commands;
@@ -40,7 +39,7 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
   }
 
   // Check cooldown
-  const cooldownUntil = await importManager.checkCooldown(guildId);
+  const cooldownUntil = await importManager.checkCooldown(guildId, dryRun);
   if (cooldownUntil) {
     const timestamp = toUnixSeconds(cooldownUntil);
     await interaction.reply({
@@ -68,10 +67,6 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
     return;
   }
 
-  // Set CSV content on the importer
-  const csvImporter = importManager.getImporter('csv') as CsvImporter;
-  csvImporter.csvContent = csvContent;
-
   enhancedLogger.info(
     `CSV import initiated by ${interaction.user.tag} for guild ${guildId}`,
     LogCategory.COMMAND_EXECUTION,
@@ -86,9 +81,11 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
     content: formatLang(tl.importStarted, 'CSV'),
   });
 
+  // The content travels with this call: the importer is shared by every guild.
   const result = await importManager.startImport(guildId, 'csv', 'xp', interaction.user.id, {
     overwrite,
     dryRun,
+    content: csvContent,
   });
 
   if (dryRun) {
