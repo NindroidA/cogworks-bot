@@ -1,4 +1,4 @@
-import { ChannelType, PermissionsBitField, SlashCommandBuilder } from 'discord.js';
+import { ChannelType, SlashCommandBuilder } from 'discord.js';
 import { createTextChannelOption } from './factories';
 
 /**
@@ -14,7 +14,8 @@ import { createTextChannelOption } from './factories';
 export const xpSetup = new SlashCommandBuilder()
   .setName('xp-setup')
   .setDescription('Configure the XP & leveling system')
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   // enable / disable
   .addSubcommand(sub => sub.setName('enable').setDescription('Enable the XP system'))
   .addSubcommand(sub => sub.setName('disable').setDescription('Disable the XP system'))

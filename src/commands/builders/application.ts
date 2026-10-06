@@ -1,9 +1,4 @@
-import {
-  PermissionsBitField,
-  SlashCommandBuilder,
-  SlashCommandSubcommandBuilder,
-  SlashCommandSubcommandGroupBuilder,
-} from 'discord.js';
+import { SlashCommandBuilder, SlashCommandSubcommandBuilder, SlashCommandSubcommandGroupBuilder } from 'discord.js';
 import { lang } from '../../utils';
 
 const tl = lang.application.position;
@@ -123,7 +118,8 @@ const appWorkflowRemoveStatus = new SlashCommandSubcommandBuilder()
 export const application = new SlashCommandBuilder()
   .setName('application')
   .setDescription('Manage application system')
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   .addSubcommandGroup(positionGroup)
   .addSubcommand(appStatus)
   .addSubcommand(appNote)

@@ -1,9 +1,4 @@
-import {
-  PermissionsBitField,
-  SlashCommandBuilder,
-  SlashCommandSubcommandBuilder,
-  SlashCommandSubcommandGroupBuilder,
-} from 'discord.js';
+import { SlashCommandBuilder, SlashCommandSubcommandBuilder, SlashCommandSubcommandGroupBuilder } from 'discord.js';
 import { lang } from '../../utils';
 
 const tl = lang.announcement;
@@ -100,7 +95,8 @@ const templateGroup = new SlashCommandSubcommandGroupBuilder()
 export const announcement = new SlashCommandBuilder()
   .setName('announcement')
   .setDescription(tl.cmdDescrp)
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   .addSubcommandGroup(templateGroup)
   .addSubcommand(send)
   .toJSON();

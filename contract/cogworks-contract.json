@@ -1,6 +1,6 @@
 {
   "contractVersion": "1",
-  "botVersion": "3.16.21",
+  "botVersion": "3.16.37",
   "features": {
     "keys": [
       "tickets",
@@ -155,7 +155,7 @@
       ],
       "name": "ticket-setup",
       "description": "Configure the ticket system channels and category",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -625,7 +625,7 @@
       ],
       "name": "ticket",
       "description": "Manage custom ticket types and import email tickets",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -660,7 +660,7 @@
       ],
       "name": "application-setup",
       "description": "Configure the application system channels and category",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -899,7 +899,7 @@
       ],
       "name": "application",
       "description": "Manage application system",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -919,7 +919,7 @@
       ],
       "name": "announcement-setup",
       "description": "Initializes and sets up the announcement module.",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -1101,7 +1101,7 @@
       ],
       "name": "announcement",
       "description": "Sends a specialized server announcement.",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -1596,7 +1596,7 @@
       ],
       "name": "baitchannel",
       "description": "Configure the bait channel anti-bot system",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -1891,7 +1891,7 @@
       ],
       "name": "memory-setup",
       "description": "Set up or edit the memory system",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -1996,7 +1996,7 @@
       ],
       "name": "memory",
       "description": "Manage memory system (todos, bugs, notes)",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -2051,7 +2051,7 @@
       ],
       "name": "rules-setup",
       "description": "Configure rules acknowledgment system",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -2237,7 +2237,7 @@
       ],
       "name": "reactionrole",
       "description": "Manage reaction role menus",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -2378,7 +2378,7 @@
       ],
       "name": "starboard",
       "description": "Starboard system — pin popular messages automatically",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -2751,7 +2751,7 @@
       ],
       "name": "xp-setup",
       "description": "Configure the XP & leveling system",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -2798,7 +2798,7 @@
       ],
       "name": "xp",
       "description": "XP administration commands",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -2945,7 +2945,7 @@
       ],
       "name": "onboarding",
       "description": "Configure the interactive onboarding flow for new members.",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -3249,7 +3249,7 @@
       ],
       "name": "automod",
       "description": "Manage Discord AutoMod rules, templates, and backups",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -3528,7 +3528,7 @@
       ],
       "name": "event",
       "description": "Manage scheduled events for your server.",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -3656,7 +3656,7 @@
       ],
       "name": "analytics",
       "description": "View server analytics and insights",
-      "default_member_permissions": "8",
+      "default_member_permissions": null,
       "type": 1
     },
     {
@@ -3704,22 +3704,22 @@
     {
       "name": "Capture to Memory",
       "type": 3,
-      "default_member_permissions": "8"
+      "default_member_permissions": null
     },
     {
       "name": "Open Ticket For User",
       "type": 2,
-      "default_member_permissions": "8"
+      "default_member_permissions": null
     },
     {
       "name": "View Bait Score",
       "type": 2,
-      "default_member_permissions": "8"
+      "default_member_permissions": null
     },
     {
       "name": "Manage Restrictions",
       "type": 2,
-      "default_member_permissions": "8"
+      "default_member_permissions": null
     }
   ],
   "configSchemas": {

@@ -353,6 +353,11 @@ export async function ticketUnassignHandler(interaction: ChatInputCommandInterac
 // ============================================================================
 
 export async function ticketInfoHandler(interaction: ChatInputCommandInteraction<CacheType>) {
+  // Read-only staff view ('use'); it was only protected by the old
+  // Administrator default before /ticket became visible to everyone.
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'use');
+  if (!guard.allowed) return;
+
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 

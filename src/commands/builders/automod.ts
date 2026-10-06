@@ -1,4 +1,4 @@
-import { PermissionFlagsBits, SlashCommandBuilder, SlashCommandSubcommandGroupBuilder } from 'discord.js';
+import { SlashCommandBuilder, SlashCommandSubcommandGroupBuilder } from 'discord.js';
 import { lang } from '../../utils';
 import { AUTOMOD_TEMPLATES, TEMPLATE_IDS } from '../../utils/automod/templates';
 
@@ -184,7 +184,8 @@ const exemptGroup = new SlashCommandSubcommandGroupBuilder()
 export const automodCommand = new SlashCommandBuilder()
   .setName('automod')
   .setDescription(tl.cmdDescrp)
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   .addSubcommandGroup(ruleGroup)
   .addSubcommandGroup(templateGroup)
   .addSubcommandGroup(backupGroup)

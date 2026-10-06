@@ -1,4 +1,4 @@
-import { PermissionsBitField, SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, SlashCommandSubcommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
 import { createActionOption } from './factories';
 
@@ -58,7 +58,8 @@ const tags = new SlashCommandSubcommandBuilder()
 export const memory = new SlashCommandBuilder()
   .setName('memory')
   .setDescription(tl.cmdDescrp)
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   .addSubcommand(add)
   .addSubcommand(capture)
   .addSubcommand(update)

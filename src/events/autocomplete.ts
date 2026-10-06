@@ -16,8 +16,27 @@ import { routingRuleAutocomplete } from '../commands/handlers/ticket/routing';
 import { ticketTypeAutocomplete, ticketTypeAutocompleteWithBuiltin } from '../commands/handlers/ticket/typeToggle';
 import { removableStatusAutocomplete, workflowStatusAutocomplete } from '../commands/handlers/ticket/workflow';
 import { enhancedLogger, LogCategory } from '../utils';
+import { type Feature, hasFeatureAccess } from '../utils/validation/featurePermission';
 
 type AutocompleteHandler = (interaction: AutocompleteInteraction) => Promise<void>;
+
+/**
+ * Command → the catalog feature its suggestions belong to. Suggestions list
+ * guild data (memory items, ticket types, menus, templates), so the caller
+ * needs at least 'use' on the feature. A routed command missing here gets no
+ * suggestions (fail closed).
+ */
+const AUTOCOMPLETE_FEATURE: Record<string, Feature> = {
+  ticket: 'tickets',
+  application: 'applications',
+  memory: 'memory',
+  'memory-setup': 'memory',
+  baitchannel: 'baitchannel',
+  event: 'events',
+  reactionrole: 'reactionroles',
+  announcement: 'announcements',
+  automod: 'automod',
+};
 
 /**
  * Per-(command, group, subcommand) autocomplete dispatch table.
@@ -91,6 +110,14 @@ export const handleAutocomplete = async (_client: Client, interaction: Autocompl
   const guildId = interaction.guildId;
 
   try {
+    // These commands are visible to everyone, so Discord no longer filters
+    // who can trigger autocomplete; check the feature grant before reading.
+    const feature = AUTOCOMPLETE_FEATURE[commandName];
+    if (!feature || !(await hasFeatureAccess(interaction, feature, 'use')).allowed) {
+      await interaction.respond([]);
+      return;
+    }
+
     const group = interaction.options.getSubcommandGroup(false) ?? '';
     const subcommand = interaction.options.getSubcommand(false) ?? '';
 

@@ -268,7 +268,8 @@ export const handleSlashCommand = async (client: Client, interaction: ChatInputC
 // Dispatcher logic
 // ---------------------------------------------------------------------------
 
-async function dispatchCommand(
+/** Route a command to its handler. Exported for the command-visibility guard test. */
+export async function dispatchCommand(
   client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
   commandName: string,
