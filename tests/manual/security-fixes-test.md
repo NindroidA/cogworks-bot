@@ -508,7 +508,7 @@ Passed: ___/17 tests
 ### Guild Isolation Failures
 1. Check database queries include `guildId` filter
 2. Verify `guildId` extracted correctly from interaction
-3. Run `scripts/verifyGuildIsolation.ts` to check database
+3. Run `bun run verify:isolation` to check the database (read-only; exits 1 on any problem)
 4. Look for queries missing `where: { guildId }` clause
 
 ---

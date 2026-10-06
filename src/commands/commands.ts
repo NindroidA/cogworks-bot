@@ -225,6 +225,8 @@ export const handleSlashCommand = async (client: Client, interaction: ChatInputC
   }
 
   try {
+    let reachedHandler = true;
+    // bot-setup, bot-reset and bot-health run without prior config
     const noConfigHandler = NO_CONFIG_ROUTES[commandName];
     if (noConfigHandler) {
       await noConfigHandler(client, interaction);
@@ -235,12 +237,14 @@ export const handleSlashCommand = async (client: Client, interaction: ChatInputC
         // applies. getGuildLang would only re-run this lookup to get there.
         enhancedLogger.warn(lang.botConfig.notFound, LogCategory.COMMAND_EXECUTION);
         await replyEphemeralError(interaction, lang.botConfig.notFound);
+        reachedHandler = false;
       } else {
         await dispatchCommand(client, interaction, commandName);
       }
     }
 
-    logCommandAudit(interaction, commandName, guildId);
+    // A "not configured" reply ran nothing, so it is not audited.
+    if (reachedHandler) logCommandAudit(interaction, commandName, guildId);
     // If this was a setup command that may have toggled a gated module on/off,
     // refresh the guild's visible commands (debounced, no-op when unchanged).
     maybeRefreshCommandsAfterSetup(commandName, guildId);
@@ -437,9 +441,13 @@ async function dispatchApplicationCommand(
 // Audit logging
 // ---------------------------------------------------------------------------
 
+/**
+ * Audited whenever the handler returns. bot-reset and data-export are not
+ * listed: they write their own row once the reset or export actually happens,
+ * so a cancelled, timed-out or rate-limited run leaves no "command:bot-reset".
+ */
 const AUDITABLE_COMMANDS = new Set([
   'bot-setup',
-  'bot-reset',
   'bot-health',
   'ticket-setup',
   'application-setup',
@@ -450,7 +458,6 @@ const AUDITABLE_COMMANDS = new Set([
   'baitchannel',
   'reactionrole',
   'starboard',
-  'data-export',
   'import',
   'xp-setup',
   'onboarding',

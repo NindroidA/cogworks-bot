@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.16.25] - 2026-10-06
+## [3.16.26] - 2026-10-06
 
 `/bot-health check`: server admins (and the bot owner) can now see what is
 broken or stale in their server's Cogworks setup, with no setup needed first
@@ -53,7 +53,7 @@ in a separate release.
   feature or level, or for a deleted role, says to remove it from the
   dashboard's Permissions page.
 
-## [3.16.24] - 2026-10-06
+## [3.16.25] - 2026-10-06
 
 Health checks for the community features: announcements, XP, the starboard and
 onboarding (NindroidA/cogworks-bot#41). Internal only: the checks plug into the
@@ -111,7 +111,7 @@ release.
   is needed (deleted ignored channels and roles, multiplier channels, reward
   roles, and built-in templates added later).
 
-## [3.16.23] - 2026-10-06
+## [3.16.24] - 2026-10-06
 
 Rules, reaction-role and memory checks for the upcoming `/bot-health` command
 (NindroidA/cogworks-bot#41). Internal only: the command isn't registered yet,
@@ -173,7 +173,7 @@ planned for this step come in a separate release to keep this one reviewable.
 - A lookup label can have its own call cap, and a label skipped over budget is
   listed once in `notChecked` instead of once per skipped call.
 
-## [3.16.22] - 2026-10-06
+## [3.16.23] - 2026-10-06
 
 Ticket and application checks for the health-check engine (NindroidA/cogworks-bot#41,
 stacked on the engine from 3.16.21). Internal only: `/bot-health` isn't registered
@@ -219,6 +219,74 @@ yet, so nothing a server sees changes in this release.
   creation). These can be closed from the web dashboard, which works without a channel.
 - The health loader reads only open `Ticket` and `Application` rows, so closed
   history never loads.
+
+## [3.16.22] - 2026-10-06
+
+`/import` now writes the XP it reports, plus a set of smaller core fixes:
+rules setup, automatic bot status, the command audit log, the RELEASE check
+for command registration and the guild isolation script
+(NindroidA/cogworks-bot#41).
+
+### Fixed
+
+- **`/import mee6` and `/import csv` write XP.** Both parsed the records and
+  reported "Import complete! Imported: N" without writing a single XPUser row,
+  then blocked a retry for an hour. Records are now upserted into the guild's
+  XP table in one transaction, in chunks of 500. The level is recomputed from
+  XP with the bot's own curve (the source's level column is ignored). Without
+  `overwrite`, members who already have XP keep it and count as skipped; with
+  it, their XP, level and message count are replaced (voice minutes stay).
+  A database error rolls the whole import back and reports a failure.
+- **A failed MEE6 page fails the whole import.** A network or JSON error on
+  any page used to keep the pages fetched so far; now nothing is written, as
+  with a 403, 429 or 5xx response.
+- **Only an import that wrote rows starts the 1-hour cooldown.** An import
+  that wrote nothing (every member already had XP) is logged as `no_changes`
+  (➖ in `/import history`), a dry run as `dry_run` (🔍) and a failed write as
+  `failed`; none of them blocks the real import. A dry run also counts the
+  members it would skip, and dry runs are limited to one per server every 2
+  minutes so a MEE6 dry run can't hammer its API.
+- **`/import cancel` stops the import, including a write in progress.** The
+  writer checks before every chunk and before committing, so a cancel rolls
+  the whole write back and the log stays `cancelled`. The server's import
+  slot stays taken until the import has actually stopped.
+- **Imports in two servers at once can't mix their data.** The CSV text and
+  the parsed records travelled through fields on importers shared by every
+  server; they now travel with each call. A second import in the same server
+  is refused before the first one starts.
+- **`/rules-setup setup` no longer deletes the old rules message first.** It posts
+  and reacts on the new message and saves the config, then deletes the old
+  one. If the bot can't post or react (missing permission, an emoji from
+  another server), the new message is removed and the old message keeps
+  granting the role.
+- **An expired manual `/status set` now clears itself.** The health loop only
+  reset the status on a degraded → healthy change, so a 24-hour override
+  stayed until a restart. Every healthy check now reverts an expired override
+  to operational, resolves its incident and posts the resolution.
+- **A database outage now shows as "major outage".** That status is set when
+  the database is unreachable, but setting it read and saved the status row
+  first, so it always failed. The presence now changes without the database;
+  nothing is saved until it is back, and the presence recovers when it is.
+- **The command audit log only records commands that ran.** The "not
+  configured" reply is no longer logged. `/bot-reset` and `/data-export` write
+  their own row once the reset reaches the purge (or fails after deleting
+  something, marked `complete: false`) or the export is delivered, so a
+  cancelled, timed-out or rate-limited run no longer looks like a reset or an
+  export.
+- **`RELEASE=Dev` (any case or padding) registers commands with the dev bot.**
+  The shared REST client compared `RELEASE === 'dev'` strictly while the rest
+  of the bot normalizes it, so the dev bot could push its command set to the
+  production application.
+
+### Changed
+
+- **`scripts/verifyGuildIsolation.ts` rewritten; run it with
+  `bun run verify:isolation`.** It checked 6 tables, its cross-guild check
+  always passed and it exited 0 on failure. It now reads every guild-scoped
+  table (44) from the entity metadata, flags rows with a missing or malformed
+  guildId and memory items or tags whose memory config is missing or belongs
+  to another guild, uses a connection that never synchronizes or migrates,
+  and exits 1 on any problem.
 
 ## [3.16.21] - 2026-10-06
 
