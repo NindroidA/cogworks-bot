@@ -17,6 +17,7 @@ import { INTERVALS, RETENTION_DAYS } from '../constants';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { activityTracker } from './activityTracker';
 import { sendDigest } from './digestBuilder';
+import { utcDateKey } from './snapshotDate';
 
 /** Interval handle for cleanup (so it can be cleared on shutdown) */
 let snapshotInterval: ReturnType<typeof setInterval> | null = null;
@@ -34,6 +35,9 @@ function msUntilMidnightUtc(): number {
  * Run the daily snapshot flush and cleanup.
  */
 async function runDailySnapshot(client: Client): Promise<void> {
+  // The run fires just after 00:00 UTC, so the day it records is the one that
+  // just ended: the UTC day a minute before the run started.
+  const endedDay = utcDateKey(new Date(Date.now() - 60_000));
   enhancedLogger.info('Running daily analytics snapshot job', LogCategory.SYSTEM);
 
   const configRepo = AppDataSource.getRepository(AnalyticsConfig);
@@ -57,19 +61,17 @@ async function runDailySnapshot(client: Client): Promise<void> {
       }
     }
 
-    // Flush all in-memory counters
+    // Guilds with no activity on the ended day still get a row for it, so the
+    // growth history has that day's member count. Checked before flushAll,
+    // which consumes the counters.
+    const idleGuilds = [...guildMemberCounts.keys()].filter(id => !activityTracker.hasCounters(id, endedDay));
+
+    // Flush all in-memory counters (each buffered day into its own row)
     await activityTracker.flushAll(guildMemberCounts);
 
-    // Also flush for guilds with no activity (to record member count)
-    for (const config of enabledConfigs) {
-      if (!activityTracker.hasCounters(config.guildId)) {
-        const memberCount = guildMemberCounts.get(config.guildId) ?? 0;
-        await activityTracker.flushSnapshot(config.guildId, memberCount);
-      }
+    for (const guildId of idleGuilds) {
+      await activityTracker.flushSnapshot(guildId, guildMemberCounts.get(guildId) ?? 0, endedDay);
     }
-
-    // Clean stale in-memory entries
-    activityTracker.cleanStaleEntries();
 
     // Clean old snapshots (90+ days)
     const cutoffDate = new Date();
@@ -103,6 +105,10 @@ async function runDailySnapshot(client: Client): Promise<void> {
     );
   } catch (error) {
     enhancedLogger.error('Analytics snapshot job failed', error as Error, LogCategory.SYSTEM);
+  } finally {
+    // Always — including the no-guild-enabled early return — or counters for
+    // guilds that never opted in pile up until restart.
+    activityTracker.cleanStaleEntries();
   }
 }
 
