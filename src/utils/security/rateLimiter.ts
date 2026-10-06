@@ -286,6 +286,19 @@ export const RateLimits = {
     message: '⏱️ Memory operations can only be performed 20 times per hour. Please wait before making more changes.',
   },
 
+  // /bot-health check, per guild (the bot owner bypasses both)
+  BOT_HEALTH_CHECK: {
+    maxAttempts: 1,
+    windowMs: 60 * 1000, // 1 minute
+    message: '⏱️ A health check can run once a minute per server. Please wait a moment and try again.',
+  },
+
+  BOT_HEALTH_DEEP: {
+    maxAttempts: 1,
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    message: '⏱️ A deep health check can run once every 10 minutes per server. Run a normal check in the meantime.',
+  },
+
   // Global limits (per user across all guilds)
   GLOBAL_COMMAND: {
     maxAttempts: 30,

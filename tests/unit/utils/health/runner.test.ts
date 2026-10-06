@@ -5,6 +5,7 @@
  */
 import { describe, expect, test } from 'bun:test';
 import { version } from '../../../../package.json';
+import { CORE_CHECKS } from '../../../../src/utils/health/checks/core';
 import type { HealthEntityName } from '../../../../src/utils/health/context';
 import { repoRowLoader, rowsOf } from '../../../../src/utils/health/context';
 import { defineCheck } from '../../../../src/utils/health/define';
@@ -70,7 +71,8 @@ describe('runHealthCheck', () => {
       if (entity === 'StaffRole') throw new Error('ER_LOCK_WAIT_TIMEOUT');
       return [];
     };
-    const report = await runHealthCheck(makeFakeGuild(), { system: 'core' }, { loadRows: loader });
+    // CORE_CHECKS, not the registry: the command sync check needs Discord (see commandsCheck.test.ts).
+    const report = await runHealthCheck(makeFakeGuild(), { system: 'core' }, { checks: CORE_CHECKS, loadRows: loader });
     expect(report.systems.core?.findings.map(f => f.code)).toEqual(['core.staff_role.error']);
     expect(report.systems.core?.status).toBe('warn');
   });
@@ -187,7 +189,7 @@ describe('read-only guarantee (messy legacy guild, real core checks, real repo l
     const loader = repoRowLoader(target => fakes[(target as { name: string }).name]);
     const guild = makeFakeGuild({ roles: [{ id: STAFF, mentionable: true }] });
 
-    const report = await runHealthCheck(guild, {}, { loadRows: loader });
+    const report = await runHealthCheck(guild, {}, { checks: CORE_CHECKS, loadRows: loader });
 
     expect(report.systems.core?.findings.map(f => f.code).sort()).toEqual(
       [

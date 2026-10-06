@@ -129,7 +129,8 @@ export function isCommandVisible(commandName: string, enabled: Set<GatedModule>)
 // process-shared mock.module state in tests. The heavy load now happens only
 // when commands are actually (re)registered — i.e. at startup or on a real
 // toggle — never just from importing the refresh helpers.
-async function filterCommandsByEnabled(enabled: Set<GatedModule>) {
+/** The commands a guild with these modules enabled gets. Also the health check's expected set. */
+export async function filterCommandsByEnabled(enabled: Set<GatedModule>) {
   const { commands } = await import('../../commands/commandList');
   return commands.filter(cmd => {
     const name = commandName(cmd);

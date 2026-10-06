@@ -322,7 +322,7 @@ describe('POST /tickets/:id/close', () => {
     expect(fakeWriteAuditAction).not.toHaveBeenCalled();
   });
 
-  test('transient channel-fetch failure (non-10003): reverts status, returns failure (retryable)', async () => {
+  test('transient channel-fetch failure (non-10003): reverts status, 409 (retryable)', async () => {
     ticketRepoState.findOneByResult = {
       id: 42,
       guildId: 'guild-1',
@@ -335,10 +335,9 @@ describe('POST /tickets/:id/close', () => {
     };
     (fakeClient.channels.fetch as any).mockRejectedValue(Object.assign(new Error('Service Unavailable'), { code: 0 }));
 
-    const result = await getCloseHandler()('guild-1', {}, '/tickets/42/close');
-
-    // A transient fetch failure must NOT strand the ticket closed.
-    expect(result).toEqual({ success: false, ticketId: 42, archived: false });
+    // A transient fetch failure must NOT strand the ticket closed, and must be a
+    // non-2xx so the dashboard doesn't toast success (the BFF only checks status).
+    await expect(getCloseHandler()('guild-1', {}, '/tickets/42/close')).rejects.toMatchObject({ statusCode: 409 });
     expect(ticketRepoState.updateCalls[0].partial).toEqual({
       status: 'closed',
     });
@@ -380,10 +379,11 @@ describe('POST /tickets/:id/close', () => {
     };
     fakeArchiveAndClose.mockResolvedValue({ success: false, archived: false });
 
-    const result = await getCloseHandler()('guild-1', {}, '/tickets/42/close');
-
-    // Honest failure surfaced to the caller.
-    expect(result).toEqual({ success: false, ticketId: 42, archived: false });
+    // Honest failure surfaced to the caller as a 409, not a 200 {success:false}.
+    await expect(getCloseHandler()('guild-1', {}, '/tickets/42/close')).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringContaining('ticket left open'),
+    });
     // Status flipped to closed, then reverted to its prior value so the close
     // can be retried (the workflow preserved the channel).
     expect(ticketRepoState.updateCalls[0].partial).toEqual({

@@ -56,9 +56,11 @@ export function registerTicketHandlers(
           return null;
         })
       : null;
+    // Failures are a 409, not a 200 {success:false}: the BFF only checks the
+    // status code, so the dashboard toasted "closed" for a reverted close.
     if (channelFetchFailed) {
       await releaseClose(ticketRepo, ticket.id, guildId, ticket.status);
-      return { success: false, ticketId: ticket.id, archived: false };
+      throw ApiError.conflict('Could not access the ticket channel; ticket left open. Try again.');
     }
     if (!channel?.isTextBased()) {
       return { success: true, ticketId: ticket.id, archived: false };
@@ -92,7 +94,9 @@ export function registerTicketHandlers(
       // Archive failed — the workflow preserved the channel; revert the status
       // so the close can be retried instead of stranding it 'closed'.
       await releaseClose(ticketRepo, ticket.id, guildId, ticket.status);
-      return { success: false, ticketId: ticket.id, archived: false };
+      throw ApiError.conflict(
+        'Archiving failed (check bot permissions and the archive forum); ticket left open. Try again.',
+      );
     }
 
     await writeAuditAction(guildId, body, 'ticket.close', {

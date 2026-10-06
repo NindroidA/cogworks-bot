@@ -25,7 +25,7 @@ const FORUM_CRITICAL: PermissionName[] = ['ViewChannel', 'SendMessages'];
 /** Looking a post up only needs this; without it the lookup can only come back inaccessible. */
 const FORUM_READ: PermissionName[] = ['ViewChannel'];
 /** Deep mode looks up at most this many memory posts (a third of the REST budget); the rest are not checked. */
-const POST_LOOKUPS = 20;
+export const POST_LOOKUPS = 20;
 
 const isConfigured = (ctx: CheckContext) => rowsOf(ctx, 'MemoryConfig').length > 0;
 
