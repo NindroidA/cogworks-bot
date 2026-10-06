@@ -8,11 +8,10 @@
 import type { Client, Guild } from 'discord.js';
 import { AppDataSource } from '../typeorm';
 import { BotStatus } from '../typeorm/entities/status';
-import { enhancedLogger, invalidateGuildMenuCache, LogCategory } from '../utils';
+import { enhancedLogger, LogCategory } from '../utils';
 import { notifyGuildLeave } from '../utils/api/guildWebhook';
 import { deleteAllGuildData } from '../utils/database/guildQueries';
-import { invalidateRulesCache } from '../utils/rules/rulesCache';
-import { invalidateStarboardCache } from './starboardReaction';
+import { invalidateBaitCaches } from '../utils/offboarding/guildCaches';
 
 export default {
   name: 'guildDelete',
@@ -25,13 +24,14 @@ export default {
       enhancedLogger.guildEvent(`Left guild: ${guildName} (ID: ${guildId}) - Members: ${memberCount}`, guildId);
       enhancedLogger.info(`Starting GDPR-compliant data deletion for guild ${guildId}...`, LogCategory.DATABASE);
 
-      // Invalidate in-memory caches for this guild
-      invalidateRulesCache(guildId);
-      invalidateGuildMenuCache(guildId);
-      invalidateStarboardCache(guildId);
+      // deleteAllGuildData drops the other per-guild caches itself. The bait caches live on the
+      // client, so clear them here on both sides of the purge: a kick-and-reinvite inside their
+      // TTL would otherwise keep acting on the purged bait config.
+      invalidateBaitCaches(client, guildId);
 
       // Delete all guild data from database
       const deletionResult = await deleteAllGuildData(guildId);
+      invalidateBaitCaches(client, guildId);
 
       if (deletionResult.success && deletionResult.failed.length === 0) {
         enhancedLogger.info(

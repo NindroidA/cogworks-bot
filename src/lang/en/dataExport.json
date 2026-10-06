@@ -9,7 +9,7 @@
   "footer": "GDPR Compliance - This export contains all your server data",
   "dmSuccess": "Data export sent to your DMs! Check your direct messages.",
   "dmFailed": "Couldn't DM you (DMs from server members may be turned off), so the export is attached here instead. Only you can see this message. Download the file before you dismiss it.",
-  "tooLarge": "The export is {0} even after compression, which is more than Discord lets a bot upload (8 MB), so it can't be delivered here. Your daily export was not used up. Please contact support for a manual export.",
+  "tooLarge": "The export is {0} even after compression, which is more than Discord lets a bot upload (8 MB), so it can't be delivered here. Running it again would build the same file, so this counts as today's export. Please contact support for a manual export.",
   "error": "An error occurred while exporting data. Please try again later.",
   "starting": "Starting data export for guild {0} requested by {1}",
   "completed": "Data export completed: {0} records from {1} tables",

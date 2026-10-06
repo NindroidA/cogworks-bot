@@ -46,16 +46,21 @@ role permission grants and stops warm caches from acting on deleted config.
   locale and permission caches are now dropped before and after
   `deleteAllGuildData` (for `/bot-reset` and guild leave), so XP and starboard
   rows stop being re-created for up to five minutes afterwards. `/bot-reset`
-  also clears the bait config and keyword caches on both sides of the purge
-  (it used to clear only the config cache, and only before). `XPConfig` is
+  and guild leave also clear the bait config and keyword caches on both sides
+  of the purge (reset used to clear only the config cache, and only before;
+  guild leave didn't clear them, so a kick and re-invite within five minutes
+  kept acting on the deleted bait config). `XPConfig` is
   now deleted before `XPUser`. The starboard config cache moved to
   `utils/starboard/configCache.ts` so the purge can reach it.
 - **`/data-export`** is gzipped compact JSON instead of pretty-printed, checks
   the 8 MB upload limit, and when the DM fails it attaches the file to the
   ephemeral reply instead of pointing at a download button that didn't exist.
-  Its daily limit is given back when nothing was delivered. The entity list
+  Its daily limit is given back when delivery fails, but an export too large
+  to upload still counts, since running it again would build the same file.
+  Compression no longer blocks the event loop. The entity list
   moved to `utils/offboarding/guildDataExport.ts` so other exports can reuse it.
-  The admin guide's `/data-export` section describes the new file.
+  The `/data-export` sections of the admin guide and `docs/commands.md`
+  describe the new file, the fallback and when the daily limit counts.
 
 ### Security
 
