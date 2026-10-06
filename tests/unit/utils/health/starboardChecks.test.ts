@@ -3,7 +3,8 @@
  * enabled starboard.
  */
 import { describe, expect, test } from 'bun:test';
-import { CATEGORY, codes, G, GONE_CHANNEL, LOCKED, NEWS, runOne, TEXT, VOICE } from './communityFixtures';
+import { PermissionFlagsBits } from 'discord.js';
+import { CATEGORY, codes, G, GONE_CHANNEL, guildInit, LOCKED, NEWS, runOne, TEXT, VOICE } from './communityFixtures';
 
 const id = 'starboard.config';
 const starboard = (overrides: Record<string, unknown> = {}) => ({
@@ -24,6 +25,11 @@ describe('starboard.config', () => {
     expect(await run({ channelId: NEWS, emoji: '<:star2:123456789012345678>', ignoredChannels: null })).toEqual([]);
     expect(await run({ emoji: '<a:spin:123456789012345678>' })).toEqual([]);
     expect(await run({ emoji: 'gold_star' })).toEqual([]);
+  });
+
+  test('pass: multi-codepoint unicode emoji (flags, skin tones, keycaps, ZWJ and tag sequences)', async () => {
+    const emoji = ['🇺🇸', '🇦', '👍🏽', '🏽', '1️⃣', '#️⃣', '❤️', '❤', '👨🏽‍💻', '🏳️‍🌈', '❤️‍🔥', '🫱🏻‍🫲🏿', '🏴󠁧󠁢󠁳󠁣󠁴󠁿'];
+    for (const e of emoji) expect({ e, findings: await run({ emoji: e }) }).toEqual({ e, findings: [] });
   });
 
   test('pass: a disabled starboard (what channelDelete leaves) is not checked', async () => {
@@ -50,17 +56,40 @@ describe('starboard.config', () => {
     });
   });
 
-  test('fail: wrong channel type, and missing permissions (history included)', async () => {
+  test('fail: wrong channel type; missing post permissions block, missing history only degrades', async () => {
     expect(codes(await run({ channelId: CATEGORY }))).toEqual(['starboard.config.channel_wrong_type']);
-    const [f] = await run({ channelId: LOCKED });
-    expect(f).toMatchObject({
+    const [post, history] = await run({ channelId: LOCKED });
+    expect(post).toMatchObject({
       code: 'starboard.config.channel_permissions',
-      params: { permissions: 'Send Messages, Embed Links, Read Message History' },
+      severity: 'block',
+      repair: 'manual',
+      params: { channelId: LOCKED, permissions: 'Send Messages, Embed Links' },
     });
+    expect(history).toMatchObject({ code: 'starboard.config.channel_history', severity: 'degraded' });
+  });
+
+  test('fail: only Read Message History missing is degraded (new posts still go out)', async () => {
+    const NO_HISTORY = '300000000000000008';
+    const perms = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks];
+    const guild = { channels: [...(guildInit().channels ?? []), { id: NO_HISTORY, botPermissions: perms }] };
+    const findings = await runOne(id, { StarboardConfig: [starboard({ channelId: NO_HISTORY })] }, guild);
+    expect(findings).toEqual([
+      {
+        code: 'starboard.config.channel_history',
+        system: 'starboard',
+        severity: 'degraded',
+        repair: 'manual',
+        entity: 'StarboardConfig',
+        rowId: 1,
+        field: 'channelId',
+        refId: NO_HISTORY,
+        params: { channelId: NO_HISTORY, permissions: 'Read Message History' },
+      },
+    ]);
   });
 
   test('fail: an emoji no reaction can match', async () => {
-    for (const emoji of ['not an emoji', '<:broken>', '']) {
+    for (const emoji of ['not an emoji', ':star:', '⭐⭐', '⭐ ', '1', '<:broken>', '<:x:123456789012345678>', '']) {
       const [f] = await run({ emoji });
       expect(f).toMatchObject({ code: 'starboard.config.emoji_invalid', severity: 'block', params: { emoji } });
     }

@@ -3,7 +3,7 @@
  * rows (built-in defaults present, renderable color, embed limits).
  */
 import { describe, expect, test } from 'bun:test';
-import { PermissionFlagsBits } from 'discord.js';
+import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import { DEFAULT_ANNOUNCEMENT_TEMPLATES } from '../../../../src/utils/announcement/defaultTemplates';
 import { getChecks } from '../../../../src/utils/health/registry';
 import { makeCheckContext } from '../../../helpers/healthContext';
@@ -14,6 +14,7 @@ import {
   G,
   GONE_CHANNEL,
   GONE_ROLE,
+  guildInit,
   LOCKED,
   MUTED_ROLE,
   NEWS,
@@ -54,23 +55,18 @@ describe('announcement.config', () => {
     });
   });
 
-  test('fail: deleted default channel (auto, the cleaner blanks it)', async () => {
-    const [f] = await run({ defaultChannelId: GONE_CHANNEL });
-    expect(f).toMatchObject({
-      code: 'announcement.config.channel_missing',
-      severity: 'degraded',
-      repair: 'auto',
-      refId: GONE_CHANNEL,
-      params: { channelId: GONE_CHANNEL },
-    });
-  });
-
-  test('pass: a channel missing from an unavailable guild is not proof', async () => {
+  test('pass: an uncached default channel may be an archived thread, so a miss is not proof', async () => {
+    expect(await run({ defaultChannelId: GONE_CHANNEL })).toEqual([]);
     expect(await run({ defaultChannelId: GONE_CHANNEL }, { available: false })).toEqual([]);
   });
 
-  test('fail: not a text or announcement channel', async () => {
+  test('fail: not a text or announcement channel, including a cached thread', async () => {
     expect(codes(await run({ defaultChannelId: CATEGORY }))).toEqual(['announcement.config.channel_wrong_type']);
+    const THREAD = '300000000000000007';
+    const withThread = { channels: [...(guildInit().channels ?? []), { id: THREAD, type: ChannelType.PublicThread }] };
+    expect(codes(await run({ defaultChannelId: THREAD }, withThread))).toEqual([
+      'announcement.config.channel_wrong_type',
+    ]);
   });
 
   test('fail: the bot lacks permissions in the channel and they are listed', async () => {

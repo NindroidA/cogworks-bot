@@ -23,7 +23,10 @@ const config = defineCheck(
     if (!row) return [];
     const at: FindingTarget = { entity: 'AnnouncementConfig', rowId: row.id, field: 'defaultChannelId' };
     // `/announcement send` without a channel option posts here. '' is what channelDelete leaves behind.
-    const rule = { kinds: ['text', 'news'], perms: EMBED_SEND, severity: 'degraded' } as const;
+    // `/announcement-setup` accepts any channel type, so the id may be a thread. Archived threads aren't
+    // cached, so a miss proves nothing: channel_missing would need a REST confirmation, which isn't made.
+    // A cached thread reads wrong_type: the send handler only posts to text and announcement channels.
+    const rule = { kinds: ['text', 'news'], perms: EMBED_SEND, severity: 'degraded', mayBeThread: true } as const;
     const out = row.defaultChannelId
       ? channelFindings(ctx, emit, 'channel', row.defaultChannelId, at, rule)
       : [emit('channel_unset', 'degraded', 'manual', at)];

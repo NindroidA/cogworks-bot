@@ -9,7 +9,7 @@ import { getChecks } from '../../../../src/utils/health/registry';
 import { runHealthCheck } from '../../../../src/utils/health/runner';
 import { makeFakeGuild } from '../../../helpers/fakeGuild';
 import { type FakeRepo, makeFakeRepo, writeCallCount } from '../../../helpers/fakeRepo';
-import { G, GONE_CHANNEL, GONE_ROLE, guildInit, HIGH_ROLE, ROLE } from './communityFixtures';
+import { CATEGORY, G, GONE_CHANNEL, GONE_ROLE, guildInit, HIGH_ROLE, ROLE } from './communityFixtures';
 
 describe('community check registry', () => {
   test.each([
@@ -38,7 +38,7 @@ describe('messy legacy guild (real registry and repo loader)', () => {
     const add = (name: string, rows: Record<string, unknown>[]) => {
       fakes[name] = makeFakeRepo(rows);
     };
-    add('AnnouncementConfig', [{ id: 1, guildId: G, defaultChannelId: GONE_CHANNEL, defaultRoleId: ROLE }]);
+    add('AnnouncementConfig', [{ id: 1, guildId: G, defaultChannelId: CATEGORY, defaultRoleId: ROLE }]);
     add('AnnouncementTemplate', [{ id: 1, guildId: G, name: 'maintenance', color: 'nope', title: 't', body: 'b' }]);
     add('XPConfig', [
       { id: 1, guildId: G, enabled: true, xpPerMessageMin: 15, xpPerMessageMax: 25, ignoredRoles: [GONE_ROLE] },
@@ -47,10 +47,10 @@ describe('messy legacy guild (real registry and repo loader)', () => {
       { id: 1, guildId: G, level: 5, roleId: HIGH_ROLE },
       { id: 2, guildId: OTHER, level: 5, roleId: GONE_ROLE },
     ]);
-    add('StarboardConfig', [
-      { id: 1, guildId: G, enabled: true, channelId: GONE_CHANNEL, emoji: '⭐', threshold: 3 },
+    add('StarboardConfig', [{ id: 1, guildId: G, enabled: true, channelId: GONE_CHANNEL, emoji: '⭐', threshold: 3 }]);
+    add('OnboardingConfig', [
+      { id: 1, guildId: G, enabled: true, welcomeMessage: 'Hi', steps: [], completionRoleId: null },
     ]);
-    add('OnboardingConfig', [{ id: 1, guildId: G, enabled: true, welcomeMessage: 'Hi', steps: [], completionRoleId: null }]);
     return fakes;
   }
 
@@ -61,7 +61,7 @@ describe('messy legacy guild (real registry and repo loader)', () => {
     const found = (system: keyof typeof report.systems) => report.systems[system]?.findings.map(f => f.code);
 
     expect(found('announcement')).toEqual([
-      'announcement.config.channel_missing',
+      'announcement.config.channel_wrong_type',
       'announcement.template.default_missing',
       'announcement.template.default_missing',
       'announcement.template.default_missing',

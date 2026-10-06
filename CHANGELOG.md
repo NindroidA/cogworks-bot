@@ -15,10 +15,12 @@ release.
 
 ### Added — community feature health checks (internal, no user-visible command yet)
 
-- **Announcements**: the default channel is unset, deleted, not a text or
-  announcement channel, or missing the bot's permissions; the ping role is
-  deleted, or can't be pinged (not mentionable and the bot lacks Mention
-  Everyone); built-in templates added after the server was set up are missing;
+- **Announcements**: the default channel is unset, not a text or announcement
+  channel (a thread included), or missing the bot's permissions (a default
+  channel that isn't cached could be an archived thread, so it isn't reported
+  as deleted); the ping role is deleted, or can't be pinged (not mentionable
+  and the bot lacks Mention Everyone); built-in templates added after the
+  server was set up are missing;
   a template has a color the renderer can't parse or exceeds Discord's embed
   limits, so it can't be sent.
 - **XP** (only while enabled): the level-up channel is deleted, can't hold
@@ -28,9 +30,11 @@ release.
   or @everyone, or sit above the bot's highest role; Manage Roles missing; more
   than one reward per level; more than 25 rewards.
 - **Starboard** (only while enabled): the channel is unset, deleted, can't hold
-  messages or is missing the bot's permissions, or the emoji can't match any
-  reaction (all of these stop the starboard); a threshold below 1; deleted
-  ignored channels.
+  messages or is missing View Channel, Send Messages or Embed Links, or the
+  emoji can't match any reaction (all of these stop the starboard); Read
+  Message History missing (existing posts don't update their counts); a
+  threshold below 1; deleted ignored channels. Any unicode emoji passes,
+  including flags, skin tones, keycaps and ZWJ sequences.
 - **Onboarding** (only while enabled): no steps; a welcome message over 2,000
   characters (over 4,096 Discord rejects it); the completion role or a
   role-select option is deleted, managed or @everyone, or above the bot; Manage

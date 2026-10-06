@@ -25,6 +25,8 @@ export interface ChannelRule {
   kinds: readonly ChannelKind[];
   perms: readonly PermissionName[];
   severity: HealthSeverity;
+  /** The id may be a thread: archived ones aren't cached, so a cache miss is not proof of deletion. */
+  mayBeThread?: boolean;
 }
 
 type ChannelNames<P extends string> = `${P}_missing` | `${P}_wrong_type` | `${P}_permissions`;
@@ -50,7 +52,8 @@ export function botLacks(ctx: CheckContext, permission: PermissionName): boolean
 
 /**
  * `<prefix>_missing` (auto: the channelDelete cleaner clears the column),
- * `_wrong_type`, or `_permissions` (lists what the bot lacks there).
+ * `_wrong_type`, or `_permissions` (lists what the bot lacks there). With
+ * `rule.mayBeThread` a cache miss reads unknown, so `_missing` needs other proof.
  */
 export function channelFindings<P extends string>(
   ctx: CheckContext,
@@ -61,16 +64,33 @@ export function channelFindings<P extends string>(
   rule: ChannelRule,
 ): HealthFinding[] {
   const target: FindingTarget = { ...at, refId: id, params: { ...at.params, channelId: id } };
-  const ref = resolveChannel(ctx.guild, id);
+  const ref = resolveChannel(ctx.guild, id, rule);
   if (ref.status === 'missing') return [emit(`${prefix}_missing`, rule.severity, 'auto', target)];
   if (ref.status !== 'ok') return [];
   if (!channelIsKind(ref.value, ...rule.kinds)) return [emit(`${prefix}_wrong_type`, rule.severity, 'manual', target)];
-  const missing = ctx.me ? missingPermissions(ctx.me, rule.perms, ref.value) : [];
+  return channelPermissionFindings(ctx, emit, `${prefix}_permissions`, id, at, rule);
+}
+
+/**
+ * `name` (manual) when the bot lacks some of `rule.perms` in the channel, listing them.
+ * Only for a cached channel of the rule's kinds; anything else is `channelFindings`' job.
+ */
+export function channelPermissionFindings<N extends string>(
+  ctx: CheckContext,
+  emit: Emit<N>,
+  name: NoInfer<N>,
+  id: string,
+  at: FindingTarget,
+  rule: ChannelRule,
+): HealthFinding[] {
+  const ref = resolveChannel(ctx.guild, id, rule);
+  if (ref.status !== 'ok' || !ctx.me || !channelIsKind(ref.value, ...rule.kinds)) return [];
+  const missing = missingPermissions(ctx.me, rule.perms, ref.value);
   if (missing.length === 0) return [];
   // "ViewChannel" -> "View Channel", as Discord's settings name them.
-  const permissions = missing.map(name => name.replace(/(?<=[a-z])(?=[A-Z])/g, ' ')).join(', ');
-  target.params = { ...target.params, permissions };
-  return [emit(`${prefix}_permissions`, rule.severity, 'manual', target)];
+  const permissions = missing.map(perm => perm.replace(/(?<=[a-z])(?=[A-Z])/g, ' ')).join(', ');
+  const params = { ...at.params, channelId: id, permissions };
+  return [emit(name, rule.severity, 'manual', { ...at, refId: id, params })];
 }
 
 /**
