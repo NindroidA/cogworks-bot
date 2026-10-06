@@ -328,7 +328,7 @@ client.once('clientReady', async () => {
   });
 
   // retry queue picks up actions that returned 'queued' from the executor
-  // (Discord 429/5xx, network); grace rows orphaned by a restart are dropped
+  // (Discord 429/5xx, network); grace rows left without a timer are dropped
   // without acting
   await runInitStep('bait retry queue', () =>
     initRetryQueue({
