@@ -7,6 +7,7 @@ import { describe, expect, test } from 'bun:test';
 import { HEALTH_SYSTEM_CHOICES } from '../../../../src/commands/builders/botHealth';
 import { DEFAULT_LOCALE, getLangForLocale, lang, SUPPORTED_LOCALES } from '../../../../src/lang';
 import { getChecks } from '../../../../src/utils/health/registry';
+import { HEALTH_SYSTEMS, HEALTH_SYSTEMS_NOT_CHECKED } from '../../../../src/utils/health/systems';
 
 const strings = lang.health.findings as Record<string, string>;
 const allCodes = getChecks().flatMap(check => [...check.codes, `${check.id}.error`]);
@@ -45,6 +46,19 @@ describe('/bot-health system choices', () => {
   // A new system's first checks must also add it to the choices and to command.systems.
   test.each([...new Set(getChecks().map(check => check.system))])('%s is a choice with a label', system => {
     expect(HEALTH_SYSTEM_CHOICES).toContain(system);
+    expect(labels[system]).toBeString();
+  });
+
+  // And the other way: a choice without checks would only ever say "no checks for this system yet".
+  test.each([...HEALTH_SYSTEM_CHOICES])('the %s choice has at least one check', system => {
+    expect(getChecks(system).length).toBeGreaterThan(0);
+  });
+
+  // When one gets checks, it moves to the choices (and off the "not checked yet" list) with them.
+  test.each([...HEALTH_SYSTEMS_NOT_CHECKED])('%s has no checks yet, a label, and is not a choice', system => {
+    expect(getChecks(system)).toEqual([]);
+    expect(HEALTH_SYSTEMS).toContain(system);
+    expect(HEALTH_SYSTEM_CHOICES).not.toContain(system);
     expect(labels[system]).toBeString();
   });
 

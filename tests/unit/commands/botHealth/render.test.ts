@@ -8,6 +8,7 @@ import type { APIEmbed } from 'discord.js';
 import {
   buildExportAttachment,
   buildSummaryEmbed,
+  exportParams,
   fillTemplate,
   findingField,
   HEALTH_CID,
@@ -90,10 +91,20 @@ describe('findingField', () => {
     expect(legacy.value).toContain(`<@&${ROLE}>`);
   });
 
-  test('name carries severity and repair class; value ends with the stable code', () => {
+  test('name carries the severity only; value ends with the stable code', () => {
     const field = findingField(finding({ severity: 'block', repair: 'manual' }));
-    expect(field.name).toBe('❌ Broken · needs a manual fix');
+    expect(field.name).toBe('❌ Broken');
     expect(field.value.endsWith('\n`core.staff_role.missing`')).toBe(true);
+    expect(field.value).not.toContain('/bot-health repair');
+  });
+
+  test('no repair command yet: auto and confirm findings say the fix is coming, nothing promises it now', () => {
+    const auto = findingField(finding({ repair: 'auto' }));
+    expect(auto.value).toContain('\n_Can be fixed by /bot-health repair (coming soon)._\n`core.staff_role.missing`');
+    const confirm = findingField(finding({ repair: 'confirm' }));
+    expect(confirm.value).toContain('(coming soon), after you confirm._');
+    for (const field of [auto, confirm])
+      expect(`${field.name} ${field.value}`).not.toMatch(/automatically|can be fixed automatically/);
   });
 
   test('a code without a string falls back to the code itself', () => {
@@ -103,7 +114,9 @@ describe('findingField', () => {
   test('an oversized value is cut to 1024 and still shows the code', () => {
     const field = findingField(finding({ params: { roleId: ROLE, alias: 'y'.repeat(5_000) } }));
     expect(field.value.length).toBe(1024);
-    expect(field.value.endsWith('…\n`core.staff_role.missing`')).toBe(true);
+    expect(
+      field.value.endsWith('…\n_Can be fixed by /bot-health repair (coming soon)._\n`core.staff_role.missing`'),
+    ).toBe(true);
   });
 });
 
@@ -145,7 +158,7 @@ describe('paginateFindings', () => {
 });
 
 describe('buildSummaryEmbed', () => {
-  test('one line per system, counts in the footer, colour from the worst status', () => {
+  test('one line per system, a footer about the coming repair, colour from the worst status', () => {
     const embed = buildSummaryEmbed(
       report({
         systems: {
@@ -163,9 +176,18 @@ describe('buildSummaryEmbed', () => {
     expect(lines).toContain('❌ **Tickets**: 1 found, something is broken');
     expect(lines).toContain('➖ **Memory**: not set up');
     expect(lines).toContain('✅ **Rules**: no problems');
-    expect(embed.footer?.text).toBe('2 automatic · 1 need confirmation · 0 manual');
+    expect(embed.footer?.text).toBe(
+      'Automatic fixes come with /bot-health repair in a later update. Until then, follow the steps in each finding.',
+    );
+    expect(embed.footer?.text).not.toMatch(/\d/);
     expect(embed.color).toBe(0xed4245);
     expect(embed.title).toBe('Server health');
+  });
+
+  test('no footer when nothing the repair could fix was found', () => {
+    expect(buildSummaryEmbed(report()).toJSON().footer).toBeUndefined();
+    const manualOnly = report({ counts: { auto: 0, confirm: 0, manual: 3 } });
+    expect(buildSummaryEmbed(manualOnly).toJSON().footer).toBeUndefined();
   });
 
   test('deep runs, other servers and notChecked are shown', () => {
@@ -175,9 +197,32 @@ describe('buildSummaryEmbed', () => {
     expect(embed.title).toBe('Server health: Other Server');
     expect(embed.description).toStartWith('Cogworks v3.16.25 · deep check');
     expect(embed.fields?.[0].name).toBe('Not checked');
-    expect(embed.fields?.[0].value).toContain('`message:1`');
+    // An unknown label is shown as is.
+    expect(embed.fields?.[0].value).toContain('message:1: not all were looked up');
     expect(embed.fields?.[0].value).toContain('unavailable');
     expect(embed.color).toBe(0x57f287);
+  });
+
+  test('skipped lookups: readable labels, the fixed caps, and no "try again later"', () => {
+    const labels = ['rest:memory.thread', 'rest:rules.message', 'rest:TicketConfig.messageId', 'rest:guild emojis'];
+    const value = buildSummaryEmbed(report({ deep: true, notChecked: labels })).toJSON().fields?.[0].value ?? '';
+    expect(value).toContain('Memory posts: not all were looked up');
+    expect(value).toContain('The rules message:');
+    expect(value).toContain('The ticket panel message:');
+    expect(value).toContain("This server's emojis:");
+    expect(value).toContain('at most 60 Discord lookups');
+    expect(value).toContain('at most 20 memory posts');
+    expect(value).toContain('skips the same ones');
+    expect(value).not.toMatch(/later|memory\.thread|rules\.message|TicketConfig/);
+  });
+
+  test('a check of all systems names the ones without checks yet', () => {
+    const embed = buildSummaryEmbed(report(), { notCheckedYet: ['baitchannel'] }).toJSON();
+    expect(embed.description?.split('\n')).toContain('➖ **Bait channel**: not checked yet');
+    expect(embed.description).not.toContain('no checks for this system yet');
+    // A system that is in the report isn't listed twice.
+    const listed = buildSummaryEmbed(report(), { notCheckedYet: ['core'] }).toJSON().description ?? '';
+    expect(listed).not.toContain('not checked yet');
   });
 
   test('a system with no registered checks says so', () => {
@@ -234,10 +279,56 @@ describe('renderView and parseViewRequest', () => {
 });
 
 describe('buildExportAttachment', () => {
-  test('the full report as JSON, named after the guild', () => {
+  const exported = (r: HealthReport) => JSON.parse((buildExportAttachment(r).attachment as Buffer).toString('utf8'));
+
+  test('the full report as JSON, named after the guild, with free-text params dropped', () => {
     const big = bigReport();
     const file = buildExportAttachment(big);
     expect(file.name).toBe(`bot-health-${G}-2026-10-06T12-00-00-000Z.json`);
-    expect(JSON.parse((file.attachment as Buffer).toString('utf8'))).toEqual(big);
+    const json = exported(big);
+    // Only the role id survives: `alias` and the ticket findings' `type` are text.
+    const strip = (findings: HealthFinding[]) =>
+      findings.map(f => ({
+        ...f,
+        params: Object.fromEntries(Object.entries(f.params).filter(([k]) => k === 'roleId')),
+      }));
+    expect(json).toEqual({
+      ...big,
+      systems: {
+        core: { ...big.systems.core, findings: strip(big.systems.core!.findings) },
+        ticket: { ...big.systems.ticket, findings: strip(big.systems.ticket!.findings) },
+      },
+    });
+  });
+
+  test('IDs, codes and numbers only: names, titles, aliases and labels never leave the server', () => {
+    const params = {
+      name: 'secret-staff-channel',
+      title: 'My private memory',
+      alias: 'Mods',
+      label: 'What is your address?',
+      emoji: '<:secret:123456789012345678>',
+      typeId: 'private_type',
+      keptName: 'Ideas',
+      roleId: ROLE,
+      channelId: '300000000000000001',
+      count: 26,
+      permissions: 'SendMessages, ReadMessageHistory',
+    };
+    const r = report({
+      systems: { core: { status: 'warn', findings: [finding({ params, rowId: 7, refId: ROLE })] } },
+      counts: { auto: 1, confirm: 0, manual: 0 },
+    });
+    const [f] = exported(r).systems.core.findings;
+    expect(f.params).toEqual({
+      roleId: ROLE,
+      channelId: '300000000000000001',
+      count: 26,
+      permissions: 'SendMessages, ReadMessageHistory',
+    });
+    expect(f).toMatchObject({ code: 'core.staff_role.missing', rowId: 7, refId: ROLE, repair: 'auto' });
+    const text = JSON.stringify(exported(r));
+    for (const secret of ['secret', 'private', 'Mods', 'address', 'Ideas']) expect(text).not.toContain(secret);
+    expect(exportParams({ name: '12345' })).toEqual({});
   });
 });

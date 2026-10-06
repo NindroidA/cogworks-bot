@@ -14,6 +14,8 @@ import {
 } from 'discord.js';
 import { lang } from '../../../lang';
 import { Colors } from '../../../utils/colors';
+import { POST_LOOKUPS } from '../../../utils/health/checks/memory';
+import { HEALTH_REST_BUDGET } from '../../../utils/health/context';
 import type {
   HealthFinding,
   HealthReport,
@@ -44,6 +46,8 @@ export type HealthView = { kind: 'summary' } | { kind: 'details'; system: string
 export interface RenderOptions {
   /** Set when the bot owner checks another server, so the title names it. */
   guildName?: string;
+  /** Systems a check of all systems lists as not checked yet (they have no checks). */
+  notCheckedYet?: readonly string[];
 }
 
 /** Fills `{name}` placeholders; unknown ones stay as written. */
@@ -63,17 +67,25 @@ function truncate(text: string, max: number): string {
 
 const SEVERITY_ORDER: Record<HealthSeverity, number> = { block: 0, degraded: 1, cosmetic: 2 };
 
+/** Under the text of a finding the coming repair command can fix (no repair runs yet). */
+const REPAIR_NOTE: Partial<Record<HealthFinding['repair'], string>> = {
+  auto: tl.repair.auto,
+  confirm: tl.repair.confirm,
+};
+
 /**
- * One embed field per finding: severity and repair class as the name, the
- * explanation (lang string with its params) plus the stable code as the value.
- * The lang strings show a missing object as its raw ID and an existing one as a mention.
+ * One embed field per finding: the severity as the name, the explanation (lang
+ * string with its params) plus the stable code as the value. The lang strings
+ * show a missing object as its raw ID and an existing one as a mention, and say
+ * what to do; a finding the coming repair can fix also says so.
  */
 export function findingField(finding: HealthFinding): APIEmbedField {
-  const code = `\n\`${finding.code}\``;
+  const repair = REPAIR_NOTE[finding.repair];
+  const suffix = `${repair ? `\n_${repair}_` : ''}\n\`${finding.code}\``;
   const text = fillTemplate(findingStrings[finding.code] ?? finding.code, finding.params);
   return {
-    name: truncate(`${tl.severity[finding.severity]} · ${tl.repair[finding.repair]}`, 256),
-    value: truncate(text, 1024 - code.length) + code,
+    name: truncate(tl.severity[finding.severity], 256),
+    value: truncate(text, 1024 - suffix.length) + suffix,
   };
 }
 
@@ -110,8 +122,22 @@ const NOT_CHECKED: Record<string, string> = {
   'guild-cache-unavailable': tl.notChecked.guildUnavailable,
   'bot-member-unavailable': tl.notChecked.botMember,
 };
-const notCheckedText = (item: string) =>
-  NOT_CHECKED[item] ?? (item.startsWith('rest:') ? fillTemplate(tl.notChecked.rest, { label: item.slice(5) }) : item);
+/** What a REST lookup label covers, in words; an unknown label is shown as is. */
+const restLabels = tl.notChecked.labels as Record<string, string>;
+/**
+ * The budget is fixed and rows load in the same order, so a deep run that skips
+ * lookups skips the same ones every time: say what and why, not "try again".
+ */
+function notCheckedText(item: string): string {
+  if (NOT_CHECKED[item]) return NOT_CHECKED[item];
+  if (!item.startsWith('rest:')) return item;
+  const label = item.slice('rest:'.length);
+  return fillTemplate(tl.notChecked.rest, {
+    label: restLabels[label] ?? label,
+    max: HEALTH_REST_BUDGET.maxCalls,
+    posts: POST_LOOKUPS,
+  });
+}
 
 export function buildSummaryEmbed(report: HealthReport, opts: RenderOptions = {}): EmbedBuilder {
   const systems = systemsOf(report);
@@ -121,7 +147,11 @@ export function buildSummaryEmbed(report: HealthReport, opts: RenderOptions = {}
   for (const [system, r] of systems) {
     lines.push(fillTemplate(STATUS_LINE[r.status], { system: systemLabel(system), count: r.findings.length }));
   }
-  if (systems.length === 0) lines.push(tl.summary.noChecks);
+  for (const system of opts.notCheckedYet ?? []) {
+    if (!(system in report.systems))
+      lines.push(fillTemplate(tl.summary.notCheckedYet, { system: systemLabel(system) }));
+  }
+  if (systems.length === 0 && !opts.notCheckedYet?.length) lines.push(tl.summary.noChecks);
   if (systems.some(([, r]) => r.findings.length > 0)) lines.push('', tl.summary.hint);
 
   const statuses = new Set(systems.map(([, r]) => r.status));
@@ -130,8 +160,9 @@ export function buildSummaryEmbed(report: HealthReport, opts: RenderOptions = {}
   const embed = new EmbedBuilder()
     .setTitle(truncate(title, 256))
     .setColor(Colors.status[color])
-    .setDescription(lines.join('\n'))
-    .setFooter({ text: fillTemplate(tl.summary.footer, report.counts) });
+    .setDescription(lines.join('\n'));
+  // No repair command yet: the repair classes stay in the JSON export, and the footer says what to do meanwhile.
+  if (report.counts.auto + report.counts.confirm > 0) embed.setFooter({ text: tl.summary.footer });
   const notChecked = report.notChecked.map(notCheckedText).join('\n');
   if (notChecked) embed.addFields({ name: tl.summary.notChecked, value: truncate(notChecked, 1024) });
   return embed;
@@ -208,10 +239,35 @@ export function parseViewRequest(customId: string, values: readonly string[] = [
   return null;
 }
 
-/** The full report as a JSON file: Discord IDs, finding codes and their params, no channel or role names. */
+const SNOWFLAKE = /^\d{17,20}$/;
+
+/**
+ * The params an export keeps: numbers, Discord IDs, and the missing-permission
+ * list (the bot's own permission names). Names, titles, labels, emoji, colors
+ * and admin-chosen ids are dropped, since they can hold server text.
+ */
+export function exportParams(params: HealthFinding['params']): HealthFinding['params'] {
+  return Object.fromEntries(
+    Object.entries(params).filter(
+      ([key, value]) => typeof value === 'number' || SNOWFLAKE.test(value) || key === 'permissions',
+    ),
+  );
+}
+
+/**
+ * The full report as a JSON file for support: IDs, finding codes, severities and
+ * repair classes, counts and numbers only. No channel, role or server names, and
+ * no titles or other text from the server's settings.
+ */
 export function buildExportAttachment(report: HealthReport): AttachmentBuilder {
   const stamp = report.checkedAt.replace(/[:.]/g, '-');
-  return new AttachmentBuilder(Buffer.from(JSON.stringify(report, null, 2)), {
+  const systems = Object.fromEntries(
+    systemsOf(report).map(([system, result]) => [
+      system,
+      { ...result, findings: result.findings.map(f => ({ ...f, params: exportParams(f.params) })) },
+    ]),
+  );
+  return new AttachmentBuilder(Buffer.from(JSON.stringify({ ...report, systems }, null, 2)), {
     name: `bot-health-${report.guildId}-${stamp}.json`,
   });
 }

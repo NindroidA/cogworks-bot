@@ -27,17 +27,26 @@
     },
     "export": {
       "button": "Export JSON",
-      "content": "The full report is attached (IDs only). Share it with support if you need help."
+      "content": "The full report is attached. It holds only IDs, finding codes and numbers, no names or other text from your settings. Share it with support if you need help."
     },
     "notChecked": {
       "botMember": "The bot's own member wasn't cached, so its permissions weren't checked.",
       "guildUnavailable": "Discord reported this server as unavailable, so channels and roles weren't checked.",
-      "rest": "`{label}`: the Discord lookup limit for one run was reached. Run the check again later."
+      "labels": {
+        "ApplicationConfig.messageId": "The application panel message",
+        "TicketConfig.messageId": "The ticket panel message",
+        "application emojis": "The bot's own emojis",
+        "guild emojis": "This server's emojis",
+        "memory.thread": "Memory posts",
+        "memory.welcome": "Memory forum welcome posts",
+        "reactionRole.message": "Reaction-role menu messages",
+        "rules.message": "The rules message"
+      },
+      "rest": "{label}: not all were looked up, so some weren't checked. A deep check makes at most {max} Discord lookups (and looks up at most {posts} memory posts), so running it again skips the same ones."
     },
     "repair": {
-      "auto": "can be fixed automatically",
-      "confirm": "the fix needs your confirmation",
-      "manual": "needs a manual fix"
+      "auto": "Can be fixed by /bot-health repair (coming soon).",
+      "confirm": "Can be fixed by /bot-health repair (coming soon), after you confirm."
     },
     "severity": {
       "block": "❌ Broken",
@@ -46,12 +55,13 @@
     },
     "summary": {
       "fail": "❌ **{system}**: {count} found, something is broken",
-      "footer": "{auto} automatic · {confirm} need confirmation · {manual} manual",
+      "footer": "Automatic fixes come with /bot-health repair in a later update. Until then, follow the steps in each finding.",
       "hint": "Pick a system below to see the details.",
       "meta": "Cogworks v{version} · checked <t:{time}:f>",
       "metaDeep": "Cogworks v{version} · deep check <t:{time}:f>",
       "noChecks": "There are no checks for this system yet.",
       "notChecked": "Not checked",
+      "notCheckedYet": "➖ **{system}**: not checked yet",
       "notConfigured": "➖ **{system}**: not set up",
       "ok": "✅ **{system}**: no problems",
       "title": "Server health",
@@ -74,10 +84,10 @@
     }
   },
   "findings": {
-    "core.global_staff_role.enabled_without_role": "The global staff role is turned on, but no role is selected, so new tickets ping nobody.",
+    "core.global_staff_role.enabled_without_role": "The global staff role is turned on, but no role is selected, so new tickets ping nobody. Pick one in `/bot-setup`.",
     "core.global_staff_role.invalid": "The saved global staff role isn't a valid role. Pick it again in `/bot-setup`.",
-    "core.global_staff_role.missing": "The global staff role (`{roleId}`) no longer exists on this server.",
-    "core.global_staff_role.format_legacy": "The global staff role <@&{roleId}> is saved in the old mention format. It can be converted to the plain role ID.",
+    "core.global_staff_role.missing": "The global staff role (`{roleId}`) no longer exists on this server. Pick a new one in `/bot-setup`.",
+    "core.global_staff_role.format_legacy": "The global staff role <@&{roleId}> is saved in the old mention format. It works as it is, so no action is needed; it can be converted to the plain role ID.",
     "core.global_staff_role.not_mentionable": "The global staff role <@&{roleId}> can't be mentioned and the bot lacks **Mention @everyone, @here, and All Roles**, so new-ticket pings don't notify staff. Make the role mentionable or grant the bot that permission.",
     "core.global_staff_role.error": "Couldn't check the global staff role. Try again later.",
     "core.locale.unsupported": "The server language is set to `{locale}`, which the bot doesn't support, so English is used.",
@@ -86,7 +96,7 @@
     "core.staff_role.invalid": "The saved role \"{alias}\" isn't a valid role reference, so the bot ignores it. The entry can be removed; add the role again with `/role add` if you still need it.",
     "core.staff_role.duplicate": "The role <@&{roleId}> is saved twice (it's also entry #{keptRowId}, \"{keptAlias}\"). The extra entry \"{alias}\" can be removed.",
     "core.staff_role.missing": "The saved role \"{alias}\" (`{roleId}`) was deleted. The entry can be removed.",
-    "core.staff_role.format_legacy": "The saved role <@&{roleId}> is stored in the old mention format. It can be converted to the plain role ID.",
+    "core.staff_role.format_legacy": "The saved role <@&{roleId}> is stored in the old mention format. It works as it is, so no action is needed; it can be converted to the plain role ID.",
     "core.staff_role.error": "Couldn't check the saved staff roles. Try again later.",
     "core.guild_permission.unknown_feature": "A permission grant uses the unknown feature `{feature}` and has no effect.",
     "core.guild_permission.unknown_level": "A permission grant for **{feature}** uses the unknown level `{level}`, so the bot ignores it.",

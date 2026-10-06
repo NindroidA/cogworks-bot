@@ -24,14 +24,15 @@ describe('/bot-health builder', () => {
     expect(json.options.map((o: { name: string }) => o.name)).toEqual(['check']);
   });
 
-  test('check options: system (all, core, every /bot-setup system but staff roles, XP, starboard, onboarding), deep, owner-only guild-id', () => {
+  test('check options: system (all, core, the /bot-setup systems with checks, XP, starboard, onboarding), deep, owner-only guild-id', () => {
     const [check] = json.options;
     expect(check.options.map((o: { name: string }) => o.name)).toEqual(['system', 'deep', 'guild-id']);
     const values = check.options[0].choices.map((c: { value: string }) => c.value);
+    // Staff roles are checked under Core; the bait channel has no checks yet.
     expect(values).toEqual([
       'all',
       'core',
-      ...Object.keys(DEFAULT_SYSTEM_STATES).filter(s => s !== 'staffRole'),
+      ...Object.keys(DEFAULT_SYSTEM_STATES).filter(s => s !== 'staffRole' && s !== 'baitchannel'),
       'xp',
       'starboard',
       'onboarding',
