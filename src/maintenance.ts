@@ -8,10 +8,12 @@
  * Activated by MAINTENANCE_MODE=true in env.
  */
 
-import { timingSafeEqual } from 'node:crypto';
-import { createServer, type Server, type ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { ActivityType, Client, EmbedBuilder, GatewayIntentBits, type Interaction, MessageFlags } from 'discord.js';
 import { version } from '../package.json';
+// Neither pulls in the DB or the full bot stack, so both are safe on the no-DB path
+import { getBindHost } from './utils/api/bindHost';
+import { validateAuth } from './utils/api/internalApiAuth';
 
 const MAINTENANCE_EMBED = new EmbedBuilder()
   .setTitle('🔧 Under Maintenance')
@@ -84,11 +86,7 @@ function startHealthServer(client: Client): Server {
     sendJson(res, 404, { error: 'Not found' });
   });
 
-  server.listen(port, '0.0.0.0', () => {
-    console.log(`[MAINTENANCE] Health server listening on 0.0.0.0:${port}`);
-  });
-
-  return server;
+  return listenLogged(server, port, 'Health server');
 }
 
 function startMaintenanceApi(): Server {
@@ -101,15 +99,36 @@ function startMaintenanceApi(): Server {
     return createServer();
   }
 
-  const server = createServer((req, res: ServerResponse) => {
-    // Auth check (timing-safe to prevent timing attacks)
-    const authHeader = req.headers.authorization;
-    const expected = `Bearer ${token}`;
-    if (
-      !authHeader ||
-      authHeader.length !== expected.length ||
-      !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
-    ) {
+  const server = createServer(handleMaintenanceApiRequest);
+
+  return listenLogged(server, port, 'Internal API');
+}
+
+/**
+ * Listen on BOT_INTERNAL_HOST with an 'error' handler: a bad bind host or a
+ * busy port is logged instead of becoming an uncaughtException, which the
+ * global handler turns into a shutdown (and a restart loop under Docker).
+ */
+export function listenLogged(server: Server, port: number, label: string): Server {
+  const host = getBindHost();
+  server.on('error', error => {
+    console.error(`[MAINTENANCE] ${label} failed on ${host}:${port}`, error);
+  });
+  server.listen(port, host, () => {
+    console.log(`[MAINTENANCE] ${label} listening on ${host}:${port}`);
+  });
+  return server;
+}
+
+/**
+ * Maintenance-mode internal API listener. Uses the full-mode validateAuth (a
+ * raw timingSafeEqual threw on a same-length, different-byte-length header,
+ * and the global uncaughtException handler then shut the bot down), and never
+ * lets a throw escape the listener.
+ */
+export function handleMaintenanceApiRequest(req: IncomingMessage, res: ServerResponse): void {
+  try {
+    if (!validateAuth(req)) {
       sendJson(res, 401, { error: 'Unauthorized' });
       return;
     }
@@ -139,13 +158,10 @@ function startMaintenanceApi(): Server {
       error: 'Service unavailable',
       message: 'Bot is in maintenance mode',
     });
-  });
-
-  server.listen(port, '0.0.0.0', () => {
-    console.log(`[MAINTENANCE] Internal API listening on 0.0.0.0:${port}`);
-  });
-
-  return server;
+  } catch (error) {
+    console.error('[MAINTENANCE] Internal API request failed', error);
+    if (!res.headersSent) sendJson(res, 500, { error: 'Internal server error' });
+  }
 }
 
 function sendJson(res: ServerResponse, status: number, data: unknown): void {
