@@ -23,6 +23,7 @@
  */
 
 import * as realAdminOnlyModule from "../../../src/events/ticket/adminOnly";
+import * as realTicketIndexModule from "../../../src/events/ticket/index";
 import * as realEmailImportModule from "../../../src/commands/handlers/ticket/emailImport";
 import {
   afterEach,
@@ -33,7 +34,13 @@ import {
   mock,
   test,
 } from "bun:test";
-import { MessageFlags } from "discord.js";
+import {
+  Collection,
+  GatewayIntentBits,
+  IntentsBitField,
+  MessageFlags,
+  PermissionFlagsBits,
+} from "discord.js";
 import { Repository } from "typeorm";
 
 // ---------------------------------------------------------------------------
@@ -107,7 +114,10 @@ const mockCustomTicketOptions = jest
   .fn()
   .mockResolvedValue({ type: "selectMenu" });
 const mockTicketOptions = jest.fn().mockReturnValue({ type: "builtinButtons" });
+// Spread the real module so the pure helpers (buildTicketTypeOptions,
+// isComponentEmoji) pass through for events/ticket/ticketTypeMenu.test.ts.
 mock.module("../../../src/events/ticket", () => ({
+  ...realTicketIndexModule,
   customTicketOptions: (...args: unknown[]) => mockCustomTicketOptions(...args),
   ticketOptions: (...args: unknown[]) => mockTicketOptions(...args),
 }));
@@ -116,6 +126,9 @@ mock.module("../../../src/events/ticket", () => ({
 // Import the module under test AFTER all mock.module() calls
 // ---------------------------------------------------------------------------
 import { handleTicketInteraction } from "../../../src/events/ticketInteraction";
+import { buildCustomTicketModal } from "../../../src/events/ticket/create";
+import { lang } from "../../../src/lang";
+import { PermissionSets } from "../../../src/utils/validation/permissionValidator";
 import {
   rateLimiter,
   createRateLimitKey,
@@ -135,14 +148,19 @@ let findOneSpy: SpyFn;
 let createSpy: SpyFn;
 let saveSpy: SpyFn;
 let updateSpy: SpyFn;
+let deleteSpy: SpyFn;
 let createQueryBuilderSpy: SpyFn;
 let rateLimiterCheckSpy: SpyFn;
-let rateLimitKeyUserSpy: SpyFn;
+let rateLimitKeyUserGuildSpy: SpyFn;
 
-// Default mock implementations reset before each test
+// Default mock implementations reset before each test. The workload query in
+// smart routing chains addSelect/andWhere/groupBy too.
 const DEFAULT_QUERY_BUILDER = {
   select: jest.fn().mockReturnThis(),
+  addSelect: jest.fn().mockReturnThis(),
   where: jest.fn().mockReturnThis(),
+  andWhere: jest.fn().mockReturnThis(),
+  groupBy: jest.fn().mockReturnThis(),
   getRawMany: jest.fn().mockResolvedValue([]),
 };
 
@@ -151,9 +169,10 @@ const DEFAULT_QUERY_BUILDER = {
 // ---------------------------------------------------------------------------
 
 function baseInteractionProps(overrides: Record<string, unknown> = {}) {
-  return {
+  const props: Record<string, unknown> = {
     guildId: "guild123",
     user: { id: "user123" },
+    client: { user: { id: "bot123" } },
     guild: { id: "guild123" } as unknown,
     member: {
       id: "user123",
@@ -174,10 +193,18 @@ function baseInteractionProps(overrides: Record<string, unknown> = {}) {
     isModalSubmit: jest.fn().mockReturnValue(false),
     isStringSelectMenu: jest.fn().mockReturnValue(false),
     reply: jest.fn().mockResolvedValue(undefined),
+    editReply: jest.fn().mockResolvedValue(undefined),
     update: jest.fn().mockResolvedValue(undefined),
     showModal: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   };
+  // `this`, not `props`: the factories below spread props into a new object.
+  props.deferReply = jest.fn().mockImplementation(async function (
+    this: Record<string, unknown>,
+  ) {
+    this.deferred = true;
+  });
+  return props;
 }
 
 function makeButtonInteraction(
@@ -282,6 +309,10 @@ describe("handleTicketInteraction", () => {
       .spyOn(Repository.prototype, "update")
       .mockResolvedValue({ affected: 1 } as never);
 
+    deleteSpy = jest
+      .spyOn(Repository.prototype, "delete")
+      .mockResolvedValue({ affected: 1 } as never);
+
     createQueryBuilderSpy = jest
       .spyOn(Repository.prototype, "createQueryBuilder")
       .mockReturnValue(DEFAULT_QUERY_BUILDER as never);
@@ -291,9 +322,9 @@ describe("handleTicketInteraction", () => {
       .spyOn(rateLimiter, "check")
       .mockReturnValue({ allowed: true } as never);
 
-    rateLimitKeyUserSpy = jest
-      .spyOn(createRateLimitKey, "user")
-      .mockReturnValue("user:ticket-create:user123");
+    rateLimitKeyUserGuildSpy = jest
+      .spyOn(createRateLimitKey, "userGuild")
+      .mockReturnValue("user:user123:guild:guild123:ticket-create");
   });
 
   afterEach(() => {
@@ -302,9 +333,10 @@ describe("handleTicketInteraction", () => {
     createSpy.mockRestore();
     saveSpy.mockRestore();
     updateSpy.mockRestore();
+    deleteSpy.mockRestore();
     createQueryBuilderSpy.mockRestore();
     rateLimiterCheckSpy.mockRestore();
-    rateLimitKeyUserSpy.mockRestore();
+    rateLimitKeyUserGuildSpy.mockRestore();
   });
 
   // -------------------------------------------------------------------------
@@ -728,6 +760,12 @@ describe("handleTicketInteraction", () => {
       });
     }
 
+    /** findOne serves the custom type; the restriction lookup (by userId) finds none. */
+    function serveCustomType(type: Record<string, unknown>, restricted = false) {
+      findOneSpy.mockImplementation((async (opts: { where?: { userId?: string } }) =>
+        opts?.where?.userId ? (restricted ? { id: 1 } : null) : type) as never);
+    }
+
     test("should reply ephemerally when guild is null", async () => {
       findOneBySpy.mockResolvedValue(makeTicketConfig() as never);
       const interaction = makeModalInteraction("ticket_modal_ban_appeal", {
@@ -771,16 +809,18 @@ describe("handleTicketInteraction", () => {
 
       await handleTicketInteraction(mockClient, interaction as never);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
+      expect(interaction.deferReply).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: "You are doing that too fast.",
           flags: expect.arrayContaining([MessageFlags.Ephemeral]),
         }),
       );
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: "You are doing that too fast.",
+      });
       expect(saveSpy).not.toHaveBeenCalled();
     });
 
-    test("should check the rate limit with a user-scoped key before creating a ticket", async () => {
+    test("should key the rate limit per (guild, user) so other servers keep their budget", async () => {
       findOneBySpy.mockResolvedValue(makeTicketConfig() as never);
       createSpy.mockReturnValue({ id: 42 } as never);
       saveSpy.mockResolvedValue({ id: 42 } as never);
@@ -788,11 +828,15 @@ describe("handleTicketInteraction", () => {
 
       await handleTicketInteraction(mockClient, interaction as never);
 
-      expect(rateLimitKeyUserSpy).toHaveBeenCalledWith(
+      expect(rateLimitKeyUserGuildSpy).toHaveBeenCalledWith(
         "user123",
+        "guild123",
         "ticket-create",
       );
-      expect(rateLimiterCheckSpy).toHaveBeenCalled();
+      expect(rateLimiterCheckSpy).toHaveBeenCalledWith(
+        "user:user123:guild:guild123:ticket-create",
+        expect.anything(),
+      );
     });
 
     test("should create a ticket with the correct guildId for a builtin ticket type", async () => {
@@ -822,11 +866,11 @@ describe("handleTicketInteraction", () => {
 
     test("should set customTypeId on custom ticket types", async () => {
       findOneBySpy.mockResolvedValue(makeTicketConfig() as never);
-      findOneSpy.mockResolvedValue({
+      serveCustomType({
         typeId: "vip",
         displayName: "VIP Support",
         customFields: null,
-      } as never);
+      });
       createSpy.mockReturnValue({ id: 10 } as never);
       saveSpy.mockResolvedValue({ id: 10 } as never);
       const interaction = makeModalSubmitWithGuild("vip");
@@ -844,12 +888,9 @@ describe("handleTicketInteraction", () => {
 
       await handleTicketInteraction(mockClient, interaction as never);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
-        expect.objectContaining({
-          flags: expect.arrayContaining([MessageFlags.Ephemeral]),
-          content: expect.stringContaining("not found"),
-        }),
-      );
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining("not found"),
+      });
       expect(saveSpy).not.toHaveBeenCalled();
     });
 
@@ -861,11 +902,9 @@ describe("handleTicketInteraction", () => {
 
       await handleTicketInteraction(mockClient, interaction as never);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
-        expect.objectContaining({
-          flags: expect.arrayContaining([MessageFlags.Ephemeral]),
-        }),
-      );
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining(lang.ticket.error),
+      });
     });
 
     test("should reply confirming channel creation after a successful builtin ticket creation", async () => {
@@ -876,10 +915,17 @@ describe("handleTicketInteraction", () => {
 
       await handleTicketInteraction(mockClient, interaction as never);
 
-      expect(interaction.reply).toHaveBeenCalledWith(
-        expect.objectContaining({
-          flags: expect.arrayContaining([MessageFlags.Ephemeral]),
-        }),
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining(lang.ticket.created),
+      });
+      // Linked right after channels.create, then opened once the welcome is out.
+      expect(updateSpy).toHaveBeenCalledWith(
+        { id: 7, guildId: "guild123" },
+        { channelId: "new-channel-id" },
+      );
+      expect(updateSpy).toHaveBeenCalledWith(
+        { id: 7, guildId: "guild123" },
+        expect.objectContaining({ messageId: "welcome-msg-id", status: "opened" }),
       );
     });
 
@@ -915,14 +961,25 @@ describe("handleTicketInteraction", () => {
       await handleTicketInteraction(mockClient, interaction as never);
 
       const createArgs = guild.channels.create.mock.calls[0][0] as {
-        permissionOverwrites: Array<{ id: string }>;
+        permissionOverwrites: Array<{ id: string; allow?: unknown }>;
       };
       expect(createArgs.permissionOverwrites.map((o) => o.id)).toEqual([
         "guild123",
         "user123",
         STAFF,
         LEGACY,
+        "bot123",
       ]);
+      // The bot's own overwrite keeps it in the channel without Administrator.
+      expect(createArgs.permissionOverwrites.at(-1)).toEqual({
+        id: "bot123",
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.ManageChannels,
+        ],
+      });
       const sent = guild._channel.send.mock.calls.map(
         (c: unknown[]) => (c[0] as { content?: string }).content ?? c[0],
       );
@@ -931,7 +988,7 @@ describe("handleTicketInteraction", () => {
 
     test("should build description from custom field responses without throwing", async () => {
       findOneBySpy.mockResolvedValue(makeTicketConfig() as never);
-      findOneSpy.mockResolvedValue({
+      serveCustomType({
         typeId: "support",
         displayName: "Support",
         customFields: [
@@ -943,7 +1000,7 @@ describe("handleTicketInteraction", () => {
             required: false,
           },
         ],
-      } as never);
+      });
       createSpy.mockReturnValue({ id: 20 } as never);
       saveSpy.mockResolvedValue({ id: 20 } as never);
       const interaction = makeModalSubmitWithGuild("support", "Windows 11");
@@ -955,6 +1012,303 @@ describe("handleTicketInteraction", () => {
         interaction as unknown as { guild: ReturnType<typeof makeGuild> }
       ).guild;
       expect(guild.channels.create).toHaveBeenCalled();
+    });
+  });
+
+
+  // -------------------------------------------------------------------------
+  // Ticket creation robustness (#41 routing, #48 orphans, #49 bot overwrite,
+  // #59 mentions, #45 restrictions at submit)
+  // -------------------------------------------------------------------------
+  describe("ticket creation robustness", () => {
+    function submit(ticketType: string, guild: Record<string, unknown>) {
+      return makeModalInteraction(`ticket_modal_${ticketType}`, {
+        guild,
+        member: { id: "user123", user: { id: "user123", username: "testuser" } },
+        fields: { getTextInputValue: jest.fn().mockReturnValue("@everyone help") },
+      });
+    }
+
+    function sentPayloads(guild: ReturnType<typeof makeGuild>) {
+      return guild._channel.send.mock.calls.map((c: unknown[]) => c[0]) as Array<{
+        content: string;
+        allowedMentions?: unknown;
+      }>;
+    }
+
+    test("posts the welcome, answers and staff ping with explicit allowedMentions", async () => {
+      const STAFF = "123456789012345678";
+      findOneBySpy.mockResolvedValue(
+        makeTicketConfig({
+          pingStaffOnOther: true,
+          enableGlobalStaffRole: true,
+          globalStaffRole: STAFF,
+        }) as never,
+      );
+      saveSpy.mockResolvedValue({ id: 3 } as never);
+      const guild = makeGuild();
+
+      await handleTicketInteraction(mockClient, submit("other", guild) as never);
+
+      const [welcome, ...rest] = sentPayloads(guild);
+      expect(welcome.allowedMentions).toEqual({ users: ["user123"] });
+      const answers = rest.filter((p) => !p.content.startsWith("<@&"));
+      expect(answers.length).toBeGreaterThan(0);
+      for (const answer of answers) expect(answer.allowedMentions).toEqual({ parse: [] });
+      const ping = rest.find((p) => p.content.startsWith(`<@&${STAFF}>`));
+      expect(ping?.allowedMentions).toEqual({ roles: [STAFF] });
+    });
+
+    test("refuses a restricted user at submit, before the rate limit or any DB write", async () => {
+      findOneBySpy.mockResolvedValue(makeTicketConfig() as never);
+      findOneSpy.mockImplementation((async (opts: { where?: { userId?: string } }) =>
+        opts?.where?.userId ? { id: 1 } : null) as never);
+      const guild = makeGuild();
+      const interaction = submit("ban_appeal", guild);
+
+      await handleTicketInteraction(mockClient, interaction as never);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining("not allowed"),
+      });
+      expect(rateLimiterCheckSpy).not.toHaveBeenCalled();
+      expect(saveSpy).not.toHaveBeenCalled();
+      expect(guild.channels.create).not.toHaveBeenCalled();
+    });
+
+    test("refuses a deactivated custom type at submit", async () => {
+      findOneBySpy.mockResolvedValue(makeTicketConfig() as never);
+      findOneSpy.mockImplementation((async (opts: { where?: { userId?: string } }) =>
+        opts?.where?.userId
+          ? null
+          : { typeId: "vip", displayName: "VIP", isActive: false, customFields: null }) as never);
+      const interaction = submit("vip", makeGuild());
+
+      await handleTicketInteraction(mockClient, interaction as never);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining("not allowed"),
+      });
+      expect(saveSpy).not.toHaveBeenCalled();
+    });
+
+    test("deletes the row when the channel can't be created", async () => {
+      findOneBySpy.mockResolvedValue(makeTicketConfig() as never);
+      saveSpy.mockResolvedValue({ id: 11 } as never);
+      const guild = makeGuild();
+      guild.channels.create.mockRejectedValue(new Error("Maximum number of channels in category reached"));
+      const interaction = submit("other", guild);
+
+      await handleTicketInteraction(mockClient, interaction as never);
+
+      expect(deleteSpy).toHaveBeenCalledWith({ id: 11, guildId: "guild123" });
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining(lang.ticket.error),
+      });
+    });
+
+    test("deletes the channel, then the row, when the welcome message fails", async () => {
+      findOneBySpy.mockResolvedValue(makeTicketConfig() as never);
+      saveSpy.mockResolvedValue({ id: 12 } as never);
+      const guild = makeGuild();
+      guild._channel.send.mockRejectedValueOnce(new Error("Missing Access"));
+
+      await handleTicketInteraction(mockClient, submit("other", guild) as never);
+
+      expect(guild._channel.delete).toHaveBeenCalled();
+      expect(deleteSpy).toHaveBeenCalledWith({ id: 12, guildId: "guild123" });
+      expect(guild._channel.delete.mock.invocationCallOrder[0]).toBeLessThan(
+        deleteSpy.mock.invocationCallOrder[0],
+      );
+    });
+
+    test("keeps the row when the channel can't be deleted (Discord first)", async () => {
+      findOneBySpy.mockResolvedValue(makeTicketConfig() as never);
+      saveSpy.mockResolvedValue({ id: 13 } as never);
+      const guild = makeGuild();
+      guild._channel.send.mockRejectedValueOnce(new Error("Missing Access"));
+      guild._channel.delete.mockRejectedValue(new Error("Missing Permissions"));
+
+      await handleTicketInteraction(mockClient, submit("other", guild) as never);
+
+      expect(deleteSpy).not.toHaveBeenCalled();
+    });
+
+    test("keeps a ticket whose welcome went out when a later send fails", async () => {
+      findOneBySpy.mockResolvedValue(makeTicketConfig() as never);
+      saveSpy.mockResolvedValue({ id: 14 } as never);
+      const guild = makeGuild();
+      guild._channel.send
+        .mockResolvedValueOnce({ id: "welcome-msg-id" })
+        .mockRejectedValueOnce(new Error("answer send failed"));
+      const interaction = submit("other", guild);
+
+      await handleTicketInteraction(mockClient, interaction as never);
+
+      expect(guild._channel.delete).not.toHaveBeenCalled();
+      expect(deleteSpy).not.toHaveBeenCalled();
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining(lang.ticket.created),
+      });
+    });
+
+    describe("smart routing", () => {
+      const ROLE = "555555555555555555";
+
+      function staffMember(id: string) {
+        return { id, user: { bot: false }, presence: null, roles: { cache: new Map([[ROLE, {}]]) } };
+      }
+
+      function routingGuild(fetchMembers: () => Promise<unknown>) {
+        const guild = makeGuild();
+        return Object.assign(guild, {
+          memberCount: 40,
+          client: { options: { intents: new IntentsBitField([GatewayIntentBits.Guilds]) } },
+          roles: { cache: new Map([[ROLE, { id: ROLE, members: new Collection() }]]) },
+          members: { fetch: jest.fn().mockImplementation(fetchMembers) },
+        });
+      }
+
+      function routingConfig(overrides: Record<string, unknown> = {}) {
+        return makeTicketConfig({
+          smartRoutingEnabled: true,
+          enableWorkflow: true,
+          routingRules: [{ ticketTypeId: "other", staffRoleId: ROLE }],
+          routingStrategy: "least-load",
+          ...overrides,
+        });
+      }
+
+      test("assigns a matching staff member (never the opener) and lets them into the channel", async () => {
+        findOneBySpy.mockResolvedValue(routingConfig() as never);
+        saveSpy.mockResolvedValue({ id: 21 } as never);
+        const guild = routingGuild(async () =>
+          new Collection([
+            ["user123", staffMember("user123")],
+            ["staff1", staffMember("staff1")],
+          ]),
+        );
+        const interaction = submit("other", guild);
+
+        await handleTicketInteraction(mockClient, interaction as never);
+
+        const createArgs = guild.channels.create.mock.calls[0][0] as {
+          permissionOverwrites: Array<{ id: string; allow?: unknown }>;
+        };
+        expect(createArgs.permissionOverwrites).toContainEqual({
+          id: "staff1",
+          allow: PermissionSets.STAFF_MEMBER,
+        });
+        expect(updateSpy).toHaveBeenCalledWith(
+          { id: 21, guildId: "guild123" },
+          expect.objectContaining({ assignedTo: "staff1", assignedAt: expect.any(Date) }),
+        );
+        expect(sentPayloads(guild)).toContainEqual({
+          content: expect.stringContaining("<@staff1>"),
+          allowedMentions: { users: ["staff1"] },
+        });
+        // Routing (a member fetch of up to 5s) runs before the row is inserted.
+        expect(guild.members.fetch.mock.invocationCallOrder[0]).toBeLessThan(
+          saveSpy.mock.invocationCallOrder[0],
+        );
+      });
+
+      test("a routing failure leaves the ticket unassigned but still creates it", async () => {
+        findOneBySpy.mockResolvedValue(routingConfig() as never);
+        saveSpy.mockResolvedValue({ id: 22 } as never);
+        const guild = routingGuild(async () => {
+          throw new Error("members timeout");
+        });
+        const interaction = submit("other", guild);
+
+        await handleTicketInteraction(mockClient, interaction as never);
+
+        expect(guild.channels.create).toHaveBeenCalled();
+        const updates = updateSpy.mock.calls.map((c: unknown[]) => c[1] as Record<string, unknown>);
+        expect(updates.some((u) => "assignedTo" in u)).toBe(false);
+        expect(interaction.editReply).toHaveBeenCalledWith({
+          content: expect.stringContaining(lang.ticket.created),
+        });
+      });
+
+      test("does not route when the workflow system is off", async () => {
+        findOneBySpy.mockResolvedValue(routingConfig({ enableWorkflow: false }) as never);
+        saveSpy.mockResolvedValue({ id: 23 } as never);
+        const guild = routingGuild(async () => new Collection([["staff1", staffMember("staff1")]]));
+
+        await handleTicketInteraction(mockClient, submit("other", guild) as never);
+
+        expect(guild.members.fetch).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Custom ticket modal limits (#44)
+  // -------------------------------------------------------------------------
+  describe("custom ticket modal limits", () => {
+    test("clamps a long title and labels, drops a custom-emoji title prefix, and fixes min > max", () => {
+      const modal = buildCustomTicketModal({
+        typeId: "partner",
+        displayName: "Partnership & Sponsorship Requests (Creators)",
+        emoji: "<:partner:123456789012345678>",
+        customFields: [
+          {
+            id: "f1",
+            label: "Tell us about your channel, audience and goals here",
+            style: "paragraph",
+            required: true,
+            minLength: 500,
+            maxLength: 100,
+            placeholder: "x".repeat(150),
+          },
+        ],
+      } as never);
+
+      const json = modal.toJSON();
+      expect(json.title.length).toBeLessThanOrEqual(45);
+      expect(json.title.startsWith("🎫 Partnership")).toBe(true);
+      const input = (json.components[0] as { components: Array<Record<string, unknown>> }).components[0];
+      expect((input.label as string).length).toBeLessThanOrEqual(45);
+      expect((input.placeholder as string).length).toBeLessThanOrEqual(100);
+      expect(input.max_length).toBe(100);
+      expect(input.min_length).toBe(100);
+    });
+
+    test.each([":ticket:", "bug"])(
+      "a text emoji (%s) in the title falls back to 🎫 instead of showing raw",
+      (emoji) => {
+        const json = buildCustomTicketModal({
+          typeId: "plain",
+          displayName: "Plain",
+          emoji,
+          customFields: null,
+        } as never).toJSON();
+        expect(json.title).toBe("🎫 Plain");
+      },
+    );
+
+    test("a unicode emoji stays in the title", () => {
+      const json = buildCustomTicketModal({
+        typeId: "plain",
+        displayName: "Plain",
+        emoji: "👍🏽",
+        customFields: null,
+      } as never).toJSON();
+      expect(json.title).toBe("👍🏽 Plain");
+    });
+
+    test("clamps a long type description used as the default placeholder", () => {
+      const modal = buildCustomTicketModal({
+        typeId: "plain",
+        displayName: "Plain",
+        emoji: "📝",
+        description: "d".repeat(300),
+        customFields: null,
+      } as never);
+      const json = modal.toJSON();
+      const input = (json.components[0] as { components: Array<Record<string, unknown>> }).components[0];
+      expect((input.placeholder as string).length).toBeLessThanOrEqual(100);
     });
   });
 
@@ -1172,6 +1526,29 @@ describe("handleTicketInteraction", () => {
         .calls[0][0] as { components: unknown[] };
       // 2 components from custom fields — builtin ageVerifyModal would emit only 1
       expect(modal.components).toHaveLength(2);
+    });
+
+    test("should refuse a legacy button for a type the user is restricted from", async () => {
+      findOneSpy.mockImplementation((async (opts: { where?: { userId?: string } }) =>
+        opts?.where?.userId ? { id: 1 } : null) as never);
+      const interaction = makeButtonInteraction("ticket_ban_appeal");
+
+      await handleTicketInteraction(mockClient, interaction as never);
+
+      expect(interaction.showModal).not.toHaveBeenCalled();
+      expect(interaction.reply).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining("not allowed") }),
+      );
+    });
+
+    test("should refuse a legacy button for a deactivated type", async () => {
+      findOneSpy.mockImplementation((async (opts: { where?: { userId?: string } }) =>
+        opts?.where?.userId ? null : { typeId: "other", displayName: "Other", isActive: false }) as never);
+      const interaction = makeButtonInteraction("ticket_other");
+
+      await handleTicketInteraction(mockClient, interaction as never);
+
+      expect(interaction.showModal).not.toHaveBeenCalled();
     });
 
     test("should silently ignore unrecognised ticket_ buttons such as ticket_skip", async () => {

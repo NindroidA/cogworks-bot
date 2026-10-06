@@ -4,6 +4,7 @@ import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { lazyRepo } from '../../database/lazyRepo';
 import { claimClose, releaseClose } from '../../database/statusFlip';
 import { archiveAndCloseTicket as defaultArchiveAndCloseTicket } from '../../ticket/closeWorkflow';
+import { revokeAssigneeAccess } from '../../ticket/smartRouter';
 import { ApiError } from '../apiError';
 import { getAndValidateEntity, isValidSnowflake, optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
@@ -121,6 +122,7 @@ export function registerTicketHandlers(
     if (!channel) throw ApiError.notFound('Ticket channel not found');
 
     if ('permissionOverwrites' in channel) {
+      if (ticket.assignedTo !== userId) await revokeAssigneeAccess(channel, ticket, ticket.assignedTo);
       await channel.permissionOverwrites.create(userId, {
         ViewChannel: true,
         SendMessages: true,
