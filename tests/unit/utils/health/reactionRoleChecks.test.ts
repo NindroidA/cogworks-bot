@@ -55,6 +55,7 @@ describe('optionEmojiKey', () => {
     }
     expect(optionEmojiKey(' 🔴 ')).toBe('🔴');
     expect(optionEmojiKey('red')).toBeNull();
+    expect(optionEmojiKey('1')).toBeNull();
   });
 });
 
@@ -105,6 +106,15 @@ describe('reactionRole.menu', () => {
     expect(f).toMatchObject({ code: 'reactionRole.menu.message_missing', severity: 'block', repair: 'confirm' });
     withMessages(g, CHANNEL, [MESSAGE]);
     expect(await runChecks(id, { ReactionRoleMenu: [menu()] }, g, { deep: true })).toEqual([]);
+  });
+
+  test('deep mode: unique mode without Manage Messages still reports a deleted message', async () => {
+    const base = PermissionFlagsBits.ViewChannel | PermissionFlagsBits.AddReactions | PermissionFlagsBits.ReadMessageHistory;
+    const g = makeFakeGuild(guild({ channels: [{ id: CHANNEL, botPermissions: base }] }));
+    withMessages(g, CHANNEL, []);
+    const findings = await runChecks(id, { ReactionRoleMenu: [menu({ mode: 'unique' })] }, g, { deep: true });
+    expect(codes(findings)).toEqual(['reactionRole.menu.channel_permissions', 'reactionRole.menu.message_missing']);
+    expect(findings.map(f => f.severity)).toEqual(['degraded', 'block']);
   });
 
   test('fail: unknown mode (behaves as normal, so auto), no options, more than 20 options', async () => {

@@ -10,6 +10,7 @@ import type { HealthCheck, HealthFinding } from '../types';
 import {
   channelParams,
   channelProblem,
+  channelReadable,
   channelSeverity,
   MESSAGE_CHANNEL,
   messageStatus,
@@ -53,7 +54,10 @@ const rules = defineCheck(
       const repair = channel.problem === 'missing' ? 'confirm' : 'manual';
       const target = { ...at, field: 'channelId', refId: row.channelId, params: channelParams(row.channelId, channel) };
       out.push(emit(`channel_${channel.problem}`, channelSeverity(channel, REACTION_CRITICAL), repair, target));
-    } else if ((await messageStatus(ctx, 'rules.message', row.channelId, row.messageId)) === 'missing') {
+    }
+    const readable = channelReadable(channel, REACTION_CRITICAL);
+    const message = readable ? await messageStatus(ctx, 'rules.message', row.channelId, row.messageId) : null;
+    if (message === 'missing') {
       const params = { channelId: row.channelId };
       out.push(
         emit('message_missing', 'block', 'confirm', { ...at, field: 'messageId', refId: row.messageId, params }),

@@ -14,24 +14,30 @@ planned for this step come in a separate release to keep this one reviewable.
 
 ### Added — rules, reaction-role and memory health checks (internal, no user-visible command yet)
 
-- **Rules**: the rules channel (deleted, not a text channel, or the bot can't
-  see reactions there), the rules message (deep mode only), the role it gives
-  (deleted, @everyone, managed by an integration, or at/above the bot's highest
-  role), Manage Roles, and an emoji a reaction can never match (plain text, or
-  a custom emoji saved as `name:id`, which the reaction handler doesn't compare).
+- **Rules**: the rules channel (deleted, a channel without a text chat, or the
+  bot can't see reactions there; the text chat of a voice or stage channel,
+  which the dashboard offers, counts as working), the rules message (deep mode
+  only, and still looked up when only Add Reactions or Send Messages is
+  missing), the role it gives (deleted, @everyone, managed by an integration, or
+  at/above the bot's highest role), Manage Roles, and an emoji a reaction can
+  never match (plain text, a bare digit, `#` or `*`, or a custom emoji saved as
+  `name:id`, which the reaction handler doesn't compare).
 - **Reaction roles**: each menu's channel (Manage Messages too in unique mode),
-  message (deep mode only), unknown mode, no options or more than Discord's 20
-  reactions per message, and Manage Roles; each option's role (same rules as
-  `validateRoleForMenu`, returned as codes) and emoji, including two options on
-  the same emoji. Custom emoji compare by id, matching the reaction lookup once
-  #53 lands, so `<:x:id>`, `<a:x:id>` and `x:id` are one emoji and animated
-  emoji aren't flagged. Options have no `guildId` column, so an option whose
-  menu row is gone can't be tied to a guild and isn't checked.
-- **Memory**: each memory forum (deleted, not a forum, missing permissions,
-  set up twice) and its welcome post, tags whose memory channel is gone or
-  whose forum tag is missing, and memories whose memory channel is gone or
-  whose post was deleted. Archived posts aren't cached, so a deleted post is
-  only reported in deep mode, through the REST budget.
+  message (deep mode only, also when only Manage Messages is missing), unknown
+  mode, no options or more than Discord's 20 reactions per message, and Manage
+  Roles; each option's role (same rules as `validateRoleForMenu`, returned as
+  codes) and emoji, including two options on the same emoji. Custom emoji
+  compare by id, matching the reaction lookup once #53 lands, so `<:x:id>`,
+  `<a:x:id>` and `x:id` are one emoji and animated emoji aren't flagged. Options
+  have no `guildId` column, so an option whose menu row is gone can't be tied to
+  a guild and isn't checked.
+- **Memory**: each memory forum (deleted, not a forum, missing permissions, set
+  up twice) and its welcome post, tags whose memory channel is gone, whose forum
+  tag is missing or whose type isn't category or status, stale copies of a tag
+  left by earlier setup re-runs (reported as removable, since re-running setup
+  keeps the linked copy and leaves them), and memories whose memory channel is
+  gone or whose post was deleted. Archived posts aren't cached, so a deleted
+  post is only reported in deep mode, through the REST budget.
 - **Shared reference helpers** (`src/utils/health/checks/refHelpers.ts`): a
   channel's type and the bot's permissions in it in one lookup, role
   assignability, and deep-mode message and thread lookups that only report

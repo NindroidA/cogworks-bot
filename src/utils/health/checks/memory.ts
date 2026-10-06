@@ -1,15 +1,16 @@
 /**
  * Memory health checks (design inventory §3.6): each memory forum, its
- * welcome post, tags that left the forum, and tags and items whose memory
- * channel is gone. Threads that aren't cached (archived ones) are only looked
- * up in deep mode.
+ * welcome post, tags that left the forum or have an unknown type, stale
+ * duplicate tag rows, and tags and items whose memory channel is gone.
+ * Threads that aren't cached (archived ones) are only looked up in deep mode.
  */
 import type { GuildBasedChannel } from 'discord.js';
+import type { MemoryTag } from '../../../typeorm/entities/memory';
 import { type CheckContext, rowsOf } from '../context';
 import { defineCheck, type FindingTarget } from '../define';
 import { type PermissionName, resolveChannel } from '../refs';
 import type { HealthCheck, HealthFinding } from '../types';
-import { channelParams, channelProblem, channelSeverity, threadStatus } from './refHelpers';
+import { channelParams, channelProblem, channelReadable, channelSeverity, threadStatus } from './refHelpers';
 
 const FORUM_PERMS: PermissionName[] = [
   'ViewChannel',
@@ -62,7 +63,9 @@ const forums = defineCheck(
         const params = { ...name, ...channelParams(id, problem) };
         const repair = problem.problem === 'missing' ? 'auto' : 'manual';
         out.push(emit(problem.problem, channelSeverity(problem, FORUM_CRITICAL), repair, { ...at, params }));
-      } else if (row.messageId && (await threadStatus(ctx, 'memory.welcome', row.messageId)) === 'missing') {
+      }
+      const readable = channelReadable(problem, FORUM_CRITICAL);
+      if (readable && row.messageId && (await threadStatus(ctx, 'memory.welcome', row.messageId)) === 'missing') {
         const params = { ...name, channelId: id };
         out.push(
           emit('welcome_missing', 'cosmetic', 'confirm', { ...at, field: 'messageId', refId: row.messageId, params }),
@@ -73,29 +76,52 @@ const forums = defineCheck(
   },
 );
 
+const TAG_TYPES = new Set(['category', 'status']);
+
 const tags = defineCheck(
   {
     id: 'memory.tag',
     system: 'memory',
     entities: ['MemoryConfig', 'MemoryTag'],
     isConfigured,
-    names: ['orphan', 'not_in_forum'],
+    names: ['orphan', 'invalid_type', 'not_in_forum', 'duplicate'],
   },
   (ctx, emit) => {
     const forumsById = liveForums(ctx);
+    const rows = rowsOf(ctx, 'MemoryTag');
+    const onForum = (tag: MemoryTag) => {
+      const forum = forumsById.get(tag.memoryConfigId);
+      return !!forum && 'availableTags' in forum && forum.availableTags.some(t => t.id === tag.discordTagId);
+    };
+    const nameKey = (tag: MemoryTag) => `${tag.memoryConfigId}:${tag.name.toLowerCase()}`;
+    // Per memory channel and tag name, the oldest row that is on the forum.
+    const linked = new Map<string, number>();
+    for (const tag of [...rows].sort((a, b) => a.id - b.id))
+      if (!linked.has(nameKey(tag)) && onForum(tag)) linked.set(nameKey(tag), tag.id);
+
     const out: HealthFinding[] = [];
-    for (const tag of rowsOf(ctx, 'MemoryTag')) {
+    for (const tag of rows) {
       const at: FindingTarget = { entity: 'MemoryTag', rowId: tag.id, params: { name: tag.name } };
       if (!forumsById.has(tag.memoryConfigId)) {
         out.push(emit('orphan', 'cosmetic', 'auto', { ...at, field: 'memoryConfigId' }));
         continue;
       }
+      // Every tag lookup asks for one type, so a tag of any other type is never offered.
+      if (!TAG_TYPES.has(tag.tagType)) {
+        const params = { ...at.params, tagType: String(tag.tagType) };
+        out.push(emit('invalid_type', 'cosmetic', 'manual', { ...at, field: 'tagType', params }));
+      }
       // A gone or wrong-type forum is reported once by memory.forum.
       const forum = forumsById.get(tag.memoryConfigId);
-      if (!forum || !('availableTags' in forum) || forum.availableTags.some(t => t.id === tag.discordTagId)) continue;
+      if (!forum || !('availableTags' in forum) || onForum(tag)) continue;
       // Posts can't carry a tag the forum doesn't have, so memories with this category or status lose it.
       const target = { ...at, field: 'discordTagId', ...(tag.discordTagId ? { refId: tag.discordTagId } : {}) };
-      out.push(emit('not_in_forum', 'degraded', 'confirm', target));
+      const keptRowId = linked.get(nameKey(tag));
+      // A copy left by setup re-runs before #55. A re-run keeps the linked row and leaves this one,
+      // so it is a row to remove, not a tag to add back (that would name two forum tags alike).
+      if (keptRowId !== undefined)
+        out.push(emit('duplicate', 'degraded', 'confirm', { ...target, params: { ...at.params, keptRowId } }));
+      else out.push(emit('not_in_forum', 'degraded', 'confirm', target));
     }
     return out;
   },

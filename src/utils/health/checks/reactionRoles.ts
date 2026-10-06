@@ -11,6 +11,7 @@ import type { HealthCheck, HealthFinding } from '../types';
 import {
   channelParams,
   channelProblem,
+  channelReadable,
   channelSeverity,
   MESSAGE_CHANNEL,
   messageStatus,
@@ -74,7 +75,12 @@ const menus = defineCheck(
         const target = { ...at, field: 'channelId', refId: menu.channelId, params };
         const repair = channel.problem === 'missing' ? 'confirm' : 'manual';
         out.push(emit(`channel_${channel.problem}`, channelSeverity(channel, REACTION_CRITICAL), repair, target));
-      } else if ((await messageStatus(ctx, 'reactionRole.message', menu.channelId, menu.messageId)) === 'missing') {
+      }
+      const readable = channelReadable(channel, REACTION_CRITICAL);
+      const message = readable
+        ? await messageStatus(ctx, 'reactionRole.message', menu.channelId, menu.messageId)
+        : null;
+      if (message === 'missing') {
         const params = { ...at.params, channelId: menu.channelId };
         out.push(
           emit('message_missing', 'block', 'confirm', { ...at, field: 'messageId', refId: menu.messageId, params }),

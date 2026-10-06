@@ -92,6 +92,15 @@ describe('memory.forum', () => {
     expect(degraded).toMatchObject({ severity: 'degraded', repair: 'manual', params: { permissions: 'ManageThreads' } });
   });
 
+  test('deep mode: missing Manage Threads does not hide a deleted welcome post', async () => {
+    const perms = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages];
+    const g = makeFakeGuild(guild({ channels: [forum({ botPermissions: perms })] }));
+    withThreadFetch(g, []);
+    const findings = await runChecks(id, { MemoryConfig: [config()] }, g, { deep: true });
+    expect(codes(findings)).toEqual(['memory.forum.permissions', 'memory.forum.welcome_missing']);
+    expect(findings[0]).toMatchObject({ severity: 'degraded' });
+  });
+
   test('fail: the same forum set up twice reports the newer config once', async () => {
     const findings = await runChecks(id, { MemoryConfig: [config({ id: 7, channelName: 'Copy' }), config({ id: 3 })] }, guild());
     expect(codes(findings)).toEqual(['memory.forum.duplicate']);
@@ -129,6 +138,36 @@ describe('memory.tag', () => {
     expect(codes(findings)).toEqual(['memory.tag.not_in_forum', 'memory.tag.not_in_forum']);
     expect(findings[0]).toMatchObject({ severity: 'degraded', repair: 'confirm', refId: '320000000000000999' });
     expect(findings[1].refId).toBeUndefined();
+  });
+
+  test('a stale copy next to a linked tag of the same name is a duplicate, not a tag to add back', async () => {
+    const stale = { discordTagId: '320000000000000999' };
+    const rows = {
+      MemoryConfig: [config(), config({ id: 2, forumChannelId: TEXT })],
+      MemoryTag: [tag(3, { ...stale, name: 'bug' }), tag(8), tag(9, { memoryConfigId: 2, ...stale })],
+    };
+    const [f] = await runChecks(id, rows, guild());
+    expect(f).toMatchObject({
+      code: 'memory.tag.duplicate',
+      severity: 'degraded',
+      repair: 'confirm',
+      rowId: 3,
+      params: { name: 'bug', keptRowId: 8 },
+    });
+    // Same name, no linked copy: each one is missing from the forum.
+    const unlinked = { MemoryConfig: [config()], MemoryTag: [tag(3, stale), tag(4, { discordTagId: null })] };
+    expect(codes(await runChecks(id, unlinked, guild()))).toEqual(['memory.tag.not_in_forum', 'memory.tag.not_in_forum']);
+  });
+
+  test('fail: a tag type other than category or status', async () => {
+    const [f] = await runChecks(id, { MemoryConfig: [config()], MemoryTag: [tag(6, { tagType: 'label' })] }, guild());
+    expect(f).toMatchObject({
+      code: 'memory.tag.invalid_type',
+      severity: 'cosmetic',
+      repair: 'manual',
+      field: 'tagType',
+      params: { name: 'Bug', tagType: 'label' },
+    });
   });
 
   test('pass: a gone forum is left to memory.forum', async () => {

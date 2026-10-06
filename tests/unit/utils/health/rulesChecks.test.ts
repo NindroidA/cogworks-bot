@@ -10,6 +10,7 @@ import { ADMIN_BOT, codes, G, runChecks, withMessages } from './moderationHelper
 const id = 'rules.config';
 const CHANNEL = '300000000000000001';
 const VOICE = '300000000000000002';
+const FORUM = '300000000000000003';
 const GONE = '300000000000000666';
 const ROLE = '200000000000000001';
 const HIGH = '200000000000000002';
@@ -24,7 +25,11 @@ const guild = (init: FakeGuildInit = {}): FakeGuildInit => ({
     { id: HIGH, position: 50 },
     { id: MANAGED, position: 2, managed: true },
   ],
-  channels: [{ id: CHANNEL }, { id: VOICE, type: ChannelType.GuildVoice }],
+  channels: [
+    { id: CHANNEL },
+    { id: VOICE, type: ChannelType.GuildVoice },
+    { id: FORUM, type: ChannelType.GuildForum },
+  ],
   ...init,
 });
 const config = (overrides: Record<string, unknown> = {}) => ({
@@ -58,8 +63,9 @@ describe('rules.config', () => {
     });
   });
 
-  test('fail: wrong channel type', async () => {
-    expect(codes(await runChecks(id, { RulesConfig: [config({ channelId: VOICE })] }, guild()))).toEqual([
+  test('channel type: the text chat of a voice channel works (the dashboard offers it); a forum does not', async () => {
+    expect(await runChecks(id, { RulesConfig: [config({ channelId: VOICE })] }, guild())).toEqual([]);
+    expect(codes(await runChecks(id, { RulesConfig: [config({ channelId: FORUM })] }, guild()))).toEqual([
       'rules.config.channel_wrong_type',
     ]);
   });
@@ -93,6 +99,21 @@ describe('rules.config', () => {
     expect(f).toMatchObject({ code: 'rules.config.message_missing', severity: 'block', repair: 'confirm', refId: MESSAGE });
   });
 
+  test('deep mode: missing Add Reactions does not hide a deleted message; missing Read Message History does', async () => {
+    const view = PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages;
+    const noReact = makeFakeGuild(guild({ channels: [{ id: CHANNEL, botPermissions: view | PermissionFlagsBits.ReadMessageHistory }] }));
+    withMessages(noReact, CHANNEL, []);
+    const both = await runChecks(id, { RulesConfig: [config()] }, noReact, { deep: true });
+    expect(codes(both)).toEqual(['rules.config.channel_permissions', 'rules.config.message_missing']);
+    expect(both.map(f => f.severity)).toEqual(['degraded', 'block']);
+
+    const noHistory = makeFakeGuild(guild({ channels: [{ id: CHANNEL, botPermissions: view | PermissionFlagsBits.AddReactions }] }));
+    const fetched = withMessages(noHistory, CHANNEL, []);
+    const only = await runChecks(id, { RulesConfig: [config()] }, noHistory, { deep: true });
+    expect(codes(only)).toEqual(['rules.config.channel_permissions']);
+    expect(fetched).toEqual([]);
+  });
+
   test('fail: role deleted, @everyone, managed, or above the bot', async () => {
     const roleCode = async (roleId: string) => codes(await runChecks(id, { RulesConfig: [config({ roleId })] }, guild()));
     expect(await roleCode(DELETED_ROLE)).toEqual(['rules.config.role_missing']);
@@ -113,11 +134,13 @@ describe('rules.config', () => {
     expect(findings[0]).toMatchObject({ severity: 'block', repair: 'manual', refId: ROLE });
   });
 
-  test('emoji: unicode (incl. flags) and full custom form pass; text and bare name:id fail', async () => {
-    for (const emoji of ['✅', '🇺🇸', '<:ok:500000000000000001>', '<a:ok:500000000000000001>']) {
+  test('emoji: unicode (incl. flags, keycaps, skin tones) and full custom form pass; text and bare name:id fail', async () => {
+    const valid = ['✅', '🇺🇸', '1\uFE0F\u20E3', '👍\u{1F3FD}', '<:ok:500000000000000001>', '<a:ok:500000000000000001>'];
+    for (const emoji of valid) {
       expect(await runChecks(id, { RulesConfig: [config({ emoji })] }, guild())).toEqual([]);
     }
-    for (const emoji of ['check', 'ok:500000000000000001']) {
+    // Digits, # and * are emoji components, but on their own they are text.
+    for (const emoji of ['check', 'ok:500000000000000001', '1', '#', '*']) {
       const [f] = await runChecks(id, { RulesConfig: [config({ emoji })] }, guild());
       expect(f).toMatchObject({ code: 'rules.config.emoji_invalid', severity: 'block', params: { emoji } });
     }

@@ -8,6 +8,7 @@ import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import {
   channelParams,
   channelProblem,
+  channelReadable,
   channelSeverity,
   MESSAGE_CHANNEL,
   messageStatus,
@@ -26,6 +27,7 @@ const NEWS = '300000000000000002';
 const VOICE = '300000000000000003';
 const LOCKED = '300000000000000004';
 const GONE = '300000000000000666';
+const FORUM = '300000000000000005';
 const THREAD = '300000000000000010';
 
 const channels = [
@@ -33,6 +35,7 @@ const channels = [
   { id: NEWS, type: ChannelType.GuildAnnouncement },
   { id: VOICE, type: ChannelType.GuildVoice },
   { id: LOCKED, botPermissions: [PermissionFlagsBits.ViewChannel] },
+  { id: FORUM, type: ChannelType.GuildForum },
   { id: THREAD, type: ChannelType.PublicThread },
 ];
 const ctxFor = (init: Parameters<typeof makeFakeGuild>[0] = {}, deep = false) =>
@@ -40,14 +43,15 @@ const ctxFor = (init: Parameters<typeof makeFakeGuild>[0] = {}, deep = false) =>
 const SEND = ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] as const;
 
 describe('channelProblem', () => {
-  test('pass: text and announcement channels with the permissions', () => {
+  test('pass: text, announcement and voice channels (the dashboard accepts any text chat) with the permissions', () => {
     expect(channelProblem(ctxFor(), TEXT, MESSAGE_CHANNEL, SEND)).toBeNull();
     expect(channelProblem(ctxFor(), NEWS, MESSAGE_CHANNEL, SEND)).toBeNull();
+    expect(channelProblem(ctxFor(), VOICE, MESSAGE_CHANNEL, SEND)).toBeNull();
   });
 
   test('fail: deleted, wrong type, missing permissions (only the missing ones listed)', () => {
     expect(channelProblem(ctxFor(), GONE, MESSAGE_CHANNEL, SEND)).toEqual({ problem: 'missing' });
-    expect(channelProblem(ctxFor(), VOICE, MESSAGE_CHANNEL, SEND)).toEqual({ problem: 'wrong_type' });
+    expect(channelProblem(ctxFor(), FORUM, MESSAGE_CHANNEL, SEND)).toEqual({ problem: 'wrong_type' });
     const found = channelProblem(ctxFor(), LOCKED, MESSAGE_CHANNEL, SEND);
     expect(found).toEqual({ problem: 'permissions', missing: ['SendMessages', 'ReadMessageHistory'] });
     expect(channelParams(LOCKED, found!)).toEqual({ channelId: LOCKED, permissions: 'SendMessages, ReadMessageHistory' });
@@ -63,6 +67,14 @@ describe('channelProblem', () => {
     expect(channelSeverity({ problem: 'wrong_type' }, REACTION_CRITICAL)).toBe('block');
     expect(channelSeverity({ problem: 'permissions', missing: ['ReadMessageHistory'] }, REACTION_CRITICAL)).toBe('block');
     expect(channelSeverity({ problem: 'permissions', missing: ['AddReactions'] }, REACTION_CRITICAL)).toBe('degraded');
+  });
+
+  test('channelReadable: lookups still run when only non-critical permissions are missing', () => {
+    expect(channelReadable(null, REACTION_CRITICAL)).toBe(true);
+    expect(channelReadable({ problem: 'permissions', missing: ['AddReactions'] }, REACTION_CRITICAL)).toBe(true);
+    expect(channelReadable({ problem: 'permissions', missing: ['ReadMessageHistory'] }, REACTION_CRITICAL)).toBe(false);
+    expect(channelReadable({ problem: 'missing' }, REACTION_CRITICAL)).toBe(false);
+    expect(channelReadable({ problem: 'wrong_type' }, REACTION_CRITICAL)).toBe(false);
   });
 });
 
@@ -105,11 +117,12 @@ describe('roleProblem', () => {
 });
 
 describe('UNICODE_EMOJI', () => {
-  test.each(['✅', '❤️', '🇺🇸', '👍🏽', '1️⃣', '👨‍👩‍👧'])('accepts %s', emoji => {
+  test.each(['✅', '❤️', '🇺🇸', '👍🏽', '1️⃣', '#️⃣', '👨‍👩‍👧'])('accepts %s', emoji => {
     expect(UNICODE_EMOJI.test(emoji)).toBe(true);
   });
 
-  test.each(['', 'check', ':smile:', '✅ ok', '<:x:300000000000000001>'])('rejects %p', text => {
+  // Digits, # and * are emoji components, but on their own they are text.
+  test.each(['', 'check', ':smile:', '✅ ok', '<:x:300000000000000001>', '1', '42', '#', '*'])('rejects %p', text => {
     expect(UNICODE_EMOJI.test(text)).toBe(false);
   });
 });
