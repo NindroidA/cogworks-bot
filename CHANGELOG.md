@@ -24,16 +24,17 @@ nothing a server sees changes in this release.
 - **Reference resolver** (`refs.ts`): guild-cache lookups that classify a
   reference as `missing` (absent from the complete cache, or REST 10003 /
   10008 / 10011 / 10013 / 10014), `inaccessible` (50001 / 50013) or `unknown`
-  (5xx, 429, timeout, guild outage), a channel-kind matcher, a bot-permission
+  (5xx, 429, timeout, guild outage; also a cache miss for an id that may be an
+  archived thread, which is never cached), a channel-kind matcher, a bot-permission
   gap helper, and a role-ref parser that accepts both the raw snowflake and
   the pre-v3 `<@&id>` mention format. A budgeted REST fetcher (4 at a time,
   5s per call, 60 calls per run) records anything it skips.
 - **Core checks**: the global staff role (old mention format, deleted role,
   turned on without a role, can't be pinged), an unsupported server locale,
-  saved staff roles (old format, deleted role — which breaks ticket and
-  application channel creation — duplicates that differ only by format,
-  unknown type), feature permission grants (unknown feature or level, deleted
-  role, @everyone grant) and unknown system ids in the setup dashboard state.
+  saved staff roles (old format, a deleted role left behind as a removable
+  entry, duplicates that differ only by format, unknown type), feature
+  permission grants (unknown feature or level, deleted role, @everyone grant)
+  and unknown system ids in the setup dashboard state.
 - **`health` lang module** (`src/lang/en/health.json`) with an English string
   for every finding code; other locales fall back to English.
 - **Shared test helpers**: `tests/helpers/fakeRepo.ts` (the `makeFakeRepo`

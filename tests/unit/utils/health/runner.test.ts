@@ -185,7 +185,8 @@ describe('read-only guarantee (messy legacy guild, real core checks, real repo l
         'core.setup_state.unknown_system',
       ].sort(),
     );
-    expect(report.systems.core?.status).toBe('fail');
+    // Nothing here blocks: the worst findings (global staff role deleted, @everyone grant) are degraded.
+    expect(report.systems.core?.status).toBe('warn');
     // Rows from another guild never leak into the report.
     expect(report.systems.core?.findings.some(f => f.params.alias === 'Not ours')).toBe(false);
 

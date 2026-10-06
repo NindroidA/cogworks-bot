@@ -4,7 +4,7 @@
  * strings file has nothing a check can't emit.
  */
 import { describe, expect, test } from 'bun:test';
-import { getLangForLocale, lang } from '../../../../src/lang';
+import { DEFAULT_LOCALE, getLangForLocale, lang, SUPPORTED_LOCALES } from '../../../../src/lang';
 import { getChecks } from '../../../../src/utils/health/registry';
 
 const strings = lang.health.findings as Record<string, string>;
@@ -48,8 +48,14 @@ describe('lang.health.findings', () => {
     expect(Object.keys(strings).filter(code => !allCodes.includes(code))).toEqual([]);
   });
 
+  // A no-op once English is the only shipped locale.
   test('other locales fall back to English', () => {
-    const es = getLangForLocale('es').health.findings as Record<string, string>;
-    expect(es['core.locale.unsupported']).toBe(strings['core.locale.unsupported']);
+    for (const locale of SUPPORTED_LOCALES.filter(l => l !== DEFAULT_LOCALE)) {
+      const findings = getLangForLocale(locale).health.findings as Record<string, string>;
+      expect({ locale, text: findings['core.locale.unsupported'] }).toEqual({
+        locale,
+        text: strings['core.locale.unsupported'],
+      });
+    }
   });
 });

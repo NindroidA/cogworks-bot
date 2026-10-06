@@ -70,6 +70,11 @@ describe('resolveRole / resolveChannel', () => {
     expect(resolveChannel(guild, '300000000000000999').status).toBe('missing');
   });
 
+  test('a cache miss for a possible thread → unknown (archived threads are never cached)', () => {
+    expect(resolveChannel(guild, '300000000000000999', { mayBeThread: true }).status).toBe('unknown');
+    expect(resolveChannel(guild, CHANNEL, { mayBeThread: true }).status).toBe('ok');
+  });
+
   test('the @everyone role resolves (its id is the guild id)', () => {
     expect(resolveRole(guild, FAKE_GUILD_ID).status).toBe('ok');
   });

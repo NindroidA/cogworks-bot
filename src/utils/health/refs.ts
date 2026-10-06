@@ -33,8 +33,8 @@ export function classifyRestError(error: unknown): Exclude<RefStatus, 'ok'> {
 }
 
 function fromCache<T>(guild: Guild, cache: ReadonlyMap<string, T>, id: string): Resolved<T> {
-  // The Guilds intent fills these caches completely, so absence is proof,
-  // except while the guild is unavailable (outage) and the cache may be partial.
+  // The Guilds intent fills the role and non-thread channel caches completely, so
+  // absence is proof, except while the guild is unavailable and the cache may be partial.
   if (!guild.available) return { status: 'unknown' };
   const value = cache.get(id);
   return value ? { status: 'ok', value } : { status: 'missing' };
@@ -44,8 +44,18 @@ export function resolveRole(guild: Guild, id: string): Resolved<Role> {
   return fromCache<Role>(guild, guild.roles.cache, id);
 }
 
-export function resolveChannel(guild: Guild, id: string): Resolved<GuildBasedChannel> {
-  return fromCache<GuildBasedChannel>(guild, guild.channels.cache, id);
+/**
+ * Archived threads and forum posts are never cached, so a cache miss only proves
+ * a non-thread channel is gone. Pass `mayBeThread` for an id that could be a
+ * thread: a miss then reads `unknown`, and the check must confirm it via `ctx.rest`.
+ */
+export function resolveChannel(
+  guild: Guild,
+  id: string,
+  opts: { mayBeThread?: boolean } = {},
+): Resolved<GuildBasedChannel> {
+  const resolved = fromCache<GuildBasedChannel>(guild, guild.channels.cache, id);
+  return resolved.status === 'missing' && opts.mayBeThread ? { status: 'unknown' } : resolved;
 }
 
 export type ChannelKind = 'text' | 'news' | 'forum' | 'category' | 'voice' | 'stage';

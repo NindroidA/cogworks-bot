@@ -31,7 +31,9 @@ const globalStaffRole = defineCheck(
     const target: FindingTarget = { ...at, refId: ref.id, params: { roleId: ref.id } };
     const role = resolveRole(ctx.guild, ref.id);
     // The repair nulls a deleted role, so its stored format no longer matters.
-    if (role.status === 'missing') return [emit('missing', 'degraded', 'auto', target)];
+    // Every reader checks the flag first, so with it off the leftover value has no effect.
+    if (role.status === 'missing')
+      return [emit('missing', config.enableGlobalStaffRole ? 'degraded' : 'cosmetic', 'auto', target)];
     const out: HealthFinding[] = [];
     if (ref.legacy) out.push(emit('format_legacy', 'cosmetic', 'auto', target));
     // The new-ticket ping only fires with the flag on; pinging a non-mentionable role needs MentionEveryone.
@@ -89,8 +91,8 @@ const staffRoles = defineCheck(
         continue;
       }
       kept.set(key, row.id);
-      // A deleted staff role makes ticket and application channel creation throw.
-      if (resolveRole(ctx.guild, ref.id).status === 'missing') out.push(emit('missing', 'block', 'auto', target));
+      // Since 3.16.11 channel creation skips a deleted role, so the row is an inert dangling reference.
+      if (resolveRole(ctx.guild, ref.id).status === 'missing') out.push(emit('missing', 'cosmetic', 'auto', target));
       else if (ref.legacy) out.push(emit('format_legacy', 'cosmetic', 'auto', target));
     }
     return out;

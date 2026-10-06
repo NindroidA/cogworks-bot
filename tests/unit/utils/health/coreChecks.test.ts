@@ -5,6 +5,7 @@
  */
 import { describe, expect, test } from 'bun:test';
 import { PermissionFlagsBits } from 'discord.js';
+import { SUPPORTED_LOCALES } from '../../../../src/lang';
 import type { LoadedRows } from '../../../../src/utils/health/context';
 import { getChecks } from '../../../../src/utils/health/registry';
 import { runCheck } from '../../../../src/utils/health/runner';
@@ -86,6 +87,14 @@ describe('core.global_staff_role', () => {
     }
   });
 
+  test('fail: deleted role with the flag off is only cosmetic (nothing reads it)', async () => {
+    const findings = await run(id, {
+      BotConfig: [botConfig({ globalStaffRole: DELETED, enableGlobalStaffRole: false })],
+    });
+    expect(codes(findings)).toEqual(['core.global_staff_role.missing']);
+    expect(findings[0]).toMatchObject({ severity: 'cosmetic', repair: 'auto' });
+  });
+
   test('pass: a role missing from an unavailable guild is not proof of deletion', async () => {
     expect(await run(id, { BotConfig: [botConfig({ globalStaffRole: DELETED })] }, { available: false })).toEqual([]);
   });
@@ -118,7 +127,7 @@ describe('core.global_staff_role', () => {
 
 describe('core.locale', () => {
   test('pass: supported locales', async () => {
-    for (const locale of ['en', 'es', 'pt-BR', 'fr', 'de']) {
+    for (const locale of SUPPORTED_LOCALES) {
       expect(await run('core.locale', { BotConfig: [botConfig({ locale })] })).toEqual([]);
     }
   });
@@ -149,11 +158,11 @@ describe('core.staff_role', () => {
     expect(await run(id, { StaffRole: [row(1, STAFF), row(2, ADMIN, 'admin')] })).toEqual([]);
   });
 
-  test('fail: deleted role blocks channel creation', async () => {
+  test('fail: deleted role is a cosmetic dangling entry (channel creation skips it)', async () => {
     const [f] = await run(id, { StaffRole: [row(1, DELETED, 'staff', 'Old Mods')] });
     expect(f).toMatchObject({
       code: 'core.staff_role.missing',
-      severity: 'block',
+      severity: 'cosmetic',
       repair: 'auto',
       entity: 'StaffRole',
       rowId: 1,
