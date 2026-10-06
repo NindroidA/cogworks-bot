@@ -306,6 +306,7 @@ await runner.runAll(guildIds);
 - `MEMORY_ALERT_CHANNEL_ID` — Memory watchdog alert channel (falls back to `STATUS_CHANNEL_ID`); tunables: `MEMORY_WARN_HEAP_PCT`, `MEMORY_CRIT_HEAP_PCT`, `MEMORY_MAP_WARN_SIZE`
 - `MEMORY_THRESHOLD_MB` — Health-check memory threshold (healthMonitor/healthServer, default 512)
 - `API_URL` — External dashboard API endpoint (apiConnector + guild webhooks)
+- `COGWORKS_API_TOKEN` — Bearer secret apiConnector sends to ninsys-api (must match ninsys-api's). Unset → deprecated fallback to the Discord bot token, with one startup warning
 - `DASHBOARD_URL` — Base URL for user-facing dashboard links (`/dashboard` command, profile embeds)
 - `NODE_ENV` — Log level / file logging / colorization (enhancedLogger)
 
