@@ -2,7 +2,7 @@
  * Read-only guarantee for the moderation checks: a messy guild run through the
  * real registry and the real repo loader finds problems in every system, never
  * writes, loads each entity with one guild-scoped find, and never reports
- * another guild's rows.
+ * another guild's rows. Also the deep-mode REST budget across the real checks.
  */
 import { describe, expect, test } from 'bun:test';
 import { ChannelType } from 'discord.js';
@@ -10,7 +10,7 @@ import { HEALTH_ENTITIES, repoRowLoader } from '../../../../src/utils/health/con
 import { runHealthCheck } from '../../../../src/utils/health/runner';
 import { type FakeChannelInit, makeFakeGuild } from '../../../helpers/fakeGuild';
 import { type FakeRepo, makeFakeRepo, writeCallCount } from '../../../helpers/fakeRepo';
-import { ADMIN_BOT, G } from './moderationHelpers';
+import { ADMIN_BOT, G, withMessages, withThreadFetch } from './moderationHelpers';
 
 const OTHER = '100000000000000002';
 const TEXT = '300000000000000001';
@@ -77,5 +77,44 @@ describe('read-only guarantee (moderation checks, real registry and repo loader)
     for (const system of ['rules', 'reactionRole', 'memory'] as const) {
       expect({ system, status: report.systems[system]?.status }).toEqual({ system, status: 'not_configured' });
     }
+  });
+});
+
+describe('deep-mode REST budget (real registry)', () => {
+  test('deleted menu messages are all looked up before archived memory posts, which stop at 20', async () => {
+    const empty = Object.fromEntries(Object.keys(HEALTH_ENTITIES).map(name => [name, [] as unknown[]]));
+    const rows: Record<string, unknown[]> = {
+      ...empty,
+      ReactionRoleMenu: Array.from({ length: 40 }, (_, i) => ({
+        id: i + 1,
+        guildId: G,
+        channelId: TEXT,
+        messageId: `40000000000000${String(1000 + i)}`,
+        name: `Menu ${i + 1}`,
+        mode: 'normal',
+        options: [{ id: i + 1, menuId: i + 1, emoji: '🔴', roleId: ROLE, sortOrder: 0 }],
+      })),
+      MemoryConfig: [{ id: 1, guildId: G, channelName: 'Bugs', forumChannelId: FORUM, messageId: null }],
+      MemoryItem: Array.from({ length: 200 }, (_, i) => ({
+        id: i + 1,
+        guildId: G,
+        memoryConfigId: 1,
+        threadId: `31000000000000${String(1000 + i)}`,
+        title: `Memory ${i + 1}`,
+      })),
+    };
+    const forum = { id: FORUM, type: ChannelType.GuildForum, availableTags: [] } as FakeChannelInit;
+    const guild = makeFakeGuild({ ...ADMIN_BOT, roles: [{ id: ROLE, position: 1 }], channels: [{ id: TEXT }, forum] });
+    const messages = withMessages(guild, TEXT, []);
+    const threads = withThreadFetch(guild, []);
+
+    const report = await runHealthCheck(guild, { deep: true }, { loadRows: async entity => rows[entity] });
+
+    const count = (code: string) => Object.values(report.systems).flatMap(s => s?.findings ?? []).filter(f => f.code === code).length;
+    expect(count('reactionRole.menu.message_missing')).toBe(40);
+    expect(messages).toHaveLength(40);
+    expect(threads).toHaveLength(20);
+    expect(count('memory.item.thread_missing')).toBe(20);
+    expect(report.notChecked).toEqual(['rest:memory.thread']);
   });
 });

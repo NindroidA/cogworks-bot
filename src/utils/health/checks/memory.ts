@@ -2,7 +2,8 @@
  * Memory health checks (design inventory §3.6): each memory forum, its
  * welcome post, tags that left the forum or have an unknown type, stale
  * duplicate tag rows, and tags and items whose memory channel is gone.
- * Threads that aren't cached (archived ones) are only looked up in deep mode.
+ * Threads that aren't cached (archived ones) are only looked up in deep mode,
+ * after the other checks' lookups, since a deleted post is only cosmetic.
  */
 import type { GuildBasedChannel } from 'discord.js';
 import type { MemoryTag } from '../../../typeorm/entities/memory';
@@ -21,6 +22,10 @@ const FORUM_PERMS: PermissionName[] = [
 ];
 /** Creating a post needs these; the rest cover tags, status changes and closing. */
 const FORUM_CRITICAL: PermissionName[] = ['ViewChannel', 'SendMessages'];
+/** Looking a post up only needs this; without it the lookup can only come back inaccessible. */
+const FORUM_READ: PermissionName[] = ['ViewChannel'];
+/** Deep mode looks up at most this many memory posts (a third of the REST budget); the rest are not checked. */
+const POST_LOOKUPS = 20;
 
 const isConfigured = (ctx: CheckContext) => rowsOf(ctx, 'MemoryConfig').length > 0;
 
@@ -41,6 +46,7 @@ const forums = defineCheck(
     entities: ['MemoryConfig'],
     isConfigured,
     names: ['missing', 'wrong_type', 'permissions', 'duplicate', 'welcome_missing'],
+    restPriority: 'low',
   },
   async (ctx, emit) => {
     const out: HealthFinding[] = [];
@@ -64,7 +70,7 @@ const forums = defineCheck(
         const repair = problem.problem === 'missing' ? 'auto' : 'manual';
         out.push(emit(problem.problem, channelSeverity(problem, FORUM_CRITICAL), repair, { ...at, params }));
       }
-      const readable = channelReadable(problem, FORUM_CRITICAL);
+      const readable = channelReadable(problem, FORUM_READ);
       if (readable && row.messageId && (await threadStatus(ctx, 'memory.welcome', row.messageId)) === 'missing') {
         const params = { ...name, channelId: id };
         out.push(
@@ -134,22 +140,25 @@ const items = defineCheck(
     entities: ['MemoryConfig', 'MemoryItem'],
     isConfigured,
     names: ['orphan', 'thread_missing'],
+    restPriority: 'low',
   },
   async (ctx, emit) => {
     const forumsById = liveForums(ctx);
+    // Posts are only looked up in a forum the bot can see. A gone forum took its posts with it;
+    // memory.forum reports a gone, wrong-type or hidden forum once.
+    const readable = new Set<number>();
+    for (const [configId, forum] of forumsById)
+      if (forum && !channelProblem(ctx, forum.id, ['forum'], FORUM_READ)) readable.add(configId);
     const out: HealthFinding[] = [];
-    let lookups = true;
     for (const item of rowsOf(ctx, 'MemoryItem')) {
       const at: FindingTarget = { entity: 'MemoryItem', rowId: item.id, params: { title: item.title } };
       if (!forumsById.has(item.memoryConfigId)) {
         out.push(emit('orphan', 'cosmetic', 'auto', { ...at, field: 'memoryConfigId' }));
         continue;
       }
-      // Threads in a gone forum went with it; memory.forum reports that once.
-      if (!lookups || !forumsById.get(item.memoryConfigId)) continue;
-      const status = await threadStatus(ctx, 'memory.thread', item.threadId);
-      // Budget spent: the runner lists the label as not checked, so stop asking.
-      if (status === 'skipped') lookups = false;
+      if (!readable.has(item.memoryConfigId)) continue;
+      // Over the cap or the budget, the fetcher lists the label as not checked.
+      const status = await threadStatus(ctx, 'memory.thread', item.threadId, { maxCalls: POST_LOOKUPS });
       if (status === 'missing')
         out.push(emit('thread_missing', 'cosmetic', 'auto', { ...at, field: 'threadId', refId: item.threadId }));
     }

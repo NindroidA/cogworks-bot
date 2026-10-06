@@ -49,13 +49,15 @@ const menu = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('optionEmojiKey', () => {
-  test('custom emoji by id in every spelling; unicode by itself; text is invalid', () => {
-    for (const spelling of [`<:blue:${EMOJI_ID}>`, `<a:blue:${EMOJI_ID}>`, `blue:${EMOJI_ID}`, `<:renamed:${EMOJI_ID}>`]) {
-      expect(optionEmojiKey(spelling)).toBe(EMOJI_ID);
-    }
+  test('custom emoji by id in every spelling (bare id too); unicode by itself; text is invalid', () => {
+    const spellings = [`<:blue:${EMOJI_ID}>`, `<a:blue:${EMOJI_ID}>`, `blue:${EMOJI_ID}`, `<:renamed:${EMOJI_ID}>`, ` ${EMOJI_ID} `];
+    for (const spelling of spellings) expect(optionEmojiKey(spelling)).toBe(EMOJI_ID);
     expect(optionEmojiKey(' 🔴 ')).toBe('🔴');
     expect(optionEmojiKey('red')).toBeNull();
     expect(optionEmojiKey('1')).toBeNull();
+    // Too short for a snowflake, and #53 doesn't strip brackets from a bare id.
+    expect(optionEmojiKey('12345')).toBeNull();
+    expect(optionEmojiKey(`<${EMOJI_ID}>`)).toBeNull();
   });
 });
 
@@ -178,6 +180,19 @@ describe('reactionRole.option', () => {
       repair: 'manual',
       rowId: 5,
       params: { emoji: `<a:blue:${EMOJI_ID}>`, keptEmoji: `<:blue:${EMOJI_ID}>` },
+    });
+  });
+
+  test('a custom emoji saved as its bare id is valid, and the same emoji as <:x:id>', async () => {
+    const alone = [option(1, '🔴'), option(2, EMOJI_ID, ROLE_B)];
+    expect(await runChecks(id, { ReactionRoleMenu: [menu({ options: alone })] }, guild())).toEqual([]);
+    const both = [option(1, `<:blue:${EMOJI_ID}>`), option(2, EMOJI_ID, ROLE_B)];
+    const findings = await runChecks(id, { ReactionRoleMenu: [menu({ options: both })] }, guild());
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      code: 'reactionRole.option.emoji_duplicate',
+      rowId: 2,
+      params: { emoji: EMOJI_ID, keptEmoji: `<:blue:${EMOJI_ID}>` },
     });
   });
 

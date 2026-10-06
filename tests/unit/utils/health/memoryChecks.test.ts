@@ -101,6 +101,21 @@ describe('memory.forum', () => {
     expect(findings[0]).toMatchObject({ severity: 'degraded' });
   });
 
+  test('deep mode: the welcome post is looked up while the bot can read the forum, even without Send Messages', async () => {
+    const g = makeFakeGuild(guild({ channels: [forum({ botPermissions: [PermissionFlagsBits.ViewChannel] })] }));
+    const fetched = withThreadFetch(g, []);
+    const findings = await runChecks(id, { MemoryConfig: [config()] }, g, { deep: true });
+    expect(codes(findings)).toEqual(['memory.forum.permissions', 'memory.forum.welcome_missing']);
+    expect(findings[0]).toMatchObject({ severity: 'block' });
+    // Without View Channel the lookup could only come back inaccessible, so it isn't made.
+    const hidden = makeFakeGuild(guild({ channels: [forum({ botPermissions: [PermissionFlagsBits.SendMessages] })] }));
+    const hiddenFetched = withThreadFetch(hidden, []);
+    expect(codes(await runChecks(id, { MemoryConfig: [config()] }, hidden, { deep: true }))).toEqual([
+      'memory.forum.permissions',
+    ]);
+    expect([fetched, hiddenFetched]).toEqual([[WELCOME], []]);
+  });
+
   test('fail: the same forum set up twice reports the newer config once', async () => {
     const findings = await runChecks(id, { MemoryConfig: [config({ id: 7, channelName: 'Copy' }), config({ id: 3 })] }, guild());
     expect(codes(findings)).toEqual(['memory.forum.duplicate']);
@@ -212,5 +227,34 @@ describe('memory.item', () => {
     expect(codes(result.findings)).toEqual(['memory.item.thread_missing', 'memory.item.orphan']);
     expect(fetched).toEqual([OLD_THREAD]);
     expect(rest.skipped).toEqual(['memory.thread']);
+  });
+
+  test('deep mode looks up at most 20 posts and lists the rest as not checked', async () => {
+    const check = getChecks().find(c => c.id === id)!;
+    const g = makeFakeGuild(guild());
+    const fetched = withThreadFetch(g, []);
+    const rest = createRestFetcher();
+    const many = Array.from({ length: 30 }, (_, i) => item(i + 1, { threadId: `3200000000000001${String(i).padStart(2, '0')}` }));
+    const result = await runCheck(check, makeCheckContext({ guild: g, rows: { MemoryConfig: [config()], MemoryItem: many }, deep: true, rest }));
+    expect(fetched).toHaveLength(20);
+    expect(codes(result.findings)).toEqual(Array(20).fill('memory.item.thread_missing'));
+    expect(rest.skipped).toEqual(['memory.thread']);
+  });
+
+  test('no post lookups in a forum the bot can\'t see', async () => {
+    const hidden = makeFakeGuild(guild({ channels: [forum({ botPermissions: [PermissionFlagsBits.SendMessages] })] }));
+    const fetched = withThreadFetch(hidden, []);
+    const rows = { MemoryConfig: [config()], MemoryItem: [item(1, { threadId: OLD_THREAD })] };
+    expect(await runChecks(id, rows, hidden, { deep: true })).toEqual([]);
+    expect(fetched).toEqual([]);
+  });
+
+  test('the forum and post checks run after the other checks (their lookups are only cosmetic)', () => {
+    const low = getChecks('memory').map(c => [c.id, c.restPriority]);
+    expect(low).toEqual([
+      ['memory.forum', 'low'],
+      ['memory.tag', undefined],
+      ['memory.item', 'low'],
+    ]);
   });
 });

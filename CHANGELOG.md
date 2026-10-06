@@ -28,21 +28,34 @@ planned for this step come in a separate release to keep this one reviewable.
   Roles; each option's role (same rules as `validateRoleForMenu`, returned as
   codes) and emoji, including two options on the same emoji. Custom emoji
   compare by id, matching the reaction lookup once #53 lands, so `<:x:id>`,
-  `<a:x:id>` and `x:id` are one emoji and animated emoji aren't flagged. Options
-  have no `guildId` column, so an option whose menu row is gone can't be tied to
-  a guild and isn't checked.
+  `<a:x:id>`, `x:id` and the bare id (which the dashboard accepts) are one
+  emoji, and animated emoji aren't flagged. Options have no `guildId` column,
+  so an option whose menu row is gone can't be tied to a guild and isn't
+  checked.
 - **Memory**: each memory forum (deleted, not a forum, missing permissions, set
   up twice) and its welcome post, tags whose memory channel is gone, whose forum
   tag is missing or whose type isn't category or status, stale copies of a tag
   left by earlier setup re-runs (reported as removable, since re-running setup
   keeps the linked copy and leaves them), and memories whose memory channel is
   gone or whose post was deleted. Archived posts aren't cached, so a deleted
-  post is only reported in deep mode, through the REST budget.
+  post is only reported in deep mode, through the REST budget: at most 20 posts
+  per run (the rest are listed as not checked), and none in a forum the bot
+  can't see. The welcome post is still looked up when the bot can see the forum
+  but can't post in it.
 - **Shared reference helpers** (`src/utils/health/checks/refHelpers.ts`): a
   channel's type and the bot's permissions in it in one lookup, role
   assignability, and deep-mode message and thread lookups that only report
   "missing" on proof (Unknown Message / Unknown Channel).
 - English strings for every new finding code in `src/lang/en/health.json`.
+
+### Changed — health-check engine REST budget (internal)
+
+- Checks whose deep-mode lookups can only find cosmetic problems (memory posts
+  and welcome posts) run after the others, so the shared 60-call REST budget
+  goes to the rules and reaction-role message lookups first. Report order is
+  unchanged.
+- A lookup label can have its own call cap, and a label skipped over budget is
+  listed once in `notChecked` instead of once per skipped call.
 
 ## [3.16.21] - 2026-10-06
 

@@ -3,7 +3,7 @@
  * type and the bot's permissions in it, whether the bot can hand out a role,
  * and deep-mode lookups of messages and threads through the REST budget.
  */
-import type { CheckContext } from '../context';
+import type { CheckContext, RestFetchOptions } from '../context';
 import {
   type ChannelKind,
   channelIsKind,
@@ -104,8 +104,13 @@ export async function messageStatus(
 }
 
 /** Whether a thread still exists. Active threads are cached; others are only looked up in deep mode (else `unknown`). */
-export async function threadStatus(ctx: CheckContext, label: string, id: string): Promise<RefStatus | 'skipped'> {
+export async function threadStatus(
+  ctx: CheckContext,
+  label: string,
+  id: string,
+  opts?: RestFetchOptions,
+): Promise<RefStatus | 'skipped'> {
   const cached = resolveChannel(ctx.guild, id, { mayBeThread: true });
   if (cached.status === 'ok' || !ctx.deep) return cached.status;
-  return (await ctx.rest.fetch(label, () => ctx.guild.channels.fetch(id, { cache: false }))).status;
+  return (await ctx.rest.fetch(label, () => ctx.guild.channels.fetch(id, { cache: false }), opts)).status;
 }

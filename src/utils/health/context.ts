@@ -101,10 +101,15 @@ export const HEALTH_REST_BUDGET = { concurrency: 4, timeoutMs: 5_000, maxCalls: 
 
 export type RestOutcome<T> = { status: 'ok'; value: T } | { status: Exclude<RefStatus, 'ok'> | 'skipped' };
 
+export interface RestFetchOptions {
+  /** Most calls this label may start, so one check's cosmetic lookups can't spend the whole budget. */
+  maxCalls?: number;
+}
+
 export interface RestFetcher {
   /** Runs `call` inside the budget. A null result counts as missing (`RoleManager.fetch` returns null for Unknown Role). */
-  fetch<T>(label: string, call: () => Promise<T | null | undefined>): Promise<RestOutcome<T>>;
-  /** Labels of calls skipped because the budget ran out; the runner copies them into `notChecked`. */
+  fetch<T>(label: string, call: () => Promise<T | null | undefined>, opts?: RestFetchOptions): Promise<RestOutcome<T>>;
+  /** Labels of calls skipped because a budget ran out, each once; the runner copies them into `notChecked`. */
   readonly skipped: string[];
 }
 
@@ -113,6 +118,7 @@ export function createRestFetcher(budget = HEALTH_REST_BUDGET): RestFetcher {
   let active = 0;
   const waiting: (() => void)[] = [];
   const skipped: string[] = [];
+  const perLabel = new Map<string, number>();
 
   const acquire = (): Promise<void> => {
     if (active < budget.concurrency) {
@@ -130,12 +136,18 @@ export function createRestFetcher(budget = HEALTH_REST_BUDGET): RestFetcher {
 
   return {
     skipped,
-    async fetch<T>(label: string, call: () => Promise<T | null | undefined>): Promise<RestOutcome<T>> {
-      if (started >= budget.maxCalls) {
-        skipped.push(label);
+    async fetch<T>(
+      label: string,
+      call: () => Promise<T | null | undefined>,
+      opts: RestFetchOptions = {},
+    ): Promise<RestOutcome<T>> {
+      const used = perLabel.get(label) ?? 0;
+      if (started >= budget.maxCalls || used >= (opts.maxCalls ?? Number.POSITIVE_INFINITY)) {
+        if (!skipped.includes(label)) skipped.push(label);
         return { status: 'skipped' };
       }
       started++;
+      perLabel.set(label, used + 1);
       await acquire();
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {

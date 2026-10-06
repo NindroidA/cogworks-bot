@@ -27,20 +27,22 @@ const UNIQUE_PERMS: PermissionName[] = [...MENU_PERMS, 'ManageMessages'];
 const MAX_REACTIONS = 20;
 const MODES = new Set(['normal', 'unique', 'lock']);
 const CUSTOM_EMOJI = /^(?:a?:)?(\w{2,32}):(\d{17,20})$/;
+const EMOJI_ID = /^\d{17,20}$/;
 
 const isConfigured = (ctx: CheckContext) => rowsOf(ctx, 'ReactionRoleMenu').length > 0;
 
 /**
  * The reaction lookup's identity for a stored option emoji (`utils/reactionRole/optionEmoji.ts`
- * once #53 lands): a custom emoji by id in any spelling (`<:x:id>`, `<a:x:id>`, `x:id`), a
- * unicode emoji by itself. Null when it is neither.
+ * once #53 lands): a custom emoji by id in any spelling (`<:x:id>`, `<a:x:id>`, `x:id`, or the
+ * bare id, which #53 keys as typed and a reaction keys by its id), a unicode emoji by itself.
+ * Null when it is neither.
  */
 export function optionEmojiKey(stored: string): string | null {
   const trimmed = stored.trim();
   const inner = trimmed.startsWith('<') && trimmed.endsWith('>') ? trimmed.slice(1, -1) : trimmed;
   const custom = CUSTOM_EMOJI.exec(inner);
   if (custom) return custom[2];
-  return UNICODE_EMOJI.test(trimmed) ? trimmed : null;
+  return EMOJI_ID.test(trimmed) || UNICODE_EMOJI.test(trimmed) ? trimmed : null;
 }
 
 const menus = defineCheck(
