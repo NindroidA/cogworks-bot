@@ -6,7 +6,12 @@
  */
 import { describe, expect, test } from 'bun:test';
 import { ChannelType } from 'discord.js';
-import { HEALTH_ENTITIES, repoRowLoader } from '../../../../src/utils/health/context';
+import {
+  HEALTH_ENTITIES,
+  HEALTH_ENTITY_WHERE,
+  type HealthEntityName,
+  repoRowLoader,
+} from '../../../../src/utils/health/context';
 import { runHealthCheck } from '../../../../src/utils/health/runner';
 import { type FakeChannelInit, makeFakeGuild } from '../../../helpers/fakeGuild';
 import { type FakeRepo, makeFakeRepo, writeCallCount } from '../../../helpers/fakeRepo';
@@ -66,7 +71,9 @@ describe('read-only guarantee (moderation checks, real registry and repo loader)
 
     for (const [name, repo] of Object.entries(fakes)) {
       expect({ name, writes: writeCallCount(repo) }).toEqual({ name, writes: 0 });
-      expect({ name, finds: repo.findCalls }).toEqual({ name, finds: [{ where: { guildId: G } }] });
+      // Open tickets and applications only (HEALTH_ENTITY_WHERE); guildId always.
+      const where = { ...HEALTH_ENTITY_WHERE[name as HealthEntityName], guildId: G };
+      expect({ name, finds: repo.findCalls }).toEqual({ name, finds: [{ where }] });
     }
   });
 

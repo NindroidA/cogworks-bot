@@ -57,6 +57,40 @@ planned for this step come in a separate release to keep this one reviewable.
 - A lookup label can have its own call cap, and a label skipped over budget is
   listed once in `notChecked` instead of once per skipped call.
 
+## [3.16.22] - 2026-10-06
+
+Ticket and application checks for the health-check engine (NindroidA/cogworks-bot#41,
+stacked on the engine from 3.16.21). Internal only: `/bot-health` isn't registered
+yet, so nothing a server sees changes in this release.
+
+### Added — ticket and application health checks (internal, no user-visible command yet)
+
+- **Panels** (tickets and applications): the panel channel is gone, isn't a text
+  channel, or the bot can't post in it; the panel message was deleted (deep mode
+  only, through the budgeted REST fetcher); the category for new channels is unset,
+  gone, not a category, missing Manage Channels / Manage Roles, or at Discord's
+  50-channel limit; a posted panel with no archive forum, so nothing can be closed.
+- **Archive forums**: gone, not a forum, missing the permissions closes need, or at
+  Discord's 20-tag limit while an active ticket type or position (or an
+  Accepted / Rejected outcome) still has no tag.
+- **Ticket types and positions**: more than 25 active, none active while a panel is
+  posted, more than one default type, a non-hex type color, a type name that makes the
+  form title longer than Discord's 45 characters, an emoji Discord won't accept, and
+  form questions over Discord's limits (missing or repeated ids, labels over 45,
+  placeholders over 100, invalid length limits, more than 5 questions). Ratings follow
+  what the bot does: a type menu that can't be sent (over 25 types or a rejected emoji)
+  falls back to the 5 built-in ticket types, and a ticket form shows only its first 5
+  questions, so those are degraded rather than broken; positions have neither fallback.
+  In deep mode a custom emoji is looked up on the server, on the other servers the bot
+  is in and among the bot's own emojis; one found nowhere is only a cosmetic note with
+  a manual fix, since it may still work. Problems on an inactive type or position are
+  cosmetic.
+- **Leftover rows**: user restrictions for a ticket type that no longer exists,
+  open tickets and applications whose channel was deleted, and tickets stuck in
+  `created` without a channel for more than 10 minutes (a failed creation).
+- The health loader reads only open `Ticket` and `Application` rows, so closed
+  history never loads.
+
 ## [3.16.21] - 2026-10-06
 
 Health-check engine, the foundation for the upcoming `/bot-health` command
