@@ -28,6 +28,7 @@ import {
   rateLimiter,
   replyEphemeralError,
 } from '../../utils';
+import { writeAuditLog } from '../../utils/api/handlers/auditHelper';
 import { fetchAllExportData, MAX_EXPORT_ATTACHMENT_BYTES } from '../../utils/offboarding/guildDataExport';
 
 const gzipAsync = promisify(gzip);
@@ -151,6 +152,8 @@ export async function dataExportHandler(
       // Fallback: the deferred reply is ephemeral, so only the requesting admin sees the file.
       await interaction.editReply({ content: tl.dmFailed, files: [new AttachmentBuilder(buffer, { name: filename })] });
     }
+    // Audited here, not by the dispatcher, so only a delivered export is logged.
+    void writeAuditLog(guildId, 'command:data-export', interaction.user.id, {}, 'command');
   } catch (error) {
     if (rateLimitKey) rateLimiter.reset(rateLimitKey);
     enhancedLogger.error(`Error in data export: ${(error as Error).message}`, undefined, LogCategory.COMMAND_EXECUTION);

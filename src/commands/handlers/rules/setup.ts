@@ -3,6 +3,7 @@ import {
   type ChatInputCommandInteraction,
   type Client,
   EmbedBuilder,
+  type Message,
   MessageFlags,
   type TextChannel,
 } from 'discord.js';
@@ -19,6 +20,7 @@ import {
   replyEphemeralError,
   truncateWithNotice,
   validateEmoji,
+  verifiedMessageDelete,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { invalidateRulesCache } from '../../../utils/rules/rulesCache';
@@ -95,40 +97,46 @@ async function handleSetup(_client: Client, interaction: ChatInputCommandInterac
     const messageText =
       customMessage || tl.setup.defaultMessage.replace('{emoji}', emoji).replace('{roleName}', role.name);
 
-    // Check for existing config — clean up old message if reconfiguring
     const existingConfig = await rulesConfigRepo.findOneBy({ guildId });
-    if (existingConfig?.messageId) {
-      await cleanupOldMessage(guild, existingConfig.channelId, existingConfig.messageId);
-    }
+    const [oldChannelId, oldMessageId] = [existingConfig?.channelId, existingConfig?.messageId];
 
-    // Send the rules message
-    const rulesMessage = await channel.send({ content: messageText });
+    // Post, react and save before touching the old message: if any step fails,
+    // the new message is removed and the old message and config keep working.
+    let rulesMessage: Message | undefined;
+    try {
+      rulesMessage = await channel.send({ content: messageText });
+      await rulesMessage.react(emoji);
 
-    // Add the reaction
-    await rulesMessage.react(emoji);
-
-    // Save or update config
-    if (existingConfig) {
-      existingConfig.channelId = channel.id;
-      existingConfig.messageId = rulesMessage.id;
-      existingConfig.roleId = role.id;
-      existingConfig.emoji = emoji;
-      existingConfig.customMessage = customMessage;
-      await rulesConfigRepo.save(existingConfig);
-    } else {
-      const config = rulesConfigRepo.create({
-        guildId,
-        channelId: channel.id,
-        messageId: rulesMessage.id,
-        roleId: role.id,
-        emoji,
-        customMessage,
-      });
-      await rulesConfigRepo.save(config);
+      if (existingConfig) {
+        existingConfig.channelId = channel.id;
+        existingConfig.messageId = rulesMessage.id;
+        existingConfig.roleId = role.id;
+        existingConfig.emoji = emoji;
+        existingConfig.customMessage = customMessage;
+        await rulesConfigRepo.save(existingConfig);
+      } else {
+        const config = rulesConfigRepo.create({
+          guildId,
+          channelId: channel.id,
+          messageId: rulesMessage.id,
+          roleId: role.id,
+          emoji,
+          customMessage,
+        });
+        await rulesConfigRepo.save(config);
+      }
+    } catch (error) {
+      if (rulesMessage) await verifiedMessageDelete(rulesMessage, { guildId, label: 'unsaved rules message' });
+      throw error;
     }
 
     // Invalidate cache so reaction handler picks up new config
     invalidateRulesCache(guildId);
+
+    // The config no longer points at the old message, so the messageDelete cleaner leaves the new row alone.
+    if (oldChannelId && oldMessageId && oldMessageId !== rulesMessage.id) {
+      await cleanupOldMessage(guild, oldChannelId, oldMessageId);
+    }
 
     const isUpdate = !!existingConfig;
     await interaction.editReply({
