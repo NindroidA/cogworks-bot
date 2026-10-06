@@ -5,11 +5,13 @@
  *   /bot-reset) and were missing from /data-export, so role grants outlived a
  *   factory reset. The coverage tests diff both lists against the DataSource
  *   so a new entity can't be missed again.
- * - Warm config caches kept acting on purged config. /bot-reset also clears
- *   the bait config and keyword caches, which live on the client.
+ * - Warm config caches kept acting on purged config. /bot-reset and guild
+ *   leave also clear the bait config and keyword caches, which live on the
+ *   client, on both sides of the purge.
  */
 
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
+import guildDelete from '../../../../src/events/guildDelete';
 import { AppDataSource } from '../../../../src/typeorm';
 import { deleteAllGuildData } from '../../../../src/utils/database/guildQueries';
 import { invalidateBaitCaches } from '../../../../src/utils/offboarding/guildCaches';
@@ -102,5 +104,33 @@ describe('invalidateBaitCaches', () => {
 
     expect(() => invalidateBaitCaches({} as any, GUILD)).not.toThrow();
     expect(() => invalidateBaitCaches(throwing, GUILD)).not.toThrow();
+  });
+});
+
+describe('guildDelete', () => {
+  test('clears the bait caches before and after the purge', async () => {
+    const log: string[] = [];
+    repos = new Proxy({} as Record<string, FakeRepo>, {
+      get: () => {
+        const repo = makeRepo();
+        repo.delete = async () => {
+          if (log.at(-1) !== 'purge') log.push('purge');
+          return { affected: 0 };
+        };
+        return repo;
+      },
+    });
+    const client = {
+      baitChannelManager: {
+        clearConfigCache: (id: string) => log.push(`config:${id}`),
+        clearKeywordCache: (id: string) => log.push(`keywords:${id}`),
+      },
+      guilds: { cache: { size: 0 } },
+    } as any;
+    const guild = { id: GUILD, name: 'Test Guild', memberCount: 1 } as any;
+
+    await guildDelete.execute(guild, client);
+
+    expect(log).toEqual([`config:${GUILD}`, `keywords:${GUILD}`, 'purge', `config:${GUILD}`, `keywords:${GUILD}`]);
   });
 });

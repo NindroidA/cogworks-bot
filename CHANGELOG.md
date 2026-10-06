@@ -30,7 +30,8 @@ role permission grants and stops warm caches from acting on deleted config.
   to upload still counts, since running it again would build the same file.
   Compression no longer blocks the event loop. The entity list
   moved to `utils/offboarding/guildDataExport.ts` so other exports can reuse it.
-  The admin guide's `/data-export` section describes the new file.
+  The `/data-export` sections of the admin guide and `docs/commands.md`
+  describe the new file, the fallback and when the daily limit counts.
 
 ### Security
 
