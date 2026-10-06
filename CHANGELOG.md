@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.16] - 2026-10-06
+
+Reaction-role and rules-reaction fixes. Animated custom emoji never granted
+their role, unique-mode menus never cleared the previous pick, and un-reacting
+within 2 seconds left the role on.
+
+### Fixed
+
+- **Animated custom emoji work in reaction-role menus.** Options are matched by
+  emoji id, so `<a:name:id>` options grant and remove their role, and a renamed
+  custom emoji keeps working. `/reactionrole add`, `/reactionrole remove` and
+  the dashboard's menu create compare custom emoji by id too, so two spellings
+  of one emoji can't become two options that collide.
+- **Unique-mode menus clear the previous reaction.** With the client's reaction
+  cache turned off, the old cache lookup never found anything. Picking a new
+  option now removes the user's reaction from the option they switched away
+  from over REST, so switching back takes one click instead of two. This needs
+  the bot to have Manage Messages in the menu channel; without it the reaction
+  stays and the bot logs a warning.
+- **Quick un-reacts are no longer dropped.** Reaction roles and the rules
+  message used one 2-second cooldown for both adding and removing, so
+  un-reacting within 2 seconds left the role on. Add and remove now have
+  separate cooldowns (per option for reaction roles).
+
+### Changed
+
+- **Fewer REST calls on reactions.** The reaction-role handlers look up the
+  menu and the option on the partial reaction before fetching anything, so
+  reactions on other messages no longer fetch the reaction or the user.
+
 ## [3.16.15] - 2026-10-06
 
 Starboard fixes. With the client's reaction cache turned off, the starboard
