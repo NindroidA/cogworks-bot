@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.18] - 2026-10-06
+
+Dependency security sweep. `bun audit` reported 36 advisories (17 high, 15
+moderate, 4 low); after this release it reports none. Every bump stays inside
+the existing major versions. None of the advisories was reachable from the bot
+as it runs under Bun in production, but clearing them makes new alerts
+visible again.
+
+### Security
+
+- **discord.js 14.26.4 → 14.27.0**, which moves undici to 6.29.0 (from 6.24.1
+  and a nested 6.21.3) and `@discordjs/rest` to 2.6.3. Under Bun these paths
+  use Bun's built-in `fetch`/`WebSocket`, so the undici and ws advisories only
+  applied to the `start:node` script.
+- **ws 8.18.3 → 8.22.0** (transitive via `@discordjs/ws`). `@discordjs/ws`
+  stays at 1.2.3, so the existing `patchedDependencies` entry still applies.
+- **TypeORM 1.0.0 → 1.1.1** (GHSA-2rp8-mm9q-fp49, `migration:generate`
+  code injection; dev CLI only).
+- **mysql2 3.22.5 → 3.24.5** (GHSA-rgwj-5xj2-c3m3, compressed-protocol
+  decompression bomb; the bot never enables `compress`).
+- **lodash 4.17.21 → 4.18.1** (transitive via `@sapphire/shapeshift`) and
+  **diff 4.0.2 → 4.0.4** (transitive via `ts-node`).
+
+### Changed
+
+- **TypeORM 1.1 rejects `null`/`undefined` in write criteria.** `update`,
+  `delete`, `softDelete`, `restore`, `increment` and `decrement` now throw on
+  a `null` or `undefined` where-value, matching how `find` already behaved,
+  and refuse criteria that would match every row. Every write criteria in
+  `src/` is non-null: guild-scoped, a global `LessThan(date)` retention sweep
+  (log cleanup, analytics snapshots, expired bait pending actions), or the
+  fixed `['test']` match in the `/dev-test` incident cleanup. Nothing should
+  change.
+
+### Removed
+
+- **`nodemon` dev dependency.** No script, config or doc used it, and it
+  brought in the vulnerable `minimatch`, `brace-expansion`, `braces` and
+  `picomatch` 2.x.
+
 ## [3.16.3] - 2026-07-07
 
 Consistency chore — no behavioral change. Aligns the analytics command name
