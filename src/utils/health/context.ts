@@ -5,19 +5,49 @@
  * objects and Maps (see `tests/helpers/fakeGuild.ts`) without a client or DB.
  */
 import type { Guild, GuildMember } from 'discord.js';
-import type { EntityTarget, ObjectLiteral, Repository } from 'typeorm';
+import { type EntityTarget, type FindOptionsWhere, Not, type ObjectLiteral, type Repository } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
+import { Application } from '../../typeorm/entities/application/Application';
+import { ApplicationConfig } from '../../typeorm/entities/application/ApplicationConfig';
+import { ArchivedApplicationConfig } from '../../typeorm/entities/application/ArchivedApplicationConfig';
+import { Position } from '../../typeorm/entities/application/Position';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
 import { GuildPermission } from '../../typeorm/entities/GuildPermission';
 import { SetupState } from '../../typeorm/entities/SetupState';
 import { StaffRole } from '../../typeorm/entities/StaffRole';
+import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
+import { CustomTicketType } from '../../typeorm/entities/ticket/CustomTicketType';
+import { Ticket } from '../../typeorm/entities/ticket/Ticket';
+import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
+import { UserTicketRestriction } from '../../typeorm/entities/ticket/UserTicketRestriction';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { classifyRestError, type RefStatus } from './refs';
 
 /** Guild-scoped entities checks can declare. Feature check modules add theirs here. */
-export const HEALTH_ENTITIES = { BotConfig, GuildPermission, SetupState, StaffRole };
+export const HEALTH_ENTITIES = {
+  BotConfig,
+  GuildPermission,
+  SetupState,
+  StaffRole,
+  // tickets and applications (v3.16.22)
+  TicketConfig,
+  ArchivedTicketConfig,
+  CustomTicketType,
+  UserTicketRestriction,
+  Ticket,
+  ApplicationConfig,
+  ArchivedApplicationConfig,
+  Position,
+  Application,
+};
 export type HealthEntityName = keyof typeof HEALTH_ENTITIES;
 export type HealthRow<K extends HealthEntityName> = InstanceType<(typeof HEALTH_ENTITIES)[K]>;
+
+/** Extra filters for tables that grow without bound: the checks only read open tickets and applications. */
+export const HEALTH_ENTITY_WHERE: Partial<Record<HealthEntityName, FindOptionsWhere<ObjectLiteral>>> = {
+  Ticket: { status: Not('closed') },
+  Application: { status: Not('closed') },
+};
 
 /** Loads every row of one entity for one guild. Injected in tests. */
 export type RowLoader = (entity: HealthEntityName, guildId: string) => Promise<unknown[]>;
@@ -25,9 +55,10 @@ export type RowLoader = (entity: HealthEntityName, guildId: string) => Promise<u
 /** Only `find` is reachable, so the loader cannot write. */
 export type ReadRepository = (target: EntityTarget<ObjectLiteral>) => Pick<Repository<ObjectLiteral>, 'find'>;
 
-/** One guild-scoped `find` per entity. */
+/** One guild-scoped `find` per entity (guildId last, so no filter can widen the scope). */
 export function repoRowLoader(getRepository: ReadRepository): RowLoader {
-  return (entity, guildId) => getRepository(HEALTH_ENTITIES[entity]).find({ where: { guildId } });
+  return (entity, guildId) =>
+    getRepository(HEALTH_ENTITIES[entity]).find({ where: { ...HEALTH_ENTITY_WHERE[entity], guildId } });
 }
 
 export const dbRowLoader: RowLoader = repoRowLoader(target => AppDataSource.getRepository(target));
