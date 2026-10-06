@@ -4,6 +4,7 @@ import { StarboardConfig } from '../../../typeorm/entities/starboard';
 import { formatLang, guardFeatureAccess, handleInteractionError, lang, replyEphemeralError } from '../../../utils';
 import { upsertGuildEntity } from '../../../utils/database/guildQueries';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { invalidateStarboardCache } from '../../../utils/starboard/configCache';
 
 const configRepo = lazyRepo(StarboardConfig);
 const tl = lang.starboard;
@@ -29,6 +30,7 @@ export async function starboardSetupHandler(interaction: ChatInputCommandInterac
         config.enabled = true;
       },
     });
+    invalidateStarboardCache(guildId);
 
     await interaction.reply({
       content: formatLang(tl.setup.success, threshold.toString(), emoji, `<#${channel.id}>`),
@@ -83,6 +85,7 @@ export async function starboardConfigHandler(interaction: ChatInputCommandIntera
     }
 
     await configRepo.save(config);
+    invalidateStarboardCache(guildId);
 
     await interaction.reply({
       content: tl.setup.configUpdated,
@@ -111,6 +114,7 @@ export async function starboardToggleHandler(interaction: ChatInputCommandIntera
 
     config.enabled = !config.enabled;
     await configRepo.save(config);
+    invalidateStarboardCache(guildId);
 
     await interaction.reply({
       content: config.enabled ? tl.setup.enabled : tl.setup.disabled,
