@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.14] - 2026-10-06
+
+Auto-close now really closes tickets: it archives the transcript and deletes
+the channel through the same path as the Close button, instead of leaving a
+ticket marked `closed` with a live channel that nothing could close.
+
+### Fixed
+
+- **Auto-close now really closes the ticket.** The hourly job used to set the
+  status to `closed` without archiving and leave the channel in place. After
+  that, the Close button answered "already being closed" and the dashboard close
+  returned 409, so the only way out was deleting the channel by hand. It now runs
+  the same claim → archive → delete path as the Close button, with the bot
+  recorded as the closer, and reverts the status if the archive fails so the
+  next run retries. A channel fetch that fails for any reason other than
+  Unknown Channel (missing access, an outage) is retried instead of being
+  treated as a deleted channel.
+- **Auto-close re-checks each ticket right before acting.** A run loads every
+  idle ticket at once, and each close fetches and posts a full transcript, so
+  tickets late in a big batch were handled minutes after the query. A user who
+  had replied to the warning in that time, or a ticket staff had just moved to
+  another status, still got closed. Each ticket is now re-read just before its
+  warning or close, and skipped if it has new activity or left the auto-close
+  status.
+- **The auto-close warning resets on new activity.** A warning now counts only
+  while it is newer than the ticket's last activity, so a ticket that comes back
+  to life gets a fresh warning before the next auto-close. A ticket is also
+  never auto-closed until its warning has been up for the full warning window,
+  even if the warning went out late because the bot was offline.
+- **Auto-close on `open` matches panel tickets.** Tickets created from the
+  panel are stored as `opened` (or `created`), which the auto-close query never
+  matched, so they were never warned or closed.
+
+### Changed
+
+- Auto-close no longer posts a separate "automatically closed" message, because
+  the channel is deleted right after. The warning message in the archived
+  transcript records why the ticket closed.
+- Auto-close skips a server that has no archive forum (never set up, or
+  deleted while the bot was running), logging a warning each hourly run,
+  instead of warning tickets it can't archive. A forum deleted while the bot
+  was offline isn't detected yet: those tickets are still warned, and each
+  close attempt fails and is retried every hour.
+- A ticket whose warning can't be posted (for example, the bot lacks Send
+  Messages there) is never auto-closed; the error is logged each run.
+
+### Notes
+
+- In servers that auto-close on `open`, every idle panel ticket nobody touched
+  matches for the first time. The first hourly run after deploy warns that whole
+  backlog at once, however old the tickets are, and closes them once the
+  warning window has passed.
+
 ## [3.16.13] - 2026-10-06
 
 `/ticket manage status closed` now really closes the ticket, the three
