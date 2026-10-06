@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.24] - 2026-10-06
+
+Health checks for the community features: announcements, XP, the starboard and
+onboarding (NindroidA/cogworks-bot#41). Internal only: the checks plug into the
+health-check engine from 3.16.21, and nothing a server sees changes until the
+`/bot-health` command ships. Events, analytics and XP imports follow in a later
+release.
+
+### Added — community feature health checks (internal, no user-visible command yet)
+
+- **Announcements**: the default channel is unset, deleted, not a text or
+  announcement channel, or missing the bot's permissions; the ping role is
+  deleted, or can't be pinged (not mentionable and the bot lacks Mention
+  Everyone); built-in templates added after the server was set up are missing;
+  a template has a color the renderer can't parse or exceeds Discord's embed
+  limits, so it can't be sent.
+- **XP** (only while enabled): the level-up channel is deleted, can't hold
+  messages or is missing the bot's permissions; deleted ignored channels,
+  ignored roles and multiplier channels; multipliers of 0 or less; a minimum
+  XP per message above the maximum; reward roles that were deleted, are managed
+  or @everyone, or sit above the bot's highest role; Manage Roles missing; more
+  than one reward per level; more than 25 rewards.
+- **Starboard** (only while enabled): the channel is unset, deleted, can't hold
+  messages or is missing the bot's permissions, or the emoji can't match any
+  reaction (all of these stop the starboard); a threshold below 1; deleted
+  ignored channels.
+- **Onboarding** (only while enabled): no steps; a welcome message over 2,000
+  characters (over 4,096 Discord rejects it); the completion role or a
+  role-select option is deleted, managed or @everyone, or above the bot; Manage
+  Roles missing; steps with a repeated id, an unknown type, an id too long for
+  Discord's custom ids, more than 25 role options or the same role twice. A
+  step that can't be sent is rated as blocking when it's required.
+- New health systems `xp`, `starboard` and `onboarding` (features set up by
+  their own commands rather than `/bot-setup`), shared reference rules in
+  `src/utils/health/checks/featureRefs.ts` (a channel the bot posts in, a role
+  it grants using the reaction-role menu rules, lists of ids to prune), and an
+  English string for every new finding code.
+
 ## [3.16.21] - 2026-10-06
 
 Health-check engine, the foundation for the upcoming `/bot-health` command

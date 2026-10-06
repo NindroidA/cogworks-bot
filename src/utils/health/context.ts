@@ -7,15 +7,33 @@
 import type { Guild, GuildMember } from 'discord.js';
 import type { EntityTarget, ObjectLiteral, Repository } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
+import { AnnouncementConfig } from '../../typeorm/entities/announcement/AnnouncementConfig';
+import { AnnouncementTemplate } from '../../typeorm/entities/announcement/AnnouncementTemplate';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
 import { GuildPermission } from '../../typeorm/entities/GuildPermission';
+import { OnboardingConfig } from '../../typeorm/entities/onboarding/OnboardingConfig';
 import { SetupState } from '../../typeorm/entities/SetupState';
 import { StaffRole } from '../../typeorm/entities/StaffRole';
+import { StarboardConfig } from '../../typeorm/entities/starboard/StarboardConfig';
+import { XPConfig } from '../../typeorm/entities/xp/XPConfig';
+import { XPRoleReward } from '../../typeorm/entities/xp/XPRoleReward';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { classifyRestError, type RefStatus } from './refs';
 
 /** Guild-scoped entities checks can declare. Feature check modules add theirs here. */
-export const HEALTH_ENTITIES = { BotConfig, GuildPermission, SetupState, StaffRole };
+export const HEALTH_ENTITIES = {
+  BotConfig,
+  GuildPermission,
+  SetupState,
+  StaffRole,
+  // Community features (checks/announcements, xp, starboard, onboarding)
+  AnnouncementConfig,
+  AnnouncementTemplate,
+  XPConfig,
+  XPRoleReward,
+  StarboardConfig,
+  OnboardingConfig,
+};
 export type HealthEntityName = keyof typeof HEALTH_ENTITIES;
 export type HealthRow<K extends HealthEntityName> = InstanceType<(typeof HEALTH_ENTITIES)[K]>;
 
