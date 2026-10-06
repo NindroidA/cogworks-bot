@@ -87,16 +87,22 @@ export function formatLang(template: string, ...args: (string | number)[]): stri
 }
 
 /**
- * Extracts Discord ID from a mention string
- * @param mention - Discord mention string (e.g., "<@123456789>" or "<@&123456789>")
- * @returns Extracted ID or null if invalid format
+ * Extracts a Discord ID from a mention string or a raw snowflake.
+ *
+ * This is the one parser for stored role references: the raw snowflake is the
+ * canonical format (dashboard, `/role add` since v3.16.11, `/bot-setup`), while
+ * older `/role add` rows and pre-v3 `globalStaffRole` values hold `<@&id>`.
+ * Render a ping with `roleMention(id)` — never interpolate the stored value.
+ * @param mention - "<@123…>", "<@&123…>" or a bare 17–20 digit snowflake
+ * @returns Extracted ID or null if invalid format (e.g. the literal "@everyone")
  * @example
  * extractIdFromMention("<@123456789>") // Returns: "123456789"
  * extractIdFromMention("<@&987654321>") // Returns: "987654321"
+ * extractIdFromMention("123456789012345678") // Returns: "123456789012345678"
  */
 export function extractIdFromMention(mention: string): string | null {
-  const matches = mention.match(/^<@&?(\d+)>$/);
-  return matches ? matches[1] : null;
+  const matches = mention.match(/^<@&?(\d+)>$|^(\d{17,20})$/);
+  return matches ? (matches[1] ?? matches[2]) : null;
 }
 
 /**

@@ -14,6 +14,7 @@ import {
   replyEphemeralError,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { editMemoryThreadTags } from '../../../utils/memory/threadHelpers';
 
 const tl = lang.memory;
 const memoryConfigRepo = lazyRepo(MemoryConfig);
@@ -52,14 +53,9 @@ export async function memoryUpdateStatusHandler(interaction: ChatInputCommandInt
   }
 
   // Find the new status tag
-  const newStatusTag = await memoryTagRepo.findOneBy({
-    id: parseInt(statusTagId, 10),
-    guildId,
-    memoryConfigId: memoryItem.memoryConfigId,
-    tagType: 'status',
-  });
+  const newStatusTag = await resolveStatusTag(guildId, memoryItem.memoryConfigId, statusTagId);
   if (!newStatusTag) {
-    await replyEphemeralError(interaction, tl.quickUpdate.itemNotFound);
+    await replyEphemeralError(interaction, tl.tags.edit.tagNotFound);
     return;
   }
 
@@ -96,14 +92,15 @@ export async function memoryUpdateStatusHandler(interaction: ChatInputCommandInt
     if (newStatusTag.discordTagId) {
       newTags.push(newStatusTag.discordTagId);
     }
-    await thread.edit({ appliedTags: newTags });
+    const oldStatus = memoryItem.status;
+    const willClose = newStatusTag.name === 'Completed';
+    // Completed items are locked + archived: unarchive in the same edit (and
+    // unlock when reopening), or Discord rejects the tag change with 50083.
+    await editMemoryThreadTags(thread, newTags, { from: oldStatus, to: newStatusTag.name });
 
     // Update database
-    const oldStatus = memoryItem.status;
     memoryItem.status = newStatusTag.name;
     await memoryItemRepo.save(memoryItem);
-
-    const willClose = newStatusTag.name === 'Completed';
 
     await interaction.editReply({
       content: `${E.success} ${tl.quickUpdate.statusSuccess}\n**${oldStatus}** \u2192 **${newStatusTag.emoji ? `${newStatusTag.emoji} ` : ''}${newStatusTag.name}** \u2014 <#${threadId}>`,
@@ -138,4 +135,21 @@ export async function memoryUpdateStatusHandler(interaction: ChatInputCommandInt
     await replyEphemeralError(interaction, tl.quickUpdate.statusError);
     healthMonitor.recordCommand('memory update-status', Date.now() - startTime, true);
   }
+}
+
+/**
+ * Resolve the picked status within the item's own memory config. Autocomplete
+ * may hand over the id of a same-named status from another forum (each forum
+ * has its own copy of the defaults), so a miss is re-resolved by name.
+ */
+async function resolveStatusTag(guildId: string, memoryConfigId: number, statusTagId: string) {
+  const id = Number.parseInt(statusTagId, 10);
+  if (Number.isNaN(id)) return null;
+
+  const exact = await memoryTagRepo.findOneBy({ id, guildId, memoryConfigId, tagType: 'status' });
+  if (exact) return exact;
+
+  const picked = await memoryTagRepo.findOneBy({ id, guildId, tagType: 'status' });
+  if (!picked) return null;
+  return memoryTagRepo.findOneBy({ guildId, memoryConfigId, tagType: 'status', name: picked.name });
 }

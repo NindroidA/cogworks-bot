@@ -143,6 +143,27 @@ describe('messageCreate ticket updates', () => {
     expect(guildWhere?.params).toEqual({ guildId: 'guild-1' });
   });
 
+  test('ticket update still runs when the bait manager is not attached (v3.16.6)', async () => {
+    // e.g. the 'bait channel manager' startup step failed: SLA and auto-close
+    // keep running, so lastActivityAt/firstResponseAt must keep being written.
+    await messageCreateHandler.execute(makeMessage(), {} as any);
+
+    expect(executedUpdates).toHaveLength(1);
+    expect(Object.keys(executedUpdates[0].set).sort()).toEqual(['firstResponseAt', 'lastActivityAt']);
+  });
+
+  test('bait handling still runs before the ticket update when the manager is attached', async () => {
+    const order: string[] = [];
+    mockClient.baitChannelManager.handleMessage.mockImplementationOnce(async () => {
+      order.push(`bait (updates so far: ${executedUpdates.length})`);
+    });
+    await messageCreateHandler.execute(makeMessage(), mockClient);
+
+    expect(mockClient.baitChannelManager.trackMessage).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(['bait (updates so far: 0)']);
+    expect(executedUpdates).toHaveLength(1);
+  });
+
   test('bot messages never reach the ticket update', async () => {
     await messageCreateHandler.execute(makeMessage({ author: { id: 'bot-1', bot: true } }), mockClient);
     expect(executedUpdates).toHaveLength(0);

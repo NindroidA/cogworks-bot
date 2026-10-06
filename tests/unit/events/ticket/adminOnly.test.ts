@@ -3,7 +3,8 @@
  * shipped untested: the creator-request branch (requestSent ack, staff act on
  * it), the null-globalStaffRole guard (used to ping a literal "undefined"),
  * per-role permission-failure tolerance, and the frozen-ack fix for a missing
- * ticket.
+ * ticket. v3.16.11: stored roles may be raw IDs (canonical) or legacy `<@&id>`
+ * mentions — both must ping as `<@&id>` and both must be hidden.
  */
 
 import { describe, expect, jest, test } from 'bun:test';
@@ -12,6 +13,9 @@ import generalLang from '../../../../src/lang/en/general.json';
 import { type AdminOnlyDeps, ticketAdminOnlyEventImpl as ticketAdminOnlyEvent } from '../../../../src/events/ticket/adminOnly';
 
 const tl = ticketLang.adminOnly;
+const STAFF = '123456789012345678';
+const ROLE_A = '111111111111111111';
+const ROLE_B = '222222222222222222';
 
 function makeDeps(overrides: Partial<Record<keyof AdminOnlyDeps, unknown>> = {}) {
   const ticketRepo = {
@@ -21,8 +25,8 @@ function makeDeps(overrides: Partial<Record<keyof AdminOnlyDeps, unknown>> = {})
     update: jest.fn().mockResolvedValue({ affected: 1 }),
   };
   const ticketConfigRepo = { findOneBy: jest.fn().mockResolvedValue({ adminOnlyMentionStaff: true }) };
-  const getBotConfig = jest.fn().mockResolvedValue({ enableGlobalStaffRole: true, globalStaffRole: '<@&staff-role>' });
-  const getStaffRoles = jest.fn().mockResolvedValue([{ role: '<@&staff-role>' }]);
+  const getBotConfig = jest.fn().mockResolvedValue({ enableGlobalStaffRole: true, globalStaffRole: STAFF });
+  const getStaffRoles = jest.fn().mockResolvedValue([{ role: STAFF }]);
   const replyEphemeralError = jest.fn().mockResolvedValue(undefined);
   return {
     deps: {
@@ -41,7 +45,7 @@ function makeDeps(overrides: Partial<Record<keyof AdminOnlyDeps, unknown>> = {})
   };
 }
 
-function makeInteraction(userId = 'staff-9') {
+function makeInteraction(userId = 'staff-9', guildRoleIds?: string[]) {
   const sent: Array<{ content: string }> = [];
   const edits: Array<{ content?: string }> = [];
   const permEdits: Array<{ roleId: string; perms: unknown }> = [];
@@ -53,6 +57,7 @@ function makeInteraction(userId = 'staff-9') {
   };
   const interaction = {
     guildId: 'guild1',
+    guild: guildRoleIds ? { roles: { cache: new Set(guildRoleIds) } } : undefined,
     channelId: 'chan1',
     user: { id: userId, displayName: 'Somebody' },
     channel: {
@@ -95,7 +100,8 @@ describe('ticketAdminOnlyEvent', () => {
     await ticketAdminOnlyEvent(client, interaction, deps);
 
     expect(sent).toHaveLength(1);
-    expect(sent[0].content.startsWith('<@&staff-role>')).toBe(true);
+    // Stored raw → still rendered as a role ping, never a bare number.
+    expect(sent[0].content.startsWith(`<@&${STAFF}>\n`)).toBe(true);
     expect(edits).toEqual([{ content: tl.requestSent }]);
     // The creator requests — staff perform. Nothing changes yet.
     expect(ticketRepo.update).not.toHaveBeenCalled();
@@ -124,7 +130,30 @@ describe('ticketAdminOnlyEvent', () => {
 
     await ticketAdminOnlyEvent(client, interaction, deps);
 
-    expect(sent[0].content).not.toContain('<@&staff-role>');
+    expect(sent[0].content).not.toContain(`<@&${STAFF}>`);
+  });
+
+  test('creator request pings a legacy <@&id> globalStaffRole exactly once', async () => {
+    const { deps, getBotConfig } = makeDeps();
+    getBotConfig.mockResolvedValue({ enableGlobalStaffRole: true, globalStaffRole: `<@&${STAFF}>` });
+    const { interaction, sent } = makeInteraction('creator-1');
+
+    await ticketAdminOnlyEvent(client, interaction, deps);
+
+    expect(sent[0].content.startsWith(`<@&${STAFF}>\n`)).toBe(true);
+    expect(sent[0].content.split(STAFF)).toHaveLength(2);
+  });
+
+  test('staff click hides raw and legacy roles alike, skipping ones deleted from the guild', async () => {
+    const { deps, getStaffRoles } = makeDeps();
+    getStaffRoles.mockResolvedValue([{ role: ROLE_A }, { role: `<@&${ROLE_B}>` }, { role: STAFF }]);
+    // STAFF was deleted from the guild but its row survived (bot offline during roleDelete).
+    const { interaction, permEdits, edits } = makeInteraction('staff-9', [ROLE_A, ROLE_B]);
+
+    await ticketAdminOnlyEvent(client, interaction, deps);
+
+    expect(permEdits.map(p => p.roleId)).toEqual([ROLE_A, ROLE_B]);
+    expect(edits).toEqual([{ content: tl.success }]);
   });
 
   test('staff click: hides valid staff roles, skips malformed ones, flips status, success ack', async () => {

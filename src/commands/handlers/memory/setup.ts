@@ -9,12 +9,11 @@ import {
   ComponentType,
   EmbedBuilder,
   type ForumChannel,
-  type GuildForumTagData,
   type MessageComponentInteraction,
   MessageFlags,
   StringSelectMenuBuilder,
 } from 'discord.js';
-import { MemoryConfig, MemoryItem, MemoryTag, type MemoryTagType } from '../../../typeorm/entities/memory';
+import { MemoryConfig, MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
   awaitSelectMenuChoice,
   Colors,
@@ -36,22 +35,8 @@ const memoryTagRepo = lazyRepo(MemoryTag);
 const memoryItemRepo = lazyRepo(MemoryItem);
 
 import { MAX } from '../../../utils/constants';
+import { seedMemoryTags } from './defaultTags';
 import { manageTagsHandler } from './manageTags';
-
-const DEFAULT_CATEGORY_TAGS = [
-  { name: 'Bug', emoji: '\u{1F41B}' },
-  { name: 'Feature', emoji: '\u2728' },
-  { name: 'Suggestion', emoji: '\u{1F4A1}' },
-  { name: 'Reminder', emoji: '\u23F0' },
-  { name: 'Note', emoji: '\u{1F4DD}' },
-];
-
-const DEFAULT_STATUS_TAGS = [
-  { name: 'Open', emoji: '\u{1F4CB}' },
-  { name: 'In Progress', emoji: '\u{1F527}' },
-  { name: 'On Hold', emoji: '\u23F8\uFE0F' },
-  { name: 'Completed', emoji: '\u2705' },
-];
 
 export async function memorySetupHandler(client: Client, interaction: ChatInputCommandInteraction) {
   // 'memory' is in the FEATURES catalog — all eight handlers in memory/ are
@@ -246,7 +231,7 @@ async function handleAddChannel(_client: Client, interaction: ChatInputCommandIn
     });
     await memoryConfigRepo.save(config);
 
-    await createDefaultTags(guildId, config.id, channel);
+    await seedMemoryTags(guildId, config.id, channel);
 
     await interaction.editReply({
       content: `${E.success} ${tl.setup.channelAdded}\n${tl.setup.forumChannel}: <#${channel.id}>`,
@@ -482,7 +467,7 @@ async function setupWithChannel(
     });
     await memoryConfigRepo.save(config);
 
-    await createDefaultTags(guildId, config.id, channel);
+    await seedMemoryTags(guildId, config.id, channel);
 
     const content = `${E.success} ${tl.setup.configSaved}\n${tl.setup.forumChannel}: <#${channel.id}>`;
 
@@ -528,7 +513,7 @@ async function createMemoryForum(
     });
     await memoryConfigRepo.save(config);
 
-    await createDefaultTags(guildId, config.id, forum);
+    await seedMemoryTags(guildId, config.id, forum);
 
     return forum;
   } catch (error) {
@@ -536,50 +521,4 @@ async function createMemoryForum(
     await replyEphemeralError(interaction, tl.setup.error);
     return null;
   }
-}
-
-async function createDefaultTags(guildId: string, configId: number, forum: ForumChannel) {
-  const allTags: GuildForumTagData[] = [];
-  const dbTags: Partial<MemoryTag>[] = [];
-
-  for (const tag of DEFAULT_CATEGORY_TAGS) {
-    allTags.push({
-      name: tag.name,
-      emoji: { id: null, name: tag.emoji },
-    });
-    dbTags.push({
-      guildId,
-      memoryConfigId: configId,
-      name: tag.name,
-      emoji: tag.emoji,
-      tagType: 'category' as MemoryTagType,
-      isDefault: true,
-    });
-  }
-
-  for (const tag of DEFAULT_STATUS_TAGS) {
-    allTags.push({
-      name: tag.name,
-      emoji: { id: null, name: tag.emoji },
-    });
-    dbTags.push({
-      guildId,
-      memoryConfigId: configId,
-      name: tag.name,
-      emoji: tag.emoji,
-      tagType: 'status' as MemoryTagType,
-      isDefault: true,
-    });
-  }
-
-  const updatedForum = await forum.setAvailableTags(allTags);
-
-  for (const dbTag of dbTags) {
-    const discordTag = updatedForum.availableTags.find(t => t.name === dbTag.name);
-    if (discordTag) {
-      dbTag.discordTagId = discordTag.id;
-    }
-  }
-
-  await memoryTagRepo.save(dbTags as MemoryTag[]);
 }

@@ -1,43 +1,34 @@
 /**
  * Archive Compiler
  *
- * Compiles all archived data (tickets, applications, memories, logs) into
- * a compressed JSON file for DM delivery before guild data purge.
+ * Compiles everything /bot-reset is about to delete into one compressed JSON
+ * file for DM delivery: every guild-scoped DB row (the same list /data-export
+ * uses) plus the text of every Discord thread/channel that holds content the
+ * DB doesn't (archived ticket/application transcripts, memory threads, open
+ * ticket/application channels).
+ *
+ * The tables sit at the top level, as in cogworks-archive-v1, so the
+ * dashboard's Archive Viewer keeps reading them; `transcripts` is new.
  */
 
 import { gzipSync } from 'node:zlib';
-import type { EntityTarget, ObjectLiteral } from 'typeorm';
-import { AppDataSource } from '../../typeorm';
-import { AuditLog } from '../../typeorm/entities/AuditLog';
-import { AnnouncementLog } from '../../typeorm/entities/announcement/AnnouncementLog';
-import { ArchivedApplication } from '../../typeorm/entities/application/ArchivedApplication';
-import { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
-import { MemoryItem } from '../../typeorm/entities/memory/MemoryItem';
-import { ArchivedTicket } from '../../typeorm/entities/ticket/ArchivedTicket';
+import type { Client } from 'discord.js';
+import { version } from '../../../package.json';
+import {
+  type CaptureOptions,
+  captureTranscripts,
+  type ExportCoverage,
+  exportCoverage,
+  TRANSCRIPT_EXPORT_NOTE,
+} from '../archive/transcriptCapture';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
-
-interface CompileEntity {
-  /** Output key in the compiled archive AND stats. */
-  name: keyof ArchiveStats;
-  entity: EntityTarget<ObjectLiteral>;
-}
-
-const COMPILE_ENTITIES: CompileEntity[] = [
-  { name: 'archivedTickets', entity: ArchivedTicket },
-  { name: 'archivedApplications', entity: ArchivedApplication },
-  { name: 'memoryItems', entity: MemoryItem },
-  { name: 'announcementLogs', entity: AnnouncementLog },
-  { name: 'auditLogs', entity: AuditLog },
-  { name: 'baitLogs', entity: BaitChannelLog },
-];
+import { fetchAllExportData } from './guildDataExport';
 
 export interface ArchiveStats {
   archivedTickets: number;
   archivedApplications: number;
   memoryItems: number;
-  announcementLogs: number;
-  auditLogs: number;
-  baitLogs: number;
+  transcripts: number;
   totalEntries: number;
   compressedSizeBytes: number;
 }
@@ -46,43 +37,69 @@ export interface CompiledArchive {
   buffer: Buffer;
   filename: string;
   stats: ArchiveStats;
+  /** What the archive holds of each thread/channel: the reset deletes only these, and only while unchanged. */
+  coverage: ExportCoverage;
+}
+
+type Row = Record<string, unknown>;
+
+/** v1 names the Archive Viewer reads, where they differ from the /data-export table names. */
+const V1_TABLE_NAMES: Record<string, string> = { baitChannelLogs: 'baitLogs' };
+
+/** IDs of the Discord threads/channels whose messages exist nowhere else. */
+export function transcriptChannelIds(data: Record<string, unknown[]>): string[] {
+  const pick = (key: string, field: string, include: (row: Row) => boolean = () => true) =>
+    ((data[key] ?? []) as Row[])
+      .filter(include)
+      .map(row => row[field])
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const open = (row: Row) => row.status !== 'closed';
+
+  return [
+    ...pick('archivedTickets', 'messageId'),
+    ...pick('archivedApplications', 'messageId'),
+    ...pick('memoryItems', 'threadId'),
+    ...pick('tickets', 'channelId', open),
+    ...pick('applications', 'channelId', open),
+  ];
 }
 
 /**
- * Compile all guild archive data into a compressed JSON file.
+ * Compile all guild data plus channel transcripts into a compressed JSON file.
  */
-export async function compileGuildArchive(guildId: string): Promise<CompiledArchive> {
-  const collected = await Promise.all(
-    COMPILE_ENTITIES.map(async ({ name, entity }) => {
-      const rows = await AppDataSource.getRepository(entity).find({ where: { guildId } });
-      return [name, rows] as const;
-    }),
-  );
-
-  const data: Partial<Record<keyof ArchiveStats, unknown[]>> = Object.fromEntries(collected);
-  const totalEntries = collected.reduce((sum, [, rows]) => sum + rows.length, 0);
+export async function compileGuildArchive(
+  guildId: string,
+  client: Client,
+  options: CaptureOptions = {},
+): Promise<CompiledArchive> {
+  const data = await fetchAllExportData(guildId);
+  const capture = await captureTranscripts(client, guildId, transcriptChannelIds(data), options);
+  const totalEntries = Object.values(data).reduce((sum, rows) => sum + rows.length, 0);
+  const transcriptCount = Object.keys(capture.transcripts).length;
 
   const archive = {
-    format: 'cogworks-archive-v1',
+    format: 'cogworks-archive-v2',
     metadata: {
       guildId,
+      guildName: client.guilds.cache.get(guildId)?.name ?? null,
       exportDate: new Date().toISOString(),
-      version: '3.0.0',
+      version,
       entryCount: totalEntries,
+      transcriptCount,
+      unreadableChannelIds: capture.unreadable,
+      note: TRANSCRIPT_EXPORT_NOTE,
     },
-    ...data,
+    ...Object.fromEntries(Object.entries(data).map(([name, rows]) => [V1_TABLE_NAMES[name] ?? name, rows])),
+    transcripts: capture.transcripts,
   };
 
-  const json = JSON.stringify(archive);
-  const compressed = gzipSync(Buffer.from(json));
+  const compressed = gzipSync(Buffer.from(JSON.stringify(archive)));
 
   const stats: ArchiveStats = {
     archivedTickets: data.archivedTickets?.length ?? 0,
     archivedApplications: data.archivedApplications?.length ?? 0,
     memoryItems: data.memoryItems?.length ?? 0,
-    announcementLogs: data.announcementLogs?.length ?? 0,
-    auditLogs: data.auditLogs?.length ?? 0,
-    baitLogs: data.baitLogs?.length ?? 0,
+    transcripts: transcriptCount,
     totalEntries,
     compressedSizeBytes: compressed.length,
   };
@@ -90,11 +107,13 @@ export async function compileGuildArchive(guildId: string): Promise<CompiledArch
   enhancedLogger.info('Guild archive compiled', LogCategory.COMMAND_EXECUTION, {
     guildId,
     ...stats,
+    unreadableChannels: capture.unreadable.length,
   });
 
   return {
     buffer: compressed,
     filename: `cogworks-archive-${guildId}-${Date.now()}.json.gz`,
     stats,
+    coverage: exportCoverage(capture),
   };
 }
