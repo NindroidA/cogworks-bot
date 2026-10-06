@@ -266,11 +266,11 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
     const guildId = interaction.guildId!;
     const userId = interaction.user.id;
 
-    // Rate limit: shares TICKET_CREATE budget with manual ticket creation
+    // Rate limit: shares the per-server TICKET_CREATE budget with manual ticket creation
     const guard = await guardFeatureRateLimit(interaction, 'tickets', 'manage', {
       action: 'ticket-create',
       limit: RateLimits.TICKET_CREATE,
-      scope: 'user',
+      scope: 'userGuild',
       skipPermissionCheck: true,
     });
     if (!guard.allowed) return;

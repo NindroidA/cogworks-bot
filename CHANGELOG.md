@@ -56,10 +56,9 @@ ticket row behind.
 - **Ticket answers can't ping @everyone or roles.** The opener's answers are
   sent with no allowed mentions, the welcome message can mention only the
   opener, and the staff ping can mention only the configured staff role.
-- **Ticket rate limits are per server.** The 3-per-hour limit for tickets
-  opened from the panel is now counted per user in each server instead of
-  across every server the bot is in. `/ticket manage import-email` keeps its
-  per-user limit for now, so it no longer shares a budget with panel tickets.
+- **Ticket rate limits are per server.** The 3-per-hour ticket limit, shared
+  by panel tickets and `/ticket manage import-email`, is now counted per user
+  in each server instead of across every server the bot is in.
 
 ## [3.16.24] - 2026-10-06
 
