@@ -2,10 +2,12 @@
  * Data Export Command Handler
  *
  * GDPR Compliance: Exports all guild data to gzipped JSON
- * Security: Admin-only, rate limited to 1 delivered export per 24 hours
+ * Security: Admin-only, rate limited to 1 export per 24 hours (a transient
+ * delivery failure gives it back; an oversized export does not)
  */
 
-import { gzipSync } from 'node:zlib';
+import { promisify } from 'node:util';
+import { gzip } from 'node:zlib';
 import {
   AttachmentBuilder,
   type CacheType,
@@ -28,6 +30,8 @@ import {
 } from '../../utils';
 import { fetchAllExportData, MAX_EXPORT_ATTACHMENT_BYTES } from '../../utils/offboarding/guildDataExport';
 
+const gzipAsync = promisify(gzip);
+
 /**
  * Handle data export command
  * Exports all guild data to gzipped JSON and sends it via DM, falling back to
@@ -37,7 +41,8 @@ export async function dataExportHandler(
   _client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
 ): Promise<void> {
-  // Set once the guard spends today's export; any path that doesn't deliver a file gives it back.
+  // Set once the guard spends today's export. A transient failure (DB error, DM and fallback both
+  // failing) gives it back; the too-large path clears it first, so the export stays spent.
   let rateLimitKey: string | undefined;
   try {
     const tl = lang.dataExport;
@@ -85,7 +90,8 @@ export async function dataExportHandler(
     };
 
     // Compact + gzip: pretty-printed JSON of a busy guild easily passes Discord's upload cap.
-    const buffer = gzipSync(Buffer.from(JSON.stringify(fullExport)));
+    // Async gzip runs on the libuv pool instead of blocking the event loop.
+    const buffer = await gzipAsync(Buffer.from(JSON.stringify(fullExport)));
     const filename = `guild-${guildId}-export-${Date.now()}.json.gz`;
 
     enhancedLogger.info(
@@ -94,7 +100,9 @@ export async function dataExportHandler(
     );
 
     if (buffer.length > MAX_EXPORT_ATTACHMENT_BYTES) {
-      rateLimiter.reset(rateLimitKey);
+      // Deterministic: a retry loads and compresses every table again only to build the same
+      // oversized file, so today's export stays spent.
+      rateLimitKey = undefined;
       await interaction.editReply({ content: formatLang(tl.tooLarge, formatBytes(buffer.length)) });
       return;
     }

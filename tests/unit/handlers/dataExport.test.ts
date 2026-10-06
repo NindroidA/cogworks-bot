@@ -4,21 +4,28 @@
  * Before: closed DMs (or an oversized file) left the admin with a reply
  * pointing at a download button that didn't exist, and the 24h limit was
  * already spent. Now the gzipped export falls back to an attachment on the
- * ephemeral reply, and the limit is given back whenever nothing was delivered.
+ * ephemeral reply. The limit is given back when delivery fails, but not when
+ * the export is too large, since a retry would build the same file.
  */
 
 import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { randomBytes } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { dataExportHandler } from '../../../src/commands/handlers/dataExport';
 import { lang } from '../../../src/utils';
+import { MAX_EXPORT_ATTACHMENT_BYTES } from '../../../src/utils/offboarding/guildDataExport';
 import { createRateLimitKey, rateLimiter } from '../../../src/utils/security/rateLimiter';
 import { makeRepo, patchRepositories } from '../utils/archive/fakeDiscord';
 
 const GUILD = '300000000000000001';
 const LIMIT_KEY = createRateLimitKey.guild(GUILD, 'data-export');
 
+/** Extra AuditLog rows; the too-large test fills it with incompressible data. */
+let auditRows: Record<string, unknown>[] = [];
+
 const restore = await patchRepositories(() => ({
   GuildPermission: makeRepo([{ guildId: GUILD, feature: 'tickets', roleId: 'R1', level: 'manage' }]),
+  AuditLog: makeRepo(auditRows),
 }));
 afterAll(restore);
 
@@ -28,6 +35,7 @@ beforeEach(() => {
   rateLimiter.destroy();
 });
 afterEach(() => {
+  auditRows = [];
   rateLimiter.reset(LIMIT_KEY);
   process.env.RELEASE = originalRelease;
   rateLimiter.destroy();
@@ -93,5 +101,24 @@ describe('/data-export', () => {
 
     expect(calls.edits.at(-1).content).toBe(lang.dataExport.error);
     expect(rateLimiter.getRemaining(LIMIT_KEY, 1)).toBe(1);
+  });
+
+  test('an export over the upload cap is refused, sends no file, and still spends the daily export', async () => {
+    // ~13 MB of base64 random bytes stays ~10 MB after gzip, above the 8 MiB cap.
+    auditRows = [{ guildId: GUILD, action: 'filler', details: randomBytes(10_000_000).toString('base64') }];
+    const { interaction, calls } = makeInteraction();
+    await dataExportHandler({} as any, interaction);
+
+    expect(calls.dms).toHaveLength(0);
+    const last = calls.edits.at(-1);
+    expect(last.files).toBeUndefined();
+    const [before, after] = lang.dataExport.tooLarge.split('{0}');
+    expect(last.content).toStartWith(before);
+    expect(last.content).toEndWith(after);
+    const size = last.content.slice(before.length, last.content.length - after.length);
+    expect(size).toMatch(/^\d+(\.\d+)? MB$/);
+    expect(Number.parseFloat(size) * 1024 * 1024).toBeGreaterThan(MAX_EXPORT_ATTACHMENT_BYTES);
+    // A retry would build the same file, so the limit is not given back.
+    expect(rateLimiter.getRemaining(LIMIT_KEY, 1)).toBe(0);
   });
 });
