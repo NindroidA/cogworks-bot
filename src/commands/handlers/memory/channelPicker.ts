@@ -1,4 +1,12 @@
-import { ActionRowBuilder, type ChatInputCommandInteraction, MessageFlags, StringSelectMenuBuilder } from 'discord.js';
+import {
+  ActionRowBuilder,
+  type BaseMessageOptions,
+  type ChatInputCommandInteraction,
+  type InteractionResponse,
+  MessageFlags,
+  StringSelectMenuBuilder,
+  type StringSelectMenuInteraction,
+} from 'discord.js';
 import { MemoryConfig } from '../../../typeorm/entities/memory';
 import { awaitSelectMenuChoice, E, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -6,10 +14,25 @@ import { lazyRepo } from '../../../utils/database/lazyRepo';
 const tl = lang.memory;
 const memoryConfigRepo = lazyRepo(MemoryConfig);
 
+/** The interaction that owns a memory flow's next response. */
+export type MemoryFlowInteraction = ChatInputCommandInteraction | StringSelectMenuInteraction;
+
+export interface ResolvedMemoryConfig {
+  config: MemoryConfig;
+  /**
+   * Respond from this, never from the slash command. With one memory forum it
+   * is the slash command itself. With 2+ it is the channel picker's select,
+   * left unacknowledged so the caller can open a modal from it or replace the
+   * picker message (the slash command has already replied with the picker, and
+   * replying twice throws InteractionAlreadyReplied).
+   */
+  source: MemoryFlowInteraction;
+}
+
 export async function resolveMemoryConfig(
   interaction: ChatInputCommandInteraction,
   guildId: string,
-): Promise<MemoryConfig | null> {
+): Promise<ResolvedMemoryConfig | null> {
   const configs = await memoryConfigRepo.find({
     where: { guildId },
     order: { sortOrder: 'ASC' },
@@ -21,7 +44,7 @@ export async function resolveMemoryConfig(
   }
 
   if (configs.length === 1) {
-    return configs[0];
+    return { config: configs[0], source: interaction };
   }
 
   const selectMenu = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
@@ -51,8 +74,46 @@ export async function resolveMemoryConfig(
 
   const selectedId = Number.parseInt(choice.values[0], 10);
   const config = configs.find(c => c.id === selectedId);
-  await choice.update({ content: `${E.loading} ${lang.memory.channelPicker.processing}`, components: [] });
-  return config || null;
+  if (!config) {
+    await replyFlowError(choice, tl.errors.notConfigured);
+    return null;
+  }
+  return { config, source: choice };
+}
+
+type FlowMessage = Pick<BaseMessageOptions, 'content' | 'embeds' | 'components'>;
+
+/**
+ * Send a memory flow's next ephemeral screen: a fresh slash command replies,
+ * the picker's select replaces the picker message in place. Either response
+ * supports `createMessageComponentCollector`, and `source.editReply` edits it.
+ */
+export function replyFlow(source: MemoryFlowInteraction, message: FlowMessage): Promise<InteractionResponse> {
+  if (source.isChatInputCommand()) {
+    return source.reply({ ...message, flags: [MessageFlags.Ephemeral] });
+  }
+  return source.update({
+    content: message.content ?? '',
+    embeds: message.embeds ?? [],
+    components: message.components ?? [],
+  });
+}
+
+/**
+ * Error counterpart of {@link replyFlow}: on an unanswered picker select the
+ * error replaces the picker (otherwise its menu stays up, dead); everything
+ * else goes through `replyEphemeralError`.
+ */
+export async function replyFlowError(source: MemoryFlowInteraction, message: string): Promise<void> {
+  if (source.isStringSelectMenu() && !source.replied && !source.deferred) {
+    try {
+      await source.update({ content: `${E.error} ${message}`, embeds: [], components: [] });
+      return;
+    } catch {
+      // Fall through: replyEphemeralError picks the right method and never throws.
+    }
+  }
+  await replyEphemeralError(source, message);
 }
 
 export async function resolveConfigFromThread(
