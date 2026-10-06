@@ -33,8 +33,8 @@ const pendingActionRepo = lazyRepo(PendingAction);
  * timeoutDurationMinutes: 28 days) and otherwise the dashboard's zod schema or
  * the slash command, so a value that would fail every bait action at action
  * time is refused here. actionType is validated against its enum. Nullable
- * strings accept null/"" to clear; integer, snowflake and appeal-link checks
- * run in the route after these are applied.
+ * strings accept null/"" to clear; integer, string-length, snowflake and
+ * appeal-link checks run in the route after these are applied.
  */
 export const BAIT_CONFIG_FIELDS: FieldDescriptor<BaitChannelConfig>[] = [
   { field: 'enabled', type: 'bool' },
@@ -75,6 +75,42 @@ export const BAIT_CONFIG_FIELDS: FieldDescriptor<BaitChannelConfig>[] = [
   { field: 'raidModeAlertRoleId', type: 'nullableString' },
   { field: 'appealLinkBaseUrl', type: 'nullableString' },
 ];
+
+/**
+ * Length caps for the string fields: the dashboard's zod schema for banReason
+ * (500), warningMessage (1000) and appealInfo (500), and the column for
+ * appealLinkBaseUrl (varchar 500). Empty strings never get here: the string
+ * helpers treat "" as absent (banReason, warningMessage) or as null.
+ */
+const BAIT_STRING_MAX = { banReason: 500, warningMessage: 1000, appealInfo: 500, appealLinkBaseUrl: 500 } as const;
+
+/** The ID fields, which must be snowflakes (or null to clear). */
+const BAIT_ID_FIELDS = ['logChannelId', 'summaryChannelId', 'raidModeAlertRoleId'] as const;
+
+/**
+ * Checks applyFields doesn't do, on the fields this request patched. Throws
+ * `ApiError.badRequest` before anything is saved.
+ */
+function validatePatchedBaitConfig(config: BaitChannelConfig, patched: string[]): void {
+  for (const d of BAIT_CONFIG_FIELDS) {
+    // applyFields range-checks ints but lets decimals through; the columns are INT.
+    if (d.type === 'int' && patched.includes(d.field) && !Number.isInteger(config[d.field])) {
+      throw ApiError.badRequest(`${d.field} must be an integer`);
+    }
+  }
+  for (const [field, max] of Object.entries(BAIT_STRING_MAX) as [keyof typeof BAIT_STRING_MAX, number][]) {
+    const value = config[field];
+    if (patched.includes(field) && value !== null && value.length > max) {
+      throw ApiError.badRequest(`${field} must be at most ${max} characters`);
+    }
+  }
+  for (const field of BAIT_ID_FIELDS) {
+    const id = config[field];
+    if (patched.includes(field) && id !== null && !isValidSnowflake(id)) {
+      throw ApiError.badRequest(`${field} must be a valid Discord ID`);
+    }
+  }
+}
 
 export function registerBaitChannelHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // GET /internal/guilds/:guildId/bait-channel/keywords
@@ -312,8 +348,9 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
   // Accepts any subset of writable fields. Validates types; rejects unknown
   // fields silently (forward-compat for webapp that may post stale shape).
   // (Was 'PATCH /bait-channel/config' — unreachable, since the internal API's
-  // method gate only allows GET/POST/DELETE. ninsys-api writes bait config via
-  // direct DB, so nothing called the old PATCH route.)
+  // method gate only allows GET/POST/DELETE.) The dashboard's bait settings
+  // save (ninsys-api PUT /bait-channel/config) sends every field but
+  // channelId here, so these checks gate every dashboard save.
   routes.set('POST /bait-channel/config/update', async (guildId, body) => {
     const config = await configRepo.findOne({ where: { guildId } });
     if (!config) throw ApiError.notFound('Bait channel is not configured for this guild');
@@ -323,18 +360,7 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
     // ranges above. String fields keep the non-nullable / nullable split (the
     // latter accept null/"" to clear). Nothing is saved if a check throws.
     const patched = applyFields(config, body, BAIT_CONFIG_FIELDS);
-    for (const d of BAIT_CONFIG_FIELDS) {
-      // applyFields range-checks ints but lets decimals through; the columns are INT.
-      if (d.type === 'int' && patched.includes(d.field) && !Number.isInteger(config[d.field])) {
-        throw ApiError.badRequest(`${d.field} must be an integer`);
-      }
-    }
-    for (const field of ['logChannelId', 'summaryChannelId', 'raidModeAlertRoleId'] as const) {
-      const id = config[field];
-      if (patched.includes(field) && id !== null && !isValidSnowflake(id)) {
-        throw ApiError.badRequest(`${field} must be a valid Discord ID`);
-      }
-    }
+    validatePatchedBaitConfig(config, patched);
 
     // Appeal-link safety. Two gates:
     //   1. Refuse to enable if base URL is HTTP (or unset).

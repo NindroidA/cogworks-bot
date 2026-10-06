@@ -49,6 +49,16 @@ function makeBaitLogRepo(existing: any) {
     }),
     create: jest.fn((x: any) => x),
     save: jest.fn(async (x: any) => x),
+    /** Conditional update: applies only when the row matches id and is still unconfirmed. */
+    update: jest.fn(async (where: any, patch: any) => {
+      const matches =
+        existing &&
+        where.id === existing.id &&
+        (where.actionConfirmedAt === undefined || existing.actionConfirmedAt == null);
+      if (!matches) return { affected: 0 };
+      Object.assign(existing, patch);
+      return { affected: 1 };
+    }),
   };
 }
 
@@ -120,11 +130,16 @@ describe('auditLogEntryCreate handler', () => {
       await handler(banEntry('bot'), GUILD);
       expect(log.discordAuditLogId).toBe('audit-1');
       expect(log.actionConfirmedAt).toBeInstanceOf(Date);
-      expect(baitLogRepo.save).toHaveBeenCalledWith(log);
       expect(baitLogRepo.findOne.mock.calls[0][0].where.messageId).toBe('555');
+      // conditional update (guild-scoped, only while unconfirmed), never save()
+      const [where] = baitLogRepo.update.mock.calls[0] as any[];
+      expect(where.id).toBe(5);
+      expect(where.guildId).toBe('g1');
+      expect(where.actionConfirmedAt).toBeDefined();
+      expect(baitLogRepo.save).not.toHaveBeenCalled();
     });
 
-    test('is idempotent — already-confirmed log is not re-saved', async () => {
+    test('is idempotent — an already-confirmed log keeps its audit ID', async () => {
       const log: any = {
         id: 5,
         actionTaken: 'ban',
@@ -132,15 +147,24 @@ describe('auditLogEntryCreate handler', () => {
         actionConfirmedAt: new Date(),
         discordAuditLogId: 'old',
       };
-      const { handler, baitLogRepo } = setup({ baitLog: log, botId: 'bot' });
+      const { handler } = setup({ baitLog: log, botId: 'bot' });
       await handler(banEntry('bot'), GUILD);
-      expect(baitLogRepo.save).not.toHaveBeenCalled();
+      expect(log.discordAuditLogId).toBe('old');
+    });
+
+    test('the ban half of a softban (a bait kick) confirms the kick row for that message', async () => {
+      const log: any = { id: 8, actionTaken: 'kick', messageId: '555', actionConfirmedAt: null };
+      const { handler } = setup({ baitLog: log, botId: 'bot' });
+      await handler(banEntry('bot', 'u1', 'audit-5', `Softban — ${BAIT_REASON}`), GUILD);
+      expect(log.discordAuditLogId).toBe('audit-5');
+      expect(log.actionConfirmedAt).toBeInstanceOf(Date);
     });
 
     test('a bot action without a bait reason is not correlated', async () => {
       const log: any = { id: 5, actionTaken: 'ban', messageId: '555', actionConfirmedAt: null };
       const { handler, baitLogRepo } = setup({ baitLog: log, botId: 'bot' });
       await handler(banEntry('bot', 'u1', 'audit-1', 'Banned via /ban'), GUILD);
+      await handler(banEntry('bot', 'u1', 'audit-1', 'spam, see cogworks:bait docs'), GUILD);
       await handler(banEntry('bot', 'u1', 'audit-1', null), GUILD);
       expect(baitLogRepo.findOne).not.toHaveBeenCalled();
       expect(log.actionConfirmedAt).toBe(null);
@@ -150,7 +174,7 @@ describe('auditLogEntryCreate handler', () => {
       const log: any = { id: 4, actionTaken: 'deleted-in-time', messageId: '555', actionConfirmedAt: null };
       const { handler, baitLogRepo } = setup({ baitLog: log, botId: 'bot' });
       await handler(banEntry('bot'), GUILD);
-      expect(baitLogRepo.save).not.toHaveBeenCalled();
+      expect(baitLogRepo.update).not.toHaveBeenCalled();
       expect(log.actionConfirmedAt).toBe(null);
     });
 
@@ -158,7 +182,7 @@ describe('auditLogEntryCreate handler', () => {
       const log: any = { id: 4, actionTaken: 'ban', messageId: '444', actionConfirmedAt: null };
       const { handler, baitLogRepo } = setup({ baitLog: log, botId: 'bot' });
       await handler(banEntry('bot'), GUILD);
-      expect(baitLogRepo.save).not.toHaveBeenCalled();
+      expect(baitLogRepo.update).not.toHaveBeenCalled();
     });
 
     test('row not written yet → looked up again after the retry delay, then stamped', async () => {
@@ -166,8 +190,8 @@ describe('auditLogEntryCreate handler', () => {
       const { handler, baitLogRepo } = setup({ baitLog: log, botId: 'bot', retryDelays: [1] });
       baitLogRepo.findOne.mockImplementationOnce(async () => null); // executeAction hasn't logged yet
       await handler(banEntry('bot'), GUILD);
-      expect(baitLogRepo.save).not.toHaveBeenCalled();
-      await eventually(() => baitLogRepo.save.mock.calls.length > 0);
+      expect(baitLogRepo.update).not.toHaveBeenCalled();
+      await eventually(() => baitLogRepo.update.mock.calls.length > 0);
       expect(baitLogRepo.findOne).toHaveBeenCalledTimes(2);
       expect(log.discordAuditLogId).toBe('audit-1');
     });
@@ -178,14 +202,14 @@ describe('auditLogEntryCreate handler', () => {
       await eventually(() => baitLogRepo.findOne.mock.calls.length >= 3);
       await new Promise(r => setTimeout(r, 20));
       expect(baitLogRepo.findOne).toHaveBeenCalledTimes(3);
-      expect(baitLogRepo.save).not.toHaveBeenCalled();
+      expect(baitLogRepo.update).not.toHaveBeenCalled();
     });
 
     test('a timeout-set MemberUpdate by the bot confirms the log', async () => {
       const log: any = { id: 7, actionTaken: 'timeout', messageId: '555', actionConfirmedAt: null };
       const { handler, baitLogRepo } = setup({ baitLog: log, botId: 'bot' });
       await handler(timeoutEntry('bot', true), GUILD);
-      expect(baitLogRepo.save).toHaveBeenCalledWith(log);
+      expect(log.discordAuditLogId).toBe('audit-3');
     });
 
     test('a non-timeout MemberUpdate is ignored', async () => {

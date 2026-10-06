@@ -58,6 +58,9 @@ const RECENT_LOG_WINDOW_MS = 5 * 60 * 1000;
  */
 const CONFIRM_RETRY_DELAYS_MS = [10_000, 60_000];
 
+/** A bait audit reason (auditReason.ts), bare or behind a prefix such as banExecutor's `Softban — `. */
+const BAIT_REASON_RE = /(?:^|— )cogworks:bait\b/;
+
 /** BaitChannelLog values for an action the bot enforced (or queued for retry). */
 const ENFORCEMENT_STATES = ['ban', 'kick', 'softban', 'timeout', 'queued'];
 
@@ -162,11 +165,12 @@ export function registerAuditLogEntryCreateHandler(
 
 /**
  * Bot-self path: find the BaitChannelLog enforcement row for this action and
- * patch in audit correlation fields. Only bait actions count (reason starts
- * with `cogworks:bait`); the row is matched on the reason's `msgId=` when it
- * has one, so an earlier whitelisted or deleted-in-time row is never stamped.
- * A row that isn't written yet is looked up again after each delay in
- * `retryDelaysMs`.
+ * patch in audit correlation fields. Only bait actions count: the reason
+ * starts with `cogworks:bait`, or has it after a `— ` prefix (the ban half of
+ * a softban, how a bait kick usually runs, reads `Softban — cogworks:bait …`).
+ * The row is matched on the reason's `msgId=` when it has one, so an earlier
+ * whitelisted or deleted-in-time row is never stamped. A row that isn't
+ * written yet is looked up again after each delay in `retryDelaysMs`.
  */
 async function confirmSelfAction(
   guildId: string,
@@ -175,7 +179,7 @@ async function confirmSelfAction(
   reason: string | null,
   retryDelaysMs: number[],
 ): Promise<void> {
-  if (!reason?.startsWith('cogworks:bait')) return; // not a bait action
+  if (!reason || !BAIT_REASON_RE.test(reason)) return; // not a bait action
   const messageId = /\bmsgId=(\d+)/.exec(reason)?.[1];
   const repo = AppDataSource.getRepository(BaitChannelLog);
   const since = new Date(Date.now() - RECENT_LOG_WINDOW_MS);
@@ -208,11 +212,13 @@ async function confirmSelfAction(
     timer.unref?.();
     return;
   }
-  if (log.actionConfirmedAt) return; // already confirmed (idempotent)
-
-  log.discordAuditLogId = auditLogId;
-  log.actionConfirmedAt = new Date();
-  await repo.save(log);
+  // A conditional UPDATE, not save(): it is idempotent, and it can't
+  // re-insert a row that guildDelete removed after the lookup.
+  const result = await repo.update(
+    { id: log.id, guildId, actionConfirmedAt: IsNull() },
+    { discordAuditLogId: auditLogId, actionConfirmedAt: new Date() },
+  );
+  if (!result.affected) return; // already confirmed, or gone
 
   enhancedLogger.debug(`Bait log ${log.id} confirmed via audit entry ${auditLogId}`, LogCategory.SECURITY, {
     guildId,

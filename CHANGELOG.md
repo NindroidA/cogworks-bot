@@ -48,7 +48,10 @@ reasons or whitelists no longer break the warning, the log embed or
   the match is retried after 10 seconds and again after 60. It uses the message
   ID in the audit reason and only enforcement rows (ban, kick, softban,
   timeout, queued), so it can no longer stamp an earlier whitelisted or
-  deleted-in-time row, and bot actions that aren't bait are ignored.
+  deleted-in-time row. Bot actions that aren't bait are ignored; a softban
+  (how a bait kick usually runs, reason `Softban — cogworks:bait …`) counts.
+  The row is stamped with a conditional update, so a row removed meanwhile
+  (the bot left the server) is never written back.
 - **Removing the primary bait channel moves its warning banner.**
   `/baitchannel setup remove-channel` on the channel holding the "DO NOT POST
   HERE" banner now deletes it there and posts it in the new primary. If the old
@@ -64,12 +67,16 @@ reasons or whitelists no longer break the warning, the log embed or
   the server are no longer swept in those cases. Raid mode now records the
   trigger before the purge for timeouts and kicks, so a slow sweep can't push it
   out of the raid window.
-- **The dashboard's bait config update rejects values that break bait
-  actions.** `deleteMessageHours` 0-168 and `timeoutDurationMinutes` 1-40320
-  (Discord's limits), `gracePeriodSeconds` 0-60, thresholds and windows within
-  the dashboard's and slash command's ranges, whole numbers only, and
-  `logChannelId`, `summaryChannelId` and `raidModeAlertRoleId` must be Discord
-  IDs (or null to clear). Nothing is saved when a value is refused.
+- **The bait config update (every dashboard bait save goes through it)
+  rejects values that break bait actions.** `deleteMessageHours` 0-168 and
+  `timeoutDurationMinutes` 1-40320 (Discord's limits), `gracePeriodSeconds`
+  0-60, thresholds and windows within the dashboard's and slash command's
+  ranges, whole numbers only, `banReason` up to 500 characters,
+  `warningMessage` up to 1000, `appealInfo` and `appealLinkBaseUrl` up to 500,
+  and `logChannelId`, `summaryChannelId` and `raidModeAlertRoleId` must be
+  Discord IDs (or null to clear). The limits match the dashboard's own
+  validation for every field it sends, so no dashboard save is refused.
+  Nothing is saved when a value is refused.
 
 ## [3.16.30] - 2026-10-06
 
