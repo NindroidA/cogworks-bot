@@ -266,6 +266,7 @@ export const submitApplicationModal = async (_client: Client, interaction: Modal
       [member.id],
       adminRoleIds,
       PermissionSets.APPLICATION_CREATOR,
+      guild.roles.cache,
     );
 
     const channel = await guild.channels.create({

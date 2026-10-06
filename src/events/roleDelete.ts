@@ -6,7 +6,8 @@
  * assign or check roles that no longer exist.
  */
 
-import type { Role } from 'discord.js';
+import { type Role, roleMention } from 'discord.js';
+import { In } from 'typeorm';
 import { AppDataSource } from '../typeorm';
 import { AnnouncementConfig } from '../typeorm/entities/announcement/AnnouncementConfig';
 import { BotConfig } from '../typeorm/entities/BotConfig';
@@ -15,6 +16,7 @@ import { OnboardingConfig } from '../typeorm/entities/onboarding/OnboardingConfi
 import { ReactionRoleOption } from '../typeorm/entities/reactionRole/ReactionRoleOption';
 import { RulesConfig } from '../typeorm/entities/rules';
 import { StaffRole } from '../typeorm/entities/StaffRole';
+import { TicketConfig } from '../typeorm/entities/ticket/TicketConfig';
 import { XPConfig } from '../typeorm/entities/xp/XPConfig';
 import { XPRoleReward } from '../typeorm/entities/xp/XPRoleReward';
 import type { ExtendedClient } from '../types/ExtendedClient';
@@ -34,7 +36,8 @@ const ROLE_REF_CLEANERS: RoleRefCleaner[] = [
     clean: async (guildId, roleId) => {
       const repo = AppDataSource.getRepository(BotConfig);
       const config = await repo.findOneBy({ guildId });
-      if (!config || config.globalStaffRole !== roleId) return;
+      // Raw ID since v3 setup; pre-v3 rows hold `<@&id>`.
+      if (!config?.globalStaffRole || ![roleId, roleMention(roleId)].includes(config.globalStaffRole)) return;
 
       config.globalStaffRole = null;
       config.enableGlobalStaffRole = false;
@@ -96,7 +99,8 @@ const ROLE_REF_CLEANERS: RoleRefCleaner[] = [
     name: 'StaffRole',
     clean: async (guildId, roleId) => {
       const repo = AppDataSource.getRepository(StaffRole);
-      const saved = await repo.find({ where: { guildId, role: roleId } });
+      // Raw ID (dashboard, /role add since v3.16.11) or legacy `<@&id>` (older /role add rows).
+      const saved = await repo.find({ where: { guildId, role: In([roleId, roleMention(roleId)]) } });
       if (saved.length === 0) return;
 
       await repo.remove(saved);
@@ -140,13 +144,21 @@ const ROLE_REF_CLEANERS: RoleRefCleaner[] = [
     clean: async (guildId, roleId) => {
       const repo = AppDataSource.getRepository(OnboardingConfig);
       const config = await repo.findOneBy({ guildId });
-      if (!config || config.completionRoleId !== roleId) return;
+      if (!config) return;
 
-      config.completionRoleId = null;
+      const clearCompletion = config.completionRoleId === roleId;
+      // Role-select steps would keep offering the deleted role to new members.
+      const stepsWithOption = (config.steps ?? []).filter(step => step.options?.some(opt => opt.roleId === roleId));
+      if (!clearCompletion && stepsWithOption.length === 0) return;
+
+      if (clearCompletion) config.completionRoleId = null;
+      for (const step of stepsWithOption) step.options = step.options?.filter(opt => opt.roleId !== roleId);
       await repo.save(config);
-      enhancedLogger.info('Cleared OnboardingConfig completionRoleId for deleted role', LogCategory.SYSTEM, {
+      enhancedLogger.info('Removed deleted role from OnboardingConfig', LogCategory.SYSTEM, {
         guildId,
         roleId,
+        completionRoleCleared: clearCompletion,
+        stepsUpdated: stepsWithOption.length,
       });
     },
   },
@@ -155,12 +167,36 @@ const ROLE_REF_CLEANERS: RoleRefCleaner[] = [
     clean: async (guildId, roleId, client) => {
       const repo = AppDataSource.getRepository(BaitChannelConfig);
       const config = await repo.findOneBy({ guildId });
-      if (!config?.whitelistedRoles?.includes(roleId)) return;
+      if (!config) return;
 
-      config.whitelistedRoles = config.whitelistedRoles.filter(id => id !== roleId);
+      const inWhitelist = config.whitelistedRoles?.includes(roleId) ?? false;
+      const isAlertRole = config.raidModeAlertRoleId === roleId;
+      if (!inWhitelist && !isAlertRole) return;
+
+      if (inWhitelist) config.whitelistedRoles = (config.whitelistedRoles ?? []).filter(id => id !== roleId);
+      if (isAlertRole) config.raidModeAlertRoleId = null;
       await repo.save(config);
       client.baitChannelManager?.clearConfigCache(guildId);
-      enhancedLogger.info('Removed deleted role from BaitChannelConfig whitelistedRoles', LogCategory.SYSTEM, {
+      enhancedLogger.info('Removed deleted role from BaitChannelConfig', LogCategory.SYSTEM, {
+        guildId,
+        roleId,
+        whitelist: inWhitelist,
+        raidModeAlertRole: isAlertRole,
+      });
+    },
+  },
+  {
+    name: 'TicketConfig',
+    clean: async (guildId, roleId) => {
+      const repo = AppDataSource.getRepository(TicketConfig);
+      const config = await repo.findOneBy({ guildId });
+      const rules = config?.routingRules ?? [];
+      if (!config || !rules.some(rule => rule.staffRoleId === roleId)) return;
+
+      // Drop the rule (not just its role) so an admin can re-add one for that ticket type.
+      config.routingRules = rules.filter(rule => rule.staffRoleId !== roleId);
+      await repo.save(config);
+      enhancedLogger.info('Removed routing rule(s) for deleted role from TicketConfig', LogCategory.SYSTEM, {
         guildId,
         roleId,
       });
