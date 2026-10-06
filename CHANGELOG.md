@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.13] - 2026-10-06
+
+`/ticket manage status closed` now really closes the ticket, the three
+`/ticket manage` mutations check dashboard permissions, and a deleted archive
+forum gives a clear "not configured" error instead of a transcript failure.
+Auto-close is fixed separately in 3.16.13.
+
+### Fixed
+
+- **`/ticket manage status closed` archives and deletes the channel** like the
+  Close button, right away and with no confirmation step (the transcript is
+  kept in the archive forum). It used to set the status to `closed` and
+  nothing else, which left a live channel that every close path (the Close
+  button, the dashboard, `/ticket manage`) then refused as already closed. The
+  Close button's claim → archive → revert-on-failure sequence moved into
+  `utils/ticket/claimAndArchive.ts`, and both now use it.
+- **A deleted archive forum gives a clear "not configured" error.** Deleting
+  the forum blanks the archive config's channel instead of removing the row, so
+  the Close Ticket and Close Application buttons failed with "Error making
+  transcript file!". They now say no archive forum is configured and an admin
+  needs to rerun setup, and `/ticket manage status closed` does the same. The
+  dashboard's ticket close and application archive return the same 404
+  ("Archive config not found") as a server that never set up a forum, instead
+  of a generic failure. Closing still needs a forum: these servers can close
+  again once an admin picks a new one.
+- **`/ticket manage status` and `info` read panel tickets as `open`.** Tickets
+  created from the panel are stored as `opened`, which no workflow status
+  matched, so `info` showed the raw value with no label, and `status open` on
+  an untouched ticket posted a status change instead of "already Open".
+
+### Security
+
+- **`/ticket manage status`, `assign` and `unassign` now check the dashboard's
+  `tickets` permission** at the `manage` level, like the other `/ticket`
+  subcommands. A server that gave staff `/ticket` through Discord's
+  Integrations settings but has no dashboard permission rows falls back to
+  admin-only for these three until an admin grants `tickets: manage`. Roles
+  granted only `tickets: use` also need `manage` for these three.
+
 ## [3.16.12] - 2026-10-06
 
 One staff-role format. Saved staff roles came in two shapes — `/role add`
