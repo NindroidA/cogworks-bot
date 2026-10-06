@@ -32,21 +32,39 @@ grants see no change in who can run what: feature commands still answer
   hidden by the old Administrator default on `/application`; members can now
   see their own open application's status.
 
+### Fixed
+
+- **`/application position remove|toggle|edit|fields` autocomplete.** The
+  routes were keyed without the `position` group and never matched, so the
+  position picker offered nothing.
+
 ### Security
 
 - **Every visible path is guarded.** `/ticket manage info` now checks
   `tickets: use`, and `/starboard stats` and `/starboard random` check
   `starboard: use`. All three relied only on the Administrator default.
-- **Autocomplete checks feature access.** Suggestions (ticket types, memory
-  threads, reaction-role menus, templates, scheduled events and so on) now
-  need at least `use` on the command's feature; anyone else gets an empty
-  list. Discord's default permission was the only thing stopping members from
-  reading these.
+- **`/application info` needs `applications: manage`** (was `use`), the level
+  the review actions need. Its embed shows internal staff notes and reviewer
+  history, and applicants can run it in their own application channel.
+- **Autocomplete checks access per subcommand.** Each route carries the same
+  feature and level as its subcommand's guard (`manage` everywhere except
+  `/ticket type edit` at `use`); anyone else gets an empty list. Before, the
+  Administrator default was the only thing keeping bait keywords, memory
+  titles, routing and AutoMod rule names, ticket types and templates from
+  members.
+- **Modal submits re-check access.** The ticket type-add, email-import and
+  position-edit modals check `manage` again on submit (email import used to
+  skip the permission check).
+- **Refused commands leave no trace.** When a guard refuses, the dispatcher no
+  longer writes a `command:*` audit row under the member's name and no longer
+  requests a command refresh, so spamming a refused `*-setup` can't keep
+  restarting the refresh debounce.
 - **New guard-coverage test** (`tests/unit/commands/commandVisibility.test.ts`)
   walks the registered commands and fails when a visible command or
   subcommand has no guard row, when a member without a grant gets past a
-  guard, when a guard checks the wrong feature or a lower level, or when
-  autocomplete answers a member without access.
+  guard, when a guard checks the wrong feature or a lower level, when an
+  autocomplete route's feature or level differs from its subcommand's, or when
+  a refused command is audited.
 
 ## [3.16.21] - 2026-10-06
 

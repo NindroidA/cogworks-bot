@@ -102,6 +102,10 @@ export async function applicationEditModalHandler(
   positionId: number,
 ): Promise<void> {
   try {
+    // Re-checked on submit (defense in depth): access can change while the modal is open.
+    const guard = await guardFeatureAccess(interaction, 'applications', 'manage');
+    if (!guard.allowed) return;
+
     const guildId = interaction.guildId!;
 
     const title = interaction.fields.getTextInputValue('title').trim();

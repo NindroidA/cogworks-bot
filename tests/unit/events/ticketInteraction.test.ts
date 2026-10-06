@@ -24,6 +24,7 @@
 
 import * as realAdminOnlyModule from "../../../src/events/ticket/adminOnly";
 import * as realEmailImportModule from "../../../src/commands/handlers/ticket/emailImport";
+import * as realTypeAddModule from "../../../src/commands/handlers/ticket/typeAdd";
 import {
   afterEach,
   beforeEach,
@@ -59,7 +60,10 @@ mock.module("../../../src/events/ticket/adminOnly", () => ({
     mockTicketAdminOnlyEvent(...args),
 }));
 
+// Spread the real module so typeAddModalHandlerImpl (used by
+// commands/commandVisibility.test.ts) passes through.
 mock.module("../../../src/commands/handlers/ticket/typeAdd", () => ({
+  ...realTypeAddModule,
   typeAddModalHandler: (...args: unknown[]) => mockTypeAddModalHandler(...args),
   buildTypeConfirmationEmbed: jest.fn().mockReturnValue({}),
 }));

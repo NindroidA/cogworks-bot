@@ -16,7 +16,12 @@
  *        - unconfigured guild (no grants)      → Administrator fallback
  *        - configured guild, no matching role  → "no permission for <feature>"
  *        - granted one level too low           → "requires at least <level>"
- *   3. checks autocomplete answers nothing to members without a grant.
+ *      A refused interaction must also skip the audit row and command refresh.
+ *   3. checks every autocomplete option resolves to a route with the same
+ *      feature and level as its subcommand, and that the route answers only
+ *      members with that access;
+ *   4. checks the modal submits that create or edit ticket types, email
+ *      tickets and positions re-check manage access.
  *
  * Permission rows come from a fake GuildPermission repository installed by
  * patching AppDataSource.getRepository (restored in afterAll). Any other
@@ -30,16 +35,25 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import { MessageFlags } from 'discord.js';
 import { commands } from '../../../src/commands/commandList';
-import { dispatchCommand } from '../../../src/commands/commands';
+import { afterDispatch, dispatchCommand } from '../../../src/commands/commands';
+import { applicationEditModalHandler } from '../../../src/commands/handlers/application/applicationEdit';
+import { applicationPositionAutocomplete } from '../../../src/commands/handlers/application/applicationPosition';
 import { handleContextMenuCommand } from '../../../src/commands/handlers/contextMenus';
-import { handleAutocomplete } from '../../../src/events/autocomplete';
+import { emailImportModalHandlerImpl } from '../../../src/commands/handlers/ticket/emailImport';
+import { typeAddModalHandlerImpl } from '../../../src/commands/handlers/ticket/typeAdd';
+import { handleAutocomplete, resolveAutocompleteRoute } from '../../../src/events/autocomplete';
 import applicationLang from '../../../src/lang/en/application.json';
 import { AppDataSource } from '../../../src/typeorm';
 import { Application } from '../../../src/typeorm/entities/application/Application';
 import { ApplicationConfig } from '../../../src/typeorm/entities/application/ApplicationConfig';
 import { GuildPermission } from '../../../src/typeorm/entities/GuildPermission';
+import { guardFeatureAccess, wasRefusedByGuard } from '../../../src/utils/interactions/guardHelper';
 import { enhancedLogger } from '../../../src/utils/monitoring/enhancedLogger';
-import type { Feature, Level } from '../../../src/utils/validation/featurePermission';
+import {
+  type Feature,
+  invalidateFeaturePermissionsCache,
+  type Level,
+} from '../../../src/utils/validation/featurePermission';
 
 // ---------------------------------------------------------------------------
 // Expected guards
@@ -65,6 +79,12 @@ const HIDDEN_COMMANDS = [
   'role',
   'status',
 ];
+
+/**
+ * Registered only when RELEASE=dev (Bun loads .env, and commandList reads
+ * RELEASE once at import), and hidden like /dev.
+ */
+const DEV_ONLY_COMMANDS = ['dev-suite', 'dev-test'];
 
 /**
  * Every visible command path → the first guard a member hits. Keys are the
@@ -121,7 +141,7 @@ const GUARDS: Record<string, Guard> = {
   'application status': manage('applications'),
   'application note': manage('applications'),
   'application claim': manage('applications'),
-  'application info': use('applications'),
+  'application info': manage('applications'), // shows internal staff notes
   'application check': { publicReason: "applicant self-check: reads only the caller's own open application" },
   'application workflow-enable': manage('applications'),
   'application workflow-disable': manage('applications'),
@@ -282,8 +302,8 @@ const GUARDS: Record<string, Guard> = {
 
 /**
  * Commands that flag an option for autocomplete but have no autocomplete
- * route, so nobody gets suggestions. Listed so the "granted member reaches the
- * route" check skips them on purpose.
+ * route, so nobody gets suggestions. Listed so the route checks skip them on
+ * purpose.
  */
 const AUTOCOMPLETE_UNROUTED = new Set(['onboarding']);
 
@@ -473,11 +493,17 @@ function makeInteraction(entry: PathEntry, ctx: Ctx) {
     update: record('update'),
     respond: record('respond'),
     awaitModalSubmit: () => Promise.reject(new Error('no modal in tests')),
+    fields: { getTextInputValue: () => 'value' },
   };
   return { interaction, responses };
 }
 
-async function run(entry: PathEntry, ctx: Ctx) {
+interface RunResult {
+  interaction: object;
+  responses: Response[];
+}
+
+async function run(entry: PathEntry, ctx: Ctx): Promise<RunResult> {
   const { interaction, responses } = makeInteraction(entry, ctx);
   otherRepoRequests.length = 0;
   if (entry.kind === 'slash') {
@@ -485,16 +511,18 @@ async function run(entry: PathEntry, ctx: Ctx) {
   } else {
     await handleContextMenuCommand({} as never, interaction as never);
   }
-  return responses;
+  return { interaction, responses };
 }
 
-function expectSingleRefusal(responses: Response[], content: string) {
+function expectSingleRefusal({ interaction, responses }: RunResult, content: string) {
   expect(responses).toHaveLength(1);
   expect(responses[0].method).toBe('reply');
   expect(responses[0].payload.flags).toContain(MessageFlags.Ephemeral);
   expect(responses[0].payload.content).toBe(content);
   // Refused before any other table was read.
   expect(otherRepoRequests).toEqual([]);
+  // Marked refused, so the dispatcher skips the audit row and command refresh.
+  expect(wasRefusedByGuard(interaction as never)).toBe(true);
 }
 
 const ADMIN_REQUIRED = '❌ This command requires **Administrator** permission.';
@@ -553,6 +581,7 @@ beforeAll(() => {
 afterAll(() => {
   seamActive = false;
   ds.getRepository = originalGetRepository;
+  invalidateFeaturePermissionsCache();
 });
 
 // ---------------------------------------------------------------------------
@@ -561,7 +590,8 @@ afterAll(() => {
 
 describe('command registry visibility', () => {
   test('only meta and destructive commands keep a default permission', () => {
-    expect(hiddenCommands.map(c => c.name).sort()).toEqual([...HIDDEN_COMMANDS].sort());
+    const devOnlyRegistered = registry.map(c => c.name).filter(name => DEV_ONLY_COMMANDS.includes(name));
+    expect(hiddenCommands.map(c => c.name).sort()).toEqual([...HIDDEN_COMMANDS, ...devOnlyRegistered].sort());
   });
 
   test('every visible command path has a guard row, and no row is stale', () => {
@@ -648,16 +678,68 @@ describe('visible commands refuse members without a grant', () => {
       },
     });
     try {
-      const responses = await run(entry as PathEntry, ctx);
+      const { interaction, responses } = await run(entry as PathEntry, ctx);
 
       expect(responses).toHaveLength(1);
       expect(responses[0].payload.content).toBe(applicationLang.workflow.checkNoApplication);
+      expect(wasRefusedByGuard(interaction as never)).toBe(false);
       // Scoped to this guild and to the caller.
       expect(queries).toContainEqual({ guildId: ctx.guildId });
       expect(queries).toContainEqual({ userId: ctx.userId });
     } finally {
       repoOverrides.clear();
     }
+  });
+});
+
+describe('audit row and command refresh after dispatch', () => {
+  function spyDeps() {
+    const calls = { audit: [] as unknown[][], refresh: [] as unknown[][] };
+    const deps = {
+      logCommandAudit: (...args: unknown[]) => {
+        calls.audit.push(args);
+      },
+      maybeRefreshCommandsAfterSetup: (...args: unknown[]) => {
+        calls.refresh.push(args);
+      },
+    };
+    return { calls, deps: deps as never };
+  }
+
+  test('a refused /ticket-setup writes no audit row and requests no refresh', async () => {
+    const entry = visiblePaths.find(p => p.key === 'ticket-setup') as PathEntry;
+    const ctx = { ...nextIds(), roleIds: [] };
+    grants.set(ctx.guildId, []);
+    const { interaction } = await run(entry, ctx);
+    const { calls, deps } = spyDeps();
+
+    afterDispatch(interaction as never, 'ticket-setup', ctx.guildId, deps);
+
+    expect(calls).toEqual({ audit: [], refresh: [] });
+  });
+
+  test('a guard that allows leaves the interaction unmarked', async () => {
+    const entry = visiblePaths.find(p => p.key === 'ticket-setup') as PathEntry;
+    const ctx = { ...nextIds(), roleIds: ['7100000000000003'] };
+    grants.set(ctx.guildId, [
+      { guildId: ctx.guildId, roleId: '7100000000000003', feature: 'tickets', level: 'manage' },
+    ]);
+    const { interaction } = makeInteraction(entry, ctx);
+
+    expect((await guardFeatureAccess(interaction as never, 'tickets', 'manage')).allowed).toBe(true);
+    expect(wasRefusedByGuard(interaction as never)).toBe(false);
+  });
+
+  test('a command no guard refused is audited and may refresh', () => {
+    const entry = visiblePaths.find(p => p.key === 'ticket-setup') as PathEntry;
+    const ctx = { ...nextIds(), roleIds: [] };
+    const { interaction } = makeInteraction(entry, ctx);
+    const { calls, deps } = spyDeps();
+
+    afterDispatch(interaction as never, 'ticket-setup', ctx.guildId, deps);
+
+    expect(calls.audit).toEqual([[interaction, 'ticket-setup', ctx.guildId]]);
+    expect(calls.refresh).toEqual([['ticket-setup', ctx.guildId]]);
   });
 });
 
@@ -674,7 +756,8 @@ describe('autocomplete on visible commands', () => {
     const error = spyOn(enhancedLogger, 'error').mockImplementation(() => {});
     try {
       await handleAutocomplete({} as never, interaction as never);
-      // The dispatcher logs "Autocomplete: /…" only after the access check.
+      // Logged only once a route matched and the access check passed, right
+      // before the route's handler runs.
       const routed = debug.mock.calls.some(call => String(call[0]).startsWith('Autocomplete: '));
       return { responses, routed };
     } finally {
@@ -683,10 +766,25 @@ describe('autocomplete on visible commands', () => {
     }
   }
 
-  test('every autocomplete option sits on a visible, feature-guarded path', () => {
-    expect(autocompletePaths.length).toBeGreaterThan(0);
-    for (const entry of autocompletePaths) {
-      expect(isFeatureGuard(GUARDS[entry.key])).toBe(true);
+  const routedPaths = autocompletePaths.filter(p => !AUTOCOMPLETE_UNROUTED.has(p.name));
+  const routeOf = (entry: PathEntry) => resolveAutocompleteRoute(entry.name, entry.group ?? '', entry.sub ?? '');
+
+  test.each(
+    autocompletePaths.map(p => [p.key, p] as const),
+  )('%s: route needs the same feature and level as the subcommand', (key, entry) => {
+    const route = routeOf(entry);
+    if (AUTOCOMPLETE_UNROUTED.has(entry.name)) {
+      expect(route).toBeUndefined();
+      return;
+    }
+    const guard = GUARDS[key] as { feature: Feature; level: Level };
+    expect(route).toBeDefined();
+    expect({ feature: route?.feature, level: route?.level }).toEqual({ feature: guard.feature, level: guard.level });
+  });
+
+  test('the /application position pickers reach the position autocomplete', () => {
+    for (const sub of ['remove', 'toggle', 'edit', 'fields']) {
+      expect(resolveAutocompleteRoute('application', 'position', sub)?.handler).toBe(applicationPositionAutocomplete);
     }
   });
 
@@ -710,16 +808,72 @@ describe('autocomplete on visible commands', () => {
   });
 
   test.each(
-    autocompletePaths.filter(p => !AUTOCOMPLETE_UNROUTED.has(p.name)).map(p => [p.key, p] as const),
-  )('%s: a member with a use grant on the feature reaches the route', async (key, entry) => {
+    routedPaths.filter(p => (GUARDS[p.key] as { level: Level }).level !== 'use').map(p => [p.key, p] as const),
+  )('%s: no suggestions for a grant one level too low', async (key, entry) => {
+    const guard = GUARDS[key] as { feature: Feature; level: Level };
+    const ctx = { ...nextIds(), roleIds: ['7100000000000002'] };
+    grants.set(ctx.guildId, [
+      { guildId: ctx.guildId, roleId: '7100000000000002', feature: guard.feature, level: ONE_BELOW[guard.level] },
+    ]);
+
+    const { responses, routed } = await complete(entry, ctx);
+
+    expect(routed).toBe(false);
+    expect(responses).toEqual([{ method: 'respond', payload: [] as never }]);
+  });
+
+  test.each(
+    routedPaths.map(p => [p.key, p] as const),
+  )('%s: a member with exactly the required grant reaches the route', async (key, entry) => {
     const guard = GUARDS[key] as { feature: Feature; level: Level };
     const ctx = { ...nextIds(), roleIds: ['7100000000000003'] };
     grants.set(ctx.guildId, [
-      { guildId: ctx.guildId, roleId: '7100000000000003', feature: guard.feature, level: 'use' },
+      { guildId: ctx.guildId, roleId: '7100000000000003', feature: guard.feature, level: guard.level },
     ]);
 
     const { routed } = await complete(entry, ctx);
 
     expect(routed).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Modal submits re-check access
+// ---------------------------------------------------------------------------
+
+describe('modal submits re-check manage access', () => {
+  const modals: Array<[string, Feature, (interaction: never) => Promise<void>]> = [
+    ['ticket-type-add-modal', 'tickets', interaction => typeAddModalHandlerImpl(interaction)],
+    ['ticket-email-import-modal', 'tickets', interaction => emailImportModalHandlerImpl(interaction)],
+    ['application-position-edit-modal', 'applications', interaction => applicationEditModalHandler(interaction, 1)],
+  ];
+  const modalEntry: PathEntry = {
+    key: 'modal',
+    kind: 'slash',
+    name: 'modal',
+    group: null,
+    sub: null,
+    autocompleteOptions: [],
+  };
+
+  async function submit(handler: (interaction: never) => Promise<void>, ctx: Ctx): Promise<RunResult> {
+    const { interaction, responses } = makeInteraction(modalEntry, ctx);
+    otherRepoRequests.length = 0;
+    await handler(interaction as never);
+    return { interaction, responses };
+  }
+
+  test.each(modals)('%s: unconfigured guild falls back to admin-only', async (_name, _feature, handler) => {
+    const ctx = { ...nextIds(), roleIds: [] };
+    grants.set(ctx.guildId, []);
+
+    expectSingleRefusal(await submit(handler, ctx), ADMIN_REQUIRED);
+  });
+
+  test.each(modals)('%s: a use grant is refused with manage', async (_name, feature, handler) => {
+    const ctx = { ...nextIds(), roleIds: ['7100000000000002'] };
+    grants.set(ctx.guildId, [{ guildId: ctx.guildId, roleId: '7100000000000002', feature, level: 'use' }]);
+
+    expectSingleRefusal(await submit(handler, ctx), tooLowMessage(feature, 'manage'));
   });
 });

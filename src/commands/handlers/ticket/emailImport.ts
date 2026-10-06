@@ -266,12 +266,12 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
     const guildId = interaction.guildId!;
     const userId = interaction.user.id;
 
-    // Rate limit: shares TICKET_CREATE budget with manual ticket creation
+    // Permission re-checked on submit (defense in depth), then the rate limit,
+    // which shares the TICKET_CREATE budget with manual ticket creation.
     const guard = await guardFeatureRateLimit(interaction, 'tickets', 'manage', {
       action: 'ticket-create',
       limit: RateLimits.TICKET_CREATE,
       scope: 'user',
-      skipPermissionCheck: true,
     });
     if (!guard.allowed) return;
 
