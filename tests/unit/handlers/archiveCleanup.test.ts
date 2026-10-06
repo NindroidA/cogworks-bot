@@ -4,7 +4,9 @@
  * Before: a failed DM still offered "Yes, Delete Archives" (deleting the only
  * copy), the 24h limit was spent even when there was nothing to export, and
  * "Yes" deleted every row but left the forum threads it never exported. A DB
- * error during "Yes" left the reply stuck on "Deleting archived entries...".
+ * error during "Yes" left the reply stuck on "Deleting archived entries...",
+ * and a failed summary edit after a finished deletion rejected the collector
+ * listener with no handler.
  */
 
 import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:test';
@@ -122,6 +124,26 @@ describe('/archive cleanup', () => {
     expect(reply.content).toContain('stopped after an error');
     expect(reply.content).toContain('1 records and 2 threads were deleted');
     expect(tickets.rows.map(r => r.id)).toEqual([2]);
+  });
+
+  test('a summary edit that fails after "Yes" finished is caught, not left unhandled', async () => {
+    const t1 = makeChannel('th-1', ['first ticket'], { guildId: GUILD });
+    const collector = makeCollector();
+    const { interaction } = makeInteraction({ collector });
+    await archiveCleanupHandler(makeClient({ 'th-1': t1 }), interaction);
+
+    const [onCollect] = collector.listeners('collect') as Array<(btn: unknown) => Promise<void>>;
+    const btn = {
+      customId: 'archive_delete_yes',
+      update: async () => {},
+      editReply: async () => {
+        throw Object.assign(new Error('Invalid Webhook Token'), { code: 50027 });
+      },
+    };
+
+    await expect(onCollect(btn)).resolves.toBeUndefined();
+    expect(t1.deleted).toBe(true);
+    expect(tickets.rows).toEqual([]);
   });
 
   test('nothing to export gives the daily export back', async () => {
