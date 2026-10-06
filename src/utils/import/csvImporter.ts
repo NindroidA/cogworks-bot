@@ -17,16 +17,7 @@ export class CsvImporter implements BotImporter {
   displayName = 'CSV';
   supportedData = ['xp'];
 
-  /**
-   * Collected records from the last import (available for downstream consumption)
-   */
-  public lastImportRecords: RawXpRecord[] = [];
-
-  /**
-   * The CSV content to parse. Set this before calling import().
-   */
-  public csvContent: string = '';
-
+  /** Parses `options.content`. Holds no per-import state: one instance serves every guild. */
   async import(guildId: string, dataType: string, options?: ImportOptions): Promise<ImportResult> {
     const startTime = Date.now();
     const errors: string[] = [];
@@ -45,7 +36,8 @@ export class CsvImporter implements BotImporter {
       };
     }
 
-    if (!this.csvContent || this.csvContent.trim().length === 0) {
+    const content = options?.content ?? '';
+    if (content.trim().length === 0) {
       return {
         success: false,
         imported: 0,
@@ -56,7 +48,7 @@ export class CsvImporter implements BotImporter {
       };
     }
 
-    const lines = this.csvContent.trim().split('\n');
+    const lines = content.trim().split('\n');
     if (lines.length === 0) {
       return {
         success: false,
@@ -140,8 +132,6 @@ export class CsvImporter implements BotImporter {
       }
     }
 
-    this.lastImportRecords = records;
-
     const durationMs = Date.now() - startTime;
 
     enhancedLogger.info(
@@ -156,6 +146,7 @@ export class CsvImporter implements BotImporter {
       failed,
       errors,
       durationMs,
+      records,
     };
   }
 }
