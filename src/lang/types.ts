@@ -2059,6 +2059,7 @@ export interface Language {
   automod: LangAutomod;
   event: LangEvent;
   analytics: LangAnalytics;
+  health: LangHealth;
 }
 
 // New feature lang types — derived from the English JSON (the Proxy fallback
@@ -2069,6 +2070,7 @@ export type LangOnboarding = typeof import('./en/onboarding.json');
 export type LangAutomod = typeof import('./en/automod.json');
 export type LangEvent = typeof import('./en/event.json');
 export type LangAnalytics = typeof import('./en/analytics.json');
+export type LangHealth = typeof import('./en/health.json');
 
 export interface LangImport {
   results: {

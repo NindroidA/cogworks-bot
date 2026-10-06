@@ -66,6 +66,7 @@ import devEn from './en/dev.json';
 import errorsEn from './en/errors.json';
 import eventEn from './en/event.json';
 import generalEn from './en/general.json';
+import healthEn from './en/health.json';
 import importEn from './en/import.json';
 import mainEn from './en/main.json';
 import memoryEn from './en/memory.json';
@@ -197,6 +198,7 @@ interface LocaleModules {
   errors: unknown;
   event: unknown;
   general: unknown;
+  health: unknown;
   import: unknown;
   main: unknown;
   memory: unknown;
@@ -224,6 +226,7 @@ const englishModules: LocaleModules = {
   errors: errorsEn,
   event: eventEn,
   general: generalEn,
+  health: healthEn,
   import: importEn,
   main: mainEn,
   memory: memoryEn,
@@ -253,6 +256,7 @@ const LOCALE_MODULES: Record<Locale, LocaleModules> = {
     errors: errorsEs,
     event: eventEs,
     general: generalEs,
+    health: {}, // not translated yet: the Proxy falls back to English
     import: importEs,
     main: mainEs,
     memory: memoryEs,
@@ -279,6 +283,7 @@ const LOCALE_MODULES: Record<Locale, LocaleModules> = {
     errors: errorsPt,
     event: eventPt,
     general: generalPt,
+    health: {}, // not translated yet: the Proxy falls back to English
     import: importPt,
     main: mainPt,
     memory: memoryPt,
@@ -305,6 +310,7 @@ const LOCALE_MODULES: Record<Locale, LocaleModules> = {
     errors: errorsFr,
     event: eventFr,
     general: generalFr,
+    health: {}, // not translated yet: the Proxy falls back to English
     import: importFr,
     main: mainFr,
     memory: memoryFr,
@@ -331,6 +337,7 @@ const LOCALE_MODULES: Record<Locale, LocaleModules> = {
     errors: errorsDe,
     event: eventDe,
     general: generalDe,
+    health: {}, // not translated yet: the Proxy falls back to English
     import: importDe,
     main: mainDe,
     memory: memoryDe,
@@ -381,6 +388,7 @@ function assembleLanguage(m: LocaleModules): Language {
     automod: m.automod as typeof automodEn,
     event: m.event as typeof eventEn,
     analytics: m.analytics as typeof analyticsEn,
+    health: m.health as typeof healthEn,
   };
 }
 
