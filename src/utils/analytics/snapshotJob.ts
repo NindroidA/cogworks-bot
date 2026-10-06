@@ -31,13 +31,25 @@ function msUntilMidnightUtc(): number {
   return tomorrow.getTime() - now.getTime();
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /**
- * Run the daily snapshot flush and cleanup.
+ * The UTC midnight a run belongs to: the one nearest `now`. The job is
+ * scheduled for 00:00 UTC, but the timer can fire late (a busy event loop, a
+ * slow first tick) and a 24h interval can drift slightly early, so anchoring
+ * to the nearest midnight keeps every run on the right day.
  */
-async function runDailySnapshot(client: Client): Promise<void> {
-  // The run fires just after 00:00 UTC, so the day it records is the one that
-  // just ended: the UTC day a minute before the run started.
-  const endedDay = utcDateKey(new Date(Date.now() - 60_000));
+export function runMidnight(now: number = Date.now()): Date {
+  return new Date(Math.round(now / DAY_MS) * DAY_MS);
+}
+
+/**
+ * Run the daily snapshot flush and cleanup. `now` is injectable for tests.
+ */
+export async function runDailySnapshot(client: Client, now: number = Date.now()): Promise<void> {
+  // The day this run records is the UTC day that ended at its midnight.
+  const midnight = runMidnight(now);
+  const endedDay = utcDateKey(new Date(midnight.getTime() - 1));
   enhancedLogger.info('Running daily analytics snapshot job', LogCategory.SYSTEM);
 
   const configRepo = AppDataSource.getRepository(AnalyticsConfig);
@@ -85,13 +97,13 @@ async function runDailySnapshot(client: Client): Promise<void> {
       enhancedLogger.info(`Cleaned ${deleteResult.affected} old analytics snapshots`, LogCategory.DATABASE);
     }
 
-    // Send digests for configured guilds
-    const today = new Date();
+    // Send digests for configured guilds (dated by the run's midnight, so a
+    // slow flush above can't push the digest window into the new day)
     for (const config of enabledConfigs) {
       if (!config.digestChannelId) continue;
 
       try {
-        await sendDigest(client, config, today);
+        await sendDigest(client, config, midnight);
       } catch (error) {
         enhancedLogger.error('Failed to send analytics digest', error as Error, LogCategory.SYSTEM, {
           guildId: config.guildId,

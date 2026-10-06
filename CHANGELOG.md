@@ -514,6 +514,10 @@ away, and a deploy or restart no longer drops the day so far.
   and `/analytics overview` no longer show a 0 "today" right after midnight.
   Weekly and monthly digests cover the 7 or 30 full UTC days that just
   ended (the window used to hold only 6 or 29 of them).
+- **A late midnight run recorded the wrong day**: the run worked out "the day
+  that just ended" as the time a minute before it started, so a run that
+  fired more than a minute late (busy event loop, slow startup) saved and
+  digested the new day. Each run now belongs to the nearest UTC midnight.
 - **Snapshot dates depended on the host time zone**: a snapshot's day was
   passed to MySQL as a JS Date, so on a host west of UTC rows were written
   under the previous day and same-day lookups missed (a second flush then
