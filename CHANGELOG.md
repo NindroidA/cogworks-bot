@@ -5,6 +5,68 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.24] - 2026-10-06
+
+Rules, reaction-role and memory checks for the upcoming `/bot-health` command
+(NindroidA/cogworks-bot#41). Internal only: the command isn't registered yet,
+so nothing a server sees changes in this release. The bait channel checks
+planned for this step come in a separate release to keep this one reviewable.
+
+### Added — rules, reaction-role and memory health checks (internal, no user-visible command yet)
+
+- **Rules**: the rules channel (deleted, a channel without a text chat, or the
+  bot can't see reactions there; the text chat of a voice or stage channel,
+  which the dashboard offers, counts as working; missing Send Messages or Add
+  Reactions is only degraded, and the text says they're needed to post the
+  message again, which re-running setup does after deleting the current one),
+  the rules message (deep mode
+  only, and still looked up when only Add Reactions or Send Messages is
+  missing), the role it gives (deleted, @everyone, managed by an integration, or
+  at/above the bot's highest role), Manage Roles, and an emoji a reaction can
+  never match (plain text, a bare digit, `#` or `*`, or a custom emoji saved as
+  `name:id`, which the reaction handler doesn't compare).
+- **Reaction roles**: each menu's channel (Manage Messages too in unique mode),
+  message (deep mode only, also when only Manage Messages is missing), unknown
+  mode, no options or more than Discord's 20 reactions per message, and Manage
+  Roles; each option's role (same rules as `validateRoleForMenu`, returned as
+  codes) and emoji, including two options on the same emoji. Custom emoji
+  compare by id through the reaction lookup's own key (`optionEmojiKey` in
+  `utils/reactionRole/optionEmoji.ts`), so `<:x:id>`, `<a:x:id>`, `x:id` and the
+  bare id (which the dashboard accepts) are one emoji, and animated emoji aren't
+  flagged. Options have no `guildId` column,
+  so an option whose menu row is gone can't be tied to a guild and isn't
+  checked.
+- **Memory**: each memory forum (deleted, not a forum, missing permissions, set
+  up twice: the text names both entries, says which one commands in its posts
+  use, and warns that removing one also deletes its memories, tags and welcome
+  post) and its welcome post, tags whose memory channel is gone, whose forum
+  tag is missing or whose type isn't category or status, stale copies of a tag
+  left by earlier setup re-runs (re-running setup keeps the linked copy and
+  leaves them), and memories whose memory channel is
+  gone or whose post was deleted. Archived posts aren't cached, so a deleted
+  post is only reported in deep mode, through the REST budget: at most 20 posts
+  per run (the rest are listed as not checked), and none in a forum the bot
+  can't see. The welcome post is still looked up when the bot can see the forum
+  but can't post in it.
+- **Shared reference helpers** (`src/utils/health/checks/refHelpers.ts`): a
+  channel's type and the bot's permissions in it in one lookup, role
+  assignability, and deep-mode message and thread lookups that only report
+  "missing" on proof (Unknown Message / Unknown Channel).
+- English strings for every new finding code in `src/lang/en/health.json`. Each
+  ends with a step the admin can take (a real command such as
+  `/reactionrole edit mode:normal`, `/bot-setup` for a memory tag missing from its
+  forum, or "Grant the bot Manage Roles") or says no action is needed (memory
+  tags and memories whose channel is gone, deleted memory posts).
+
+### Changed — health-check engine REST budget (internal)
+
+- Checks whose deep-mode lookups can only find cosmetic problems (memory posts
+  and welcome posts) run after the others, so the shared 60-call REST budget
+  goes to the rules and reaction-role message lookups first. Report order is
+  unchanged.
+- A lookup label can have its own call cap, and a label skipped over budget is
+  listed once in `notChecked` instead of once per skipped call.
+
 ## [3.16.23] - 2026-10-06
 
 Ticket and application checks for the health-check engine (NindroidA/cogworks-bot#41,

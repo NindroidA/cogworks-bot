@@ -13,6 +13,9 @@ import { ArchivedApplicationConfig } from '../../typeorm/entities/application/Ar
 import { Position } from '../../typeorm/entities/application/Position';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
 import { GuildPermission } from '../../typeorm/entities/GuildPermission';
+import { MemoryConfig, MemoryItem, MemoryTag } from '../../typeorm/entities/memory';
+import { ReactionRoleMenu } from '../../typeorm/entities/reactionRole';
+import { RulesConfig } from '../../typeorm/entities/rules';
 import { SetupState } from '../../typeorm/entities/SetupState';
 import { StaffRole } from '../../typeorm/entities/StaffRole';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
@@ -39,6 +42,12 @@ export const HEALTH_ENTITIES = {
   ArchivedApplicationConfig,
   Position,
   Application,
+  // Moderation: ReactionRoleMenu loads its options eagerly (they have no guildId column).
+  RulesConfig,
+  ReactionRoleMenu,
+  MemoryConfig,
+  MemoryTag,
+  MemoryItem,
 };
 export type HealthEntityName = keyof typeof HEALTH_ENTITIES;
 export type HealthRow<K extends HealthEntityName> = InstanceType<(typeof HEALTH_ENTITIES)[K]>;
@@ -118,10 +127,15 @@ export const HEALTH_REST_BUDGET = { concurrency: 4, timeoutMs: 5_000, maxCalls: 
 
 export type RestOutcome<T> = { status: 'ok'; value: T } | { status: Exclude<RefStatus, 'ok'> | 'skipped' };
 
+export interface RestFetchOptions {
+  /** Most calls this label may start, so one check's cosmetic lookups can't spend the whole budget. */
+  maxCalls?: number;
+}
+
 export interface RestFetcher {
   /** Runs `call` inside the budget. A null result counts as missing (`RoleManager.fetch` returns null for Unknown Role). */
-  fetch<T>(label: string, call: () => Promise<T | null | undefined>): Promise<RestOutcome<T>>;
-  /** Labels of calls skipped because the budget ran out; the runner copies them into `notChecked`. */
+  fetch<T>(label: string, call: () => Promise<T | null | undefined>, opts?: RestFetchOptions): Promise<RestOutcome<T>>;
+  /** Labels of calls skipped because a budget ran out, each once; the runner copies them into `notChecked`. */
   readonly skipped: string[];
 }
 
@@ -130,6 +144,7 @@ export function createRestFetcher(budget = HEALTH_REST_BUDGET): RestFetcher {
   let active = 0;
   const waiting: (() => void)[] = [];
   const skipped: string[] = [];
+  const perLabel = new Map<string, number>();
 
   const acquire = (): Promise<void> => {
     if (active < budget.concurrency) {
@@ -147,12 +162,18 @@ export function createRestFetcher(budget = HEALTH_REST_BUDGET): RestFetcher {
 
   return {
     skipped,
-    async fetch<T>(label: string, call: () => Promise<T | null | undefined>): Promise<RestOutcome<T>> {
-      if (started >= budget.maxCalls) {
-        skipped.push(label);
+    async fetch<T>(
+      label: string,
+      call: () => Promise<T | null | undefined>,
+      opts: RestFetchOptions = {},
+    ): Promise<RestOutcome<T>> {
+      const used = perLabel.get(label) ?? 0;
+      if (started >= budget.maxCalls || used >= (opts.maxCalls ?? Number.POSITIVE_INFINITY)) {
+        if (!skipped.includes(label)) skipped.push(label);
         return { status: 'skipped' };
       }
       started++;
+      perLabel.set(label, used + 1);
       await acquire();
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
