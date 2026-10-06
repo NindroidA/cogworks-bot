@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.4] - 2026-10-06
+
+Bait-channel moderation safety — the grace-period path could ban people it
+had told "no real action will be taken", people who deleted their message in
+time, and people in a different server. Grace periods now act only on the
+server's current settings, and only from the timer that owns them.
+
+### Fixed
+
+- **Grace rows no longer save as `ban`.** The pending-action row now records
+  the action it stands for (`timeout`, `softban` for kick, …), and `log-only`
+  in test mode, instead of the column default `ban` that the leave-drain and
+  orphan sweep then carried out.
+- **Leaving one server no longer cancels a grace timer in another.** Timers
+  are keyed per guild, so a member leaving guild B can't orphan their guild-A
+  timer into a retry-queue ban.
+- **Grace expiry uses current settings.** When the timer fires, the config is
+  re-read: test mode, disabling the feature, removing the bait channel, or
+  whitelisting the user during the window now takes effect. A message posted
+  while test mode was on is always a dry run, even if test mode is switched off
+  before the window ends.
+- **Leaving during the grace window** is settled by the same checks (current
+  config, test mode, whitelist, message still there) and logged like any other
+  bait action, instead of the leave-drain running the raw row. Timeout and kick
+  still become a softban since the member is gone; the log row now says
+  `softban`, the log embed says "Softbanned" (or "Softban FAILED" when it
+  fails, instead of "Action FAILED"), and the departed member is no longer
+  DMed the timeout or kick that never happened.
+- **The bot never lifts someone else's ban.** If a member leaves because a mod
+  (or another bot) banned them during the grace window, the grace period ends
+  as `superseded-by-mod` with no action; before, a timeout or kick would have
+  become a softban whose unban step lifted the mod's ban. When the ban list
+  can't be read (no Ban Members permission, or a Discord or network error), a
+  timeout or kick on leave is logged as `demoted-after-leave` and nothing is
+  done. The leave-drain applies the same rule to queued retries: no softban
+  unless the ban list says the member isn't banned.
+- **Several bait posts from one member get one removal.** Once a ban, kick or
+  softban of a member lands (including on leave), their other posts still in
+  their grace window end without an action of their own, and those posts are
+  deleted. Before, the leave the removal caused ran them as bans; replayed one
+  by one, a later softban could lift the ban, or a later post could ban someone
+  just softbanned before that post's own window was over. They end only after
+  the removal lands; if it fails, they keep their own timers. A post that only
+  timed the member out leaves the others to their own timers. Grace resolutions
+  for the same member run one at a time, so two timers firing together can't
+  race (a ban landing between a softban's ban and unban steps used to be
+  lifted).
+- **Dashboard cancel actually cancels.** `pending-actions/cancel` now stops the
+  in-memory grace timer and removes the warning reply before deleting the row;
+  previously the timer still acted.
+- **Orphan sweep no longer races the live timer.** Grace rows are only treated
+  as orphaned 60s past their window, and are dropped without acting (startup
+  restore never acted on them either).
+- **Test mode never reaches a real retry.** A test-mode dry run is not queued
+  for retry, and retries in a guild that is now in test mode run as dry runs.
+  Retries also use the guild's configured message-delete window and timeout
+  length instead of fixed 24h / 60min.
+
 ## [3.16.3] - 2026-07-07
 
 Consistency chore — no behavioral change. Aligns the analytics command name
