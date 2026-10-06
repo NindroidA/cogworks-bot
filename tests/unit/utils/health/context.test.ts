@@ -120,6 +120,16 @@ describe('createRestFetcher', () => {
     expect(rest.skipped).toEqual(['c']);
   });
 
+  test('a per-label cap skips that label only, and each skipped label is recorded once', async () => {
+    const rest = createRestFetcher(budget);
+    const call = async () => true;
+    const capped = [];
+    for (let i = 0; i < 4; i++) capped.push((await rest.fetch('thread', call, { maxCalls: 2 })).status);
+    expect(capped).toEqual(['ok', 'ok', 'skipped', 'skipped']);
+    expect((await rest.fetch('message', call)).status).toBe('ok');
+    expect(rest.skipped).toEqual(['thread']);
+  });
+
   test('never runs more than `concurrency` calls at once', async () => {
     const rest = createRestFetcher({ ...budget, concurrency: 2 });
     let active = 0;

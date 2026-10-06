@@ -144,6 +144,23 @@ describe('runHealthCheck', () => {
     const report = await runHealthCheck(makeFakeGuild(), {}, { checks: [greedy], loadRows: emptyLoader });
     expect(report.notChecked).toEqual(['rest:message:60', 'rest:message:61']);
   });
+
+  test('low-priority checks start after the others finish, and the report keeps registry order', async () => {
+    const calls: string[] = [];
+    const lookups = (label: string, count: number) => async (ctx: Parameters<HealthCheck['run']>[0]) => {
+      for (let i = 0; i < count; i++) await ctx.rest.fetch(label, async () => calls.push(label));
+      return [];
+    };
+    const late = defineCheck(
+      { id: 'test.late', system: 'memory', entities: [], names: ['cosmetic'], restPriority: 'low' },
+      async (ctx, emit) => [...(await lookups('late', 3)(ctx)), emit('cosmetic', 'cosmetic', 'auto', { entity: 'X' })],
+    );
+    const early = defineCheck({ id: 'test.early', system: 'rules', entities: [], names: [] }, lookups('early', 3));
+    const report = await runHealthCheck(makeFakeGuild(), {}, { checks: [late, early], loadRows: emptyLoader });
+    expect(calls).toEqual(['early', 'early', 'early', 'late', 'late', 'late']);
+    expect(Object.keys(report.systems)).toEqual(['memory', 'rules']);
+    expect(report.systems.memory?.findings.map(f => f.code)).toEqual(['test.late.cosmetic']);
+  });
 });
 
 describe('read-only guarantee (messy legacy guild, real core checks, real repo loader)', () => {

@@ -5,19 +5,71 @@
  * objects and Maps (see `tests/helpers/fakeGuild.ts`) without a client or DB.
  */
 import type { Guild, GuildMember } from 'discord.js';
-import type { EntityTarget, ObjectLiteral, Repository } from 'typeorm';
+import { type EntityTarget, type FindOptionsWhere, Not, type ObjectLiteral, type Repository } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
+import { AnnouncementConfig } from '../../typeorm/entities/announcement/AnnouncementConfig';
+import { AnnouncementTemplate } from '../../typeorm/entities/announcement/AnnouncementTemplate';
+import { Application } from '../../typeorm/entities/application/Application';
+import { ApplicationConfig } from '../../typeorm/entities/application/ApplicationConfig';
+import { ArchivedApplicationConfig } from '../../typeorm/entities/application/ArchivedApplicationConfig';
+import { Position } from '../../typeorm/entities/application/Position';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
 import { GuildPermission } from '../../typeorm/entities/GuildPermission';
+import { MemoryConfig, MemoryItem, MemoryTag } from '../../typeorm/entities/memory';
+import { OnboardingConfig } from '../../typeorm/entities/onboarding/OnboardingConfig';
+import { ReactionRoleMenu } from '../../typeorm/entities/reactionRole';
+import { RulesConfig } from '../../typeorm/entities/rules';
 import { SetupState } from '../../typeorm/entities/SetupState';
 import { StaffRole } from '../../typeorm/entities/StaffRole';
+import { StarboardConfig } from '../../typeorm/entities/starboard/StarboardConfig';
+import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
+import { CustomTicketType } from '../../typeorm/entities/ticket/CustomTicketType';
+import { Ticket } from '../../typeorm/entities/ticket/Ticket';
+import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
+import { UserTicketRestriction } from '../../typeorm/entities/ticket/UserTicketRestriction';
+import { XPConfig } from '../../typeorm/entities/xp/XPConfig';
+import { XPRoleReward } from '../../typeorm/entities/xp/XPRoleReward';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { classifyRestError, type RefStatus } from './refs';
 
 /** Guild-scoped entities checks can declare. Feature check modules add theirs here. */
-export const HEALTH_ENTITIES = { BotConfig, GuildPermission, SetupState, StaffRole };
+export const HEALTH_ENTITIES = {
+  BotConfig,
+  GuildPermission,
+  SetupState,
+  StaffRole,
+  // tickets and applications (v3.16.22)
+  TicketConfig,
+  ArchivedTicketConfig,
+  CustomTicketType,
+  UserTicketRestriction,
+  Ticket,
+  ApplicationConfig,
+  ArchivedApplicationConfig,
+  Position,
+  Application,
+  // Moderation: ReactionRoleMenu loads its options eagerly (they have no guildId column).
+  RulesConfig,
+  ReactionRoleMenu,
+  MemoryConfig,
+  MemoryTag,
+  MemoryItem,
+  // Community features (checks/announcements, xp, starboard, onboarding)
+  AnnouncementConfig,
+  AnnouncementTemplate,
+  XPConfig,
+  XPRoleReward,
+  StarboardConfig,
+  OnboardingConfig,
+};
 export type HealthEntityName = keyof typeof HEALTH_ENTITIES;
 export type HealthRow<K extends HealthEntityName> = InstanceType<(typeof HEALTH_ENTITIES)[K]>;
+
+/** Extra filters for tables that grow without bound: the checks only read open tickets and applications. */
+export const HEALTH_ENTITY_WHERE: Partial<Record<HealthEntityName, FindOptionsWhere<ObjectLiteral>>> = {
+  Ticket: { status: Not('closed') },
+  Application: { status: Not('closed') },
+};
 
 /** Loads every row of one entity for one guild. Injected in tests. */
 export type RowLoader = (entity: HealthEntityName, guildId: string) => Promise<unknown[]>;
@@ -25,9 +77,10 @@ export type RowLoader = (entity: HealthEntityName, guildId: string) => Promise<u
 /** Only `find` is reachable, so the loader cannot write. */
 export type ReadRepository = (target: EntityTarget<ObjectLiteral>) => Pick<Repository<ObjectLiteral>, 'find'>;
 
-/** One guild-scoped `find` per entity. */
+/** One guild-scoped `find` per entity (guildId last, so no filter can widen the scope). */
 export function repoRowLoader(getRepository: ReadRepository): RowLoader {
-  return (entity, guildId) => getRepository(HEALTH_ENTITIES[entity]).find({ where: { guildId } });
+  return (entity, guildId) =>
+    getRepository(HEALTH_ENTITIES[entity]).find({ where: { ...HEALTH_ENTITY_WHERE[entity], guildId } });
 }
 
 export const dbRowLoader: RowLoader = repoRowLoader(target => AppDataSource.getRepository(target));
@@ -87,10 +140,15 @@ export const HEALTH_REST_BUDGET = { concurrency: 4, timeoutMs: 5_000, maxCalls: 
 
 export type RestOutcome<T> = { status: 'ok'; value: T } | { status: Exclude<RefStatus, 'ok'> | 'skipped' };
 
+export interface RestFetchOptions {
+  /** Most calls this label may start, so one check's cosmetic lookups can't spend the whole budget. */
+  maxCalls?: number;
+}
+
 export interface RestFetcher {
   /** Runs `call` inside the budget. A null result counts as missing (`RoleManager.fetch` returns null for Unknown Role). */
-  fetch<T>(label: string, call: () => Promise<T | null | undefined>): Promise<RestOutcome<T>>;
-  /** Labels of calls skipped because the budget ran out; the runner copies them into `notChecked`. */
+  fetch<T>(label: string, call: () => Promise<T | null | undefined>, opts?: RestFetchOptions): Promise<RestOutcome<T>>;
+  /** Labels of calls skipped because a budget ran out, each once; the runner copies them into `notChecked`. */
   readonly skipped: string[];
 }
 
@@ -99,6 +157,7 @@ export function createRestFetcher(budget = HEALTH_REST_BUDGET): RestFetcher {
   let active = 0;
   const waiting: (() => void)[] = [];
   const skipped: string[] = [];
+  const perLabel = new Map<string, number>();
 
   const acquire = (): Promise<void> => {
     if (active < budget.concurrency) {
@@ -116,12 +175,18 @@ export function createRestFetcher(budget = HEALTH_REST_BUDGET): RestFetcher {
 
   return {
     skipped,
-    async fetch<T>(label: string, call: () => Promise<T | null | undefined>): Promise<RestOutcome<T>> {
-      if (started >= budget.maxCalls) {
-        skipped.push(label);
+    async fetch<T>(
+      label: string,
+      call: () => Promise<T | null | undefined>,
+      opts: RestFetchOptions = {},
+    ): Promise<RestOutcome<T>> {
+      const used = perLabel.get(label) ?? 0;
+      if (started >= budget.maxCalls || used >= (opts.maxCalls ?? Number.POSITIVE_INFINITY)) {
+        if (!skipped.includes(label)) skipped.push(label);
         return { status: 'skipped' };
       }
       started++;
+      perLabel.set(label, used + 1);
       await acquire();
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
