@@ -126,13 +126,20 @@ export const PermissionSets = {
 } as const;
 
 /**
- * Creates permission overwrites for a private channel
+ * Creates permission overwrites for a private channel.
+ *
+ * Role IDs are de-duplicated and the @everyone role (the guild ID) is never
+ * re-allowed. Pass the guild's `roles.cache` as `existingRoles` to drop role IDs
+ * that no longer exist: a saved staff role deleted while the bot was offline
+ * would otherwise make `guild.channels.create` throw ("not a cached User or
+ * Role") and block every ticket/application channel in the guild.
  */
 export function createPrivateChannelPermissions(
   guildId: string,
   allowedUserIds: string[],
   allowedRoleIds: string[],
   permissions: PermissionResolvable[] = PermissionSets.STAFF_MEMBER,
+  existingRoles?: { has(roleId: string): boolean },
 ): Array<{
   id: string;
   deny?: PermissionResolvable[];
@@ -153,7 +160,15 @@ export function createPrivateChannelPermissions(
     overwrites.push({ id: userId, allow: permissions });
   }
 
-  for (const roleId of allowedRoleIds) {
+  for (const roleId of new Set(allowedRoleIds)) {
+    if (roleId === guildId) continue;
+    if (existingRoles && !existingRoles.has(roleId)) {
+      enhancedLogger.warn('Skipping saved role that no longer exists in the guild', LogCategory.PERMISSION, {
+        guildId,
+        roleId,
+      });
+      continue;
+    }
     overwrites.push({ id: roleId, allow: permissions });
   }
 

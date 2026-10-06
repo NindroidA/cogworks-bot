@@ -13,6 +13,7 @@ import {
   type GuildTextBasedChannel,
   MessageFlags,
 } from 'discord.js';
+import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedTicketConfig';
 import type { TicketStatusHistoryEntry } from '../../../typeorm/entities/ticket/Ticket';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig, type WorkflowStatus } from '../../../typeorm/entities/ticket/TicketConfig';
@@ -31,12 +32,34 @@ import {
   toUnixSeconds,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { toWorkflowStatusId } from '../../../utils/ticket/autoClose';
+import { claimAndArchiveTicket, reportTicketCloseOutcome } from '../../../utils/ticket/claimAndArchive';
+import { archiveAndCloseTicket } from '../../../utils/ticket/closeWorkflow';
 import { findStatusById, appendStatusHistory as sharedAppendHistory } from '../../../utils/workflow/workflowHelpers';
 
 const tl = lang.ticket.workflow;
 const tlInfo = lang.ticket.info;
 const ticketConfigRepo = lazyRepo(TicketConfig);
 const ticketRepo = lazyRepo(Ticket);
+const archivedTicketConfigRepo = lazyRepo(ArchivedTicketConfig);
+
+/**
+ * Injectable seam for {@link ticketStatusHandler} (same pattern as
+ * events/ticket/close.ts). Production callers omit it.
+ */
+export interface TicketStatusDeps {
+  ticketConfigRepo: typeof ticketConfigRepo;
+  ticketRepo: typeof ticketRepo;
+  archivedTicketConfigRepo: typeof archivedTicketConfigRepo;
+  archiveAndCloseTicket: typeof archiveAndCloseTicket;
+}
+
+const defaultStatusDeps: TicketStatusDeps = {
+  ticketConfigRepo,
+  ticketRepo,
+  archivedTicketConfigRepo,
+  archiveAndCloseTicket,
+};
 
 const workflowToggle = createToggleHandler<TicketConfig>({
   repo: ticketConfigRepo,
@@ -67,8 +90,9 @@ const workflowToggle = createToggleHandler<TicketConfig>({
 
 async function getWorkflowConfig(
   guildId: string,
+  repo: typeof ticketConfigRepo = ticketConfigRepo,
 ): Promise<{ config: TicketConfig | null; statuses: WorkflowStatus[] }> {
-  const config = await ticketConfigRepo.findOneBy({ guildId });
+  const config = await repo.findOneBy({ guildId });
   if (!config?.enableWorkflow) {
     return { config, statuses: [] };
   }
@@ -80,21 +104,17 @@ async function getWorkflowConfig(
 // Helper: Get ticket by channel
 // ============================================================================
 
-async function getTicketByChannel(guildId: string, channelId: string): Promise<Ticket | null> {
-  return ticketRepo
+async function getTicketByChannel(
+  guildId: string,
+  channelId: string,
+  repo: typeof ticketRepo = ticketRepo,
+): Promise<Ticket | null> {
+  return repo
     .createQueryBuilder('ticket')
     .where('ticket.guildId = :guildId', { guildId })
     .andWhere('ticket.channelId = :channelId', { channelId })
     .andWhere('ticket.status != :closed', { closed: 'closed' })
     .getOne();
-}
-
-// ============================================================================
-// Helper: Map 'created' status to 'open' for workflow display
-// ============================================================================
-
-function mapStatus(status: string): string {
-  return status === 'created' ? 'open' : status;
 }
 
 // ============================================================================
@@ -109,26 +129,32 @@ function appendStatusHistory(ticket: Ticket, status: string, changedBy: string, 
 // /ticket status <status>
 // ============================================================================
 
-export async function ticketStatusHandler(interaction: ChatInputCommandInteraction<CacheType>) {
+export async function ticketStatusHandler(
+  interaction: ChatInputCommandInteraction<CacheType>,
+  deps: TicketStatusDeps = defaultStatusDeps,
+) {
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
+  if (!guard.allowed) return;
+
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
   // Check workflow enabled
-  const { config, statuses } = await getWorkflowConfig(guildId);
+  const { config, statuses } = await getWorkflowConfig(guildId, deps.ticketConfigRepo);
   if (!config?.enableWorkflow) {
     await replyEphemeralError(interaction, tl.notEnabled);
     return;
   }
 
   // Find ticket by channel
-  const ticket = await getTicketByChannel(guildId, channelId);
+  const ticket = await getTicketByChannel(guildId, channelId, deps.ticketRepo);
   if (!ticket) {
     await replyEphemeralError(interaction, tl.notInTicket);
     return;
   }
 
   const newStatusId = interaction.options.getString('status', true);
-  const currentStatus = mapStatus(ticket.status);
+  const currentStatus = toWorkflowStatusId(ticket.status);
 
   // Validate status
   const statusDef = findStatusById(statuses, newStatusId);
@@ -144,11 +170,18 @@ export async function ticketStatusHandler(interaction: ChatInputCommandInteracti
     return;
   }
 
+  // 'closed' is a close request, not a label: flipping only the status would
+  // leave a live channel that every close path then refuses as already closed.
+  if (newStatusId === 'closed') {
+    await closeTicketFromStatus(interaction, ticket, deps);
+    return;
+  }
+
   // Update ticket
   ticket.status = newStatusId as Ticket['status'];
   ticket.lastActivityAt = new Date();
   appendStatusHistory(ticket, newStatusId, interaction.user.id);
-  await ticketRepo.save(ticket);
+  await deps.ticketRepo.save(ticket);
 
   // Post status change embed in channel
   const embed = new EmbedBuilder()
@@ -172,9 +205,45 @@ export async function ticketStatusHandler(interaction: ChatInputCommandInteracti
     to: newStatusId,
     changedBy: interaction.user.id,
   });
+}
 
-  // If status is 'closed', the existing close flow will be triggered by the button
-  // We don't auto-trigger archive here — user should use the close button for full archive
+/** `/ticket manage status closed`: archive and delete the channel, same as the Close button. */
+async function closeTicketFromStatus(
+  interaction: ChatInputCommandInteraction<CacheType>,
+  ticket: Ticket,
+  deps: TicketStatusDeps,
+): Promise<void> {
+  const guildId = interaction.guildId!;
+  const tlClose = lang.ticket.close;
+
+  // An empty channelId means the archive forum was deleted (channelDelete blanks it).
+  const archivedConfig = await deps.archivedTicketConfigRepo.findOneBy({ guildId });
+  if (!archivedConfig?.channelId) {
+    await replyEphemeralError(interaction, tlClose.notConfigured);
+    return;
+  }
+
+  // Acknowledge first, like the Close button: the transcript fetch can outlast
+  // Discord's 3-second window, and on success the channel (and this reply) is gone.
+  await interaction.reply({ content: tlClose.closing, flags: [MessageFlags.Ephemeral] });
+
+  const outcome = await claimAndArchiveTicket(
+    interaction.client,
+    ticket,
+    guildId,
+    interaction.channel as GuildTextBasedChannel,
+    archivedConfig.channelId,
+    { id: interaction.user.id, username: interaction.user.username },
+    deps,
+  );
+  await reportTicketCloseOutcome(interaction, outcome);
+
+  enhancedLogger.info('Ticket closed via status command', LogCategory.COMMAND_EXECUTION, {
+    guildId,
+    ticketId: ticket.id,
+    outcome,
+    changedBy: interaction.user.id,
+  });
 }
 
 // ============================================================================
@@ -182,6 +251,9 @@ export async function ticketStatusHandler(interaction: ChatInputCommandInteracti
 // ============================================================================
 
 export async function ticketAssignHandler(interaction: ChatInputCommandInteraction<CacheType>) {
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
+  if (!guard.allowed) return;
+
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -228,6 +300,9 @@ export async function ticketAssignHandler(interaction: ChatInputCommandInteracti
 // ============================================================================
 
 export async function ticketUnassignHandler(interaction: ChatInputCommandInteraction<CacheType>) {
+  const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
+  if (!guard.allowed) return;
+
   const guildId = interaction.guildId!;
   const channelId = interaction.channelId;
 
@@ -295,7 +370,7 @@ export async function ticketInfoHandler(interaction: ChatInputCommandInteraction
   }
 
   const { config, statuses } = await getWorkflowConfig(guildId);
-  const currentStatus = mapStatus(ticket.status);
+  const currentStatus = toWorkflowStatusId(ticket.status);
   const statusDef = findStatusById(statuses, currentStatus);
 
   const embed = new EmbedBuilder()

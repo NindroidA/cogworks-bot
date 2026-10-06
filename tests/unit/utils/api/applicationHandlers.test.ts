@@ -405,6 +405,25 @@ describe('POST /applications/:id/archive', () => {
     expect(fakeArchiveAndCloseApp).not.toHaveBeenCalled();
   });
 
+  test('returns 404 when the archive forum was deleted (channelId blanked) — no flip', async () => {
+    applicationRepoState.findOneByResult = {
+      id: 7,
+      guildId: 'guild-1',
+      status: 'pending',
+      channelId: 'c-1',
+    };
+    archivedAppConfigRepoState.findOneByResult = { guildId: 'guild-1', channelId: '' };
+
+    await expect(
+      getRoute('POST /applications/:id/archive')('guild-1', {}, '/applications/7/archive'),
+    ).rejects.toMatchObject({
+      statusCode: 404,
+      message: 'Archive config not found',
+    });
+    expect(applicationRepoState.updateCalls).toHaveLength(0);
+    expect(fakeArchiveAndCloseApp).not.toHaveBeenCalled();
+  });
+
   test('channel not text-based: marks closed, returns archived: false, skips archive call', async () => {
     applicationRepoState.findOneByResult = {
       id: 7,

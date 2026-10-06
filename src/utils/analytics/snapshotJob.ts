@@ -17,6 +17,7 @@ import { INTERVALS, RETENTION_DAYS } from '../constants';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { activityTracker } from './activityTracker';
 import { sendDigest } from './digestBuilder';
+import { utcDateKey } from './snapshotDate';
 
 /** Interval handle for cleanup (so it can be cleared on shutdown) */
 let snapshotInterval: ReturnType<typeof setInterval> | null = null;
@@ -30,10 +31,25 @@ function msUntilMidnightUtc(): number {
   return tomorrow.getTime() - now.getTime();
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /**
- * Run the daily snapshot flush and cleanup.
+ * The UTC midnight a run belongs to: the one nearest `now`. The job is
+ * scheduled for 00:00 UTC, but the timer can fire late (a busy event loop, a
+ * slow first tick) and a 24h interval can drift slightly early, so anchoring
+ * to the nearest midnight keeps every run on the right day.
  */
-async function runDailySnapshot(client: Client): Promise<void> {
+export function runMidnight(now: number = Date.now()): Date {
+  return new Date(Math.round(now / DAY_MS) * DAY_MS);
+}
+
+/**
+ * Run the daily snapshot flush and cleanup. `now` is injectable for tests.
+ */
+export async function runDailySnapshot(client: Client, now: number = Date.now()): Promise<void> {
+  // The day this run records is the UTC day that ended at its midnight.
+  const midnight = runMidnight(now);
+  const endedDay = utcDateKey(new Date(midnight.getTime() - 1));
   enhancedLogger.info('Running daily analytics snapshot job', LogCategory.SYSTEM);
 
   const configRepo = AppDataSource.getRepository(AnalyticsConfig);
@@ -57,19 +73,17 @@ async function runDailySnapshot(client: Client): Promise<void> {
       }
     }
 
-    // Flush all in-memory counters
+    // Guilds with no activity on the ended day still get a row for it, so the
+    // growth history has that day's member count. Checked before flushAll,
+    // which consumes the counters.
+    const idleGuilds = [...guildMemberCounts.keys()].filter(id => !activityTracker.hasCounters(id, endedDay));
+
+    // Flush all in-memory counters (each buffered day into its own row)
     await activityTracker.flushAll(guildMemberCounts);
 
-    // Also flush for guilds with no activity (to record member count)
-    for (const config of enabledConfigs) {
-      if (!activityTracker.hasCounters(config.guildId)) {
-        const memberCount = guildMemberCounts.get(config.guildId) ?? 0;
-        await activityTracker.flushSnapshot(config.guildId, memberCount);
-      }
+    for (const guildId of idleGuilds) {
+      await activityTracker.flushSnapshot(guildId, guildMemberCounts.get(guildId) ?? 0, endedDay);
     }
-
-    // Clean stale in-memory entries
-    activityTracker.cleanStaleEntries();
 
     // Clean old snapshots (90+ days)
     const cutoffDate = new Date();
@@ -83,13 +97,13 @@ async function runDailySnapshot(client: Client): Promise<void> {
       enhancedLogger.info(`Cleaned ${deleteResult.affected} old analytics snapshots`, LogCategory.DATABASE);
     }
 
-    // Send digests for configured guilds
-    const today = new Date();
+    // Send digests for configured guilds (dated by the run's midnight, so a
+    // slow flush above can't push the digest window into the new day)
     for (const config of enabledConfigs) {
       if (!config.digestChannelId) continue;
 
       try {
-        await sendDigest(client, config, today);
+        await sendDigest(client, config, midnight);
       } catch (error) {
         enhancedLogger.error('Failed to send analytics digest', error as Error, LogCategory.SYSTEM, {
           guildId: config.guildId,
@@ -103,6 +117,10 @@ async function runDailySnapshot(client: Client): Promise<void> {
     );
   } catch (error) {
     enhancedLogger.error('Analytics snapshot job failed', error as Error, LogCategory.SYSTEM);
+  } finally {
+    // Always — including the no-guild-enabled early return — or counters for
+    // guilds that never opted in pile up until restart.
+    activityTracker.cleanStaleEntries();
   }
 }
 

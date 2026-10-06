@@ -34,7 +34,8 @@ export function registerTicketHandlers(
     const archivedConfig = await archivedTicketConfigRepo.findOneBy({
       guildId,
     });
-    if (!archivedConfig) throw ApiError.notFound('Archive config not found');
+    // A deleted archive forum blanks channelId (channelDelete) but keeps the row.
+    if (!archivedConfig?.channelId) throw ApiError.notFound('Archive config not found');
 
     // Mark closed immediately — atomic flip so a concurrent close (button
     // click racing the dashboard) loses cleanly instead of both proceeding
