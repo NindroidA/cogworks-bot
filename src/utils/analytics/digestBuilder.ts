@@ -15,6 +15,7 @@ import type { AnalyticsConfig } from '../../typeorm/entities/analytics/Analytics
 import { AnalyticsSnapshot } from '../../typeorm/entities/analytics/AnalyticsSnapshot';
 import { Colors } from '../colors';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
+import { snapshotDate, utcDateKey } from './snapshotDate';
 
 /**
  * Sparkline characters — maps a 0-1 fraction to a bar character.
@@ -200,13 +201,16 @@ export async function sendDigest(client: Client, config: AnalyticsConfig, today:
 
   const snapshotRepo = AppDataSource.getRepository(AnalyticsSnapshot);
   const days = digestType === 'weekly' ? 7 : 30;
-  const startDate = new Date(today);
-  startDate.setUTCDate(startDate.getUTCDate() - days);
+  // `today` is the run's UTC midnight (snapshotJob runMidnight); the digest
+  // covers the `days` full UTC days that end with the one that just finished.
+  const lastDay = new Date(today.getTime() - 60_000);
+  const firstDay = new Date(lastDay);
+  firstDay.setUTCDate(firstDay.getUTCDate() - (days - 1));
 
   const snapshots = await snapshotRepo.find({
     where: {
       guildId: config.guildId,
-      date: Between(startDate, today),
+      date: Between(snapshotDate(utcDateKey(firstDay)), snapshotDate(utcDateKey(lastDay))),
     },
     order: { date: 'ASC' },
   });
