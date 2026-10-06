@@ -1,6 +1,6 @@
 # Cogworks Bot Commands
 
-**Last Updated:** `March 19, 2026` (v3.0.0)
+**Last Updated:** `October 6, 2026` (v3.16.37)
 
 Complete command reference for all bot systems.
 
@@ -896,11 +896,23 @@ All commands are protected with rate limiting:
 - Admin/staff role validation
 - Server owner bypass for critical commands
 
+## Command Visibility and Access
+
+Server-wide and destructive commands are **hidden** from everyone without Discord's Administrator permission: `/bot-setup`, `/bot-reset`, `/bot-health`, `/data-export`, `/import`, `/archive`, `/migrate`, `/dev`, `/role`, and the bot-owner `/status`.
+
+Every feature command is **visible to all members**: `/ticket`, `/ticket-setup`, `/application`, `/application-setup`, `/announcement`, `/announcement-setup`, `/memory`, `/memory-setup`, `/xp`, `/xp-setup`, `/starboard`, `/reactionrole`, `/rules-setup`, `/event`, `/onboarding`, `/automod`, `/analytics`, `/baitchannel` and the four right-click actions. Seeing a command doesn't grant it: each subcommand checks the member's feature access before doing anything, autocomplete suggestions need the same feature and level as their subcommand, and modal submits re-check access.
+
+- **Discord Administrators** can always use everything.
+- **No dashboard grants** for the server (the default): feature commands stay admin-only, and other members get "This command requires Administrator permission".
+- **With dashboard grants** (Permissions page): a role's `use`, `manage` or `admin` level on a feature decides what its members can run. `use` covers read-only views (`/ticket type list`, `/ticket manage info`, `/analytics overview`, `/reactionrole list`, `/starboard stats`, the right-click lookups), `manage` covers setup and day-to-day changes (including `/application info`, which shows internal staff notes), and `admin` covers XP edits and resets (`/xp set`, `/xp reset`, `/xp reset-all`) and raid lockdowns (`/baitchannel raid enter`, `/baitchannel raid release`).
+
+Member-facing commands need no grant: `/application check` (your own open application), `/rank`, `/leaderboard`, `/ping`, `/coffee`, `/dashboard`.
+
 ## Permission Levels
 
 | Level | Access |
 |-------|--------|
 | **Bot Owner** | Status commands, `/bot-health check` on any server (BOT_OWNER_ID env var) |
 | **Admin** | All commands + role management + setup + data export + health check |
-| **Staff** | Ticket replies only |
-| **User**  | None (all commands are staff-only) |
+| **Feature grant** | The features and levels a dashboard role grant gives (see above) |
+| **User**  | Member-facing commands only (`/application check`, `/rank`, `/leaderboard`, `/ping`, `/coffee`, `/dashboard`) |

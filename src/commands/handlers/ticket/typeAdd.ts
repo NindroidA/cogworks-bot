@@ -106,6 +106,10 @@ export async function typeAddHandler(interaction: ChatInputCommandInteraction): 
  */
 export async function typeAddModalHandler(interaction: ModalSubmitInteraction): Promise<void> {
   try {
+    // Re-checked on submit (defense in depth): access can change while the modal is open.
+    const guard = await guardFeatureAccess(interaction, 'tickets', 'manage');
+    if (!guard.allowed) return;
+
     const user = interaction.user.username;
     enhancedLogger.info(`User ${user} submitted ticket type-add modal`, LogCategory.COMMAND_EXECUTION);
 
@@ -261,3 +265,9 @@ export function buildTypeConfirmationEmbed(type: CustomTicketType, mode: TypeEmb
 
   return embed;
 }
+
+/**
+ * Untouched alias for suites that test the REAL handler: ticketInteraction.test.ts
+ * mock.module()s this module process-globally and spreads the real exports.
+ */
+export const typeAddModalHandlerImpl = typeAddModalHandler;

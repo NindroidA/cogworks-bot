@@ -5,6 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.30] - 2026-10-06
+
+Feature commands are now visible to every member, so the dashboard's
+per-role feature grants finally work for slash commands and right-click
+actions (NindroidA/cogworks-bot#41). Server-wide and destructive commands stay
+hidden behind Discord's Administrator permission. Servers that never set up
+grants see no change in who can run what: feature commands still answer
+"requires Administrator" for everyone else.
+
+### Changed
+
+- **Hybrid command visibility.** `/ticket`, `/ticket-setup`, `/application`,
+  `/application-setup`, `/announcement`, `/announcement-setup`, `/memory`,
+  `/memory-setup`, `/xp`, `/xp-setup`, `/starboard`, `/reactionrole`,
+  `/rules-setup`, `/event`, `/onboarding`, `/automod`, `/analytics`,
+  `/baitchannel` and the four context menus are registered with no default
+  member permission. Each subcommand's feature guard decides access, so a
+  role granted `tickets: manage` in the dashboard can now see and run
+  `/ticket manage assign`. Before, every one of these was registered
+  Administrator-only and Discord never delivered them to the role.
+- **Still Administrator-only:** `/bot-setup`, `/bot-reset`, `/bot-health`, `/data-export`,
+  `/import`, `/archive`, `/migrate`, `/dev` and `/role` (saved staff/admin
+  roles, which has no feature grant), plus the bot-owner `/status`.
+- **`/application check` reaches applicants.** The applicant self-check was
+  hidden by the old Administrator default on `/application`; members can now
+  see their own open application's status.
+
+### Fixed
+
+- **`/application position remove|toggle|edit|fields` autocomplete.** The
+  routes were keyed without the `position` group and never matched, so the
+  position picker offered nothing.
+
+### Security
+
+- **Every visible path is guarded.** `/ticket manage info` now checks
+  `tickets: use`, and `/starboard stats` and `/starboard random` check
+  `starboard: use`. All three relied only on the Administrator default.
+- **`/application info` needs `applications: manage`** (was `use`), the level
+  the review actions need. Its embed shows internal staff notes and reviewer
+  history, and applicants can run it in their own application channel.
+- **Autocomplete checks access per subcommand.** Each route carries the same
+  feature and level as its subcommand's guard (`manage` everywhere except
+  `/ticket type edit` at `use`); anyone else gets an empty list. Before, the
+  Administrator default was the only thing keeping bait keywords, memory
+  titles, routing and AutoMod rule names, ticket types and templates from
+  members.
+- **Modal submits re-check access.** The ticket type-add, email-import and
+  position-edit modals check `manage` again on submit (email import used to
+  skip the permission check).
+- **Refused commands leave no trace.** When a guard refuses, the dispatcher no
+  longer writes a `command:*` audit row under the member's name and no longer
+  requests a command refresh, so spamming a refused `*-setup` can't keep
+  restarting the refresh debounce.
+- **New guard-coverage test** (`tests/unit/commands/commandVisibility.test.ts`)
+  walks the registered commands and fails when a visible command or
+  subcommand has no guard row, when a member without a grant gets past a
+  guard, when a guard checks the wrong feature or a lower level, when an
+  autocomplete route's feature or level differs from its subcommand's, or when
+  a refused command is audited.
+
 ## [3.16.29] - 2026-10-06
 
 Ticket creation robustness (NindroidA/cogworks-bot#41): smart routing now
