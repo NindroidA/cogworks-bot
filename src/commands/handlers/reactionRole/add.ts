@@ -14,6 +14,7 @@ import {
   validateRoleForMenu,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { optionEmojiKey } from '../../../utils/reactionRole/optionEmoji';
 
 const tl = lang.reactionRole;
 const menuRepo = lazyRepo(ReactionRoleMenu);
@@ -61,8 +62,10 @@ export async function reactionRoleAddHandler(interaction: ChatInputCommandIntera
       return;
     }
 
-    // Check duplicate emoji
-    if (menu.options.some(o => o.emoji === emoji)) {
+    // Check duplicate emoji. Custom emoji compare by id, as the reaction lookup does,
+    // so `<:x:id>`, `<a:x:id>` and a renamed emoji can't become two colliding options.
+    const emojiKey = optionEmojiKey(emoji);
+    if (menu.options.some(o => optionEmojiKey(o.emoji) === emojiKey)) {
       await replyEphemeralError(interaction, tl.add.duplicateEmoji);
       return;
     }
