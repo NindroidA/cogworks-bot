@@ -14,6 +14,7 @@
 
 import { afterAll, beforeAll, beforeEach, describe, expect, jest, mock, test } from 'bun:test';
 import { AppDataSource } from '../../../src/typeorm';
+import { setBotConfigFindOneBy, sharedBotConfigRepo } from '../../helpers/sharedBotConfigRepo';
 
 const fakeWriteAuditLog = jest.fn(async () => undefined);
 mock.module('../../../src/utils/api/handlers/auditHelper', () => ({
@@ -24,9 +25,6 @@ mock.module('../../../src/utils/api/handlers/auditHelper', () => ({
 type GetRepository = (entity: unknown) => unknown;
 
 const configured = new Set<string>();
-const botConfigRepo = {
-  findOneBy: async ({ guildId }: { guildId: string }) => (configured.has(guildId) ? { guildId } : null),
-};
 
 let handleSlashCommand: typeof import('../../../src/commands/commands').handleSlashCommand;
 let original: GetRepository;
@@ -34,8 +32,9 @@ let original: GetRepository;
 beforeAll(async () => {
   const ds = AppDataSource as unknown as { getRepository: GetRepository };
   original = ds.getRepository;
+  setBotConfigFindOneBy(async ({ guildId }) => (configured.has(guildId) ? { guildId } : null));
   ds.getRepository = (entity: any) => {
-    if (entity?.name === 'BotConfig') return botConfigRepo;
+    if (entity?.name === 'BotConfig') return sharedBotConfigRepo;
     throw new Error(`command audit test: no fake repo for ${entity?.name}`);
   };
   ({ handleSlashCommand } = await import('../../../src/commands/commands'));
@@ -81,7 +80,13 @@ describe('command audit log', () => {
     await handleSlashCommand({} as any, interaction);
 
     expect(fakeWriteAuditLog).toHaveBeenCalledTimes(1);
-    expect(fakeWriteAuditLog.mock.calls[0]).toEqual([guildId, 'command:import', interaction.user.id, {}, 'command'] as any);
+    expect(fakeWriteAuditLog.mock.calls[0]).toEqual([
+      guildId,
+      'command:import',
+      interaction.user.id,
+      {},
+      'command',
+    ] as any);
   });
 
   test('the "not configured" reply is not audited', async () => {

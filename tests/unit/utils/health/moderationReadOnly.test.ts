@@ -88,7 +88,9 @@ describe('read-only guarantee (moderation checks, real registry and repo loader)
 });
 
 describe('deep-mode REST budget (real registry)', () => {
-  test('deleted menu messages are all looked up before archived memory posts, which stop at 20', async () => {
+  // 60 calls: the slash-command list (core.commands) and the 40 menu messages first; the
+  // archived memory posts get the 19 left, below their own cap of 20.
+  test('deleted menu messages are all looked up before archived memory posts, which get what is left', async () => {
     const empty = Object.fromEntries(Object.keys(HEALTH_ENTITIES).map(name => [name, [] as unknown[]]));
     const rows: Record<string, unknown[]> = {
       ...empty,
@@ -120,8 +122,8 @@ describe('deep-mode REST budget (real registry)', () => {
     const count = (code: string) => Object.values(report.systems).flatMap(s => s?.findings ?? []).filter(f => f.code === code).length;
     expect(count('reactionRole.menu.message_missing')).toBe(40);
     expect(messages).toHaveLength(40);
-    expect(threads).toHaveLength(20);
-    expect(count('memory.item.thread_missing')).toBe(20);
+    expect(threads).toHaveLength(19);
+    expect(count('memory.item.thread_missing')).toBe(19);
     expect(report.notChecked).toEqual(['rest:memory.thread']);
   });
 });

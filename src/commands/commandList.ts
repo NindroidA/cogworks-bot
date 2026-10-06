@@ -13,6 +13,7 @@ import { applicationSetup } from './builders/applicationSetup';
 import { archive } from './builders/archive';
 import { automodCommand } from './builders/automod';
 import { baitChannelCommand } from './builders/baitChannel';
+import { botHealth } from './builders/botHealth';
 import { botReset } from './builders/botReset';
 import { botSetup } from './builders/botSetup';
 import { coffee } from './builders/coffee';
@@ -43,6 +44,7 @@ import { xpSetup } from './builders/xpSetup';
 // Base commands available in all environments
 const baseCommands = [
   botSetup, // bot setup
+  botHealth, // server health check (always visible; admins or the bot owner)
   role, // role management (add, remove, list)
   ticketSetup, // ticket setup
   ticket, // ticket management (custom types & email import)

@@ -1,26 +1,111 @@
 {
+  "command": {
+    "builder": {
+      "check": {
+        "deep": "Also look up messages and threads through Discord (slower; once per 10 minutes)",
+        "descrp": "Check the saved settings against this server's channels, roles and commands",
+        "guildId": "Bot owner only: check another server by its ID",
+        "system": "Only check one system (default: all)"
+      },
+      "cmdDescrp": "Check this server's Cogworks setup for problems"
+    },
+    "details": {
+      "back": "Back to summary",
+      "findings": "{count} found",
+      "next": "Next",
+      "page": "Page {page} of {pages}",
+      "placeholder": "Show what was found in…",
+      "previous": "Previous",
+      "title": "{system}: what was found"
+    },
+    "errors": {
+      "failed": "The health check couldn't finish. You can run it again right away: a check that fails doesn't count toward the rate limit.",
+      "guildNotFound": "The bot isn't in a server with the ID `{guildId}`.",
+      "invalidGuildId": "`{guildId}` isn't a valid server ID.",
+      "notOwner": "Only the bot owner can use the `guild-id` option.",
+      "viewFailed": "That part of the report couldn't be shown. Try the button or menu again."
+    },
+    "export": {
+      "button": "Export JSON",
+      "content": "The full report is attached. It holds only IDs, finding codes and numbers, no names or other text from your settings. Share it with support if you need help."
+    },
+    "notChecked": {
+      "botMember": "The bot's own member wasn't cached, so its permissions weren't checked.",
+      "guildUnavailable": "Discord reported this server as unavailable, so channels and roles weren't checked.",
+      "labels": {
+        "ApplicationConfig.messageId": "The application panel message",
+        "TicketConfig.messageId": "The ticket panel message",
+        "announcement.channel": "The default announcement channel",
+        "application emojis": "The bot's own emojis",
+        "guild emojis": "This server's emojis",
+        "memory.thread": "Memory posts",
+        "memory.welcome": "Memory forum welcome posts",
+        "reactionRole.message": "Reaction-role menu messages",
+        "rules.message": "The rules message"
+      },
+      "rest": "{label}: not all were looked up, so some weren't checked. A deep check makes at most {max} Discord lookups (and looks up at most {posts} memory posts), so running it again skips the same ones."
+    },
+    "severity": {
+      "block": "❌ Broken",
+      "cosmetic": "💡 Cleanup",
+      "degraded": "⚠️ Degraded"
+    },
+    "summary": {
+      "fail": "❌ **{system}**: {count} found, something is broken",
+      "hint": "Pick a system below to see the details.",
+      "meta": "Cogworks v{version} · checked <t:{time}:f>",
+      "metaDeep": "Cogworks v{version} · deep check <t:{time}:f>",
+      "noChecks": "There are no checks for this system yet.",
+      "notChecked": "Not checked",
+      "notCheckedYet": "➖ **{system}**: not checked yet",
+      "notConfigured": "➖ **{system}**: not set up",
+      "ok": "✅ **{system}**: no problems",
+      "title": "Server health",
+      "titleFor": "Server health: {guildName}",
+      "warn": "⚠️ **{system}**: {count} found"
+    },
+    "systems": {
+      "all": "All systems",
+      "announcement": "Announcements",
+      "application": "Applications",
+      "baitchannel": "Bait channel",
+      "core": "Core (settings, staff roles, permissions, commands)",
+      "memory": "Memory",
+      "onboarding": "Onboarding",
+      "reactionRole": "Reaction roles",
+      "rules": "Rules",
+      "starboard": "Starboard",
+      "ticket": "Tickets",
+      "xp": "XP"
+    }
+  },
   "findings": {
-    "core.global_staff_role.enabled_without_role": "The global staff role is turned on, but no role is selected, so new tickets ping nobody.",
+    "core.global_staff_role.enabled_without_role": "The global staff role is turned on, but no role is selected, so new tickets ping nobody. Pick one in `/bot-setup`.",
     "core.global_staff_role.invalid": "The saved global staff role isn't a valid role. Pick it again in `/bot-setup`.",
-    "core.global_staff_role.missing": "The global staff role (`{roleId}`) no longer exists on this server.",
-    "core.global_staff_role.format_legacy": "The global staff role <@&{roleId}> is saved in the old mention format. It can be converted to the plain role ID.",
+    "core.global_staff_role.missing": "The global staff role (`{roleId}`) no longer exists on this server. Pick a new one in `/bot-setup`.",
+    "core.global_staff_role.format_legacy": "The global staff role <@&{roleId}> is saved in the old mention format. It works as it is. No action is needed.",
     "core.global_staff_role.not_mentionable": "The global staff role <@&{roleId}> can't be mentioned and the bot lacks **Mention @everyone, @here, and All Roles**, so new-ticket pings don't notify staff. Make the role mentionable or grant the bot that permission.",
     "core.global_staff_role.error": "Couldn't check the global staff role. Try again later.",
-    "core.locale.unsupported": "The server language is set to `{locale}`, which the bot doesn't support, so English is used.",
+    "core.locale.unsupported": "The server language is set to `{locale}`, which the bot doesn't support, so English is used. No action is needed.",
     "core.locale.error": "Couldn't check the server language. Try again later.",
-    "core.staff_role.unknown_type": "A saved role has the unknown type `{type}` (expected `staff` or `admin`). Applications and admin-only tickets ignore it, but it still gets access to new ticket channels.",
-    "core.staff_role.invalid": "The saved role \"{alias}\" isn't a valid role reference, so the bot ignores it. The entry can be removed; add the role again with `/role add` if you still need it.",
-    "core.staff_role.duplicate": "The role <@&{roleId}> is saved twice (it's also entry #{keptRowId}, \"{keptAlias}\"). The extra entry \"{alias}\" can be removed.",
-    "core.staff_role.missing": "The saved role \"{alias}\" (`{roleId}`) was deleted. The entry can be removed.",
-    "core.staff_role.format_legacy": "The saved role <@&{roleId}> is stored in the old mention format. It can be converted to the plain role ID.",
+    "core.staff_role.unknown_type": "A saved role has the unknown type `{type}` (expected `staff` or `admin`). Applications and admin-only tickets ignore it, but it still gets access to new ticket channels. If it shouldn't, share this report (**Export JSON**) with support.",
+    "core.staff_role.invalid": "The saved role \"{alias}\" isn't a valid role reference, so the bot ignores it. If you still need that role, add it again with `/role add staff` or `/role add admin`; otherwise no action is needed.",
+    "core.staff_role.duplicate": "The role <@&{roleId}> is saved twice (it's also entry #{keptRowId}, \"{keptAlias}\"). Both entries give the same access. No action is needed.",
+    "core.staff_role.missing": "The saved role \"{alias}\" (`{roleId}`) was deleted. New ticket channels skip it. No action is needed.",
+    "core.staff_role.format_legacy": "The saved role <@&{roleId}> is stored in the old mention format. It works as it is. No action is needed.",
     "core.staff_role.error": "Couldn't check the saved staff roles. Try again later.",
-    "core.guild_permission.unknown_feature": "A permission grant uses the unknown feature `{feature}` and has no effect.",
-    "core.guild_permission.unknown_level": "A permission grant for **{feature}** uses the unknown level `{level}`, so the bot ignores it.",
-    "core.guild_permission.everyone": "The @everyone role has **{level}** access to **{feature}**, so every member has it. Remove the grant unless that's intended.",
-    "core.guild_permission.missing_role": "A permission grant for **{feature}** points to a deleted role (`{roleId}`).",
+    "core.guild_permission.unknown_feature": "A permission grant uses the unknown feature `{feature}` and has no effect. Remove it from the dashboard's Permissions page.",
+    "core.guild_permission.unknown_level": "A permission grant for **{feature}** uses the unknown level `{level}`, so the bot ignores it. Remove it from the dashboard's Permissions page.",
+    "core.guild_permission.everyone": "The @everyone role has **{level}** access to **{feature}**, so every member has it. Unless that's intended, remove it from the dashboard's Permissions page.",
+    "core.guild_permission.missing_role": "A permission grant for **{feature}** points to a deleted role (`{roleId}`). Remove it from the dashboard's Permissions page.",
     "core.guild_permission.error": "Couldn't check the feature permissions. Try again later.",
-    "core.setup_state.unknown_system": "The setup dashboard has the unknown system `{systemId}` selected.",
+    "core.setup_state.unknown_system": "The setup dashboard has the unknown system `{systemId}` selected. `/bot-setup` ignores it, so no action is needed.",
     "core.setup_state.error": "Couldn't check the setup dashboard state. Try again later.",
+    "core.commands.no_scope": "Discord won't list this server's slash commands, which usually means the bot was added without the **applications.commands** scope. Add it by re-inviting the bot with https://discord.com/oauth2/authorize?client_id={botId}&scope=bot+applications.commands (settings are kept).",
+    "core.commands.missing": "Slash commands the bot should have here aren't registered ({count}): {names}. The bot registers its commands again when it restarts; if this is still reported after that, ask for help in the support server (`/server`).",
+    "core.commands.outdated": "Slash commands here don't match the current version ({count}): {names}. Their options or permissions changed. The bot registers its commands again when it restarts; if this is still reported after that, ask for help in the support server (`/server`).",
+    "core.commands.unexpected": "Slash commands are registered here that the bot no longer offers on this server ({count}): {names}. The bot replaces its commands when it restarts; if this is still reported after that, ask for help in the support server (`/server`).",
+    "core.commands.error": "Couldn't check the slash commands. Try again later.",
     "ticket.panel.panel_unset": "The ticket panel has no channel (it was deleted, or setup never picked one), so members can't open tickets. Post the panel again with `/ticket-setup`.",
     "ticket.panel.channel_missing": "The ticket panel channel (`{channelId}`) was deleted, so members can't open tickets. Post the panel again with `/ticket-setup`.",
     "ticket.panel.channel_type": "The ticket panel channel <#{channelId}> isn't a text channel. Pick a text channel with `/ticket-setup`.",
