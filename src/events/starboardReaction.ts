@@ -14,7 +14,7 @@ import { enhancedLogger, fetchPartial, LogCategory, verifiedMessageDelete } from
 import { lazyRepo } from '../utils/database/lazyRepo';
 import { getStarboardConfig, invalidateStarboardCache } from '../utils/starboard/configCache';
 
-// The config cache moved to utils so the /starboard commands can invalidate it; re-exported for existing callers.
+// The config cache moved to utils so the guild purge and the /starboard commands can invalidate it; re-exported for existing callers.
 export { invalidateStarboardCache };
 
 const configRepo = lazyRepo(StarboardConfig);

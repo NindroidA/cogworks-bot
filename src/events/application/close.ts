@@ -55,7 +55,11 @@ export const applicationCloseEvent = async (
   // "Closing application..." (interaction.update). A bare return freezes that
   // message forever (the close-button hang). Each guard surfaces an ephemeral
   // followUp before bailing — mirrors the ticket close flow.
-  if (!archivedConfig) {
+  //
+  // Deleting the archive forum blanks the config's channelId (channelDelete)
+  // instead of removing the row, so an empty id means "not configured" too —
+  // otherwise every close fails later with a misleading transcript error.
+  if (!archivedConfig?.channelId) {
     enhancedLogger.warn(lang.application.applicationConfigNotFound, LogCategory.SYSTEM, { guildId });
     await deps.replyEphemeralError(interaction, tl.notConfigured);
     return;
