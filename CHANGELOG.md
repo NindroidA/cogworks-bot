@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.11] - 2026-10-06
+
+One staff-role format. Saved staff roles came in two shapes — `/role add`
+stored the `<@&id>` mention while the dashboard and `/bot-setup` store the raw
+role ID — and most code understood only one of them, so dashboard-saved roles
+were silently ignored and deleted roles were never cleaned up. The raw ID is now
+the canonical format; every reader accepts both, so existing rows keep working
+without a migration (NindroidA/cogworks-bot#41).
+
+### Fixed
+
+- **Dashboard-saved staff roles are honored again**: ticket channels,
+  application channels and Admin Only now grant/hide roles saved from the
+  dashboard (raw IDs), not just ones saved with `/role add`.
+- **A deleted staff role no longer breaks ticket/application creation**: role IDs
+  that no longer exist in the server are skipped (with a log warning) when
+  ticket, application and email-import channels are built, instead of making
+  channel creation fail for the whole guild. Rows for roles deleted before this
+  release stay saved; remove them from the dashboard's role list, since
+  `/role remove` can't pick a role that no longer exists.
+- **The global staff role pings again**: the new-ticket and Admin Only request
+  pings render the role as a mention; a raw ID (how `/bot-setup` saves it)
+  used to post as a bare number.
+- **Email-import tickets are visible to staff**: the channel now grants the
+  importer and every saved staff/admin role, and picks up the global staff role
+  when it is saved as a raw ID — previously a non-admin importer couldn't open
+  the ticket they had just made.
+- **`/role remove` no longer reports false success**: removing a role under the
+  wrong type (e.g. `staff` for a role saved as `admin`) now says the role isn't
+  saved instead of "Successfully removed" with nothing deleted. It also removes
+  dashboard-saved rows.
+- **Role deletion cleans up more references**: deleting a Discord role now
+  removes its staff-role rows in both formats, clears a legacy-format global
+  staff role, drops it from onboarding role-select options, clears the
+  bait-channel raid alert role, and removes ticket routing rules that pointed at
+  it. Dashboard permission grants (`GuildPermission`) for the deleted role are
+  still kept for now (the dashboard lists them under "Deleted roles"); that part
+  is left for a later decision.
+
+### Changed
+
+- **`/role add` stores the raw role ID** (matching the dashboard), treats a role
+  saved in either format as already saved, and rejects `@everyone`.
+- **`/role list` shows every saved role as a mention**, whichever format it was
+  stored in.
+
 ## [3.16.10] - 2026-10-06
 
 `/archive cleanup` now keeps the transcripts it deletes, and deletes only what
