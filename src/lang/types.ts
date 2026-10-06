@@ -2042,9 +2042,6 @@ export interface Language {
   addRole: LangRoles['addRole'];
   removeRole: LangRoles['removeRole'];
   getRoles: LangRoles['getRoles'];
-  cogdeck: {
-    cmdDescrp: string;
-  };
   announcement: LangAnnouncement;
   baitChannel: LangBaitChannel;
   dataExport: LangDataExport;
