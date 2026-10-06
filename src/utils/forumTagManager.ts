@@ -14,7 +14,8 @@ export const FORUM_TAG_NAME_MAX = 20;
  */
 export function forumTagName(displayName: string): string {
   const name = displayName.trim();
-  return (name.length > FORUM_TAG_NAME_MAX ? name.replace(/\s+application$/i, '') : name).slice(0, FORUM_TAG_NAME_MAX);
+  const short = name.length > FORUM_TAG_NAME_MAX ? name.replace(/\s+application$/i, '') : name;
+  return short.slice(0, FORUM_TAG_NAME_MAX).trimEnd();
 }
 
 /** Convert a stored emoji string (unicode or `<:name:id>`) to a forum tag emoji. */

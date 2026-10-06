@@ -408,14 +408,28 @@ export async function handleRecurring(
 
     const scheduledEvent = await interaction.guild.scheduledEvents.create(eventData);
 
-    // Only mark the template recurring once its first occurrence exists.
-    template.isRecurring = true;
-    template.recurringPattern = pattern;
-    await eventTemplateRepo.save(template);
+    // The event exists from here (so the template is only marked recurring
+    // now). A later failure is a warning, not an error: a retry would start a
+    // second series.
+    try {
+      template.isRecurring = true;
+      template.recurringPattern = pattern;
+      await eventTemplateRepo.save(template);
 
-    // Create auto-reminder
-    if (config.reminderChannelId && config.defaultReminderMinutes > 0) {
-      await createAutoReminder(guildId, scheduledEvent.id, template.title, startDate, config.defaultReminderMinutes);
+      if (config.reminderChannelId && config.defaultReminderMinutes > 0) {
+        await createAutoReminder(guildId, scheduledEvent.id, template.title, startDate, config.defaultReminderMinutes);
+      }
+    } catch (error) {
+      enhancedLogger.error(
+        'Recurring event created, but saving it failed',
+        error as Error,
+        LogCategory.COMMAND_EXECUTION,
+        {
+          guildId,
+        },
+      );
+      await interaction.editReply({ content: formatLang(tl.recurring.partial, template.title) });
+      return;
     }
 
     const startTimestamp = `<t:${toUnixSeconds(startDate)}:F>`;

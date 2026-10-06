@@ -40,20 +40,24 @@ const staffRoleRepo = lazyRepo(StaffRole);
 
 /**
  * Splits a message at Discord's 2000-character limit, at the last line break
- * or space before it so words stay whole (a word over half the limit is cut).
- * Only the break it splits at is dropped.
+ * or space before it so words stay whole (a word over half the limit is cut,
+ * never inside an emoji). Only the break it splits at is dropped, and blank
+ * parts are skipped (Discord rejects an empty message).
  */
 export function splitAnswer(text: string, limit = 2000): string[] {
   const parts: string[] = [];
   let rest = text;
   while (rest.length > limit) {
     const lastBreak = Math.max(rest.lastIndexOf('\n', limit), rest.lastIndexOf(' ', limit));
-    const at = lastBreak > limit / 2 ? lastBreak : limit;
+    const atBreak = lastBreak > limit / 2;
+    let at = atBreak ? lastBreak : limit;
+    const last = rest.charCodeAt(at - 1);
+    if (!atBreak && last >= 0xd800 && last <= 0xdbff) at -= 1; // keep a surrogate pair together
     parts.push(rest.slice(0, at));
-    rest = rest.slice(at === lastBreak ? at + 1 : at);
+    rest = rest.slice(atBreak ? at + 1 : at);
   }
   parts.push(rest);
-  return parts;
+  return parts.filter(part => part.trim());
 }
 
 /**
@@ -301,14 +305,15 @@ export const submitApplicationModal = async (_client: Client, interaction: Modal
     });
     channelCreated = true;
 
+    // Store the channel before anything else can fail (an expired interaction,
+    // a send): the Close button and /application status, note and claim find
+    // the application by it.
+    await applicationRepo.update({ id: savedApplication.id, guildId }, { channelId: channel.id, status: 'opened' });
+
     await interaction.reply({
       content: `✅ Your application has been submitted! Please check ${channel} for updates.`,
       flags: [MessageFlags.Ephemeral],
     });
-
-    // Store the channel before posting anything in it: if a later send fails,
-    // the Close button and /application status, note and claim still find it.
-    await applicationRepo.update({ id: savedApplication.id, guildId }, { channelId: channel.id, status: 'opened' });
 
     const welcomeMsg = `👋 Welcome, ${member.user.displayName}! Your application for **${position.title}** has been received.\n\n Our team will review your application and get back to you soon. Feel free to ask any questions here!\n`;
 

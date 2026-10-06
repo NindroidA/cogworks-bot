@@ -45,11 +45,13 @@ its custom reminders.
   (voice or stage); the channel's type decides which kind of event it is, and
   the next occurrence of a recurring event uses the same channel. Without a
   channel they say so instead of failing. `/event recurring` only marks the
-  template recurring once its first event exists.
+  template recurring once its first event exists, and if saving fails after
+  that it warns instead of saying it failed (running it again would start a
+  second series).
 - **Rescheduling an event dropped its `/event remind` reminders.** Moving the
   start time now moves every pending reminder by the same amount (ones that
   would be in the past are dropped) and adds the default reminder only if the
-  event had none.
+  event had none at that minute.
 - **A recurring chain could start from an event made by hand** in Discord with
   the same title as a recurring template. Only events the bot created continue
   a chain.

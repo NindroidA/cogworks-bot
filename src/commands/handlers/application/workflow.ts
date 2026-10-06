@@ -614,10 +614,12 @@ export async function applicationWorkflowStatusAutocomplete(interaction: {
   }
 
   const statuses = config.workflowStatuses || DEFAULT_APPLICATION_STATUSES;
-  const choices = statuses.map(s => ({
-    name: `${s.emoji} ${s.label}`,
-    value: s.id,
-  }));
+  const choices = statuses
+    .filter(s => !RESERVED_STATUS_IDS.includes(s.id))
+    .map(s => ({
+      name: `${s.emoji} ${s.label}`,
+      value: s.id,
+    }));
 
   await interaction.respond(choices.slice(0, 25));
 }

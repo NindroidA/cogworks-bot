@@ -60,6 +60,7 @@ mock.module("../../../src/events/application/close", () => ({
 // ---------------------------------------------------------------------------
 
 import { handleApplicationInteraction } from "../../../src/events/applicationInteraction";
+import { splitAnswer } from "../../../src/events/application/apply";
 
 // ---------------------------------------------------------------------------
 // Prototype-level spies — intercept every TypeORM Repository instance
@@ -866,6 +867,18 @@ describe("handleApplicationInteraction", () => {
       expect((interaction._replyCalls[0] as { content: string }).content).toContain("Could not create application");
     });
 
+    it("stores the channel even when the interaction expired before the reply", async () => {
+      const interaction = makeModalInteraction("application_modal_1", { field_about: "short" });
+      interaction.reply = async () => {
+        throw Object.assign(new Error("Unknown interaction"), { code: 10062 });
+      };
+
+      await handleApplicationInteraction(mockClient, interaction as never);
+
+      expect(updateSpy.mock.calls[0][1]).toEqual({ channelId: "new-channel-999", status: "opened" });
+      expect(deleteSpy).not.toHaveBeenCalled();
+    });
+
     it("keeps the row when the channel exists and a later send fails", async () => {
       const interaction = makeModalInteraction("application_modal_1", { field_about: "short" });
       interaction._newChannel.send = async () => {
@@ -1045,5 +1058,28 @@ describe("handleApplicationInteraction", () => {
         content: "❌ This position is no longer available.",
       });
     });
+  });
+});
+
+// v3.16.32: answers over Discord's 2000-character limit are split.
+describe("splitAnswer", () => {
+  const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+  it("never returns a blank part (Discord rejects an empty message)", () => {
+    expect(splitAnswer(`${"x".repeat(2000)} `)).toEqual(["x".repeat(2000)]);
+    const parts = splitAnswer(`${"x".repeat(1999)}\n \n  `);
+    expect(parts).toHaveLength(1);
+    expect(parts[0].trim()).toBe("x".repeat(1999));
+  });
+
+  it("never cuts an emoji in half", () => {
+    const text = `a${"😀".repeat(1100)}`;
+    const parts = splitAnswer(text);
+    expect(parts.length).toBe(2);
+    expect(parts.join("")).toBe(text);
+    for (const part of parts) {
+      expect(part.length).toBeLessThanOrEqual(2000);
+      expect(loneSurrogate.test(part)).toBe(false);
+    }
   });
 });

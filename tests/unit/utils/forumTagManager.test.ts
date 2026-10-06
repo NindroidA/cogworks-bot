@@ -148,6 +148,8 @@ describe('forumTagName', () => {
     expect(forumTagName('Developer Application')).toBe('Developer');
     expect(forumTagName('Content Creator Application')).toBe('Content Creator');
     expect(forumTagName('Hardware Support And Repairs')).toBe('Hardware Support And');
+    // Cut right after a word: no trailing space in the tag name.
+    expect(forumTagName('Community Moderator Team')).toBe('Community Moderator');
   });
 });
 

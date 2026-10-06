@@ -74,6 +74,7 @@
     "success": "Recurring event created from template **{0}** ({1}). Next occurrence: {2}.",
     "templateNotFound": "Template not found. Use `/event template list` to see available templates.",
     "templateNotRecurring": "This template is not configured as recurring. Edit it first with `/event template edit`.",
+    "partial": "⚠️ The first **{0}** event was created, but saving its recurring setting or reminder failed, so later events may not be created. Check the event in Discord before running this again: another run creates another event.",
     "error": "Failed to create recurring event."
   },
   "reminder": {

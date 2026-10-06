@@ -9,6 +9,7 @@ import type { ForumChannel, GuildBasedChannel, GuildTextBasedChannel } from 'dis
 import type { CustomInputField } from '../../../typeorm/entities/shared/CustomInputField';
 import type { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { isValidSnowflake } from '../../api/helpers';
+import { CUSTOM_EMOJI, isUnicodeEmoji } from '../../discord/emoji';
 import { forumTagName } from '../../forumTagManager';
 import { BUILTIN_TICKET_TYPE_IDS } from '../../ticket/builtinTypes';
 import { type CheckContext, type HealthEntityName, rowsOf } from '../context';
@@ -242,15 +243,6 @@ export function checkArchiveForum(
 // ---------------------------------------------------------------------------
 
 export const EMOJI_NAMES = ['emoji_invalid', 'emoji_missing'] as const;
-const CUSTOM_EMOJI = /^(?:<a?:\w{2,32}:(\d{17,20})>|(\d{17,20}))$/;
-// Built at runtime: the `v` flag (needed for \p{RGI_Emoji}) is newer than the compile target.
-const RGI_EMOJI_SOURCE = '^\\p{RGI_Emoji}$';
-const UNICODE_EMOJI = new RegExp(RGI_EMOJI_SOURCE, 'v');
-const VARIATION_SELECTOR_16 = String.fromCodePoint(0xfe0f);
-
-/** One unicode emoji. Discord also takes the text form without U+FE0F (❤ for ❤️). */
-const isUnicodeEmoji = (value: string) =>
-  UNICODE_EMOJI.test(value) || UNICODE_EMOJI.test(value + VARIATION_SELECTOR_16);
 
 /**
  * Checks a stored emoji (select option or button): a custom emoji (`<a:name:id>` or its

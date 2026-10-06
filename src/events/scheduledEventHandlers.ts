@@ -126,11 +126,13 @@ export const guildScheduledEventUpdate = {
         if (expired.length > 0) await eventReminderRepo.remove(expired);
         if (kept.length > 0) await eventReminderRepo.save(kept);
 
-        // Add the default reminder if the event had none (e.g. it was too close to start before).
+        // Add the default reminder if the event had none (e.g. it was too close
+        // to start before). Same minute = same reminder, as the checker dedupes.
         if (config.reminderChannelId && config.defaultReminderMinutes > 0) {
           const reminderAt = new Date(newEvent.scheduledStartAt.getTime() - config.defaultReminderMinutes * 60 * 1000);
+          const minute = (date: Date) => Math.floor(date.getTime() / 60_000);
 
-          if (reminderAt > new Date() && !kept.some(r => r.reminderAt.getTime() === reminderAt.getTime())) {
+          if (reminderAt > new Date() && !kept.some(r => minute(r.reminderAt) === minute(reminderAt))) {
             const reminder = eventReminderRepo.create({
               guildId,
               discordEventId: newEvent.id,

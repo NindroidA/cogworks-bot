@@ -34,6 +34,9 @@ let removed: unknown[] = [];
 let pending: { reminderAt: Date; label: string }[] = [];
 let templates: Partial<EventTemplate>[] = [];
 let created: Record<string, unknown>[] = [];
+// One clock reading per test: separate Date.now() calls can land a millisecond apart.
+let base = Date.now();
+const at = (minutesFromNow: number) => new Date(base + minutesFromNow * MIN);
 
 const client = {
   user: { id: BOT_ID },
@@ -57,7 +60,7 @@ const eventBy = (creatorId: string | null, overrides: Record<string, unknown> = 
     guildId: 'g1',
     name: 'Game night',
     creatorId,
-    scheduledStartAt: new Date(Date.now() + 2 * 60 * MIN),
+    scheduledStartAt: at(120),
     ...overrides,
   }) as unknown as GuildScheduledEvent;
 
@@ -91,6 +94,7 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
+  base = Date.now();
   saved = [];
   removed = [];
   pending = [];
@@ -116,7 +120,6 @@ describe('guildScheduledEventCreate', () => {
 });
 
 describe('guildScheduledEventUpdate: rescheduling', () => {
-  const at = (minutesFromNow: number) => new Date(Date.now() + minutesFromNow * MIN);
   const reschedule = (oldStartMin: number, newStartMin: number) =>
     guildScheduledEventUpdate.execute(
       eventBy(BOT_ID, { scheduledStartAt: at(oldStartMin) }),
@@ -154,7 +157,16 @@ describe('guildScheduledEventUpdate: rescheduling', () => {
   test('adds the default reminder when the event had none pending', async () => {
     await reschedule(20, 120);
     expect(saved).toHaveLength(1);
-    expect((saved[0] as { reminderAt: Date }).reminderAt.getTime()).toBeGreaterThan(Date.now() + 80 * MIN);
+    expect((saved[0] as { reminderAt: Date }).reminderAt.getTime()).toBe(at(90).getTime());
+  });
+
+  test('a pending reminder in the same minute as the default counts as the default', async () => {
+    // After the move it sits 10 seconds off the new default time, inside the same minute.
+    const newDefault = at(150).getTime();
+    const offset = newDefault % 60_000 < 30_000 ? 10_000 : -10_000;
+    pending = [{ label: 'default', reminderAt: new Date(newDefault - 60 * MIN + offset) }];
+    await reschedule(120, 180);
+    expect(saved).toHaveLength(1);
   });
 });
 

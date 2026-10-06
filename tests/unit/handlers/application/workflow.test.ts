@@ -17,6 +17,7 @@ import {
   applicationInfoHandler,
   applicationStatusHandler,
   applicationWorkflowAddStatusHandler,
+  applicationWorkflowStatusAutocomplete,
 } from '../../../../src/commands/handlers/application/workflow';
 
 function makeInteraction(options: Record<string, string | null> = {}) {
@@ -108,5 +109,21 @@ describe('reserved status ids', () => {
     expect(replyText(interaction)).toContain('is a status the bot sets itself');
     expect(save).not.toHaveBeenCalled();
     expect(application.status).toBe('opened');
+  });
+
+  test('the status picker leaves out a saved `closed` status', async () => {
+    findOneBy.mockResolvedValue({
+      guildId: 'guild-app-wf',
+      enableWorkflow: true,
+      workflowStatuses: [
+        { id: 'submitted', label: 'Submitted', emoji: '📥', color: '#000000' },
+        { id: 'closed', label: 'Closed', emoji: '🔒', color: '#000000' },
+      ],
+    } as never);
+    const respond = jest.fn(async (_choices: { name: string; value: string }[]) => {});
+
+    await applicationWorkflowStatusAutocomplete({ guildId: 'guild-app-wf', respond });
+
+    expect(respond.mock.calls[0][0].map(c => c.value)).toEqual(['submitted']);
   });
 });

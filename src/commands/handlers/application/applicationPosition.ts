@@ -20,6 +20,7 @@ import {
   replyEphemeralError,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { CUSTOM_EMOJI, isUnicodeEmoji } from '../../../utils/discord/emoji';
 import { getTemplate } from './applicationTemplates';
 
 const positionRepo = lazyRepo(Position);
@@ -381,10 +382,6 @@ export async function updateApplicationMessage(client: Client, guildId: string):
 const PANEL_MAX_POSITIONS = 25;
 const PANEL_CONTENT_LIMIT = 2000;
 const DEFAULT_POSITION_EMOJI = '📝';
-const CUSTOM_EMOJI = /^(?:<a?:\w{2,32}:\d{17,20}>|\d{17,20})$/;
-// Built at runtime: the `v` flag (needed for \p{RGI_Emoji}) is newer than the compile target.
-const RGI_EMOJI_SOURCE = '^\\p{RGI_Emoji}$';
-const UNICODE_EMOJI = new RegExp(RGI_EMOJI_SOURCE, 'v');
 
 /**
  * The position's emoji when Discord takes it on a button, else 📝. Positions
@@ -394,8 +391,7 @@ const UNICODE_EMOJI = new RegExp(RGI_EMOJI_SOURCE, 'v');
 export function panelEmoji(emoji: string | null | undefined): string {
   const value = emoji?.trim();
   if (!value) return DEFAULT_POSITION_EMOJI;
-  const valid = CUSTOM_EMOJI.test(value) || UNICODE_EMOJI.test(value) || UNICODE_EMOJI.test(`${value}\uFE0F`);
-  return valid ? value : DEFAULT_POSITION_EMOJI;
+  return CUSTOM_EMOJI.test(value) || isUnicodeEmoji(value) ? value : DEFAULT_POSITION_EMOJI;
 }
 
 /** Shortens descriptions to `budget` characters in total: short ones stay whole, long ones share the rest. */
