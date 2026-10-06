@@ -135,6 +135,49 @@ describe('bait internal API handlers', () => {
       state.config = { guildId: 'g1' };
       await expect(route('POST /bait-channel/config/update')('g1', { logRetentionDays: 9999 }, '')).rejects.toThrow();
     });
+
+    // #25: values that would make every bait action fail at action time.
+    test.each([
+      ['deleteMessageHours', 200], // Discord caps ban message deletion at 7 days
+      ['timeoutDurationMinutes', 50000], // Discord caps timeouts at 28 days
+      ['timeoutDurationMinutes', 0],
+      ['gracePeriodSeconds', -1],
+      ['instantActionThreshold', 101],
+      ['escalationBanThreshold', -5],
+      ['minMessageCount', 1.5], // INT column
+    ])('rejects %s = %p and saves nothing', async (field, value) => {
+      state.config = { guildId: 'g1', [field]: 10 };
+      await expect(route('POST /bait-channel/config/update')('g1', { [field]: value }, '')).rejects.toThrow();
+      expect(configRepo.save).not.toHaveBeenCalled();
+    });
+
+    test('rejects a channel or role ID that is not a snowflake', async () => {
+      state.config = { guildId: 'g1' };
+      for (const field of ['logChannelId', 'summaryChannelId', 'raidModeAlertRoleId']) {
+        await expect(route('POST /bait-channel/config/update')('g1', { [field]: 'general' }, '')).rejects.toThrow(
+          `${field} must be a valid Discord ID`,
+        );
+      }
+      expect(configRepo.save).not.toHaveBeenCalled();
+    });
+
+    test('accepts in-range values, a valid snowflake, and null to clear an ID', async () => {
+      state.config = { guildId: 'g1', summaryChannelId: '123456789012345678' };
+      const res = await route('POST /bait-channel/config/update')(
+        'g1',
+        {
+          deleteMessageHours: 168,
+          timeoutDurationMinutes: 40320,
+          logChannelId: '223456789012345678',
+          summaryChannelId: null,
+        },
+        '',
+      );
+      expect(res.success).toBe(true);
+      expect(state.config.logChannelId).toBe('223456789012345678');
+      expect(state.config.summaryChannelId).toBe(null);
+      expect(configRepo.save).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('GET /bait-channel/pending-actions', () => {

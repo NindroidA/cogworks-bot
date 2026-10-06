@@ -62,6 +62,7 @@ const benignRepo = {
 
 let configRepo: FakeConfigRepo;
 let setupHandler: typeof import('../../../../src/commands/handlers/baitChannel/setup').setupHandler;
+let removeChannelHandler: typeof import('../../../../src/commands/handlers/baitChannel/setup').handleBaitChannelRemoveChannel;
 let originalGetRepository: ((entity: any) => unknown) | undefined;
 
 beforeAll(async () => {
@@ -69,7 +70,9 @@ beforeAll(async () => {
   originalGetRepository = (AppDataSource as unknown as { getRepository: (e: any) => unknown }).getRepository;
   (AppDataSource as unknown as { getRepository: (e: any) => unknown }).getRepository = (entity: any) =>
     entity?.name === 'BaitChannelConfig' ? configRepo : benignRepo;
-  setupHandler = (await import('../../../../src/commands/handlers/baitChannel/setup')).setupHandler;
+  const setupModule = await import('../../../../src/commands/handlers/baitChannel/setup');
+  setupHandler = setupModule.setupHandler;
+  removeChannelHandler = setupModule.handleBaitChannelRemoveChannel;
 });
 
 afterAll(async () => {
@@ -303,5 +306,95 @@ describe('/baitchannel setup warning-banner lifecycle (v3.15.3)', () => {
     expect(saved.channelMessageId).toBe('banner-msg');
     expect(saved.channelIds).toEqual(['chan-X', 'extra-1']);
     expect(saved.channelId).toBe('chan-X');
+  });
+});
+
+describe('/baitchannel setup remove-channel moves the warning banner (#38)', () => {
+  /** Fake guild channels; `events` records the order of saves and Discord calls. */
+  function makeRemoveInteraction(removeId: string, opts: { deleteFails?: boolean } = {}) {
+    const events: string[] = [];
+    const banner = {
+      id: 'banner-msg',
+      delete: jest.fn(async () => {
+        events.push('delete-banner');
+        if (opts.deleteFails) throw Object.assign(new Error('Missing Permissions'), { code: 50013 });
+      }),
+    };
+    const channels: Record<string, any> = {
+      'chan-A': { id: 'chan-A', isTextBased: () => true, messages: { fetch: jest.fn(async () => banner) } },
+      'chan-B': {
+        id: 'chan-B',
+        isTextBased: () => true,
+        send: jest.fn(async () => {
+          events.push('post-banner');
+          return { id: 'new-banner' };
+        }),
+      },
+    };
+    const interaction = {
+      guildId: 'guild-1',
+      guild: { id: 'guild-1', channels: { fetch: jest.fn(async (id: string) => channels[id] ?? null) } },
+      options: { getChannel: () => ({ id: removeId }) },
+      reply: jest.fn(async () => {}),
+      replied: false,
+      deferred: false,
+    } as any;
+    return { interaction, channels, banner, events };
+  }
+
+  function bannerRow() {
+    return {
+      id: 1,
+      guildId: 'guild-1',
+      channelId: 'chan-A',
+      channelIds: ['chan-A', 'chan-B'],
+      channelMessageId: 'banner-msg',
+    };
+  }
+
+  test('removing the banner channel deletes its banner and posts one in the new primary', async () => {
+    configRepo = makeFakeConfigRepo(bannerRow());
+    const realSave = configRepo.save;
+    const { interaction, channels, banner, events } = makeRemoveInteraction('chan-A');
+    configRepo.save = async (e: any) => {
+      events.push(`save:${e.channelMessageId}`);
+      return realSave(e);
+    };
+
+    await removeChannelHandler(mockClient, interaction);
+
+    expect(banner.delete).toHaveBeenCalledTimes(1);
+    expect(channels['chan-B'].send).toHaveBeenCalledTimes(1);
+    // Reference cleared and saved before the delete, so messageDelete's
+    // cleanup has nothing stale to write back.
+    expect(events).toEqual(['save:null', 'delete-banner', 'post-banner', 'save:new-banner']);
+    expect(configRepo.row.channelIds).toEqual(['chan-B']);
+    expect(configRepo.row.channelId).toBe('chan-B');
+    expect(configRepo.row.channelMessageId).toBe('new-banner');
+    const description = (interaction.reply.mock.calls[0] as any[])[0].embeds[0].toJSON().description;
+    expect(description).not.toContain('warning banner');
+  });
+
+  test('removing a secondary channel leaves the banner alone', async () => {
+    configRepo = makeFakeConfigRepo(bannerRow());
+    const { interaction, banner } = makeRemoveInteraction('chan-B');
+
+    await removeChannelHandler(mockClient, interaction);
+
+    expect(interaction.guild.channels.fetch).not.toHaveBeenCalled();
+    expect(banner.delete).not.toHaveBeenCalled();
+    expect(configRepo.row.channelIds).toEqual(['chan-A']);
+    expect(configRepo.row.channelMessageId).toBe('banner-msg');
+  });
+
+  test('a banner that cannot be deleted is reported in the reply; the removal still lands', async () => {
+    configRepo = makeFakeConfigRepo(bannerRow());
+    const { interaction } = makeRemoveInteraction('chan-A', { deleteFails: true });
+
+    await removeChannelHandler(mockClient, interaction);
+
+    expect(configRepo.row.channelIds).toEqual(['chan-B']);
+    const description = (interaction.reply.mock.calls[0] as any[])[0].embeds[0].toJSON().description;
+    expect(description).toContain("Couldn't delete the warning banner in <#chan-A>");
   });
 });

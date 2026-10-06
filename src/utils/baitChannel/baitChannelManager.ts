@@ -6,9 +6,11 @@ import {
   DiscordAPIError,
   EmbedBuilder,
   type Guild,
+  type GuildBasedChannel,
   type GuildMember,
   type Message,
   PermissionFlagsBits,
+  SnowflakeUtil,
   type TextChannel,
 } from 'discord.js';
 import { Between, LessThan, type Repository } from 'typeorm';
@@ -109,6 +111,29 @@ interface LeaveState {
 /** Grace timers are keyed per guild, so an event in one guild can never touch another guild's timer. */
 function graceKey(guildId: string, userId: string, messageId: string): string {
   return `${guildId}:${userId}:${messageId}`;
+}
+
+/** Longest single reason line in the detection-reasons field. */
+const MAX_REASON_LINE = 200;
+
+/**
+ * The detection reasons as one embed field value. A reason can quote every
+ * matched URL or keyword, so each line is capped and the whole value is kept
+ * inside Discord's 1024-character field limit: past it, EmbedBuilder throws,
+ * which drops the grace warning and its timer, or the log-channel embed.
+ */
+function formatDetectionReasons(reasons: string[]): string {
+  const lines = reasons.map(r => `• ${r.length > MAX_REASON_LINE ? `${r.slice(0, MAX_REASON_LINE - 1)}…` : r}`);
+  return truncateWithNotice(lines.join('\n'), 1024);
+}
+
+/**
+ * True when the channel's last message predates `since`, so a user who joined
+ * at `since` can't have posted there. Unknown last message → false (sweep it).
+ */
+function quietSince(channel: GuildBasedChannel, since: number): boolean {
+  const lastId = 'lastMessageId' in channel ? channel.lastMessageId : null;
+  return !!lastId && SnowflakeUtil.timestampFrom(lastId) < since;
 }
 
 interface SuspicionAnalysis {
@@ -900,7 +925,7 @@ export class BaitChannelManager {
     if (analysis.reasons.length > 0) {
       warningEmbed.addFields({
         name: '🔍 Detection Reasons',
-        value: analysis.reasons.map(r => `• ${r}`).join('\n'),
+        value: formatDetectionReasons(analysis.reasons),
       });
     }
 
@@ -1102,21 +1127,24 @@ export class BaitChannelManager {
   }
 
   /**
-   * Scan all text channels in a guild and delete recent messages from a banned user.
-   * Processes channels sequentially to avoid rate limits.
+   * Scan the guild's text channels and delete recent messages from a user.
+   * Processes channels sequentially to avoid rate limits. With `postedSince`
+   * (the member's join time), channels whose last message is older are
+   * skipped without a fetch: the user can't have posted there since. In a
+   * raid that keeps each sweep to the channels that saw activity, not one
+   * 100-message fetch per channel per action on the bot-wide REST budget.
    */
-  private async purgeUserMessages(guild: Guild, userId: string, skipChannelIds: string[] = []): Promise<PurgeResult> {
+  private async purgeUserMessages(guild: Guild, userId: string, postedSince?: number | null): Promise<PurgeResult> {
     let totalDeleted = 0;
     let channelCount = 0;
 
     try {
-      const skipChannels = new Set(skipChannelIds);
       const channels = guild.channels.cache.filter(
         ch =>
           (ch.type === ChannelType.GuildText ||
             ch.type === ChannelType.GuildAnnouncement ||
             ch.type === ChannelType.GuildVoice) &&
-          (skipChannels.size === 0 || !skipChannels.has(ch.id)),
+          !(postedSince && quietSince(ch, postedSince)),
       );
 
       for (const [, channel] of channels) {
@@ -1417,41 +1445,47 @@ export class BaitChannelManager {
         },
       );
 
-      // Timeout + kick-fallback need a bot-side message purge — Discord's
-      // ban API isn't involved so we do it ourselves. Skipped in test mode.
-      if (!isTestMode && (apiAction === 'timeout' || apiAction === 'kick') && message.guild) {
-        purgeResult = await this.purgeUserMessages(message.guild, member.id, []);
-      }
-
       // Raid mode signal: real (non-test, non-log-only) action just landed.
       // Records into the per-guild sliding window; entering raid mode is
       // handled inside `recordTrigger` and produces its own logs/alerts.
+      // Recorded before the purge below, which can take many seconds and
+      // would hold the trigger outside the raid window.
       if (!isTestMode && apiAction !== 'log-only' && message.guild) {
         const raidMgr = getRaidModeManager();
         if (raidMgr) {
           await raidMgr.recordTrigger(message.guild, member.id, config);
         }
       }
+
+      // Timeout + kick-fallback need a bot-side message purge — Discord's
+      // ban API isn't involved so we do it ourselves. Skipped in test mode.
+      if (!isTestMode && (apiAction === 'timeout' || apiAction === 'kick') && message.guild) {
+        purgeResult = await this.purgeUserMessages(message.guild, member.id, member.joinedTimestamp);
+      }
     }
 
     // Step 4: Additional cross-channel purge (beyond Discord's ban deletion) — skip in test mode
     // Ban/kick already delete messages via Discord API (deleteMessageSeconds).
     // This additional sweep catches anything Discord missed. Timeout purge runs inside the switch above.
+    // Skipped when the kick fallback already swept, and when our ban's own
+    // deletion window reaches back past the member's join (Discord already
+    // removed everything they posted since; messages from an earlier stay in
+    // the server are the one thing that misses).
+    const banPurgeCoversMembership =
+      executorResult?.status === 'executed' &&
+      (apiAction === 'ban' || apiAction === 'softban') &&
+      member.joinedTimestamp != null &&
+      Date.now() - member.joinedTimestamp <= deleteHours * 3_600_000;
     if (
       !isTestMode &&
       actionResult === 'success' &&
       config.deleteUserMessages &&
       (shownAction === 'ban' || shownAction === 'kick' || shownAction === 'softban') &&
+      !purgeResult &&
+      !banPurgeCoversMembership &&
       message.guild
     ) {
-      const additionalPurge = await this.purgeUserMessages(message.guild, member.id, []);
-      // Merge with any purge already done (e.g. kick fallback)
-      if (purgeResult) {
-        purgeResult.totalDeleted += additionalPurge.totalDeleted;
-        purgeResult.channelCount += additionalPurge.channelCount;
-      } else {
-        purgeResult = additionalPurge;
-      }
+      purgeResult = await this.purgeUserMessages(message.guild, member.id, member.joinedTimestamp);
     }
 
     // Step 4b: Detect repeat offenders (for ban/kick actions only)
@@ -1731,7 +1765,7 @@ export class BaitChannelManager {
       if (analysis.reasons.length > 0) {
         embed.addFields({
           name: '🔍 Detection Flags',
-          value: analysis.reasons.map(r => `• ${r}`).join('\n'),
+          value: formatDetectionReasons(analysis.reasons),
         });
       }
 

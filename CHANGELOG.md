@@ -5,6 +5,72 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.30] - 2026-10-06
+
+Bait channel fixes (NindroidA/cogworks-bot#41): a mod's manual ban, kick or
+timeout no longer shows up as a bait trigger or cancels unrelated bait actions,
+`/baitchannel stats` counts bans, kicks and timeouts again, and long detection
+reasons or whitelists no longer break the warning, the log embed or
+`/baitchannel setup status`.
+
+### Fixed
+
+- **Ordinary moderation is left alone.** The audit-log listener now acts on a
+  mod's (or another bot's) ban, kick or timeout only when bait is still pending
+  on that user: a `pending_actions` row, or a bait log from the last 5 minutes
+  that nothing has enforced yet. Before, every manual action in every server
+  wrote a `superseded-by-mod` bait log (counted as a trigger in
+  `/baitchannel stats` and the weekly summary), claimed the same-day
+  idempotency key (so a bait action of that kind later that day was skipped),
+  and deleted all of the user's pending rows.
+- **A mod's action only cancels the queued retries it covers.** A ban covers
+  every action, a kick covers a kick or timeout, a timeout covers only a
+  timeout, so a queued bait ban survives a mod's 5-minute timeout.
+  Dead-lettered rows stay for the dashboard review queue, and grace-period rows
+  stay with the bait timer, which already re-checks current state when it fires.
+- **`/baitchannel stats` counted actions that are never stored.** It looked
+  for `banned`, `kicked` and `timed-out`; the bot stores `ban`, `kick`,
+  `softban` and `timeout`, so Banned, Kicked and Timed Out always read 0. A
+  softban (a kick or timeout on a member who already left) counts as a kick.
+  The dev-suite seed data and the log entity's comment use the real values.
+- **Long detection reasons no longer drop the warning or the log embed.** A
+  post with many phishing links or keywords pushed the "Detection Reasons"
+  field past Discord's 1024-character limit, so the grace warning was never
+  sent (and its timer never started, so the user was never actioned) and the
+  log channel got an owner DM instead of the embed. Each reason line is now
+  capped at 200 characters and the field at 1024.
+- **`/baitchannel setup status` works with a long whitelist.** The whitelist
+  field shows the first 15 roles and 15 users with "+N more" and points to
+  `/baitchannel detection whitelist action:list` for the rest; past about 40
+  entries the command used to fail.
+- **The bot's own bait actions are matched to their audit-log entry more
+  reliably.** The entry usually arrives before the bait log row is written, so
+  the match is retried after 10 seconds and again after 60. It uses the message
+  ID in the audit reason and only enforcement rows (ban, kick, softban,
+  timeout, queued), so it can no longer stamp an earlier whitelisted or
+  deleted-in-time row, and bot actions that aren't bait are ignored.
+- **Removing the primary bait channel moves its warning banner.**
+  `/baitchannel setup remove-channel` on the channel holding the "DO NOT POST
+  HERE" banner now deletes it there and posts it in the new primary. If the old
+  banner can't be deleted, the reply says so.
+
+### Changed
+
+- **The optional cross-channel purge fetches far fewer channels.** With
+  "delete user messages" on, the sweep now skips channels with no message since
+  the user joined, runs once instead of twice after a kick without Ban Members,
+  and is skipped after a ban whose own message deletion (`deleteMessageHours`)
+  already reaches back past the user's join. Messages from an earlier stay in
+  the server are no longer swept in those cases. Raid mode now records the
+  trigger before the purge for timeouts and kicks, so a slow sweep can't push it
+  out of the raid window.
+- **The dashboard's bait config update rejects values that break bait
+  actions.** `deleteMessageHours` 0-168 and `timeoutDurationMinutes` 1-40320
+  (Discord's limits), `gracePeriodSeconds` 0-60, thresholds and windows within
+  the dashboard's and slash command's ranges, whole numbers only, and
+  `logChannelId`, `summaryChannelId` and `raidModeAlertRoleId` must be Discord
+  IDs (or null to clear). Nothing is saved when a value is refused.
+
 ## [3.16.26] - 2026-10-06
 
 `/bot-health check`: server admins (and the bot owner) can now see what is

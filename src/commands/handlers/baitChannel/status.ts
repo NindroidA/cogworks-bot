@@ -1,9 +1,29 @@
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
-import { getBaitChannelIds, handleInteractionError, lang, replyEphemeralError, safeDbOperation } from '../../../utils';
+import {
+  formatLang,
+  getBaitChannelIds,
+  handleInteractionError,
+  lang,
+  replyEphemeralError,
+  safeDbOperation,
+} from '../../../utils';
 
 const tl = lang.baitChannel;
+
+/**
+ * Mentions shown per whitelist line; the rest are counted. 15 role and 15 user
+ * mentions plus labels stay well under Discord's 1024-character field limit,
+ * which a full whitelist (the dashboard allows 125 entries) would pass.
+ */
+const WHITELIST_PREVIEW = 15;
+
+function mentionPreview(ids: string[], mention: (id: string) => string): string {
+  const shown = ids.slice(0, WHITELIST_PREVIEW).map(mention).join(', ');
+  const hidden = ids.length - WHITELIST_PREVIEW;
+  return hidden > 0 ? `${shown} ${formatLang(tl.status.whitelistMore, hidden)}` : shown;
+}
 
 export async function statusHandler(_client: Client, interaction: ChatInputCommandInteraction) {
   try {
@@ -74,13 +94,13 @@ export async function statusHandler(_client: Client, interaction: ChatInputComma
       const whitelistInfo: string[] = [];
 
       if ((config.whitelistedRoles?.length || 0) > 0) {
-        const rolesList = config.whitelistedRoles!.map(roleId => `<@&${roleId}>`).join(', ');
-        whitelistInfo.push(`**Roles:** ${rolesList}`);
+        const rolesList = mentionPreview(config.whitelistedRoles!, roleId => `<@&${roleId}>`);
+        whitelistInfo.push(formatLang(tl.status.whitelistRoles, rolesList));
       }
 
       if ((config.whitelistedUsers?.length || 0) > 0) {
-        const usersList = config.whitelistedUsers!.map(userId => `<@${userId}>`).join(', ');
-        whitelistInfo.push(`**Users:** ${usersList}`);
+        const usersList = mentionPreview(config.whitelistedUsers!, userId => `<@${userId}>`);
+        whitelistInfo.push(formatLang(tl.status.whitelistUsers, usersList));
       }
 
       embed.addFields({

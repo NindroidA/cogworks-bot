@@ -29,9 +29,11 @@ export async function statsHandler(_client: Client, interaction: ChatInputComman
 
     const stats = {
       total: recentLogs.length,
-      banned: recentLogs.filter(l => l.actionTaken === 'banned').length,
-      kicked: recentLogs.filter(l => l.actionTaken === 'kicked').length,
-      timedOut: recentLogs.filter(l => l.actionTaken === 'timed-out').length,
+      // The values executeAction stores. A softban (a kick or timeout on a
+      // member who left) removes the user, so it counts as a kick.
+      banned: recentLogs.filter(l => l.actionTaken === 'ban').length,
+      kicked: recentLogs.filter(l => l.actionTaken === 'kick' || l.actionTaken === 'softban').length,
+      timedOut: recentLogs.filter(l => l.actionTaken === 'timeout').length,
       deleted: recentLogs.filter(l => l.actionTaken === 'deleted-in-time').length,
       whitelisted: recentLogs.filter(l => l.actionTaken === 'whitelisted').length,
       loggedOnly: recentLogs.filter(l => l.actionTaken === 'logged').length,

@@ -1,6 +1,6 @@
 {
   "contractVersion": "1",
-  "botVersion": "3.16.26",
+  "botVersion": "3.16.30",
   "features": {
     "keys": [
       "tickets",
@@ -3853,71 +3853,105 @@
         },
         {
           "field": "gracePeriodSeconds",
-          "type": "int"
+          "type": "int",
+          "min": 0,
+          "max": 60
         },
         {
           "field": "instantActionThreshold",
-          "type": "int"
+          "type": "int",
+          "min": 0,
+          "max": 100
         },
         {
           "field": "minAccountAgeDays",
-          "type": "int"
+          "type": "int",
+          "min": 0,
+          "max": 365
         },
         {
           "field": "minMembershipMinutes",
-          "type": "int"
+          "type": "int",
+          "min": 0,
+          "max": 525600
         },
         {
           "field": "minMessageCount",
-          "type": "int"
+          "type": "int",
+          "min": 0,
+          "max": 10000
         },
         {
           "field": "deleteMessageHours",
-          "type": "int"
+          "type": "int",
+          "min": 0,
+          "max": 168
         },
         {
           "field": "timeoutDurationMinutes",
-          "type": "int"
+          "type": "int",
+          "min": 1,
+          "max": 40320
         },
         {
           "field": "escalationLogThreshold",
-          "type": "int"
+          "type": "int",
+          "min": 0,
+          "max": 100
         },
         {
           "field": "escalationTimeoutThreshold",
-          "type": "int"
+          "type": "int",
+          "min": 0,
+          "max": 100
         },
         {
           "field": "escalationKickThreshold",
-          "type": "int"
+          "type": "int",
+          "min": 0,
+          "max": 100
         },
         {
           "field": "escalationBanThreshold",
-          "type": "int"
+          "type": "int",
+          "min": 0,
+          "max": 100
         },
         {
           "field": "joinVelocityThreshold",
-          "type": "int"
+          "type": "int",
+          "min": 2,
+          "max": 100
         },
         {
           "field": "joinVelocityWindowMinutes",
-          "type": "int"
+          "type": "int",
+          "min": 1,
+          "max": 30
         },
         {
           "field": "raidModeThreshold",
-          "type": "int"
+          "type": "int",
+          "min": 1,
+          "max": 100
         },
         {
           "field": "raidModeWindowSeconds",
-          "type": "int"
+          "type": "int",
+          "min": 1,
+          "max": 3600
         },
         {
           "field": "crossChannelBurstThreshold",
-          "type": "int"
+          "type": "int",
+          "min": 2,
+          "max": 25
         },
         {
           "field": "crossChannelBurstWindowSeconds",
-          "type": "int"
+          "type": "int",
+          "min": 1,
+          "max": 3600
         },
         {
           "field": "logRetentionDays",

@@ -28,11 +28,13 @@ const configRepo = lazyRepo(BaitChannelConfig);
 const pendingActionRepo = lazyRepo(PendingAction);
 
 /**
- * Field map for `POST /bait-channel/config/update`. Numbers stay rangeless
- * except logRetentionDays (30-365). actionType is left as a free string for a
- * 1:1 port (the prior PATCH did no enum validation). Nullable strings accept
- * null/"" to clear; the appeal-link cross-field validation is handled
- * separately in the route after these are applied.
+ * Field map for `POST /bait-channel/config/update`. Int ranges follow Discord's
+ * limits (deleteMessageHours: 7 days of ban-time message deletion;
+ * timeoutDurationMinutes: 28 days) and otherwise the dashboard's zod schema or
+ * the slash command, so a value that would fail every bait action at action
+ * time is refused here. actionType is validated against its enum. Nullable
+ * strings accept null/"" to clear; integer, snowflake and appeal-link checks
+ * run in the route after these are applied.
  */
 export const BAIT_CONFIG_FIELDS: FieldDescriptor<BaitChannelConfig>[] = [
   { field: 'enabled', type: 'bool' },
@@ -46,23 +48,23 @@ export const BAIT_CONFIG_FIELDS: FieldDescriptor<BaitChannelConfig>[] = [
   { field: 'enableWeeklySummary', type: 'bool' },
   { field: 'enableRaidMode', type: 'bool' },
   { field: 'enableAppealLink', type: 'bool' },
-  { field: 'gracePeriodSeconds', type: 'int' },
-  { field: 'instantActionThreshold', type: 'int' },
-  { field: 'minAccountAgeDays', type: 'int' },
-  { field: 'minMembershipMinutes', type: 'int' },
-  { field: 'minMessageCount', type: 'int' },
-  { field: 'deleteMessageHours', type: 'int' },
-  { field: 'timeoutDurationMinutes', type: 'int' },
-  { field: 'escalationLogThreshold', type: 'int' },
-  { field: 'escalationTimeoutThreshold', type: 'int' },
-  { field: 'escalationKickThreshold', type: 'int' },
-  { field: 'escalationBanThreshold', type: 'int' },
-  { field: 'joinVelocityThreshold', type: 'int' },
-  { field: 'joinVelocityWindowMinutes', type: 'int' },
-  { field: 'raidModeThreshold', type: 'int' },
-  { field: 'raidModeWindowSeconds', type: 'int' },
-  { field: 'crossChannelBurstThreshold', type: 'int' },
-  { field: 'crossChannelBurstWindowSeconds', type: 'int' },
+  { field: 'gracePeriodSeconds', type: 'int', min: 0, max: 60 },
+  { field: 'instantActionThreshold', type: 'int', min: 0, max: 100 },
+  { field: 'minAccountAgeDays', type: 'int', min: 0, max: 365 },
+  { field: 'minMembershipMinutes', type: 'int', min: 0, max: 525600 },
+  { field: 'minMessageCount', type: 'int', min: 0, max: 10000 },
+  { field: 'deleteMessageHours', type: 'int', min: 0, max: 168 },
+  { field: 'timeoutDurationMinutes', type: 'int', min: 1, max: 40320 },
+  { field: 'escalationLogThreshold', type: 'int', min: 0, max: 100 },
+  { field: 'escalationTimeoutThreshold', type: 'int', min: 0, max: 100 },
+  { field: 'escalationKickThreshold', type: 'int', min: 0, max: 100 },
+  { field: 'escalationBanThreshold', type: 'int', min: 0, max: 100 },
+  { field: 'joinVelocityThreshold', type: 'int', min: 2, max: 100 },
+  { field: 'joinVelocityWindowMinutes', type: 'int', min: 1, max: 30 },
+  { field: 'raidModeThreshold', type: 'int', min: 1, max: 100 },
+  { field: 'raidModeWindowSeconds', type: 'int', min: 1, max: 3600 },
+  { field: 'crossChannelBurstThreshold', type: 'int', min: 2, max: 25 },
+  { field: 'crossChannelBurstWindowSeconds', type: 'int', min: 1, max: 3600 },
   { field: 'logRetentionDays', type: 'int', min: 30, max: 365 },
   { field: 'banReason', type: 'string' },
   { field: 'warningMessage', type: 'string' },
@@ -317,11 +319,22 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
     if (!config) throw ApiError.notFound('Bait channel is not configured for this guild');
 
     const triggeredBy = optionalString(body, 'triggeredBy');
-    // Per-field application is descriptor-driven (applyFields). Only the
-    // logRetentionDays 30-365 range is enforced here; the other int fields stay
-    // rangeless (1:1 with the prior behavior). String fields keep the
-    // non-nullable / nullable split (the latter accept null/"" to clear).
+    // Per-field application is descriptor-driven (applyFields), with the
+    // ranges above. String fields keep the non-nullable / nullable split (the
+    // latter accept null/"" to clear). Nothing is saved if a check throws.
     const patched = applyFields(config, body, BAIT_CONFIG_FIELDS);
+    for (const d of BAIT_CONFIG_FIELDS) {
+      // applyFields range-checks ints but lets decimals through; the columns are INT.
+      if (d.type === 'int' && patched.includes(d.field) && !Number.isInteger(config[d.field])) {
+        throw ApiError.badRequest(`${d.field} must be an integer`);
+      }
+    }
+    for (const field of ['logChannelId', 'summaryChannelId', 'raidModeAlertRoleId'] as const) {
+      const id = config[field];
+      if (patched.includes(field) && id !== null && !isValidSnowflake(id)) {
+        throw ApiError.badRequest(`${field} must be a valid Discord ID`);
+      }
+    }
 
     // Appeal-link safety. Two gates:
     //   1. Refuse to enable if base URL is HTTP (or unset).
