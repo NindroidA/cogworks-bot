@@ -76,11 +76,12 @@ async function processGuildSla(client: Client, config: TicketConfig): Promise<vo
       const targetMs = targetMinutes * 60 * 1000;
 
       // Opened before firstResponseAt was recorded: NULL means "unknown", not "no reply".
-      if (getTicketOpenedAt(ticket) < SCHEDULER_GUARDS.SLA_TRACKED_SINCE_MS) continue;
+      const openedAt = getTicketOpenedAt(ticket);
+      if (openedAt < SCHEDULER_GUARDS.SLA_TRACKED_SINCE_MS) continue;
 
-      // Use the ticket's creation time approximated by first status history entry or lastActivityAt
-      const createdTime = getTicketCreationTime(ticket);
-      const elapsed = now - createdTime;
+      // The clock runs from when the ticket opened. lastActivityAt can't be used:
+      // every message (the opener's too) moves it, restarting the clock.
+      const elapsed = now - openedAt;
 
       if (elapsed < targetMs) continue;
       // Already flagged on an earlier tick: only a delivered alert is new.
@@ -172,29 +173,22 @@ function getSlaTargetForTicket(config: TicketConfig, ticket: Ticket): number {
 }
 
 /**
- * Approximate ticket creation time from status history or lastActivityAt.
- */
-export function getTicketCreationTime(ticket: Ticket): number {
-  // Check status history for earliest entry
-  if (ticket.statusHistory && ticket.statusHistory.length > 0) {
-    const earliest = ticket.statusHistory[0];
-    if (earliest.changedAt) {
-      return new Date(earliest.changedAt).getTime();
-    }
-  }
-  // Fallback to lastActivityAt (which is set on creation)
-  return new Date(ticket.lastActivityAt).getTime();
-}
-
-/**
  * When the ticket was opened. Its channel is created with it, so the channel
  * ID's snowflake timestamp is exact; lastActivityAt moves with every message
- * and statusHistory starts at the first status change. Falls back to
- * getTicketCreationTime when there's no channel.
+ * and statusHistory starts at the first status change. A ticket with no
+ * channel falls back to the earlier of those two (both only move forward).
  */
 export function getTicketOpenedAt(ticket: Ticket): number {
   if (ticket.channelId && isValidSnowflake(ticket.channelId)) {
     return SnowflakeUtil.timestampFrom(ticket.channelId);
   }
-  return getTicketCreationTime(ticket);
+  const lastActivity = new Date(ticket.lastActivityAt).getTime();
+  const firstChange = ticket.statusHistory?.[0]?.changedAt;
+  return firstChange ? Math.min(new Date(firstChange).getTime(), lastActivity) : lastActivity;
+}
+
+/** Time from open to the first staff response, never negative; null when nobody has responded. */
+export function getFirstResponseMs(ticket: Ticket): number | null {
+  if (!ticket.firstResponseAt) return null;
+  return Math.max(0, new Date(ticket.firstResponseAt).getTime() - getTicketOpenedAt(ticket));
 }

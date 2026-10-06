@@ -4,6 +4,7 @@
  */
 import { ANNOUNCEMENT_CHECKS } from './checks/announcements';
 import { APPLICATION_CHECKS } from './checks/applications';
+import { COMMAND_CHECKS } from './checks/commands';
 import { CORE_CHECKS } from './checks/core';
 import { MEMORY_CHECKS } from './checks/memory';
 import { ONBOARDING_CHECKS } from './checks/onboarding';
@@ -16,6 +17,7 @@ import type { HealthCheck, HealthSystem } from './types';
 
 const CHECKS: readonly HealthCheck[] = [
   ...CORE_CHECKS,
+  ...COMMAND_CHECKS,
   ...TICKET_CHECKS,
   ...APPLICATION_CHECKS,
   ...MEMORY_CHECKS,

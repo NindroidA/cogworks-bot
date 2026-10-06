@@ -1,7 +1,7 @@
 import type { CacheType, ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { StarboardEntry } from '../../../typeorm/entities/starboard';
-import { handleInteractionError, lang, replyEphemeralError } from '../../../utils';
+import { guardFeatureAccess, handleInteractionError, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 const entryRepo = lazyRepo(StarboardEntry);
@@ -12,6 +12,11 @@ const tl = lang.starboard;
  */
 export async function starboardStatsHandler(interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
   try {
+    // 'use' keeps it admin-only in guilds without dashboard grants, as it was
+    // under the old Administrator default.
+    const guard = await guardFeatureAccess(interaction, 'starboard', 'use');
+    if (!guard.allowed) return;
+
     const guildId = interaction.guildId!;
     const entries = await entryRepo.find({
       where: { guildId },

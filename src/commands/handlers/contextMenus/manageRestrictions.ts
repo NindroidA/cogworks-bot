@@ -18,7 +18,8 @@ import {
   showAndAwaitModal,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
-import { checkboxGroup, labelWrap, rawModal } from '../../../utils/modalComponents';
+import { rawModal } from '../../../utils/modalComponents';
+import { buildRestrictionGroups, diffRestrictionSubmit, restrictionModalTitle } from '../ticket/userRestrict';
 
 const tl = lang.ticket.customTypes.userRestrict;
 const ticketConfigRepo = lazyRepo(TicketConfig);
@@ -63,34 +64,21 @@ export async function manageRestrictionsHandler(interaction: UserContextMenuComm
     });
     const restrictedTypeIds = new Set(restrictions.map(r => r.typeId));
 
-    // Build checkbox group
-    const options = ticketTypes.slice(0, 10).map(type => ({
-      label: type.displayName,
-      value: type.typeId,
-      description: type.emoji ? `${type.emoji} ${type.typeId}` : type.typeId,
-      default: restrictedTypeIds.has(type.typeId),
-    }));
-
-    const modal = rawModal(`ctx_restrict_${targetUser.id}_${Date.now()}`, `Restrictions: ${targetUser.displayName}`, [
-      labelWrap(
-        'Restricted Ticket Types',
-        checkboxGroup('ctx_restricted_types', options, 0),
-        'Check the types this user should be BLOCKED from creating',
-      ),
-    ]);
+    const { components, shownIds } = buildRestrictionGroups(ticketTypes, restrictedTypeIds, 'ctx_restricted_types');
+    const modal = rawModal(
+      `ctx_restrict_${targetUser.id}_${Date.now()}`,
+      restrictionModalTitle(targetUser.displayName),
+      components,
+    );
 
     const modalSubmit = await showAndAwaitModal(interaction, modal);
     if (!modalSubmit) return;
 
-    // Get selected restricted types — validate against guild-owned types
-    const rawSelectedValues: string[] = (modalSubmit.fields as any).getField('ctx_restricted_types')?.values ?? [];
-    const validTypeIds = new Set(ticketTypes.map(t => t.typeId));
-    const selectedValues = rawSelectedValues.filter(id => validTypeIds.has(id));
-    const newRestrictedSet = new Set(selectedValues);
-
-    // Compute diff
-    const toAdd = [...newRestrictedSet].filter(id => !restrictedTypeIds.has(id));
-    const toRemove = [...restrictedTypeIds].filter(id => !newRestrictedSet.has(id));
+    const {
+      toAdd,
+      toRemove,
+      restricted: newRestrictedSet,
+    } = diffRestrictionSubmit(modalSubmit.fields, 'ctx_restricted_types', shownIds, restrictedTypeIds);
 
     // Apply changes — removals in one query, mirroring the batched adds
     if (toRemove.length > 0) {

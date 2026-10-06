@@ -273,7 +273,9 @@ export async function applicationClaimHandler(interaction: ChatInputCommandInter
 // ============================================================================
 
 export async function applicationInfoHandler(interaction: ChatInputCommandInteraction<CacheType>) {
-  const guard = await guardFeatureAccess(interaction, 'applications', 'use');
+  // 'manage', like the review actions: the embed shows internal staff notes and
+  // reviewer history, and applicants can run this in their own channel.
+  const guard = await guardFeatureAccess(interaction, 'applications', 'manage');
   if (!guard.allowed) return;
 
   const guildId = interaction.guildId!;

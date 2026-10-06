@@ -11,6 +11,7 @@ import {
   type CacheType,
   type ChatInputCommandInteraction,
   type Client,
+  type Guild,
   ModalBuilder,
   type ModalSubmitInteraction,
   NewsChannel,
@@ -48,7 +49,7 @@ const templateRepo = lazyRepo(AnnouncementTemplate);
 /**
  * Main announcement handler
  */
-export async function announcementHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
+export async function announcementHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const tl = lang.announcement;
   const tlErr = lang.errors;
   const subCommand = interaction.options.getSubcommand();
@@ -75,7 +76,7 @@ export async function announcementHandler(client: Client, interaction: ChatInput
     // This handler only handles 'send' and legacy subcommands
 
     if (subCommand === 'send') {
-      await handleTemplateSend(client, interaction, config, guildId);
+      await handleTemplateSend(interaction, config, guildId);
       return;
     }
 
@@ -100,7 +101,6 @@ export async function announcementHandler(client: Client, interaction: ChatInput
  * Handle the new /announcement send <template> flow
  */
 async function handleTemplateSend(
-  client: Client,
   interaction: ChatInputCommandInteraction<CacheType>,
   config: AnnouncementConfig,
   guildId: string,
@@ -120,7 +120,7 @@ async function handleTemplateSend(
   }
 
   // Target channel
-  const targetChannel = await resolveTargetChannel(client, interaction, config);
+  const targetChannel = await resolveTargetChannel(interaction, config);
   if (!targetChannel) return;
 
   // Check for dynamic placeholders
@@ -190,18 +190,30 @@ async function handleTemplateSend(
 }
 
 /**
+ * The stored default role, validated against the current server's roles
+ * (null when it no longer exists there).
+ */
+export function guildDefaultRoleId(guild: Guild | null, config: AnnouncementConfig): string | null {
+  const roleId = config.defaultRoleId;
+  return roleId && guild?.roles.cache.has(roleId) ? roleId : null;
+}
+
+/**
  * Resolve the target channel from options or config default.
  */
-async function resolveTargetChannel(
-  client: Client,
+export async function resolveTargetChannel(
   interaction: ChatInputCommandInteraction<CacheType>,
   config: AnnouncementConfig,
 ): Promise<TextChannel | NewsChannel | null> {
   const tl = lang.announcement;
   const targetChannelOption = interaction.options.getChannel('channel');
-  const targetChannel = targetChannelOption
-    ? targetChannelOption
-    : await client.channels.fetch(config.defaultChannelId);
+  // Validate the stored default against the current server's channels; a
+  // deleted or unknown channel resolves to null and gets the invalid-channel reply.
+  const targetChannel =
+    targetChannelOption ??
+    (config.defaultChannelId
+      ? await interaction.guild?.channels.fetch(config.defaultChannelId).catch(() => null)
+      : null);
 
   if (!targetChannel || !(targetChannel instanceof TextChannel || targetChannel instanceof NewsChannel)) {
     await replyEphemeralError(interaction, tl.setup.invalidChannel);
@@ -224,7 +236,7 @@ async function previewAndSend(
   params: TemplatePlaceholderParams,
   messageOverride?: string | null,
 ): Promise<void> {
-  const roleId = config.defaultRoleId;
+  const roleId = guildDefaultRoleId(interaction.guild, config);
   const renderTemplate_ = messageOverride ? { ...template, body: sanitizeUserInput(messageOverride) } : template;
   const messageData = renderTemplate(
     renderTemplate_ as AnnouncementTemplate,

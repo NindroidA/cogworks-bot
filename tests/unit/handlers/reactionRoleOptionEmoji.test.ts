@@ -43,6 +43,10 @@ const fakeMenuRepo = {
   create(data: Record<string, unknown>) {
     return { ...data };
   },
+  menuCount: 0,
+  async count() {
+    return fakeMenuRepo.menuCount;
+  },
 };
 
 const fakeOptionRepo = {
@@ -128,6 +132,7 @@ beforeEach(() => {
   state.saved = [];
   state.removed = [];
   fakeMenuRepo.findOneCalls = 0;
+  fakeMenuRepo.menuCount = 0;
 });
 
 // ---------------------------------------------------------------------------
@@ -193,12 +198,83 @@ describe('/reactionrole remove', () => {
 // Dashboard create (POST /reaction-roles)
 // ---------------------------------------------------------------------------
 
+function dashboardCreate(roles: Array<{ id: string; managed: boolean; position: number }> = []) {
+  const send = jest.fn(async () => ({ id: '300000000000000009', react: jest.fn(), delete: jest.fn() }));
+  const channel = { isTextBased: () => true, send };
+  const roleCache = new Map<string, unknown>([[ROLE_A, { id: ROLE_A, managed: false, position: 1 }]]);
+  for (const role of roles) roleCache.set(role.id, role);
+  const client = {
+    guilds: {
+      cache: new Map([
+        [
+          guildId,
+          {
+            id: guildId,
+            channels: { fetch: async () => channel },
+            members: { fetchMe: async () => ({ roles: { highest: { position: 10 } } }) },
+            roles: { cache: roleCache },
+          },
+        ],
+      ]),
+    },
+  } as any;
+  const routes = new Map<string, any>();
+  registerApi(client, routes);
+  const create = (options: Array<{ emoji: string; roleId: string }>) =>
+    routes.get('POST /reaction-roles')(guildId, { channelId: '200000000000000001', title: 'Colors', options });
+  return { create, send };
+}
+
+describe('dashboard menu create limits and role checks (same as the slash commands)', () => {
+  test('more than 20 options is a 400 before sending', async () => {
+    const { create, send } = dashboardCreate();
+    const options = Array.from({ length: 21 }, () => ({ emoji: '✅', roleId: ROLE_A }));
+    await expect(create(options)).rejects.toMatchObject({ statusCode: 400, message: tl.add.maxOptions });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  test('a 26th menu is a 400 before sending', async () => {
+    fakeMenuRepo.menuCount = 25;
+    const { create, send } = dashboardCreate();
+    await expect(create([{ emoji: '✅', roleId: ROLE_A }])).rejects.toMatchObject({
+      statusCode: 400,
+      message: tl.create.maxMenus,
+    });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['an invalid emoji', { emoji: 'nope', roleId: ROLE_A }, [], tl.add.invalidEmoji],
+    ['a role not in the guild', { emoji: '✅', roleId: ROLE_B }, [], 'role not found'],
+    ['a managed role', { emoji: '✅', roleId: ROLE_B }, [{ id: ROLE_B, managed: true, position: 1 }], tl.add.cannotUseManagedRole],
+    ['a role above the bot', { emoji: '✅', roleId: ROLE_B }, [{ id: ROLE_B, managed: false, position: 10 }], tl.add.roleTooHigh],
+  ] as const)('%s is a 400 before sending', async (_label, option, roles, message) => {
+    const { create, send } = dashboardCreate([...roles]);
+    const error = await create([option]).catch((e: unknown) => e);
+    expect(error).toMatchObject({ statusCode: 400 });
+    expect(String((error as Error).message)).toContain(message);
+    expect(send).not.toHaveBeenCalled();
+  });
+});
+
 describe('dashboard menu create', () => {
   test('rejects two spellings of one custom emoji before sending anything', async () => {
     const send = jest.fn(async () => ({ id: '300000000000000009', react: jest.fn(), delete: jest.fn() }));
     const channel = { isTextBased: () => true, send };
     const client = {
-      guilds: { cache: new Map([[guildId, { id: guildId, channels: { fetch: async () => channel } }]]) },
+      guilds: {
+        cache: new Map([
+          [
+            guildId,
+            {
+              id: guildId,
+              channels: { fetch: async () => channel },
+              members: { fetchMe: async () => ({ roles: { highest: { position: 10 } } }) },
+              roles: { cache: new Map([[ROLE_A, { id: ROLE_A, managed: false, position: 1 }]]) },
+            },
+          ],
+        ]),
+      },
     } as any;
     const routes = new Map<string, any>();
     registerApi(client, routes);

@@ -299,6 +299,7 @@ await runner.runAll(guildIds);
 - `DEV_GUILD_ID` — Skips API webhooks and join velocity for this guild
 - `COGWORKS_INTERNAL_API_TOKEN` — Bearer token for internal API
 - `BOT_INTERNAL_PORT` — Internal API port (default: 3002)
+- `BOT_INTERNAL_HOST` — Interface the internal API + health server bind to (default `0.0.0.0`; `127.0.0.1` recommended once ninsys-api is confirmed to reach the bot via localhost with host networking)
 - `HEALTH_PORT` — Health server port
 - `APPEAL_HMAC_SECRET` — 32+ byte random secret (v3.2.0). Required only when any guild has `BaitChannelConfig.enableAppealLink=true`; signed appeal URLs are silently omitted from DMs when missing.
 - `ERROR_WEBHOOK_URL` / `ERROR_REPORTING_ENABLED` — Discord error-reporter webhook (v3.1.1; default on in prod, off in dev)

@@ -19,6 +19,7 @@ import {
 } from '../../../../src/commands/handlers/ticket/emailImport';
 import { AppDataSource } from '../../../../src/typeorm';
 import type { BotConfig } from '../../../../src/typeorm/entities/BotConfig';
+import { invalidateFeaturePermissionsCache } from '../../../../src/utils/validation/featurePermission';
 import { PermissionSets } from '../../../../src/utils/validation/permissionValidator';
 
 const GUILD = '999999999999999999';
@@ -28,6 +29,7 @@ const STAFF = '123456789012345678';
 const ADMIN = '223456789012345678';
 const GLOBAL = '623456789012345678';
 const DELETED = '323456789012345678';
+const SUPPORT = '823456789012345678';
 
 const existingRoles = new Set([GUILD, STAFF, ADMIN, GLOBAL]);
 
@@ -82,6 +84,8 @@ describe('emailImportModalHandler', () => {
       find: async (opts: { where: { guildId: string } }) => staffRows.filter(r => r.guildId === opts.where.guildId),
     },
     Ticket: { create: (row: object) => ({ id: 1, ...row }), save: async (row: object) => row },
+    // The submit re-checks access: the importer's role holds tickets: manage.
+    GuildPermission: { find: async () => [{ guildId: GUILD, roleId: SUPPORT, feature: 'tickets', level: 'manage' }] },
   };
 
   type RepoGetter = { getRepository: (entity: { name?: string }) => unknown };
@@ -98,9 +102,12 @@ describe('emailImportModalHandler', () => {
 
   afterAll(() => {
     (AppDataSource as unknown as RepoGetter).getRepository = originalGetRepository;
+    // Don't leave this suite's grant in the shared 60s permission cache.
+    invalidateFeaturePermissionsCache(GUILD);
   });
 
   test('builds the channel from the guild StaffRole rows and skips roles missing from the roles cache', async () => {
+    invalidateFeaturePermissionsCache(GUILD);
     const createCalls: { permissionOverwrites: { id: string }[] }[] = [];
     const replies: unknown[] = [];
     const fields: Record<string, string> = {
@@ -114,6 +121,7 @@ describe('emailImportModalHandler', () => {
       isRepliable: () => true,
       guildId: GUILD,
       user: { id: IMPORTER },
+      member: { permissions: { has: () => false }, roles: { cache: new Map([[SUPPORT, {}]]) } },
       client: { user: { id: BOT } },
       replied: false,
       deferred: false,

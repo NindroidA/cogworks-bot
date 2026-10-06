@@ -56,16 +56,19 @@ export async function showAndAwaitModal(
   modal: ModalBuilder | RawModalObject,
   timeout = TIMEOUTS.MODAL,
 ): Promise<ModalSubmitInteraction | null> {
+  // Filter on customId so we only resolve for THIS modal's submission. Without
+  // this, awaitModalSubmit catches the next modal the user submits from any
+  // surface — e.g. dismissing our edit modal and then submitting a ticket-
+  // create modal would wrongly route that submission back here. Read it before
+  // showing the modal: an unknown shape throws instead of opening a modal
+  // whose submission could never match.
+  const customId = extractCustomId(modal);
+
   // discord.js (14.26.4) still has no builders for the new label/radio/checkbox
   // components; the runtime accepts the raw shape so we cast internally
   // and present a clean typed signature to callers.
   await interaction.showModal(modal as ModalBuilder);
 
-  // Filter on customId so we only resolve for THIS modal's submission. Without
-  // this, awaitModalSubmit catches the next modal the user submits from any
-  // surface — e.g. dismissing our edit modal and then submitting a ticket-
-  // create modal would wrongly route that submission back here.
-  const customId = extractCustomId(modal);
   const submit = await interaction
     .awaitModalSubmit({
       time: timeout,
@@ -83,8 +86,12 @@ function extractCustomId(modal: ModalBuilder | RawModalObject): string {
   // ModalBuilder stores it on `.data.custom_id`; rawModal() stores it on
   // `.custom_id` directly. Probe both — discord.js doesn't expose a uniform
   // accessor across the legacy/new modal shapes yet.
+  // An empty id would make the submit filter match nothing: a silent
+  // TIMEOUTS.MODAL wait ending in a misleading timeout message.
   const m = modal as { data?: { custom_id?: string }; custom_id?: string };
-  return m.data?.custom_id ?? m.custom_id ?? '';
+  const customId = m.data?.custom_id ?? m.custom_id;
+  if (!customId) throw new Error('showAndAwaitModal: modal has no custom_id');
+  return customId;
 }
 
 /**

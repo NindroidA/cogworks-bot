@@ -9,11 +9,13 @@ import {
   ModalBuilder,
   type ModalSubmitFields,
   type ModalSubmitInteraction,
+  PermissionFlagsBits,
   roleMention,
   type StringSelectMenuInteraction,
   type TextChannel,
   TextInputBuilder,
   TextInputStyle,
+  userMention,
 } from 'discord.js';
 import { BotConfig } from '../../typeorm/entities/BotConfig';
 import { StaffRole } from '../../typeorm/entities/StaffRole';
@@ -22,25 +24,30 @@ import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
 import { UserTicketRestriction } from '../../typeorm/entities/ticket/UserTicketRestriction';
 import {
+  clampText,
   createPrivateChannelPermissions,
   createRateLimitKey,
   enhancedLogger,
   escapeDiscordMarkdown,
   extractIdFromMention,
+  formatLang,
   LogCategory,
   lang,
   PermissionSets,
   RateLimits,
   rateLimiter,
   replyEphemeralError,
+  TEXT_LIMITS,
+  verifiedChannelDelete,
 } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
 import { isBuiltinTicketType, resolveBuiltinPingColumn, resolveTicketType } from '../../utils/ticket/builtinTypes';
+import { pickTicketAssignee } from '../../utils/ticket/smartRouter';
 import { chunkByMessageBoundary } from '../../utils/ticket/transcriptBuilder';
 import { ageVerifyMessage, ageVerifyModal } from './ageVerify';
 import { banAppealMessage, banAppealModal } from './banAppeal';
 import { bugReportMessage, bugReportModal } from './bugReport';
-import { customTicketOptions, ticketOptions } from './index';
+import { customTicketOptions, isUnicodeEmoji, ticketOptions } from './index';
 import { otherMessage, otherModal } from './other';
 import { playerReportMessage, playerReportModal } from './playerReport';
 
@@ -50,6 +57,31 @@ const staffRoleRepo = lazyRepo(StaffRole);
 const botConfigRepo = lazyRepo(BotConfig);
 const customTypeRepo = lazyRepo(CustomTicketType);
 const restrictionRepo = lazyRepo(UserTicketRestriction);
+
+/** Discord's modal limits: title and input label 45, placeholder 100 (UTF-16 units). */
+const MODAL_TITLE_MAX = 45;
+const INPUT_LABEL_MAX = 45;
+const INPUT_PLACEHOLDER_MAX = 100;
+const TYPE_NOT_ALLOWED = '🚫 You are not allowed to create this type of ticket.';
+/** The bot's own overwrite on a ticket channel (same set email import grants). */
+const BOT_TICKET_PERMISSIONS = [
+  PermissionFlagsBits.ViewChannel,
+  PermissionFlagsBits.SendMessages,
+  PermissionFlagsBits.ReadMessageHistory,
+  PermissionFlagsBits.ManageChannels,
+];
+
+/** True when the user may not open this type: a restriction, or a deactivated custom type. */
+async function isTypeBlocked(
+  guildId: string,
+  userId: string,
+  typeId: string,
+  customType: CustomTicketType | null,
+): Promise<boolean> {
+  if (customType?.isActive === false) return true;
+  const restriction = await restrictionRepo.findOne({ where: { guildId, userId, typeId } });
+  return !!restriction;
+}
 
 /** Build a builtin ticket modal with the correct inputs for the given type. */
 function buildBuiltinTicketModal(typeId: string, modal: ModalBuilder): ModalBuilder {
@@ -80,10 +112,12 @@ function buildBuiltinTicketModal(typeId: string, modal: ModalBuilder): ModalBuil
  * field IDs don't match the seeded customFields — producing tickets with
  * just a heading and no body. (Prod incident 2026-05-05, ticket #112.)
  */
-function buildCustomTicketModal(ticketType: CustomTicketType): ModalBuilder {
+export function buildCustomTicketModal(ticketType: CustomTicketType): ModalBuilder {
+  // Modal titles are plain text: a custom `<:name:id>` or text like `:ticket:` would show raw.
+  const emoji = isUnicodeEmoji(ticketType.emoji) ? ticketType.emoji : '🎫';
   const modal = new ModalBuilder()
     .setCustomId(`ticket_modal_${ticketType.typeId}`)
-    .setTitle(`${ticketType.emoji || '🎫'} ${ticketType.displayName}`);
+    .setTitle(clampText(`${emoji} ${ticketType.displayName}`, MODAL_TITLE_MAX));
 
   if (ticketType.customFields && ticketType.customFields.length > 0) {
     // Discord caps modals at 5 components — same cap honored by the prior inline path
@@ -92,13 +126,17 @@ function buildCustomTicketModal(ticketType: CustomTicketType): ModalBuilder {
     for (const field of fieldsToAdd) {
       const input = new TextInputBuilder()
         .setCustomId(field.id)
-        .setLabel(field.label)
+        .setLabel(clampText(field.label, INPUT_LABEL_MAX))
         .setStyle(field.style === 'short' ? TextInputStyle.Short : TextInputStyle.Paragraph)
         .setRequired(field.required);
 
-      if (field.placeholder) input.setPlaceholder(field.placeholder);
-      if (field.minLength) input.setMinLength(field.minLength);
-      if (field.maxLength) input.setMaxLength(field.maxLength);
+      // Stored lengths are only checked one at a time; Discord rejects the
+      // modal when they fall outside 0-4000 or min > max.
+      const maxLength = field.maxLength ? Math.min(Math.max(field.maxLength, 1), TEXT_LIMITS.PARAGRAPH_FIELD) : 0;
+      const minLength = Math.min(Math.max(field.minLength ?? 0, 0), maxLength || TEXT_LIMITS.PARAGRAPH_FIELD);
+      if (field.placeholder) input.setPlaceholder(clampText(field.placeholder, INPUT_PLACEHOLDER_MAX));
+      if (minLength) input.setMinLength(minLength);
+      if (maxLength) input.setMaxLength(maxLength);
 
       modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
     }
@@ -107,7 +145,9 @@ function buildCustomTicketModal(ticketType: CustomTicketType): ModalBuilder {
       .setCustomId('ticket_description')
       .setLabel(lang.ticket.createModal.descriptionLabel)
       .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder(ticketType.description || lang.ticket.createModal.descriptionPlaceholder)
+      .setPlaceholder(
+        clampText(ticketType.description || lang.ticket.createModal.descriptionPlaceholder, INPUT_PLACEHOLDER_MAX),
+      )
       .setRequired(true)
       .setMaxLength(2000);
 
@@ -208,10 +248,7 @@ export const selectTicketType = async (_client: Client, interaction: StringSelec
   });
 
   if (restriction) {
-    await interaction.reply({
-      content: '🚫 You are not allowed to create this type of ticket.',
-      flags: [MessageFlags.Ephemeral],
-    });
+    await interaction.reply({ content: TYPE_NOT_ALLOWED, flags: [MessageFlags.Ephemeral] });
     return;
   }
 
@@ -285,6 +322,12 @@ export const builtinTicketTypeButton = async (_client: Client, interaction: Butt
     const customType = await customTypeRepo.findOne({
       where: { guildId, typeId: ticketType },
     });
+    // The legacy buttons are a fallback for the menu, which hides restricted
+    // and inactive types; apply the same rules here.
+    if (await isTypeBlocked(guildId, interaction.user.id, ticketType, customType)) {
+      await interaction.reply({ content: TYPE_NOT_ALLOWED, flags: [MessageFlags.Ephemeral] });
+      return;
+    }
     if (customType) {
       await interaction.showModal(buildCustomTicketModal(customType));
       return;
@@ -300,6 +343,29 @@ export const builtinTicketTypeButton = async (_client: Client, interaction: Butt
 
   await interaction.showModal(modal);
 };
+
+/**
+ * Undo a ticket whose setup failed before its welcome message went out:
+ * delete the channel first (Discord-first), then the row, so no orphan channel
+ * or channel-less 'created' row is left. If the channel can't be deleted, its
+ * row stays so staff can still close it.
+ */
+async function rollbackFailedTicket(guildId: string, ticket: Ticket | null, channel: TextChannel | null) {
+  try {
+    if (channel) {
+      const result = await verifiedChannelDelete(channel, { guildId, label: 'ticket channel' });
+      if (!result.success) return;
+    }
+    if (ticket) await ticketRepo.delete({ id: ticket.id, guildId });
+  } catch (error) {
+    enhancedLogger.error(
+      'Failed to roll back a half-created ticket',
+      error instanceof Error ? error : new Error(String(error)),
+      LogCategory.DATABASE,
+      { guildId, ticketId: ticket?.id, channelId: channel?.id },
+    );
+  }
+}
 
 export const submitTicketModal = async (_client: Client, interaction: ModalSubmitInteraction) => {
   const guildId = interaction.guildId;
@@ -327,30 +393,41 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
     return;
   }
 
-  // Check rate limit (3 tickets per hour per user)
-  const rateLimitKey = createRateLimitKey.user(interaction.user.id, 'ticket-create');
-  const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.TICKET_CREATE);
-
-  if (!rateCheck.allowed) {
-    // rateCheck.message is string | undefined — kept inline (replyEphemeralError takes a string)
-    await interaction.reply({ content: rateCheck.message, flags: [MessageFlags.Ephemeral] });
-    enhancedLogger.warn(`User hit ticket creation rate limit`, LogCategory.SECURITY, {
-      userId: interaction.user.id,
-      guildId,
-    });
-    return;
-  }
+  let savedTicket: Ticket | null = null;
+  let newChannel: TextChannel | null = null;
+  let welcomeSent = false;
 
   try {
+    // Routing, the DB writes and channels.create can outlast Discord's
+    // 3-second reply window, so acknowledge first.
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
     const fields = interaction.fields;
     let description = '';
 
     const resolved = await resolveTicketType(guildId, ticketType);
 
     if (!resolved) {
-      await interaction.reply({
-        content: '❌ Ticket type configuration not found!',
-        flags: [MessageFlags.Ephemeral],
+      await interaction.editReply({ content: '❌ Ticket type configuration not found!' });
+      return;
+    }
+
+    // Every entry path (menu, legacy buttons, a modal left open) ends here.
+    if (await isTypeBlocked(guildId, interaction.user.id, ticketType, resolved.customType)) {
+      await interaction.editReply({ content: TYPE_NOT_ALLOWED });
+      return;
+    }
+
+    // 3 tickets per hour per user in each server: a busy server must not use
+    // up the user's budget everywhere else.
+    const rateLimitKey = createRateLimitKey.userGuild(interaction.user.id, guildId, 'ticket-create');
+    const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.TICKET_CREATE);
+
+    if (!rateCheck.allowed) {
+      await interaction.editReply({ content: rateCheck.message ?? lang.ticket.error });
+      enhancedLogger.warn(`User hit ticket creation rate limit`, LogCategory.SECURITY, {
+        userId: interaction.user.id,
+        guildId,
       });
       return;
     }
@@ -407,12 +484,21 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
       ticketData.customTypeId = ticketType;
     }
 
+    // Smart routing (best effort: null on any failure or when it's off). It can
+    // take a few seconds (member fetch), so it runs before the row exists.
+    const assignee = modalTicketConfig
+      ? await pickTicketAssignee(guild, ticketType, modalTicketConfig, member.id)
+      : null;
+
+    // The row comes first because the channel name carries its id; every
+    // failure below rolls it back (see rollbackFailedTicket).
     const newTicket = ticketRepo.create(ticketData);
-    const savedTicket = (await ticketRepo.save(newTicket)) as Ticket;
+    savedTicket = (await ticketRepo.save(newTicket)) as Ticket;
+    const ticketId = savedTicket.id;
 
     const sanitizedDisplayName = displayName.toLowerCase().replace(/[^a-z0-9]/g, '-');
     const sanitizedUsername = member.user.username.toLowerCase().replace(/[^a-z0-9]/g, '-');
-    const channelName = `${savedTicket.id}_${sanitizedDisplayName}_${sanitizedUsername}`.substring(0, 100);
+    const channelName = `${ticketId}_${sanitizedDisplayName}_${sanitizedUsername}`.substring(0, 100);
 
     const rolePerms = await staffRoleRepo
       .createQueryBuilder()
@@ -437,6 +523,10 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
       PermissionSets.TICKET_CREATOR,
       guild.roles.cache,
     );
+    // Without Administrator the @everyone deny would lock the bot out of the
+    // channel it creates, so the welcome send and transcripts would fail.
+    permOverwrites.push({ id: interaction.client.user.id, allow: BOT_TICKET_PERMISSIONS });
+    if (assignee) permOverwrites.push({ id: assignee.id, allow: PermissionSets.STAFF_MEMBER });
 
     const channel = await guild.channels.create({
       name: channelName,
@@ -444,11 +534,11 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
       parent: category,
       permissionOverwrites: permOverwrites,
     });
+    newChannel = channel as TextChannel;
 
-    await interaction.reply({
-      content: `${lang.ticket.created}${channel}`,
-      flags: [MessageFlags.Ephemeral],
-    });
+    // Link the channel right away so any later failure still leaves a ticket
+    // whose Close button works.
+    await ticketRepo.update({ id: ticketId, guildId }, { channelId: newChannel.id });
 
     const welcomeMsg = `<@${member.user.id}>\n\n${lang.ticket.welcomeMsg}`;
     const buttonOptions = new ActionRowBuilder<ButtonBuilder>().setComponents(
@@ -461,21 +551,24 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
         .setLabel(lang.ticket.buttons.closeTicket)
         .setStyle(ButtonStyle.Danger),
     );
-    const newChannel = channel as TextChannel;
 
     const welcome = await newChannel.send({
       content: welcomeMsg,
       components: [buttonOptions],
+      allowedMentions: { users: [member.user.id] },
     });
+    welcomeSent = true;
+
     // Discord caps message content at 2000 chars. The assembled answers can
     // exceed that (custom fields without a maxLength default to 4000 chars,
     // markdown escaping inflates length, builtin types add labels), which
     // previously threw and left the ticket with only a welcome message and no
     // answers — looking exactly like a blank submission. Chunk on line
     // boundaries so every answer always posts, no matter the length.
+    // The answers are the opener's own text: they must never ping anyone.
     const answerChunks = chunkByMessageBoundary([`​\n${description}`]);
     for (const chunk of answerChunks) {
-      await newChannel.send(chunk);
+      await newChannel.send({ content: chunk, allowedMentions: { parse: [] } });
     }
 
     const botConfig = await botConfigRepo.findOneBy({ guildId });
@@ -497,25 +590,36 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
       if (shouldPingStaff) {
         await newChannel.send({
           content: `${roleMention(globalStaffRoleId)}\n📨 A new **${displayName}** ticket has been created!`,
+          allowedMentions: { roles: [globalStaffRoleId] },
         });
       }
     }
 
     await ticketRepo.update(
-      { id: savedTicket.id, guildId },
+      { id: ticketId, guildId },
       {
         messageId: welcome.id,
-        channelId: newChannel.id,
         status: 'opened',
+        ...(assignee ? { assignedTo: assignee.id, assignedAt: new Date() } : {}),
       },
     );
 
-    enhancedLogger.info(`Ticket created: #${savedTicket.id} (${ticketType})`, LogCategory.COMMAND_EXECUTION, {
+    if (assignee) {
+      await newChannel.send({
+        content: formatLang(lang.ticket.routing.autoAssigned, userMention(assignee.id)),
+        allowedMentions: { users: [assignee.id] },
+      });
+    }
+
+    await interaction.editReply({ content: `${lang.ticket.created}${newChannel}` });
+
+    enhancedLogger.info(`Ticket created: #${ticketId} (${ticketType})`, LogCategory.COMMAND_EXECUTION, {
       userId: interaction.user.id,
       guildId,
-      ticketId: savedTicket.id,
+      ticketId,
       ticketType,
       channelId: newChannel.id,
+      assignedTo: assignee?.id,
     });
   } catch (error) {
     enhancedLogger.error(
@@ -526,16 +630,17 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
         userId: interaction.user.id,
         guildId,
         ticketType,
+        ticketId: savedTicket?.id,
+        channelId: newChannel?.id,
       },
     );
-    // The "ticket created" reply above may already have fired before the
-    // error — replying again would throw InteractionAlreadyReplied and mask
-    // the real failure (the old behavior). Follow up instead, and never let
-    // the error notification itself bubble.
-    if (interaction.replied || interaction.deferred) {
-      await replyEphemeralError(interaction, lang.ticket.error).catch(() => {});
-    } else {
-      await replyEphemeralError(interaction, lang.ticket.error).catch(() => {});
+    if (welcomeSent && newChannel) {
+      // The channel is linked and has its Close button; only a later step
+      // (answers, staff ping, final update) failed, so point the user at it.
+      await interaction.editReply({ content: `${lang.ticket.created}${newChannel}` }).catch(() => {});
+      return;
     }
+    await rollbackFailedTicket(guildId, savedTicket, newChannel);
+    await replyEphemeralError(interaction, lang.ticket.error);
   }
 };

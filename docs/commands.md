@@ -1,6 +1,6 @@
 # Cogworks Bot Commands
 
-**Last Updated:** `March 19, 2026` (v3.0.0)
+**Last Updated:** `October 6, 2026` (v3.16.37)
 
 Complete command reference for all bot systems.
 
@@ -826,8 +826,8 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 ### Server Health Check
 **`/bot-health check [system] [deep] [guild-id]`**
 - **Admin-only** (the bot owner can also run it); works even before `/bot-setup` has been run
-- Checks the saved Cogworks settings against the server's live channels and roles, and reports what is broken or stale. It only reads; nothing is changed
-- `system` - (Optional) Check one system: Core (which includes the staff roles), Tickets, Applications, Announcements, Memory, Rules, Reaction roles, XP, Starboard, Onboarding (default: all). The bait channel has no checks yet; a check of all systems lists it as not checked yet
+- Checks the saved Cogworks settings against the server's live channels, roles and slash commands, and reports what is broken or stale. It only reads; nothing is changed
+- `system` - (Optional) Check one system: Core (which includes the staff roles and the slash commands), Tickets, Applications, Announcements, Memory, Rules, Reaction roles, XP, Starboard, Onboarding (default: all). The bait channel has no checks yet; a check of all systems lists it as not checked yet
 - `deep` - (Optional) Also look up messages and threads through Discord (slower)
 - `guild-id` - (Optional, bot owner only) Check another server the bot is in
 - **Summary**: one line per system (✅ no problems, ⚠️ found, ❌ something is broken, ➖ not set up or not checked yet). Deep-mode lookups that were skipped are listed by what they cover; the per-run caps are fixed, so a second run skips the same ones
@@ -896,11 +896,23 @@ All commands are protected with rate limiting:
 - Admin/staff role validation
 - Server owner bypass for critical commands
 
+## Command Visibility and Access
+
+Server-wide and destructive commands are **hidden** from everyone without Discord's Administrator permission: `/bot-setup`, `/bot-reset`, `/bot-health`, `/data-export`, `/import`, `/archive`, `/migrate`, `/dev`, `/role`, and the bot-owner `/status`.
+
+Every feature command is **visible to all members**: `/ticket`, `/ticket-setup`, `/application`, `/application-setup`, `/announcement`, `/announcement-setup`, `/memory`, `/memory-setup`, `/xp`, `/xp-setup`, `/starboard`, `/reactionrole`, `/rules-setup`, `/event`, `/onboarding`, `/automod`, `/analytics`, `/baitchannel` and the four right-click actions. Seeing a command doesn't grant it: each subcommand checks the member's feature access before doing anything, autocomplete suggestions need the same feature and level as their subcommand, and modal submits re-check access.
+
+- **Discord Administrators** can always use everything.
+- **No dashboard grants** for the server (the default): feature commands stay admin-only, and other members get "This command requires Administrator permission".
+- **With dashboard grants** (Permissions page): a role's `use`, `manage` or `admin` level on a feature decides what its members can run. `use` covers read-only views (`/ticket type list`, `/ticket manage info`, `/analytics overview`, `/reactionrole list`, `/starboard stats`, the right-click lookups), `manage` covers setup and day-to-day changes (including `/application info`, which shows internal staff notes), and `admin` covers XP edits and resets (`/xp set`, `/xp reset`, `/xp reset-all`) and raid lockdowns (`/baitchannel raid enter`, `/baitchannel raid release`).
+
+Member-facing commands need no grant: `/application check` (your own open application), `/rank`, `/leaderboard`, `/ping`, `/coffee`, `/dashboard`.
+
 ## Permission Levels
 
 | Level | Access |
 |-------|--------|
 | **Bot Owner** | Status commands, `/bot-health check` on any server (BOT_OWNER_ID env var) |
 | **Admin** | All commands + role management + setup + data export + health check |
-| **Staff** | Ticket replies only |
-| **User**  | None (all commands are staff-only) |
+| **Feature grant** | The features and levels a dashboard role grant gives (see above) |
+| **User**  | Member-facing commands only (`/application check`, `/rank`, `/leaderboard`, `/ping`, `/coffee`, `/dashboard`) |

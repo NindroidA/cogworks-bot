@@ -71,6 +71,281 @@ its custom reminders.
 - The application rate limit (2 a day) is counted per server instead of across
   every server the bot is in.
 
+## [3.16.31] - 2026-10-06
+
+Ticket fixes for type management, email import, restrictions and the SLA clock
+(NindroidA/cogworks-bot#41), and the two leftovers from issue #2.
+
+### Fixed
+
+- **SLA clock**: breach checks and `/ticket sla stats` measured from the
+  ticket's last activity, which every message moves. An opener who kept
+  posting restarted the clock, so the breach never fired, and a user reply
+  after the first staff reply made that ticket's response time negative. Both
+  now run from when the ticket opened (its channel's creation time). Stats
+  count tickets by when they opened, and a response time is never below zero.
+- **Email import type in the ticket menu**: the first `/ticket manage
+  import-email` created the internal "Email Import" type as active, so it then
+  showed in every member's ticket menu. It is now created inactive, and the
+  menu never lists it (this also hides it in servers that already have it).
+- **Orphaned email-import channels**: the embed was built after the channel
+  was created, so a long subject or long attachment links made it fail and
+  left an empty channel with no ticket behind. The embed is now built first,
+  the title is shortened to fit, links that don't fit in the embed are posted
+  as follow-up messages, and the channel is deleted if anything fails before
+  the ticket is saved. The subject box allows 255 characters (it allowed 256,
+  one more than the database column).
+- **Restrictions on types 11 and later were lifted on save**: the restriction
+  modals (`/ticket manage user-restrict` and the Manage Restrictions context
+  menu) listed the first 10 types but lifted any restriction they didn't show.
+  They now list up to 50 types in groups of 10 and only change the types they
+  show; the summary shows every type's real status. A long member name no
+  longer makes the modal title too long for Discord.
+- **`/ticket type remove`** listened to every button in the channel: a second
+  remove prompt's Delete also deleted the first type, and other buttons (the
+  ticket panel included) were overwritten with "cancelled". It now waits on
+  its own prompt only, and deleting a type also clears restrictions on it.
+  `/ticket manage user-restrict` with a type had the same channel-wide
+  listener and answered other members' clicks with "not your interaction";
+  it now waits on its own prompt too.
+- **Ping on create for the five builtin types**: `/ticket manage settings
+  setting:ping-on-create` for ban_appeal, player_report, bug_report, 18_verify
+  or other wrote a setting ticket creation no longer reads (each has its own
+  type row). It now updates the type's row. A ping turned on this way before
+  this release did not take effect; turn it on again.
+- **`/ticket workflow settings`** saved the settings it loaded before the
+  modal opened, undoing anything changed while it was open (category, SLA,
+  routing, dashboard). It now applies the two checkboxes to a fresh copy.
+- **`/ticket type list`**: more than 25 types, or long names and descriptions,
+  went past Discord's embed limits and the command failed. The summary now
+  shortens descriptions, stops before the limits and says how many types it
+  left out. A custom-emoji type no longer breaks the select menu.
+- **Set as Default** (issue #2) saved every type one by one; it is now two
+  updates in one transaction. It refuses an inactive type (as `/ticket type
+  default` does), deactivating the default type clears its default flag, and
+  the default type is now listed first in the members' ticket menu (before,
+  the flag did nothing).
+- **Modals with no custom ID** (issue #2) now raise an error instead of
+  opening and waiting 5 minutes for a submission that could never match.
+
+### Changed
+
+- Opening the email-import modal has its own 3-per-hour limit; it is now
+  counted per user in each server too, like the submit's ticket limit since
+  3.16.29 (it was counted across every server the bot is in).
+- `/dev-test sla-backdate-ticket` changes a ticket's last activity, which no
+  longer moves the SLA clock for a ticket with a channel; its reply and the
+  dev-suite SLA checklist now say to use a 1-minute target and wait.
+- `/ticket type default` uses the same single transaction as Set as Default.
+
+## [3.16.30] - 2026-10-06
+
+Feature commands are now visible to every member, so the dashboard's
+per-role feature grants finally work for slash commands and right-click
+actions (NindroidA/cogworks-bot#41). Server-wide and destructive commands stay
+hidden behind Discord's Administrator permission. Servers that never set up
+grants see no change in who can run what: feature commands still answer
+"requires Administrator" for everyone else.
+
+### Changed
+
+- **Hybrid command visibility.** `/ticket`, `/ticket-setup`, `/application`,
+  `/application-setup`, `/announcement`, `/announcement-setup`, `/memory`,
+  `/memory-setup`, `/xp`, `/xp-setup`, `/starboard`, `/reactionrole`,
+  `/rules-setup`, `/event`, `/onboarding`, `/automod`, `/analytics`,
+  `/baitchannel` and the four context menus are registered with no default
+  member permission. Each subcommand's feature guard decides access, so a
+  role granted `tickets: manage` in the dashboard can now see and run
+  `/ticket manage assign`. Before, every one of these was registered
+  Administrator-only and Discord never delivered them to the role.
+- **Still Administrator-only:** `/bot-setup`, `/bot-reset`, `/bot-health`, `/data-export`,
+  `/import`, `/archive`, `/migrate`, `/dev` and `/role` (saved staff/admin
+  roles, which has no feature grant), plus the bot-owner `/status`.
+- **`/application check` reaches applicants.** The applicant self-check was
+  hidden by the old Administrator default on `/application`; members can now
+  see their own open application's status.
+
+### Fixed
+
+- **`/application position remove|toggle|edit|fields` autocomplete.** The
+  routes were keyed without the `position` group and never matched, so the
+  position picker offered nothing.
+
+### Security
+
+- **Every visible path is guarded.** `/ticket manage info` now checks
+  `tickets: use`, and `/starboard stats` and `/starboard random` check
+  `starboard: use`. All three relied only on the Administrator default.
+- **`/application info` needs `applications: manage`** (was `use`), the level
+  the review actions need. Its embed shows internal staff notes and reviewer
+  history, and applicants can run it in their own application channel.
+- **Autocomplete checks access per subcommand.** Each route carries the same
+  feature and level as its subcommand's guard (`manage` everywhere except
+  `/ticket type edit` at `use`); anyone else gets an empty list. Before, the
+  Administrator default was the only thing keeping bait keywords, memory
+  titles, routing and AutoMod rule names, ticket types and templates from
+  members.
+- **Modal submits re-check access.** The ticket type-add, email-import and
+  position-edit modals check `manage` again on submit (email import used to
+  skip the permission check).
+- **Refused commands leave no trace.** When a guard refuses, the dispatcher no
+  longer writes a `command:*` audit row under the member's name and no longer
+  requests a command refresh, so spamming a refused `*-setup` can't keep
+  restarting the refresh debounce.
+- **New guard-coverage test** (`tests/unit/commands/commandVisibility.test.ts`)
+  walks the registered commands and fails when a visible command or
+  subcommand has no guard row, when a member without a grant gets past a
+  guard, when a guard checks the wrong feature or a lower level, when an
+  autocomplete route's feature or level differs from its subcommand's, or when
+  a refused command is audited.
+
+## [3.16.29] - 2026-10-06
+
+Ticket creation robustness (NindroidA/cogworks-bot#41): smart routing now
+actually assigns tickets, long or oddly configured ticket types can be opened
+again, and a failed creation no longer leaves an orphan channel or a broken
+ticket row behind.
+
+### Fixed
+
+- **Smart routing assigns new tickets.** `routeTicket` was only ever called by
+  the dev test command, so `/ticket routing` rules did nothing. Ticket creation
+  now routes when smart routing and the workflow system are on and a rule
+  matches the type: the picked staff member gets a channel overwrite,
+  `assignedTo`/`assignedAt` are saved, and the channel gets the
+  "automatically assigned" notice that pings them. The opener is never picked,
+  and a routing failure only leaves the ticket unassigned.
+- **Assignee access follows the assignment.** Admin Only now also hides the
+  channel from members who have their own overwrite (a routed or dashboard
+  assignee), except the opener and the bot. `/ticket manage unassign`,
+  reassigning with `/ticket manage assign`, and reassigning from the dashboard
+  remove the previous assignee's member overwrite.
+- **Routing finds staff without presence data.** The bot runs without the
+  privileged GuildPresences intent, so the online/idle filter matched nobody.
+  Without that intent every non-bot member of the rule's role is now eligible
+  (with it, the online/idle filter still applies). Guilds up to 1,000 members
+  fetch the member list first, since the member cache keeps only 200.
+- **Ticket types with long names open again.** The modal title and field
+  labels are clamped to Discord's 45-character limit (without splitting an
+  emoji), placeholders to 100, and stored min/max lengths are kept within
+  0-4000 with min no greater than max. The modal title shows the type's emoji
+  only when it is a unicode emoji; a custom `<:name:id>` or text like
+  `:ticket:` would show raw, so those fall back to 🎫.
+- **One bad emoji or a 26th type no longer breaks the ticket menu.** An emoji
+  Discord won't accept (`:bug:`, plain text) falls back to 🎫 instead of failing
+  the whole menu, and the menu shows the first 25 types. Option labels and
+  descriptions are clamped to 100 without splitting an emoji.
+- **Restricted users and deactivated types are refused everywhere.** The legacy
+  type buttons and the modal submit now check user restrictions and inactive
+  types like the menu does, so the button fallback can't bypass them.
+- **No more orphan channels or broken rows.** The reply is deferred before any
+  work, the channel id is saved right after the channel is created, and if
+  setup fails before the welcome message is posted the channel is deleted and
+  then the row (Discord first). A failure after the welcome keeps the linked
+  ticket, and the opener is pointed at it.
+- **The bot keeps access to the ticket channels it creates.** Each ticket
+  channel gets an overwrite for the bot (View Channel, Send Messages, Read
+  Message History, Manage Channels), so a bot without Administrator can post the
+  welcome message and read the channel for transcripts.
+- **Ticket answers can't ping @everyone or roles.** The opener's answers are
+  sent with no allowed mentions, the welcome message can mention only the
+  opener, and the staff ping can mention only the configured staff role.
+- **Ticket rate limits are per server.** The 3-per-hour ticket limit, shared
+  by panel tickets and `/ticket manage import-email`, is now counted per user
+  in each server instead of across every server the bot is in.
+
+## [3.16.28] - 2026-10-06
+
+Internal API fixes for the dashboard (NindroidA/cogworks-bot#41): the "Post
+rules message" button works, failed ticket closes and application archives
+report an error instead of success, dashboard config changes refresh the
+guild's command list, the internal API is tighter about what it accepts,
+and its bind address can be restricted to loopback.
+
+### Fixed
+
+- **Dashboard "Post rules message" always failed with "channelId is
+  required".** The dashboard saves the rules config itself and then sends only
+  who clicked; `POST /rules/setup` now posts from the stored config (body
+  fields still override). It runs the same checks as `/rules setup` before
+  posting (emoji format, @everyone, managed roles, roles at or above the bot,
+  a missing role, 2000-character messages). A missing Send Messages or Add
+  Reactions permission is a 403 that says so. If the reaction can't be added
+  or the config can't be saved, the posted message is deleted again. The
+  default text stays out of `customMessage`. A re-post in the same channel
+  removes the previous rules message once the new one is saved; after the
+  channel is changed on the dashboard, the old message stays in the old
+  channel and has to be deleted by hand.
+- **A failed dashboard ticket close or application archive showed as
+  success.** When the channel couldn't be read or the archive failed, the bot
+  reopened the ticket but answered 200 `{ success: false }`, which the
+  dashboard treated as done. These now return 409 with a reason ("ticket left
+  open"). A channel that is already gone still closes with 200.
+- **Dashboard config changes didn't update the command list.** `POST
+  /config/refresh` (called after the dashboard toggles the bait channel or
+  creates a memory or announcement config) now requests a debounced guild
+  command refresh, so `/baitchannel` and the other gated commands show or hide
+  without a restart.
+- **`/announcement send` validates the stored defaults.** The default
+  announcement channel and role are validated against the current server
+  before sending: a default channel that no longer resolves (for example, one
+  that was deleted) gets a clear invalid-channel error, and a default role the
+  server doesn't have is left out of the message.
+- **Dashboard reaction-role menus skipped the slash-command checks.** `POST
+  /reaction-roles` now enforces the 20-option and 25-menu limits, the emoji
+  format, and the role rules (exists in the server, not @everyone, not
+  managed, below the bot) before posting anything.
+
+### Security
+
+- **Guild routes only run behind `/internal/guilds/:id`.** Top-level and
+  guild routes shared one table, so a guild route called without the prefix
+  ran with an empty guild id and skipped the bot-in-guild check (for example
+  creating `guildId ''` setup or permission rows). They now live in separate
+  tables. A JSON body that isn't an object (`null`, an array, a string) is a
+  400 instead of a 500.
+- **Maintenance mode's auth check could crash the bot** on some malformed
+  `Authorization` headers. It now uses the full-mode `validateAuth`, and the
+  listener catches anything else. Both maintenance-mode servers also log a
+  listen error (for example a bad `BOT_INTERNAL_HOST` or a busy port) instead
+  of crashing.
+- **New `BOT_INTERNAL_HOST` setting for the internal API (3002) and health
+  server (3003) bind address**, maintenance mode included. The default stays
+  `0.0.0.0` (every interface), so nothing changes on deploy. Setting it to
+  `127.0.0.1` is recommended once ninsys-api is confirmed to reach the bot via
+  localhost (host networking): with `network_mode: host`, the default leaves
+  both ports open on the host's other interfaces.
+
+## [3.16.27] - 2026-10-06
+
+`/bot-health check` now also checks the server's slash commands against the
+set the bot would register there (NindroidA/cogworks-bot#41). It only reads:
+the bot registers its commands again whenever it restarts.
+
+### Added
+
+- **Slash-command sync check** (`core.commands`, under Core): compares the
+  server's registered commands (one Discord call) with the set the bot would
+  register there now, by name and type and then field by field; a field
+  Discord leaves out reads the same as an empty one, so an untouched server
+  shows no drift. Missing or out-of-date commands are degraded, leftover ones
+  are cleanup; admins can't re-register commands themselves, so the text says
+  the bot does it on its next restart and to ask in the support server
+  (`/server`) if the finding stays. Discord refusing the list (50001) means the
+  bot lacks the `applications.commands` scope and the finding links a
+  re-invite. A 5xx or a timeout is reported as
+  "couldn't check", never as drift.
+- The Core choice reads "Core (settings, staff roles, permissions, commands)"
+  again, and the command description, README and docs mention commands.
+
+### Changed
+
+- `filterCommandsByEnabled` in `utils/setup/commandGating.ts` is exported
+  (the command sync check's expected set).
+- The command list is one call from the shared 60-call deep-mode REST budget
+  (it runs in normal checks too), so in the worst case one fewer archived
+  memory post is looked up.
+
 ## [3.16.26] - 2026-10-06
 
 `/bot-health check`: server admins (and the bot owner) can now see what is

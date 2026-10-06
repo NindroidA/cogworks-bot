@@ -1,4 +1,4 @@
-import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
 import { createActionOption, createTextChannelOption } from './factories';
 
@@ -7,7 +7,8 @@ const tl = lang.baitChannel.builder;
 export const baitChannelCommand = new SlashCommandBuilder()
   .setName('baitchannel')
   .setDescription(tl.cmdDescrp)
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
 
   // ── setup group ──────────────────────────────────────────────
   .addSubcommandGroup(group =>

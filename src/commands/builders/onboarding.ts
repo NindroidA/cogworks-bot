@@ -1,4 +1,4 @@
-import { PermissionsBitField, SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import onboardingLang from '../../lang/en/onboarding.json';
 
 const tl = onboardingLang.builder;
@@ -6,7 +6,8 @@ const tl = onboardingLang.builder;
 export const onboarding = new SlashCommandBuilder()
   .setName('onboarding')
   .setDescription(tl.cmdDescrp)
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   .addSubcommand(sub => sub.setName('enable').setDescription(tl.setup.enableDescrp))
   .addSubcommand(sub => sub.setName('disable').setDescription(tl.setup.disableDescrp))
   .addSubcommand(sub =>

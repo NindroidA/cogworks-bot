@@ -8,6 +8,7 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+  clampText,
   escapeDiscordMarkdown,
   maskEmail,
   sanitizeMentions,
@@ -267,6 +268,32 @@ describe("truncateWithNotice", () => {
     const text = "a".repeat(100);
     const result = truncateWithNotice(text, suffix.length);
     expect(result.length).toBeLessThanOrEqual(suffix.length);
+  });
+});
+
+// ============================================================================
+// clampText
+// ============================================================================
+
+describe("clampText", () => {
+  test("returns text within the limit unchanged", () => {
+    expect(clampText("short", 45)).toBe("short");
+    expect(clampText("x".repeat(45), 45)).toBe("x".repeat(45));
+  });
+
+  test("cuts to the limit with a trailing ellipsis", () => {
+    const clamped = clampText("x".repeat(60), 45);
+    expect(clamped).toBe(`${"x".repeat(44)}…`);
+  });
+
+  test("never splits an emoji surrogate pair (99 chars + emoji, limit 100)", () => {
+    const clamped = clampText(`${"a".repeat(99)}🎫 more`, 100);
+    expect(clamped).toBe(`${"a".repeat(99)}…`);
+    expect(clamped).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+  });
+
+  test("keeps a whole emoji when it fits", () => {
+    expect(clampText(`${"a".repeat(41)}🎫🎫🎫`, 45)).toBe(`${"a".repeat(41)}🎫…`);
   });
 });
 

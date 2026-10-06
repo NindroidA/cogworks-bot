@@ -1,6 +1,5 @@
 import {
   ChannelType,
-  PermissionsBitField,
   SlashCommandBuilder,
   SlashCommandSubcommandBuilder,
   SlashCommandSubcommandGroupBuilder,
@@ -192,7 +191,8 @@ const recurring = new SlashCommandSubcommandBuilder()
 export const event = new SlashCommandBuilder()
   .setName('event')
   .setDescription(eventLang.cmdDescrp)
-  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+  // Visible to everyone; the handlers' feature guards decide who may run each subcommand.
+  .setDefaultMemberPermissions(null)
   .addSubcommandGroup(templateGroup)
   .addSubcommandGroup(setupGroup)
   .addSubcommand(create)

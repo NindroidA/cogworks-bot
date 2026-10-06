@@ -8,8 +8,13 @@
  * box the truthy "false"), and extractModalBoolean must coerce it correctly.
  */
 
-import { describe, expect, test } from 'bun:test';
-import { extractModalBoolean, extractModalField } from '../../../../src/utils/interactions/modalHelper';
+import { describe, expect, jest, test } from 'bun:test';
+import { ModalBuilder } from 'discord.js';
+import {
+  extractModalBoolean,
+  extractModalField,
+  showAndAwaitModal,
+} from '../../../../src/utils/interactions/modalHelper';
 
 function fakeFields(map: Record<string, unknown>): any {
   return { getField: (id: string) => (id in map ? map[id] : null) };
@@ -60,5 +65,42 @@ describe('extractModalBoolean', () => {
   test('returns the default when value is null/undefined', () => {
     expect(extractModalBoolean(fakeFields({ flag: { value: null } }), 'flag', true)).toBe(true);
     expect(extractModalBoolean(fakeFields({ flag: {} }), 'flag', true)).toBe(true);
+  });
+});
+
+// Issue #2: an unrecognized modal shape used to yield customId '' — a submit
+// filter that never matches, so a silent 5-minute wait and a false timeout.
+describe('showAndAwaitModal', () => {
+  function fakeInteraction() {
+    const submit = { customId: '', user: { id: 'u1' } };
+    return {
+      user: { id: 'u1' },
+      showModal: jest.fn(async () => undefined),
+      awaitModalSubmit: jest.fn(async (opts: { filter: (i: typeof submit) => boolean }) => {
+        submit.customId = 'my_modal';
+        if (!opts.filter(submit)) throw new Error('timeout');
+        return submit;
+      }),
+    };
+  }
+
+  test('a modal with no custom_id throws before anything is shown', async () => {
+    const interaction = fakeInteraction();
+    await expect(showAndAwaitModal(interaction as never, { title: 'x', components: [] } as never)).rejects.toThrow(
+      'no custom_id',
+    );
+    expect(interaction.showModal).not.toHaveBeenCalled();
+  });
+
+  test('matches the submission by custom_id for both ModalBuilder and raw modals', async () => {
+    const builder = fakeInteraction();
+    expect(await showAndAwaitModal(builder as never, new ModalBuilder().setCustomId('my_modal').setTitle('t'))).toEqual({
+      customId: 'my_modal',
+      user: { id: 'u1' },
+    });
+
+    const raw = fakeInteraction();
+    expect(await showAndAwaitModal(raw as never, { custom_id: 'my_modal', title: 't', components: [] })).not.toBeNull();
+    expect(raw.showModal).toHaveBeenCalledTimes(1);
   });
 });
