@@ -30,7 +30,50 @@ function toJson(command: unknown): CommandJson {
 const keyOf = (name: string, type: number | undefined) => `${type ?? 1}:${name}`;
 
 /**
- * `ApplicationCommand#equals` for a guild command. Discord ignores
+ * Option fields where left out, null, false and [] all mean "none": the
+ * builder JSON's key, then the key on an option discord.js received.
+ */
+const UNSET_ALIKE = [
+  ['options', 'options'],
+  ['choices', 'choices'],
+  ['channel_types', 'channelTypes'],
+  ['autocomplete', 'autocomplete'],
+  ['required', 'required'],
+] as const;
+
+const isUnset = (value: unknown) =>
+  value === undefined || value === null || value === false || (Array.isArray(value) && value.length === 0);
+
+type OptionLike = Record<string, unknown>;
+
+/**
+ * A copy of the expected options with every field that is unset on both sides
+ * written the way Discord returned it, matched by name at every level. The
+ * builders send `options: []` on subcommands without options, and discord.js
+ * (14.26) compares nested option counts without the `?? 0` it uses at the top
+ * level, so a subcommand Discord returns without the key would read as
+ * changed. A field set on only one side is left alone, so real changes still show.
+ */
+export function alignUnsetOptions(expected: unknown, registered: readonly unknown[] | undefined): unknown {
+  if (!Array.isArray(expected)) return expected;
+  const byName = new Map((registered ?? []).map(option => [(option as OptionLike).name, option as OptionLike]));
+  return expected.map((raw: OptionLike) => {
+    const theirs = byName.get(raw.name);
+    if (!theirs) return raw;
+    const option = { ...raw };
+    for (const [ours, received] of UNSET_ALIKE) {
+      if (!isUnset(option[ours]) || !isUnset(theirs[received])) continue;
+      if (theirs[received] === undefined) delete option[ours];
+      else option[ours] = theirs[received];
+    }
+    if (Array.isArray(option.options)) option.options = alignUnsetOptions(option.options, theirs.options as unknown[]);
+    return option;
+  });
+}
+
+/**
+ * `ApplicationCommand#equals` for a guild command, whichever way Discord
+ * writes fields that are empty (see `alignUnsetOptions`). Discord ignores
  * `dm_permission`, `integration_types` and `contexts` on guild commands
  * (discord.js reads `dmPermission` as null there), so Discord's own values are
  * used for those; otherwise every command would read as changed.
@@ -39,6 +82,7 @@ export function guildCommandMatches(registered: ApplicationCommand, expected: Re
   const { dm_permission: _ignored, ...rest } = expected;
   const comparable = {
     ...rest,
+    options: alignUnsetOptions(rest.options, registered.options),
     integration_types: registered.integrationTypes ?? [],
     contexts: registered.contexts ?? [],
   };
