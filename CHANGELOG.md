@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.31] - 2026-10-06
+
+Ticket fixes for type management, email import, restrictions and the SLA clock
+(NindroidA/cogworks-bot#41), and the two leftovers from issue #2.
+
+### Fixed
+
+- **SLA clock**: breach checks and `/ticket sla stats` measured from the
+  ticket's last activity, which every message moves. An opener who kept
+  posting restarted the clock, so the breach never fired, and a user reply
+  after the first staff reply made that ticket's response time negative. Both
+  now run from when the ticket opened (its channel's creation time). Stats
+  count tickets by when they opened, and a response time is never below zero.
+- **Email import type in the ticket menu**: the first `/ticket manage
+  import-email` created the internal "Email Import" type as active, so it then
+  showed in every member's ticket menu. It is now created inactive, and the
+  menu never lists it (this also hides it in servers that already have it).
+- **Orphaned email-import channels**: the embed was built after the channel
+  was created, so a long subject or long attachment links made it fail and
+  left an empty channel with no ticket behind. The embed is now built first,
+  the title is shortened to fit, links that don't fit in the embed are posted
+  as follow-up messages, and the channel is deleted if anything fails before
+  the ticket is saved. The subject box allows 255 characters (it allowed 256,
+  one more than the database column).
+- **Restrictions on types 11 and later were lifted on save**: the restriction
+  modals (`/ticket manage user-restrict` and the Manage Restrictions context
+  menu) listed the first 10 types but lifted any restriction they didn't show.
+  They now list up to 50 types in groups of 10 and only change the types they
+  show; the summary shows every type's real status. A long member name no
+  longer makes the modal title too long for Discord.
+- **`/ticket type remove`** listened to every button in the channel: a second
+  remove prompt's Delete also deleted the first type, and other buttons (the
+  ticket panel included) were overwritten with "cancelled". It now waits on
+  its own prompt only, and deleting a type also clears restrictions on it.
+  `/ticket manage user-restrict` with a type had the same channel-wide
+  listener and answered other members' clicks with "not your interaction";
+  it now waits on its own prompt too.
+- **Ping on create for the five builtin types**: `/ticket manage settings
+  setting:ping-on-create` for ban_appeal, player_report, bug_report, 18_verify
+  or other wrote a setting ticket creation no longer reads (each has its own
+  type row). It now updates the type's row. A ping turned on this way before
+  this release did not take effect; turn it on again.
+- **`/ticket workflow settings`** saved the settings it loaded before the
+  modal opened, undoing anything changed while it was open (category, SLA,
+  routing, dashboard). It now applies the two checkboxes to a fresh copy.
+- **`/ticket type list`**: more than 25 types, or long names and descriptions,
+  went past Discord's embed limits and the command failed. The summary now
+  shortens descriptions, stops before the limits and says how many types it
+  left out. A custom-emoji type no longer breaks the select menu.
+- **Set as Default** (issue #2) saved every type one by one; it is now two
+  updates in one transaction. It refuses an inactive type (as `/ticket type
+  default` does), deactivating the default type clears its default flag, and
+  the default type is now listed first in the members' ticket menu (before,
+  the flag did nothing).
+- **Modals with no custom ID** (issue #2) now raise an error instead of
+  opening and waiting 5 minutes for a submission that could never match.
+
+### Changed
+
+- Opening the email-import modal has its own 3-per-hour limit; it is now
+  counted per user in each server too, like the submit's ticket limit since
+  3.16.29 (it was counted across every server the bot is in).
+- `/dev-test sla-backdate-ticket` changes a ticket's last activity, which no
+  longer moves the SLA clock for a ticket with a channel; its reply and the
+  dev-suite SLA checklist now say to use a 1-minute target and wait.
+- `/ticket type default` uses the same single transaction as Set as Default.
+
 ## [3.16.30] - 2026-10-06
 
 Feature commands are now visible to every member, so the dashboard's

@@ -1286,12 +1286,12 @@ function getWalkthroughSteps(system: string): string[] | null {
       ];
     case 'sla':
       return [
-        'Create a ticket using the ticket button',
-        'Run `/dev-test sla-backdate-ticket <id> 10`',
+        'Run `/ticket sla disable`, then `/ticket sla enable target-minutes:1 breach-channel:#dev-sla-alerts`',
+        'Create a ticket using the ticket button and wait 2 minutes (the SLA clock runs from when it opened)',
         'Run `/dev-test sla-force-check`',
         'Check #dev-sla-alerts for the breach alert',
-        'Reply in the ticket channel (simulates staff response)',
-        'Run `/ticket-setup sla stats` to see metrics',
+        "Reply in the ticket channel from another account (the opener's messages aren't a staff response)",
+        'Run `/ticket sla stats` to see metrics',
       ];
     case 'onboarding':
       return [

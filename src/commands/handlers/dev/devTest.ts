@@ -330,8 +330,13 @@ async function handleSlaBackdateTicket(interaction: ChatInputCommandInteraction,
   const config = await ticketConfigRepo.findOneBy({ guildId });
   const targetMinutes = config?.slaTargetMinutes ?? 60;
 
+  // The SLA clock runs from the channel's creation time; lastActivityAt only
+  // counts for a ticket with no channel (seeded test rows).
+  const effect = ticket.channelId
+    ? `This ticket has a channel, so its SLA clock still runs from when the channel was created. To test a breach, use \`/ticket sla enable target-minutes:1\` and wait.`
+    : `SLA target is ${targetMinutes}min. ${minutesAgo >= targetMinutes ? '⚠️ This should trigger a breach on next check.' : 'Still within SLA.'}`;
   await interaction.reply({
-    content: `✅ Ticket #${ticketId} creation time backdated to **${minutesAgo} minutes ago**. SLA target is ${targetMinutes}min. ${minutesAgo >= targetMinutes ? '⚠️ This should trigger a breach on next check.' : 'Still within SLA.'}`,
+    content: `✅ Ticket #${ticketId} last activity set to **${minutesAgo} minutes ago**. ${effect}`,
     flags: [MessageFlags.Ephemeral],
   });
 }

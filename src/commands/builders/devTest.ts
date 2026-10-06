@@ -48,12 +48,12 @@ export const devTest = new SlashCommandBuilder()
   .addSubcommand(sub =>
     sub
       .setName('sla-backdate-ticket')
-      .setDescription('Backdate a ticket creation time to simulate SLA breach')
+      .setDescription("Set a ticket's last activity time (the SLA clock uses the channel's creation time)")
       .addIntegerOption(opt => opt.setName('ticket-id').setDescription('Ticket ID to backdate').setRequired(true))
       .addIntegerOption(opt =>
         opt
           .setName('minutes-ago')
-          .setDescription('How many minutes ago to set the creation time')
+          .setDescription('How many minutes ago to set the last activity time')
           .setRequired(true)
           .setMinValue(1),
       ),

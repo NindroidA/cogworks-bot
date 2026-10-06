@@ -1,22 +1,17 @@
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  type ChatInputCommandInteraction,
-  ComponentType,
-  MessageFlags,
-} from 'discord.js';
+import { ButtonStyle, type ChatInputCommandInteraction } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
+import { UserTicketRestriction } from '../../../typeorm/entities/ticket/UserTicketRestriction';
 import {
+  awaitConfirmation,
   enhancedLogger,
   formatLang,
   guardFeatureAccess,
   handleInteractionError,
   LogCategory,
   lang,
+  logHandlerError,
   replyEphemeralError,
-  TIMEOUTS,
 } from '../../../utils';
 
 const tl = lang.ticket.customTypes.typeRemove;
@@ -55,77 +50,34 @@ export async function typeRemoveHandler(interaction: ChatInputCommandInteraction
       return;
     }
 
-    // Create confirmation buttons
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId('confirm_delete')
-        .setLabel(lang.general.buttons.delete)
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId('cancel_delete')
-        .setLabel(lang.general.buttons.cancel)
-        .setStyle(ButtonStyle.Secondary),
-    );
-
-    const confirmMessage = formatLang(tl.confirmMessage, ticketType.displayName);
-
-    await interaction.reply({
-      content: `**${tl.confirmTitle}**\n\n${confirmMessage}`,
-      components: [row],
-      flags: [MessageFlags.Ephemeral],
+    // awaitConfirmation collects from this one reply only. A channel-wide
+    // collector also caught a second remove prompt's Delete (deleting a type
+    // nobody confirmed) and any other button the admin pressed, such as the
+    // ticket panel, which it then overwrote.
+    const result = await awaitConfirmation(interaction, {
+      message: `**${tl.confirmTitle}**\n\n${formatLang(tl.confirmMessage, ticketType.displayName)}`,
+      confirmLabel: lang.general.buttons.delete,
+      confirmStyle: ButtonStyle.Danger,
+      idPrefix: `tt_remove_${interaction.id}`,
     });
+    if (!result) return;
 
-    // Wait for button interaction
-    const filter = (i: { user: { id: string } }) => i.user.id === interaction.user.id;
-    const collector = interaction.channel?.createMessageComponentCollector({
-      filter,
-      componentType: ComponentType.Button,
-      time: TIMEOUTS.CONFIRMATION,
-    });
+    try {
+      await typeRepo.remove(ticketType);
+      // Restrictions on the deleted type would otherwise linger (the restriction
+      // modals only rewrite the types they show).
+      await AppDataSource.getRepository(UserTicketRestriction).delete({ guildId, typeId });
+      await result.interaction.editReply({ content: formatLang(tl.success, ticketType.displayName), components: [] });
 
-    collector?.on('collect', async i => {
-      if (i.customId === 'confirm_delete') {
-        try {
-          await typeRepo.remove(ticketType);
-
-          await i.update({
-            content: formatLang(tl.success, ticketType.displayName),
-            components: [],
-          });
-
-          enhancedLogger.info(`Ticket type deleted: ${ticketType.typeId}`, LogCategory.COMMAND_EXECUTION, {
-            guildId,
-            typeId: ticketType.typeId,
-            userId: interaction.user.id,
-          });
-        } catch {
-          await i.update({
-            content: tl.error,
-            components: [],
-          });
-        }
-      } else {
-        await i.update({
-          content: tl.cancelled,
-          components: [],
-        });
-      }
-
-      collector.stop();
-    });
-
-    collector?.on('end', async collected => {
-      if (collected.size === 0) {
-        try {
-          await interaction.editReply({
-            content: tl.cancelled,
-            components: [],
-          });
-        } catch {
-          // Interaction may have expired
-        }
-      }
-    });
+      enhancedLogger.info(`Ticket type deleted: ${ticketType.typeId}`, LogCategory.COMMAND_EXECUTION, {
+        guildId,
+        typeId: ticketType.typeId,
+        userId: interaction.user.id,
+      });
+    } catch (error) {
+      logHandlerError('typeRemoveHandler', error, { guildId, typeId });
+      await result.interaction.editReply({ content: tl.error, components: [] });
+    }
   } catch (error) {
     await handleInteractionError(interaction, error, 'typeRemoveHandler');
   }
