@@ -107,23 +107,32 @@ export const guildScheduledEventUpdate = {
         return;
       }
 
-      // If start time changed, update reminders
+      // If start time changed, move the pending reminders with it
       if (
         oldEvent?.scheduledStartAt &&
         newEvent.scheduledStartAt &&
         oldEvent.scheduledStartAt.getTime() !== newEvent.scheduledStartAt.getTime()
       ) {
-        // Delete old reminders and create new ones
-        await eventReminderRepo.delete({
-          guildId,
-          discordEventId: newEvent.id,
-          sent: false,
-        });
+        // Shift every unsent reminder (the default and any /event remind ones)
+        // by the same amount, and drop the ones that now fall in the past.
+        const shift = newEvent.scheduledStartAt.getTime() - oldEvent.scheduledStartAt.getTime();
+        const pending = await eventReminderRepo.find({ where: { guildId, discordEventId: newEvent.id, sent: false } });
+        const kept: EventReminder[] = [];
+        const expired: EventReminder[] = [];
+        for (const reminder of pending) {
+          reminder.reminderAt = new Date(reminder.reminderAt.getTime() + shift);
+          (reminder.reminderAt > new Date() ? kept : expired).push(reminder);
+        }
+        if (expired.length > 0) await eventReminderRepo.remove(expired);
+        if (kept.length > 0) await eventReminderRepo.save(kept);
 
+        // Add the default reminder if the event had none (e.g. it was too close
+        // to start before). Same minute = same reminder, as the checker dedupes.
         if (config.reminderChannelId && config.defaultReminderMinutes > 0) {
           const reminderAt = new Date(newEvent.scheduledStartAt.getTime() - config.defaultReminderMinutes * 60 * 1000);
+          const minute = (date: Date) => Math.floor(date.getTime() / 60_000);
 
-          if (reminderAt > new Date()) {
+          if (reminderAt > new Date() && !kept.some(r => minute(r.reminderAt) === minute(reminderAt))) {
             const reminder = eventReminderRepo.create({
               guildId,
               discordEventId: newEvent.id,
@@ -246,8 +255,12 @@ async function handleEventCompleted(event: GuildScheduledEvent, config: EventCon
   await handleRecurringNext(event, config, client);
 }
 
-async function handleRecurringNext(event: GuildScheduledEvent, config: EventConfig, _client: Client): Promise<void> {
+async function handleRecurringNext(event: GuildScheduledEvent, config: EventConfig, client: Client): Promise<void> {
   const guildId = event.guildId;
+
+  // Recurring occurrences are created by the bot. An event someone made by
+  // hand in Discord with the same title must not start a chain of its own.
+  if (!event.creatorId || event.creatorId !== client.user?.id) return;
 
   // Try to find a recurring template matching this event title
   const templates = await eventTemplateRepo.find({
@@ -263,7 +276,7 @@ async function handleRecurringNext(event: GuildScheduledEvent, config: EventConf
   const nextEnd = new Date(nextStart.getTime() + matchingTemplate.defaultDurationMinutes * 60 * 1000);
 
   try {
-    const guild = _client.guilds.cache.get(guildId);
+    const guild = client.guilds.cache.get(guildId);
     if (!guild) return;
 
     const entityTypeMap: Record<string, GuildScheduledEventEntityType> = {
@@ -287,6 +300,20 @@ async function handleRecurringNext(event: GuildScheduledEvent, config: EventConf
       eventData.entityMetadata = {
         location: matchingTemplate.location || 'TBD',
       };
+    } else if (event.channelId && event.entityType !== GuildScheduledEventEntityType.External) {
+      // Voice and stage: the next occurrence uses the channel (and kind) of the one that just ended.
+      eventData.entityType = event.entityType;
+      eventData.channel = event.channelId;
+    } else {
+      enhancedLogger.warn(
+        'Recurring voice/stage event has no channel; next occurrence not created',
+        LogCategory.SYSTEM,
+        {
+          guildId,
+          templateName: matchingTemplate.name,
+        },
+      );
+      return;
     }
 
     const newEvent = await guild.scheduledEvents.create(eventData);

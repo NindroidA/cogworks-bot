@@ -4,6 +4,19 @@ import { sleep } from './time';
 
 /** Discord's per-forum cap on available tags. */
 export const FORUM_TAG_LIMIT = 20;
+/** Discord's cap on a forum tag name's length. */
+export const FORUM_TAG_NAME_MAX = 20;
+
+/**
+ * The tag name used for `displayName`, within Discord's 20 characters. A
+ * trailing " Application" (built-in position titles) goes first, so
+ * "Developer Application" tags as "Developer".
+ */
+export function forumTagName(displayName: string): string {
+  const name = displayName.trim();
+  const short = name.length > FORUM_TAG_NAME_MAX ? name.replace(/\s+application$/i, '') : name;
+  return short.slice(0, FORUM_TAG_NAME_MAX).trimEnd();
+}
 
 /** Convert a stored emoji string (unicode or `<:name:id>`) to a forum tag emoji. */
 export function toForumTagEmoji(emoji: string | null | undefined): GuildForumTagEmoji | null {
@@ -29,9 +42,11 @@ export async function ensureForumTag(
   displayName: string,
   emoji: string | null,
 ): Promise<string | null> {
+  // A name over 20 characters was rejected on every close.
+  const tagName = forumTagName(displayName) || typeId.slice(0, FORUM_TAG_NAME_MAX);
   try {
     // Check if tag already exists (by name)
-    const existingTag = forumChannel.availableTags.find(tag => tag.name.toLowerCase() === displayName.toLowerCase());
+    const existingTag = forumChannel.availableTags.find(tag => tag.name.toLowerCase() === tagName.toLowerCase());
 
     if (existingTag) {
       enhancedLogger.info(`Forum tag "${displayName}" already exists`, LogCategory.SYSTEM, {
@@ -55,7 +70,7 @@ export async function ensureForumTag(
 
     // Create new tag data (Discord.js will assign ID)
     const newTagData: Partial<GuildForumTag> = {
-      name: displayName,
+      name: tagName,
       moderated: false,
     };
     const tagEmoji = toForumTagEmoji(emoji);
@@ -70,7 +85,7 @@ export async function ensureForumTag(
 
     // Fetch the created tag ID (it's the last one added)
     const refreshedChannel = (await forumChannel.fetch()) as ForumChannel;
-    const createdTag = refreshedChannel.availableTags.find(tag => tag.name.toLowerCase() === displayName.toLowerCase());
+    const createdTag = refreshedChannel.availableTags.find(tag => tag.name.toLowerCase() === tagName.toLowerCase());
 
     if (!createdTag) {
       enhancedLogger.error(

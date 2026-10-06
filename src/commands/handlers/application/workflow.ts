@@ -77,6 +77,9 @@ function mapStatus(status: string): string {
   return status === 'created' ? 'submitted' : status;
 }
 
+/** Statuses the bot sets itself. A workflow status named `closed` hid the application from every lookup. */
+const RESERVED_STATUS_IDS = ['closed', 'created', 'opened', 'error'];
+
 // ============================================================================
 // Helper: Append to status history (capped at MAX entries)
 // ============================================================================
@@ -110,6 +113,10 @@ export async function applicationStatusHandler(interaction: ChatInputCommandInte
 
   const newStatusId = interaction.options.getString('status', true);
   const currentStatus = mapStatus(application.status);
+  if (RESERVED_STATUS_IDS.includes(newStatusId)) {
+    await replyEphemeralError(interaction, formatLang(tl.reservedStatusId, newStatusId));
+    return;
+  }
 
   const statusDef = findStatusById(statuses, newStatusId);
   if (!statusDef) {
@@ -319,15 +326,18 @@ export async function applicationInfoHandler(interaction: ChatInputCommandIntera
     });
   }
 
-  // Internal notes (last 5)
+  // Internal notes (last 5). Notes are up to 1000 chars but an embed field
+  // holds 1024: 5 × (150 + ~45 for author and time) fits, the slice is a backstop.
   if (application.internalNotes && application.internalNotes.length > 0) {
     const recentNotes = application.internalNotes.slice(-5).reverse();
     const notesText = recentNotes
       .map(n => {
         const timestamp = toUnixSeconds(new Date(n.addedAt));
-        return formatLang(tlInfo.noteEntry, n.note, n.addedBy, timestamp.toString());
+        const note = n.note.length > 150 ? `${n.note.slice(0, 149)}…` : n.note;
+        return formatLang(tlInfo.noteEntry, note, n.addedBy, timestamp.toString());
       })
-      .join('\n');
+      .join('\n')
+      .slice(0, 1024);
 
     embed.addFields({
       name: formatLang(tlInfo.notesTitle, application.internalNotes.length.toString()),
@@ -479,6 +489,10 @@ export async function applicationWorkflowAddStatusHandler(interaction: ChatInput
     await replyEphemeralError(interaction, tl.invalidStatusId);
     return;
   }
+  if (RESERVED_STATUS_IDS.includes(statusId)) {
+    await replyEphemeralError(interaction, formatLang(tl.reservedStatusId, statusId));
+    return;
+  }
 
   const statuses = config.workflowStatuses || [...DEFAULT_APPLICATION_STATUSES];
 
@@ -600,10 +614,12 @@ export async function applicationWorkflowStatusAutocomplete(interaction: {
   }
 
   const statuses = config.workflowStatuses || DEFAULT_APPLICATION_STATUSES;
-  const choices = statuses.map(s => ({
-    name: `${s.emoji} ${s.label}`,
-    value: s.id,
-  }));
+  const choices = statuses
+    .filter(s => !RESERVED_STATUS_IDS.includes(s.id))
+    .map(s => ({
+      name: `${s.emoji} ${s.label}`,
+      value: s.id,
+    }));
 
   await interaction.respond(choices.slice(0, 25));
 }

@@ -851,6 +851,8 @@ export interface LangApplication {
     failRefresh: string;
     failUpdate: string;
     successRefresh: string;
+    panelUpdateFailed: string;
+    panelTooMany: string;
     reindex: string;
     failReindex: string;
     sessionExpired: string;
@@ -908,6 +910,7 @@ export interface LangApplication {
     statusExists: string;
     maxStatuses: string;
     invalidStatusId: string;
+    reservedStatusId: string;
     checkNoApplication: string;
     checkTitle: string;
     checkPosition: string;
