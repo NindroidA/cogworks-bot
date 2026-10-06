@@ -19,10 +19,11 @@
       "title": "{system}: what was found"
     },
     "errors": {
-      "failed": "The health check couldn't finish. Try again in a minute.",
+      "failed": "The health check couldn't finish. You can run it again right away: a check that fails doesn't count toward the rate limit.",
       "guildNotFound": "The bot isn't in a server with the ID `{guildId}`.",
       "invalidGuildId": "`{guildId}` isn't a valid server ID.",
-      "notOwner": "Only the bot owner can use the `guild-id` option."
+      "notOwner": "Only the bot owner can use the `guild-id` option.",
+      "viewFailed": "That part of the report couldn't be shown. Try the button or menu again."
     },
     "export": {
       "button": "Export JSON",

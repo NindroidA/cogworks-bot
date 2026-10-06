@@ -833,7 +833,7 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 - **Summary**: one line per system (✅ no problems, ⚠️ found, ❌ something is broken, ➖ not set up) and how many problems can be fixed automatically, need confirmation, or need a manual fix
 - **Details**: pick a system to page through its findings (10 per page); deleted channels and roles are shown by ID
 - **Export JSON**: attaches the full report (IDs only) to share with support
-- **Rate limited**: one check per minute and one deep check per 10 minutes per server (not for the bot owner)
+- **Rate limited**: one check per minute and one deep check per 10 minutes per server (not for the bot owner). A check that fails doesn't count, so it can be run again right away
 
 ### Data Export (GDPR Compliance)
 **`/data-export`**

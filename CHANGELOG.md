@@ -27,9 +27,11 @@ a later release.
   limits. **Export JSON** attaches the full report (IDs and codes only) for
   support. The buttons stop after 5 minutes.
 - It runs on a server without a BotConfig row (like `/bot-setup` and
-  `/bot-reset`), is never hidden by module gating, and is audit-logged.
+  `/bot-reset`), is never hidden by module gating, and is audit-logged. The
+  dashboard's command browser lists it under Setup with them.
 - **Rate limits** per server: one check a minute, one deep check every
-  10 minutes. The bot owner is not limited.
+  10 minutes. The bot owner is not limited. A check that fails doesn't use up
+  the slot, so it can be run again right away.
 - **Owner-only `guild-id` option**: the bot owner can check another server the
   bot is in, by ID; anyone else who passes it gets an error.
 - **Slash-command sync check** (`core.commands`): compares the server's

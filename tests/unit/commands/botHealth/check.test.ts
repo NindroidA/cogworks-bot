@@ -168,6 +168,7 @@ describe('access', () => {
       runHealthCheck: failing,
     });
     expect(replyText(t.calls)).toContain("couldn't finish");
+    expect(replyText(t.calls)).toContain('run it again right away');
   });
 });
 
@@ -221,6 +222,38 @@ describe('rate limits (per guild, owner bypass)', () => {
     expect(replyText(again.calls)).toContain('every 10 minutes');
   });
 
+  test.each([false, true])('a check the engine fails gives its slot back (deep: %p)', async deep => {
+    const failed = setup({ deep });
+    await botHealthCheckHandler({ guilds: { cache: new Map() } } as never, failed.interaction as never, {
+      runHealthCheck: async () => {
+        throw new Error('boom');
+      },
+    });
+    expect(replyText(failed.calls)).toContain("couldn't finish");
+
+    const retry = setup({ deep });
+    await retry.run();
+    expect(retry.runs).toHaveLength(1);
+    const third = setup({ deep });
+    await third.run();
+    expect(third.runs).toEqual([]);
+  });
+
+  test('a failed deep check does not give back the normal check slot', async () => {
+    const quick = setup();
+    await quick.run();
+    const failed = setup({ deep: true });
+    await botHealthCheckHandler({ guilds: { cache: new Map() } } as never, failed.interaction as never, {
+      runHealthCheck: async () => {
+        throw new Error('boom');
+      },
+    });
+    const again = setup();
+    await again.run();
+    expect(again.runs).toEqual([]);
+    expect(replyText(again.calls)).toContain('once a minute');
+  });
+
   test('the bot owner is never rate limited', async () => {
     for (let i = 0; i < 3; i++) {
       const t = setup({ userId: OWNER, deep: true });
@@ -259,6 +292,30 @@ describe('collector', () => {
     expect(updates[0].embeds[0].toJSON().fields[0].value).toContain('`jp`');
     expect(exports[0].files[0].name).toStartWith(`bot-health-${G}-`);
     expect(exports[0].flags).toBeDefined();
+  });
+
+  test('a view that fails to show gets its own error, not the check failure', async () => {
+    const t = setup();
+    await t.run();
+    const replies: any[] = [];
+    t.collector.emit('collect', {
+      customId: HEALTH_CID.system,
+      values: ['core'],
+      user: { id: ADMIN },
+      deferred: false,
+      replied: false,
+      isStringSelectMenu: () => true,
+      update: async () => {
+        throw new Error('Unknown interaction');
+      },
+      reply: async (payload: unknown) => {
+        replies.push(payload);
+      },
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(replies).toHaveLength(1);
+    expect(replies[0].content).toContain("That part of the report couldn't be shown");
+    expect(replies[0].content).not.toContain("couldn't finish");
   });
 
   test('when the collector ends the components are removed', async () => {

@@ -3,7 +3,8 @@
  * the bot owner, another server by ID) and shows the report ephemerally.
  *
  * Access: server admins, plus the bot owner anywhere. Rate limits are per
- * server (1/min, deep 1/10 min); the owner bypasses them.
+ * server (1/min, deep 1/10 min); the owner bypasses them, and a run the engine
+ * fails is given back so the admin can retry at once.
  */
 import { type CacheType, type ChatInputCommandInteraction, type Client, type Guild, MessageFlags } from 'discord.js';
 import { lang } from '../../../lang';
@@ -14,7 +15,7 @@ import type { HealthReport, HealthSystem } from '../../../utils/health/types';
 import { guardAdmin, guardAdminRateLimit } from '../../../utils/interactions/guardHelper';
 import { replyEphemeralError } from '../../../utils/interactions/replyHelper';
 import { enhancedLogger, LogCategory, logHandlerError } from '../../../utils/monitoring/enhancedLogger';
-import { RateLimits } from '../../../utils/security/rateLimiter';
+import { createRateLimitKey, RateLimits, rateLimiter } from '../../../utils/security/rateLimiter';
 import { requireBotOwner } from '../../../utils/validation/permissionValidator';
 import {
   buildExportAttachment,
@@ -68,6 +69,8 @@ export async function botHealthCheckHandler(
   if (!guild) return;
 
   const deep = interaction.options.getBoolean('deep') ?? false;
+  /** The rate-limit slot this run took; given back if the engine fails. */
+  let rateKey: string | undefined;
   if (!isOwner) {
     // Non-owners only ever check their own server, so the interaction's guild is the key.
     const limit = deep
@@ -75,6 +78,7 @@ export async function botHealthCheckHandler(
       : { action: 'bot-health-check', limit: RateLimits.BOT_HEALTH_CHECK };
     const rate = await guardAdminRateLimit(interaction, { ...limit, scope: 'guild', skipPermissionCheck: true });
     if (!rate.allowed) return;
+    rateKey = createRateLimitKey.guild(guild.id, limit.action);
   }
 
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
@@ -85,6 +89,8 @@ export async function botHealthCheckHandler(
   try {
     report = await deps.runHealthCheck(guild, { system, deep });
   } catch (error) {
+    // No report came back, so the run doesn't count against the server's limit.
+    if (rateKey) rateLimiter.reset(rateKey);
     logHandlerError('bot-health check', error, { guildId: guild.id });
     await replyEphemeralError(interaction, tl.errors.failed, { bugReport: true });
     return;
@@ -111,7 +117,7 @@ export async function botHealthCheckHandler(
       if (view) await i.update(renderView(report, view, opts));
     } catch (error) {
       logHandlerError('bot-health view', error, { guildId: guild.id, customId: i.customId });
-      await replyEphemeralError(i, tl.errors.failed, { bugReport: true });
+      await replyEphemeralError(i, tl.errors.viewFailed, { bugReport: true });
     }
   });
   collector.on('end', async () => {

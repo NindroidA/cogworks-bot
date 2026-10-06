@@ -16,6 +16,7 @@ const OPTION_TYPE_SUB_COMMAND_GROUP = 2;
 const COMMAND_CATEGORIES: Record<string, string> = {
   'bot-setup': 'Setup',
   'bot-reset': 'Setup',
+  'bot-health': 'Setup',
   'ticket-setup': 'Setup',
   'application-setup': 'Setup',
   'announcement-setup': 'Setup',
