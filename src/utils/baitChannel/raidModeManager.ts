@@ -69,6 +69,14 @@ interface LockdownSnapshot {
   complete: boolean;
 }
 
+/** A manual release while the guild is unavailable (Discord outage): nothing was released. */
+export class RaidModeGuildUnavailableError extends Error {
+  constructor(guildId: string) {
+    super(`Guild ${guildId} is unavailable (Discord outage), so raid mode was not released. Try again shortly.`);
+    this.name = 'RaidModeGuildUnavailableError';
+  }
+}
+
 export interface RaidModeManagerDeps {
   configRepo: Repository<BaitChannelConfig>;
   logRepo: Repository<BaitChannelLog>;
@@ -197,8 +205,11 @@ export class RaidModeManager {
    * leaves the raid active for the next boot or sweep to finish.
    * `onlyIfExpired` (auto-release) re-checks the cap inside the guild queue,
    * so a raid re-entered meanwhile is left alone. It also returns false and
-   * keeps the raid for the next sweep when the guild is unavailable (outage:
-   * empty channel cache) or when no channel could be restored.
+   * keeps the raid for the next sweep when no channel could be restored.
+   * While the guild is unavailable (outage: empty channel cache, so every
+   * channel would be skipped and the raid cleared with all of them still
+   * locked) nothing is released: auto-release returns false, and a manual
+   * release throws `RaidModeGuildUnavailableError`.
    */
   async releaseRaidMode(guild: Guild, releasedBy: string, reason?: string, onlyIfExpired = false): Promise<boolean> {
     return this.serialize(guild.id, async () => {
@@ -207,7 +218,11 @@ export class RaidModeManager {
       });
       if (!config) return false;
       if (!config.currentRaidModeUntil) return false; // not active
-      if (onlyIfExpired && (config.currentRaidModeUntil.getTime() > Date.now() || !guild.available)) return false;
+      if (!guild.available) {
+        if (onlyIfExpired) return false; // the next sweep retries
+        throw new RaidModeGuildUnavailableError(guild.id);
+      }
+      if (onlyIfExpired && config.currentRaidModeUntil.getTime() > Date.now()) return false;
 
       const snapshot = await this.knownSnapshot(guild.id, config.currentRaidModeUntil);
 
@@ -496,10 +511,14 @@ export class RaidModeManager {
         await channel.permissionOverwrites.edit(everyone, { SendMessages: value });
         updated++;
       } catch (error) {
-        failed.push(`#${channel.name}`);
+        // A failed restore on a channel already at its prior value isn't a failure: the
+        // lock never landed there (hidden from the bot, or Manage Roles missing at entry).
+        const unchanged = !lockdown && readSendMessages(channel, everyone.id) === value;
+        if (!unchanged) failed.push(`#${channel.name}`);
         enhancedLogger.debug(`Raid-mode permission edit failed on #${channel.name}`, LogCategory.SECURITY, {
           guildId: guild.id,
           channelId,
+          unchanged,
           error: (error as Error).message,
         });
       }

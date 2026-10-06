@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, jest, spyOn, test } from 'bun:test';
-import { RaidModeManager } from '../../../../src/utils/baitChannel/raidModeManager';
+import { RaidModeGuildUnavailableError, RaidModeManager } from '../../../../src/utils/baitChannel/raidModeManager';
 import { enhancedLogger } from '../../../../src/utils/monitoring/enhancedLogger';
 
 const EVERYONE = 'everyone-role-id';
@@ -387,6 +387,59 @@ describe('RaidModeManager', () => {
       mgr.setGuildFetcher(async () => guild);
       expect(await mgr.releaseExpired('system:auto-release')).toBe(1);
       expect(sendState(ch)).toBe(true);
+    });
+
+    test('a manual release while the guild is unavailable is refused and leaves the raid and channels locked', async () => {
+      const ch = makeChannel('c', 'general', true);
+      const guild = makeGuild('g1', [ch]);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      await mgr.enterRaidMode(guild, config);
+
+      // e.g. a dashboard release for a guild that was unavailable at boot: empty channel cache.
+      const unavailable = { ...makeGuild('g1', []), available: false };
+      await expect(mgr.releaseRaidMode(unavailable, 'dashboard')).rejects.toBeInstanceOf(RaidModeGuildUnavailableError);
+      expect(store.row.currentRaidModeUntil).not.toBeNull();
+      expect(store.logs.some(l => l.actionTaken === 'raid-mode-released')).toBe(false);
+
+      expect(await mgr.releaseRaidMode(guild, 'dashboard')).toBe(true);
+      expect(sendState(ch)).toBe(true);
+    });
+
+    test('channels the lockdown never locked are not restore failures, so the sweep still releases', async () => {
+      // The bot can't manage this channel (hidden, or Manage Roles missing): its lock and restore edits fail.
+      const hidden = makeChannel('hidden', 'mod-only', null);
+      hidden.failEdits = true;
+      const guild = makeGuild('g1', [hidden]);
+      const config = makeConfig();
+      const { mgr, store } = makeManager(config);
+      mgr.setGuildFetcher(async () => guild);
+      await mgr.enterRaidMode(guild, config); // every lock edit fails
+      store.row.currentRaidModeUntil = new Date(Date.now() - 1000);
+
+      expect(await mgr.releaseExpired('system:auto-release')).toBe(1);
+      expect(store.row.currentRaidModeUntil).toBeNull();
+      expect(sendState(hidden)).toBeNull();
+    });
+
+    test('a manual release does not warn about a channel it never locked', async () => {
+      const general = makeChannel('general', 'general', true);
+      const hidden = makeChannel('hidden', 'mod-only', null);
+      hidden.failEdits = true;
+      const guild = makeGuild('g1', [general, hidden]);
+      const config = makeConfig();
+      const { mgr } = makeManager(config);
+      await mgr.enterRaidMode(guild, config);
+
+      const warnSpy = spyOn(enhancedLogger, 'warn');
+      try {
+        expect(await mgr.releaseRaidMode(guild, 'mod-1')).toBe(true);
+        const warnings = warnSpy.mock.calls.map(([message]) => String(message));
+        expect(warnings.filter(m => m.includes('could not restore'))).toEqual([]);
+      } finally {
+        warnSpy.mockRestore();
+      }
+      expect(sendState(general)).toBe(true);
     });
   });
 

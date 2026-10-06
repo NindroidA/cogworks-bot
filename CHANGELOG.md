@@ -34,11 +34,15 @@ channel instead of unlocking it.
 - **A release that can't finish no longer reports raid mode as over.**
   Channels are restored before the raid is cleared in the database, so a
   crash or shutdown mid-release leaves it active and the next boot or sweep
-  finishes it. The auto-release skips a guild that's in a Discord outage and
-  keeps a raid where no channel could be restored (for example, Manage Roles
-  revoked), retrying on the next sweep. Channels a release can't restore are
-  named in a warning, and a failed save of the snapshot row is logged as an
-  error.
+  finishes it. No release runs while a guild is in a Discord outage: the
+  auto-release waits for the next sweep, and a manual release (slash command
+  or dashboard) says the server is unavailable instead of reporting success
+  with every channel still locked. The auto-release also keeps a raid where no
+  channel could be restored (for example, Manage Roles revoked), retrying on
+  the next sweep. Channels a release can't restore are named in a warning,
+  except channels the lockdown never managed to lock (hidden from the bot, or
+  Manage Roles missing at entry), which need no restore. A failed save of the
+  snapshot row is logged as an error.
 
 ## [3.16.3] - 2026-07-07
 
