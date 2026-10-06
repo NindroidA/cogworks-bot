@@ -180,31 +180,43 @@ export async function archiveCleanupHandler(client: Client, interaction: ChatInp
           return;
         }
 
-        await btn.editReply({
-          content: null,
-          embeds: [
-            new EmbedBuilder()
-              .setColor(Colors.status.success)
-              .setTitle('Archive Cleanup Complete')
-              .addFields(
-                {
-                  name: 'Exported',
-                  value: `${result.entryCount} entries`,
-                  inline: true,
-                },
-                {
-                  name: 'Deleted',
-                  value: `${deleteResult.deleted} records, ${deleteResult.threadsDeleted} threads`,
-                  inline: true,
-                },
-                {
-                  name: 'Kept',
-                  value: `${deleteResult.kept + result.unreadableCount} (thread unreadable, undeletable or updated since the export)`,
-                  inline: true,
-                },
-              ),
-          ],
-        });
+        // The deletion already finished: a failed summary edit (Discord 5xx, expired token) is only logged.
+        try {
+          await btn.editReply({
+            content: null,
+            embeds: [
+              new EmbedBuilder()
+                .setColor(Colors.status.success)
+                .setTitle('Archive Cleanup Complete')
+                .addFields(
+                  {
+                    name: 'Exported',
+                    value: `${result.entryCount} entries`,
+                    inline: true,
+                  },
+                  {
+                    name: 'Deleted',
+                    value: `${deleteResult.deleted} records, ${deleteResult.threadsDeleted} threads`,
+                    inline: true,
+                  },
+                  {
+                    name: 'Kept',
+                    value: `${deleteResult.kept + result.unreadableCount} (thread unreadable, undeletable or updated since the export)`,
+                    inline: true,
+                  },
+                ),
+            ],
+          });
+        } catch (error) {
+          enhancedLogger.warn(
+            'Archive cleanup finished but its summary could not be shown',
+            LogCategory.COMMAND_EXECUTION,
+            {
+              guildId,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          );
+        }
 
         enhancedLogger.info('Archive cleanup completed', LogCategory.COMMAND_EXECUTION, {
           guildId,

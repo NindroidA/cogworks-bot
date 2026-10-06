@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.10] - 2026-10-06
+
+`/archive cleanup` now keeps the transcripts it deletes, and deletes only what
+its export actually holds.
+
+### Fixed
+
+- **`/archive cleanup` deleted the only copy of every transcript.** The export
+  held just row metadata (thread ID, creator, type), then "Yes" deleted the
+  forum threads holding the conversations. The file now includes each
+  thread's message text (attachments are listed but not downloaded), as
+  `cogworks-archive-v2`: the v1 tables stay at the top level for the
+  dashboard's Archive Viewer, and a `transcripts` object is added.
+- **"Yes" deleted more than was exported.** It deleted every archived row,
+  including rows archived after the export and rows whose thread failed to
+  delete. Deletion is now an allow-list of the exported rows: each thread is
+  deleted only if the export read it and it has no newer message (a returning
+  user's next ticket, say), and each row right after its thread, only while it
+  still points there. Anything else is kept and counted in the summary.
+- **Deletion was offered when the DM failed.** No deletion is offered unless
+  the file reached the admin's DMs and is under 8 MB ("Archive Not
+  Delivered"), and the reply says the forum threads are deleted too.
+- **`/archive cleanup` spent its daily limit when nothing was delivered** (or
+  there was nothing to export), and refused with `/data-export` wording. The
+  limit is given back in those cases, and the refusal names `/archive cleanup`.
+- **The reply could get stuck on "Deleting archived entries..."** A DB error
+  during "Yes" now reports what was deleted before it, and a summary edit
+  that fails after the deletion finished (Discord error, expired token) is
+  logged instead of rejecting the button handler.
+- The admin guide's `/archive cleanup` section describes the new behavior.
+
 ## [3.16.9] - 2026-10-06
 
 `/bot-reset` no longer deletes everything after failing to deliver the archive
