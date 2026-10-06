@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.23] - 2026-10-06
+
+Ticket and application checks for the health-check engine (NindroidA/cogworks-bot#41,
+stacked on the engine from 3.16.21). Internal only: `/bot-health` isn't registered
+yet, so nothing a server sees changes in this release.
+
+### Added — ticket and application health checks (internal, no user-visible command yet)
+
+- **Panels** (tickets and applications): no panel channel at all (the channel delete
+  event blanks it and keeps the config row, and a setup that only picked a category
+  never set it), so members can't open anything; the panel channel is gone or isn't a
+  text channel; the panel isn't posted (a blank message id, which the delete event leaves
+  behind, reported in every mode; in deep mode also a stored message id that no longer
+  exists, through the budgeted REST fetcher), which also blocks members; the bot lacks View Channel / Send Messages
+  in the panel channel (only needed to post the panel again, so with a panel posted
+  it's a cosmetic note; no Embed Links, since neither panel sends an embed) or, for
+  applications, View Channel / Read Message History (the posted panel isn't updated
+  when positions change, degraded); the category for new channels is
+  unset, gone, not a category, missing Manage Channels / Manage Roles, or at Discord's
+  50-channel limit; no archive forum (or one the delete event blanked), so nothing can
+  be closed.
+- **Archive forums**: gone, not a forum, missing the permissions closes need, or at
+  Discord's 20-tag limit while an active ticket type or position (or an
+  Accepted / Rejected outcome) still has no tag. Missing Manage Channels is reported on
+  its own as degraded: closes still work, but new tags can't be created.
+- **Ticket types and positions**: more than 25 active, no active ticket type while a
+  panel is posted (nobody can open a ticket), more than one default type, a non-hex
+  type color, a type name that makes the form title longer than Discord's 45
+  characters, an emoji Discord won't accept, and form questions over Discord's limits
+  (missing or repeated ids, labels over 45, placeholders over 100, invalid length
+  limits, more than 5 questions). Ratings follow what the bot does: a type menu that
+  can't be sent (over 25 types or a rejected emoji) falls back to the 5 built-in ticket
+  types, and a ticket form shows only its first 5 questions, so those are degraded
+  rather than broken; positions have neither fallback. No open position is not a
+  finding: the panel says none are available (recruiting closed). In deep mode a custom
+  emoji is looked up on the server, on the other servers the bot is in (cache) and
+  among the bot's own emojis; one found nowhere was probably deleted, and is a cosmetic
+  note with a manual fix (no repair removes it). Problems on an inactive type or
+  position are cosmetic.
+- **Leftover rows**: user restrictions for a ticket type that no longer exists
+  (removing one needs confirmation: it keeps its reason and applies again if the type
+  id is re-added), open tickets and applications whose channel was deleted, and
+  tickets stuck in `created` without a channel for more than 10 minutes (a failed
+  creation). These can be closed from the web dashboard, which works without a channel.
+- The health loader reads only open `Ticket` and `Application` rows, so closed
+  history never loads.
+
 ## [3.16.22] - 2026-10-06
 
 `/import` now writes the XP it reports, plus a set of smaller core fixes:
