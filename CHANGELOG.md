@@ -44,6 +44,197 @@ Auto-close is fixed separately in 3.16.13.
   admin-only for these three until an admin grants `tickets: manage`. Roles
   granted only `tickets: use` also need `manage` for these three.
 
+## [3.16.7] - 2026-10-06
+
+Analytics: the day that just ended is saved at midnight instead of thrown
+away, and a deploy or restart no longer drops the day so far.
+
+### Fixed
+
+- **Analytics lost every day's activity**: the midnight job flushed the new,
+  empty day and then deleted the day that had just ended, so `/analytics`
+  and the dashboard showed zero activity. Each buffered day now lands in its
+  own date's snapshot.
+- **Restarts dropped the day so far**: graceful shutdown now flushes the
+  buffered counters of analytics-enabled guilds (bounded to 5s so a slow
+  database can't hold up exit). A same-day re-flush (shutdown, then
+  midnight) merges top channels and the peak hour and keeps the larger
+  active-member count.
+- **Purged guilds got analytics rows back**: counters are only written for
+  guilds that have analytics enabled and are still joined; anything else is
+  discarded, so guildDelete / bot-reset purges stay purged.
+- **Counters piled up when no guild had analytics enabled**: the midnight
+  job returned early before cleaning stale in-memory counters; it now
+  always cleans them.
+- **Midnight wrote an empty row for the new day**: guilds with no activity
+  now get their member-count row for the day that just ended, so digests
+  and `/analytics overview` no longer show a 0 "today" right after midnight.
+  Weekly and monthly digests cover the 7 or 30 full UTC days that just
+  ended (the window used to hold only 6 or 29 of them).
+- **A late midnight run recorded the wrong day**: the run worked out "the day
+  that just ended" as the time a minute before it started, so a run that
+  fired more than a minute late (busy event loop, slow startup) saved and
+  digested the new day. Each run now belongs to the nearest UTC midnight.
+- **Snapshot dates depended on the host time zone**: a snapshot's day was
+  passed to MySQL as a JS Date, so on a host west of UTC rows were written
+  under the previous day and same-day lookups missed (a second flush then
+  hit the unique index). Snapshot writes, `/analytics overview` and digest
+  windows now pass the UTC day as a 'YYYY-MM-DD' string.
+
+## [3.16.6] - 2026-10-06
+
+Runtime jobs: SLA breach alerts and event reminders actually run in
+production, one failing startup step no longer switches half the bot off, and
+the bot stops sending its Discord token to ninsys-api.
+
+### Fixed
+
+- **SLA breach alerts and event reminders were never scheduled** outside
+  `/dev-test`, so `/ticket sla` never alerted and `/event remind` (plus every
+  default reminder) never posted. Both now run with the other periodic jobs
+  (SLA every 5 minutes, reminders every minute so a "15 minutes before"
+  reminder lands on time) and stop on shutdown. A tick is skipped while the
+  previous one is still running, so a slow run can't post a reminder twice.
+- **Events the bot created had every reminder stored twice**: the command
+  (`/event create`, templates, recurring) added one, and the scheduled-event
+  create handler added another because Discord sends it for the bot's own
+  events too. The handler now skips the bot's own events, and the checker
+  posts one reminder per event and time (existing duplicate rows are marked
+  sent without posting).
+- **One failed startup step disabled the rest**: each `clientReady` step
+  (bait manager, retry queue, presence, internal API, timers, watchdog, raid
+  restore, command registration) is isolated, so a failure is logged and the
+  others still start. The bait manager is attached before the slow raid
+  lockdown restore, and the internal API and timers start before it.
+- **Ticket activity depended on the bait manager**: messages in ticket
+  channels only updated `lastActivityAt` / `firstResponseAt` once the bait
+  channel manager was attached. Now that a failed bait step no longer stops
+  the SLA and auto-close jobs, that update runs either way, so a missing
+  manager can't cause false SLA breaches or auto-close active tickets.
+- **API registration was never retried**: if ninsys-api was down at boot the
+  bot showed offline until its next restart. Registration now retries in the
+  background (30s, 60s, 2m, 4m, then every 5m) without delaying startup, and
+  starts stats sync once it succeeds. With `API_URL` unset it isn't attempted
+  at all (the existing startup warning still says so).
+
+### Changed
+
+- Rollout guards for the newly scheduled jobs: reminders whose event already
+  started, ended or was cancelled (or that are over an hour overdue with the
+  event unavailable) are marked sent without posting, and tickets opened
+  before v3.16.0 began recording first responses don't raise SLA alerts.
+  "Opened" comes from the ticket channel's creation time, so later messages
+  or status changes on an old ticket don't make it look new.
+- A breached ticket whose alert can't be posted (no breach channel, or the
+  bot can't send there) is no longer rewritten and re-logged every 5
+  minutes. A failed alert is still retried on each check until it lands,
+  with an error logged only the first time.
+
+### Security
+
+- **New `COGWORKS_API_TOKEN`** authenticates the bot to ninsys-api instead of
+  the Discord bot token, which was ending up in ninsys-api's request logs.
+  Set the same value on the bot and on ninsys-api. Until it's set the bot
+  falls back to the old behaviour and logs one deprecation warning at
+  startup.
+
+## [3.16.5] - 2026-10-06
+
+Raid mode now lets go when it should. The 4-hour cap was never enforced while
+the bot was running, and a restart mid-raid made the next release re-lock every
+channel instead of unlocking it.
+
+### Fixed
+
+- **Raid mode auto-releases at its 4-hour cap.** `checkAutoRelease` had no
+  caller, so after the cap every channel stayed read-only for `@everyone` while
+  `/baitchannel raid status` already said "inactive". A one-minute sweep
+  (started by the existing boot-time restore) now releases any lockdown past
+  its cap and restores the channels. Status reports raid mode as active until
+  the lockdown is actually released.
+- **Releasing after a bot restart restores the real permissions.** Boot-time
+  restore re-snapshotted channels it had already locked, so the recorded
+  "prior" state was the bot's own deny and a later release (manual or
+  auto) left the whole server read-only. The pre-raid permission snapshot is
+  now saved in the `raid-mode-entered` log row and reloaded at boot and on
+  release. A raid entered before this version still falls back to inherit
+  for channels it can't account for, with a warning.
+- **Entering raid mode again before the release never overwrites the
+  snapshot.** Re-entering after the cap (still locked) keeps the priors
+  already recorded and only adds channels it hasn't touched. Enter, release
+  and the sweep now run one at a time per guild, so a release in progress
+  can't be captured as the next raid's prior state.
+- **A release that can't finish no longer reports raid mode as over.**
+  Channels are restored before the raid is cleared in the database, so a
+  crash or shutdown mid-release leaves it active and the next boot or sweep
+  finishes it. No release runs while a guild is in a Discord outage: the
+  auto-release waits for the next sweep, and a manual release (slash command
+  or dashboard) says the server is unavailable instead of reporting success
+  with every channel still locked. The auto-release also keeps a raid where no
+  channel could be restored (for example, Manage Roles revoked), retrying on
+  the next sweep. Channels a release can't restore are named in a warning,
+  except channels the lockdown never managed to lock (hidden from the bot, or
+  Manage Roles missing at entry), which need no restore. A failed save of the
+  snapshot row is logged as an error.
+
+## [3.16.4] - 2026-10-06
+
+Bait-channel moderation safety — the grace-period path could ban people it
+had told "no real action will be taken", people who deleted their message in
+time, and people in a different server. Grace periods now act only on the
+server's current settings, and only from the timer that owns them.
+
+### Fixed
+
+- **Grace rows no longer save as `ban`.** The pending-action row now records
+  the action it stands for (`timeout`, `softban` for kick, …), and `log-only`
+  in test mode, instead of the column default `ban` that the leave-drain and
+  orphan sweep then carried out.
+- **Leaving one server no longer cancels a grace timer in another.** Timers
+  are keyed per guild, so a member leaving guild B can't orphan their guild-A
+  timer into a retry-queue ban.
+- **Grace expiry uses current settings.** When the timer fires, the config is
+  re-read: test mode, disabling the feature, removing the bait channel, or
+  whitelisting the user during the window now takes effect. A message posted
+  while test mode was on is always a dry run, even if test mode is switched off
+  before the window ends.
+- **Leaving during the grace window** is settled by the same checks (current
+  config, test mode, whitelist, message still there) and logged like any other
+  bait action, instead of the leave-drain running the raw row. Timeout and kick
+  still become a softban since the member is gone; the log row now says
+  `softban`, the log embed says "Softbanned" (or "Softban FAILED" when it
+  fails, instead of "Action FAILED"), and the departed member is no longer
+  DMed the timeout or kick that never happened.
+- **The bot never lifts someone else's ban.** If a member leaves because a mod
+  (or another bot) banned them during the grace window, the grace period ends
+  as `superseded-by-mod` with no action; before, a timeout or kick would have
+  become a softban whose unban step lifted the mod's ban. When the ban list
+  can't be read (no Ban Members permission, or a Discord or network error), a
+  timeout or kick on leave is logged as `demoted-after-leave` and nothing is
+  done. The leave-drain applies the same rule to queued retries: no softban
+  unless the ban list says the member isn't banned.
+- **Several bait posts from one member get one removal.** Once a ban, kick or
+  softban of a member lands (including on leave), their other posts still in
+  their grace window end without an action of their own, and those posts are
+  deleted. Before, the leave the removal caused ran them as bans; replayed one
+  by one, a later softban could lift the ban, or a later post could ban someone
+  just softbanned before that post's own window was over. They end only after
+  the removal lands; if it fails, they keep their own timers. A post that only
+  timed the member out leaves the others to their own timers. Grace resolutions
+  for the same member run one at a time, so two timers firing together can't
+  race (a ban landing between a softban's ban and unban steps used to be
+  lifted).
+- **Dashboard cancel actually cancels.** `pending-actions/cancel` now stops the
+  in-memory grace timer and removes the warning reply before deleting the row;
+  previously the timer still acted.
+- **Orphan sweep no longer races the live timer.** Grace rows are only treated
+  as orphaned 60s past their window, and are dropped without acting (startup
+  restore never acted on them either).
+- **Test mode never reaches a real retry.** A test-mode dry run is not queued
+  for retry, and retries in a guild that is now in test mode run as dry runs.
+  Retries also use the guild's configured message-delete window and timeout
+  length instead of fixed 24h / 60min.
+
 ## [3.16.3] - 2026-07-07
 
 Consistency chore — no behavioral change. Aligns the analytics command name
@@ -991,6 +1182,7 @@ lockdown).
 - Schema entity rename `PendingBan` → `PendingAction` across 6
   importers (manager, index, dataExport, devSuiteScaffold,
   guildQueries, tests).
+
 ## [3.1.42] - 2026-05-31
 
 ### Fixed
