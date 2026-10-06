@@ -7,6 +7,7 @@ import {
   type Interaction,
   type InteractionCallbackResponse,
   MessageFlags,
+  parseEmoji,
   StringSelectMenuBuilder,
   type StringSelectMenuInteraction,
 } from 'discord.js';
@@ -14,6 +15,7 @@ import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import {
   enhancedLogger,
+  formatLang,
   guardFeatureAccess,
   handleInteractionError,
   LogCategory,
@@ -153,6 +155,7 @@ export async function renderInteractiveTypeView(
             return;
           }
           target.isActive = !target.isActive;
+          if (!target.isActive) target.isDefault = false; // an inactive type can't stay default
           await typeRepo.save(target);
           enhancedLogger.info(
             `Type list: toggled '${typeId}' active=${target.isActive} in guild ${guildId}`,
@@ -179,14 +182,11 @@ export async function renderInteractiveTypeView(
             });
             return;
           }
-          // Single-default invariant: this one becomes default; everyone else clears.
-          for (const t of types) {
-            const shouldBeDefault = t.typeId === typeId;
-            if (t.isDefault !== shouldBeDefault) {
-              t.isDefault = shouldBeDefault;
-              await typeRepo.save(t);
-            }
+          if (!target.isActive) {
+            await replyEphemeralError(i, lang.ticket.customTypes.typeDefault.mustBeActive);
+            return;
           }
+          await setDefaultTicketType(guildId, typeId);
           enhancedLogger.info(
             `Type list: set '${typeId}' as default in guild ${guildId}`,
             LogCategory.COMMAND_EXECUTION,
@@ -276,23 +276,44 @@ export async function renderInteractiveTypeView(
   }
 }
 
-function buildSummaryEmbed(types: CustomTicketType[]): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setTitle(tl.title)
-    .setColor('#0099ff')
-    .setDescription('Pick a type below to view or manage it.');
+/**
+ * Make `typeId` the guild's only default type, in one transaction: two
+ * updates instead of a save per row, so a failure can't leave two defaults
+ * or none.
+ */
+export async function setDefaultTicketType(guildId: string, typeId: string): Promise<void> {
+  await AppDataSource.transaction(async manager => {
+    await manager.update(CustomTicketType, { guildId, isDefault: true }, { isDefault: false });
+    await manager.update(CustomTicketType, { guildId, typeId }, { isDefault: true });
+  });
+}
+
+/** Discord embed limits: 25 fields and 6,000 characters in total (a margin is kept for the footer). */
+const SUMMARY_MAX_FIELDS = 25;
+const SUMMARY_MAX_CHARS = 5500;
+const SUMMARY_DESC_CHARS = 100;
+
+export function buildSummaryEmbed(types: CustomTicketType[]): EmbedBuilder {
+  const description = 'Pick a type below to view or manage it.';
+  const embed = new EmbedBuilder().setTitle(tl.title).setColor('#0099ff').setDescription(description);
+  let total = tl.title.length + description.length;
+  let shown = 0;
   for (const type of types) {
     const status = type.isActive ? tl.activeLabel : tl.inactiveLabel;
     const defaultTag = type.isDefault ? tl.defaultLabel : '';
     const ping = type.pingStaffOnCreate ? '🔔' : '🔕';
-    const desc = type.description ? `\n*${type.description}*` : '';
+    const text = type.description ?? '';
+    const short = text.length > SUMMARY_DESC_CHARS ? `${text.slice(0, SUMMARY_DESC_CHARS - 1)}…` : text;
+    const desc = short ? `\n*${short}*` : '';
     const namePrefix = type.emoji ? `${type.emoji} ` : '';
-    embed.addFields({
-      name: `${namePrefix}${type.displayName}${defaultTag}`,
-      value: `**ID:** \`${type.typeId}\` · **Status:** ${status} · **Ping:** ${ping}${desc}`,
-      inline: false,
-    });
+    const name = `${namePrefix}${type.displayName}${defaultTag}`.slice(0, 256);
+    const value = `**ID:** \`${type.typeId}\` · **Status:** ${status} · **Ping:** ${ping}${desc}`;
+    if (shown === SUMMARY_MAX_FIELDS || total + name.length + value.length > SUMMARY_MAX_CHARS) break;
+    embed.addFields({ name, value, inline: false });
+    total += name.length + value.length;
+    shown++;
   }
+  if (shown < types.length) embed.setFooter({ text: formatLang(tl.moreTypes, String(types.length - shown)) });
   return embed;
 }
 
@@ -307,7 +328,8 @@ function buildSummaryComponents(types: CustomTicketType[]): ActionRowBuilder<Str
         label: type.displayName.slice(0, 100),
         value: type.typeId,
         description: type.typeId.slice(0, 100),
-        emoji: type.emoji ? { name: type.emoji } : undefined,
+        // parseEmoji splits a custom emoji (<:name:id>) into name + id
+        emoji: type.emoji ? (parseEmoji(type.emoji) ?? undefined) : undefined,
       })),
     );
   return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
@@ -334,7 +356,7 @@ function buildDetailComponents(type: CustomTicketType): ActionRowBuilder<ButtonB
       .setLabel(type.isDefault ? 'Already Default' : 'Set as Default')
       .setStyle(ButtonStyle.Secondary)
       .setEmoji('⭐')
-      .setDisabled(type.isDefault),
+      .setDisabled(type.isDefault || !type.isActive),
     new ButtonBuilder()
       .setCustomId(`${CID_EDIT}${type.typeId}`)
       .setLabel('Edit')

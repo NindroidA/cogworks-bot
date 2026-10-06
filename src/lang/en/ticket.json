@@ -107,7 +107,8 @@
       "activeLabel": "Active",
       "inactiveLabel": "Inactive",
       "defaultLabel": " [DEFAULT]",
-      "fieldValue": "**ID:** `{0}`\n**Color:** {1}\n**Status:** {2}{3}\n{4}\n​"
+      "fieldValue": "**ID:** `{0}`\n**Color:** {1}\n**Status:** {2}{3}\n{4}\n​",
+      "moreTypes": "{0} more not shown here. Open them with /ticket type edit."
     },
     "typeToggle": {
       "cmdDescrp": "Activate or deactivate a custom ticket type",

@@ -10,6 +10,7 @@ import {
   ModalBuilder,
   type ModalSubmitInteraction,
   PermissionsBitField,
+  type TextChannel,
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
@@ -33,6 +34,7 @@ import {
   RateLimits,
   replyEphemeralError,
   validateSafeUrl,
+  verifiedChannelDelete,
 } from '../../../utils';
 
 const tl = lang.ticket.customTypes.emailImport;
@@ -43,11 +45,12 @@ const tl = lang.ticket.customTypes.emailImport;
  */
 export async function emailImportHandler(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
-    // Permission check — email import is an admin-level operation
+    // Permission check — email import is an admin-level operation. The budget
+    // is per user per server: staff in several servers don't share one.
     const guard = await guardFeatureRateLimit(interaction, 'tickets', 'manage', {
       action: 'email-import',
       limit: RateLimits.TICKET_CREATE,
-      scope: 'user',
+      scope: 'userGuild',
     });
     if (!guard.allowed) return;
 
@@ -81,7 +84,7 @@ export async function emailImportHandler(interaction: ChatInputCommandInteractio
       .setPlaceholder(tl.subjectPlaceholder)
       .setStyle(TextInputStyle.Short)
       .setRequired(true)
-      .setMaxLength(256); // Discord channel topic max
+      .setMaxLength(255); // tickets.emailSubject is varchar(255)
 
     const bodyInput = new TextInputBuilder()
       .setCustomId('body')
@@ -162,7 +165,9 @@ async function ensureEmailImportType(guildId: string) {
       emoji: '📧',
       embedColor: '#7289da',
       description: 'Ticket imported from email',
-      isActive: true,
+      // Internal type: inactive so it never shows in the members' ticket menu
+      // (the import path finds the row whatever its isActive).
+      isActive: false,
       isDefault: false,
       sortOrder: 999,
     });
@@ -211,8 +216,29 @@ export function buildEmailTicketPermissions(opts: {
   return permissionOverwrites;
 }
 
-/** Build the email content embed and action buttons for the ticket channel. */
-function buildEmailTicketEmbed(opts: {
+/** Cut text to at most `max` UTF-16 units (what discord.js checks) without splitting a surrogate pair. */
+function clampEmbedText(text: string, max: number): string {
+  if (text.length <= max) return text;
+  let out = '';
+  for (const ch of text) {
+    if (out.length + ch.length > max - 1) break;
+    out += ch;
+  }
+  return `${out}…`;
+}
+
+/** Discord limits: field value 1,024 characters, message content 2,000. */
+const FIELD_VALUE_MAX = 1024;
+const MESSAGE_MAX = 2000;
+
+/**
+ * Build the email content embed and action buttons for the ticket channel.
+ * Attachment links go in an embed field when they fit in one; otherwise they
+ * come back as `attachmentMessages` (each under 2,000 characters) to post
+ * after the embed, so long pre-signed URLs never break the embed. Exported
+ * for tests.
+ */
+export function buildEmailTicketEmbed(opts: {
   subject: string;
   body: string;
   senderName: string | null;
@@ -222,7 +248,7 @@ function buildEmailTicketEmbed(opts: {
   attachmentUrls: string[];
 }) {
   const embed = new EmbedBuilder()
-    .setTitle(`📧 Email Import: ${opts.subject}`)
+    .setTitle(clampEmbedText(`📧 Email Import: ${opts.subject}`, 256))
     .setColor(opts.embedColor as `#${string}`)
     .setDescription(opts.body.substring(0, 4096))
     .addFields(
@@ -237,11 +263,20 @@ function buildEmailTicketEmbed(opts: {
         inline: true,
       },
     );
-  if (opts.attachmentUrls.length > 0) {
-    embed.addFields({
-      name: 'Attachments',
-      value: opts.attachmentUrls.map((url, i) => `[Attachment ${i + 1}](${url})`).join('\n'),
-    });
+  const links = opts.attachmentUrls.map((url, i) => `[Attachment ${i + 1}](${url})`);
+  const attachmentMessages: string[] = [];
+  if (links.join('\n').length <= FIELD_VALUE_MAX) {
+    if (links.length > 0) embed.addFields({ name: 'Attachments', value: links.join('\n') });
+  } else {
+    // Each link is under 520 characters (URLs are capped at 500)
+    for (const link of links) {
+      const last = attachmentMessages.length - 1;
+      if (last >= 0 && attachmentMessages[last].length + 1 + link.length <= MESSAGE_MAX) {
+        attachmentMessages[last] += `\n${link}`;
+      } else {
+        attachmentMessages.push(link);
+      }
+    }
   }
 
   const buttonRow = new ActionRowBuilder<ButtonBuilder>().setComponents(
@@ -255,7 +290,7 @@ function buildEmailTicketEmbed(opts: {
       .setStyle(ButtonStyle.Danger),
   );
 
-  return { embed, buttonRow };
+  return { embed, buttonRow, attachmentMessages };
 }
 
 /**
@@ -343,9 +378,22 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
 
     const staffRoles = await AppDataSource.getRepository(StaffRole).find({ where: { guildId } });
 
+    // Built before the channel exists so a builder error can't leave one behind
+    const { embed, buttonRow, attachmentMessages } = buildEmailTicketEmbed({
+      subject,
+      body,
+      senderName,
+      senderEmail,
+      userId,
+      embedColor: emailType.embedColor,
+      attachmentUrls,
+    });
+
+    let ticketChannel: TextChannel | undefined;
+    let ticketSaved = false;
     try {
       // Create ticket channel
-      const ticketChannel = await interaction.guild!.channels.create({
+      ticketChannel = await interaction.guild!.channels.create({
         name: channelName,
         type: ChannelType.GuildText,
         parent: category.id,
@@ -360,21 +408,11 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
         }),
       });
 
-      // Send welcome embed with action buttons
-      const { embed, buttonRow } = buildEmailTicketEmbed({
-        subject,
-        body,
-        senderName,
-        senderEmail,
-        userId,
-        embedColor: emailType.embedColor,
-        attachmentUrls,
-      });
-
       const welcomeMessage = await ticketChannel.send({
         embeds: [embed],
         components: [buttonRow],
       });
+      for (const content of attachmentMessages) await ticketChannel.send({ content });
 
       // Save ticket to database
       const ticketRepo = AppDataSource.getRepository(Ticket);
@@ -393,6 +431,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
       });
 
       await ticketRepo.save(ticket);
+      ticketSaved = true;
 
       enhancedLogger.info(
         `Email ticket imported: #${ticket.id} from ${maskEmail(senderEmail)}`,
@@ -411,6 +450,10 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
         flags: [MessageFlags.Ephemeral],
       });
     } catch (error) {
+      // No ticket row: the channel would have no working Close button, so remove it
+      if (ticketChannel && !ticketSaved) {
+        await verifiedChannelDelete(ticketChannel, { guildId, label: 'unfinished email-import channel' });
+      }
       if (error instanceof DiscordAPIError) {
         if (error.code === 50013) {
           enhancedLogger.warn('Email-import failed: missing permissions', LogCategory.COMMAND_EXECUTION, {

@@ -530,6 +530,7 @@ export interface LangTicket {
       inactiveLabel: string;
       defaultLabel: string;
       fieldValue: string;
+      moreTypes: string;
     };
     typeToggle: {
       cmdDescrp: string;

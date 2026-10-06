@@ -5,13 +5,21 @@
  * raise breach alerts; newer tickets past their target still do. A breach
  * channel the bot can't post in is retried each tick without rewriting or
  * re-logging tickets that are already flagged.
+ *
+ * v3.16.31: the clock runs from when the ticket opened (its channel's
+ * snowflake time). It used lastActivityAt, which every message moves, so an
+ * opener posting again restarted the clock and the breach never fired.
  */
 
 import { afterAll, beforeAll, beforeEach, expect, test } from 'bun:test';
 import { type Client, SnowflakeUtil } from 'discord.js';
 import { TicketConfig } from '../../../../src/typeorm/entities/ticket/TicketConfig';
 import { SCHEDULER_GUARDS } from '../../../../src/utils/constants';
-import { checkAndAlertSlaBreaches } from '../../../../src/utils/ticket/slaChecker';
+import {
+  checkAndAlertSlaBreaches,
+  getFirstResponseMs,
+  getTicketOpenedAt,
+} from '../../../../src/utils/ticket/slaChecker';
 
 const HOUR = 60 * 60 * 1000;
 const channelOpenedAt = (ms: number) => SnowflakeUtil.generate({ timestamp: ms }).toString();
@@ -121,4 +129,48 @@ test('an already-flagged ticket is marked notified once its alert finally lands'
   await checkAndAlertSlaBreaches(clientWithBreachChannel(async () => ({})));
 
   expect(updates).toEqual([{ where: { id: 9, guildId: 'g1' }, set: { slaBreached: true, slaBreachNotified: true } }]);
+});
+
+test('the opener posting again does not restart the clock (open time comes from the channel)', async () => {
+  openTickets = [
+    {
+      id: 10,
+      guildId: 'g1',
+      channelId: channelOpenedAt(Date.now() - 2 * HOUR),
+      statusHistory: null,
+      // The opener posted five minutes ago
+      lastActivityAt: new Date(Date.now() - 5 * 60 * 1000),
+    },
+  ];
+  await checkAndAlertSlaBreaches({} as Client);
+
+  expect(updates).toEqual([{ where: { id: 10, guildId: 'g1' }, set: { slaBreached: true, slaBreachNotified: false } }]);
+});
+
+test('getTicketOpenedAt: channel snowflake, else the earlier of first status change and lastActivityAt', () => {
+  const opened = Date.UTC(2026, 8, 1, 10, 0);
+  const later = new Date(opened + HOUR);
+  const ticket = (extra: Record<string, unknown>) => ({ statusHistory: null, lastActivityAt: later, ...extra }) as never;
+
+  expect(getTicketOpenedAt(ticket({ channelId: channelOpenedAt(opened) }))).toBe(opened);
+  expect(getTicketOpenedAt(ticket({ channelId: null }))).toBe(later.getTime());
+  expect(
+    getTicketOpenedAt(
+      ticket({
+        channelId: null,
+        statusHistory: [{ status: 'open', changedBy: 'u', changedAt: new Date(opened).toISOString() }],
+      }),
+    ),
+  ).toBe(opened);
+});
+
+test('getFirstResponseMs: open to first response, never negative, null without a response', () => {
+  const opened = Date.UTC(2026, 8, 1, 10, 0);
+  const channelId = channelOpenedAt(opened);
+  const withResponse = (at: number) =>
+    ({ channelId, statusHistory: null, lastActivityAt: new Date(at), firstResponseAt: new Date(at) }) as never;
+
+  expect(getFirstResponseMs(withResponse(opened + HOUR))).toBe(HOUR);
+  expect(getFirstResponseMs(withResponse(opened - 60_000))).toBe(0);
+  expect(getFirstResponseMs({ channelId, statusHistory: null, firstResponseAt: null } as never)).toBeNull();
 });
