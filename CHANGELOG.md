@@ -30,8 +30,9 @@ server's current settings, and only from the timer that owns them.
   config, test mode, whitelist, message still there) and logged like any other
   bait action, instead of the leave-drain running the raw row. Timeout and kick
   still become a softban since the member is gone; the log row now says
-  `softban`, and the departed member is no longer DMed the timeout or kick that
-  never happened.
+  `softban`, the log embed says "Softbanned" (or "Softban FAILED" when it
+  fails, instead of "Action FAILED"), and the departed member is no longer
+  DMed the timeout or kick that never happened.
 - **The bot never lifts someone else's ban.** If a member leaves because a mod
   (or another bot) banned them during the grace window, the grace period ends
   as `superseded-by-mod` with no action; before, a timeout or kick would have

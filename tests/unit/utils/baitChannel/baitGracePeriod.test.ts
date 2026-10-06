@@ -311,6 +311,26 @@ describe('leaving the guild (#11, #26)', () => {
     }
   });
 
+  test('a softban on leave that fails terminally is titled "Softban FAILED" in the log channel', async () => {
+    const h = makeHarness({ actionType: 'timeout', logChannelId: 'log-1' });
+    const guild = makeGuild();
+    guild.bans.create = jest.fn(async () => {
+      throw apiError(50013, 403);
+    });
+    const logChannel = { send: jest.fn(async () => undefined) };
+    guild.channels.fetch = jest.fn(async (id: string) => (id === 'log-1' ? logChannel : null));
+    const g = await startGrace(h.manager, h.state.config, guild);
+    g.member.roles.cache.size = 1;
+    g.member.user.displayAvatarURL = () => 'https://cdn.example/avatar.png';
+    g.message.attachments = { size: 0 };
+
+    await h.manager.resolveGraceOnLeave(GUILD, USER);
+
+    expect(h.loggedActions()).toEqual(['failed']);
+    const titles = logChannel.send.mock.calls.map((c: any[]) => c[0].embeds[0].data.title.trim());
+    expect(titles).toEqual(['Bait Channel Softban FAILED']);
+  });
+
   test('ban list unreadable on leave (5xx, network) → no softban, only logged', async () => {
     const h = makeHarness({ actionType: 'timeout' });
     const guild = makeGuild();

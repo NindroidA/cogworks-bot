@@ -1650,7 +1650,13 @@ export class BaitChannelManager {
         color = Colors.status.info; // Informational color for test mode
       } else if (actionResult === 'failed') {
         actionEmoji = '';
-        actionText = `${resolvedAction === 'ban' ? 'Ban' : resolvedAction === 'kick' ? 'Kick' : resolvedAction === 'timeout' ? 'Timeout' : 'Action'} FAILED`;
+        const failedMap: Record<string, string> = {
+          ban: 'Ban',
+          kick: 'Kick',
+          softban: 'Softban',
+          timeout: 'Timeout',
+        };
+        actionText = `${failedMap[resolvedAction] ?? 'Action'} FAILED`;
         color = Colors.status.neutral; // Gray for failure
       } else {
         const emojiMap: Record<string, string> = {
