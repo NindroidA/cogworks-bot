@@ -1,10 +1,13 @@
 import type { Client, TextChannel } from 'discord.js';
+import { lang } from '../../../lang';
 import { ReactionRoleMenu, type ReactionRoleMode } from '../../../typeorm/entities/reactionRole/ReactionRoleMenu';
 import { ReactionRoleOption } from '../../../typeorm/entities/reactionRole/ReactionRoleOption';
+import { MAX } from '../../constants';
 import { lazyRepo } from '../../database/lazyRepo';
-import { buildMenuEmbed, updateMenuMessage } from '../../reactionRole/menuBuilder';
+import { buildMenuEmbed, updateMenuMessage, validateRoleForMenu } from '../../reactionRole/menuBuilder';
 import { invalidateGuildMenuCache } from '../../reactionRole/menuCache';
 import { optionEmojiKey } from '../../reactionRole/optionEmoji';
+import { validateEmoji } from '../../validation/validators';
 import { ApiError } from '../apiError';
 import { getAndValidateEntity, isValidSnowflake, optionalEnum, optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
@@ -47,18 +50,31 @@ export function registerReactionRoleHandlers(client: Client, routes: Map<string,
     // Create options if provided — validate each before any Discord write (no
     // unchecked `as` cast on body fields per project rules; an invalid roleId
     // or empty emoji must not silently create a broken menu or orphan a message).
+    // Same limits and role/emoji checks as /reaction-role create + add, so the
+    // API can't save a menu Discord won't react to or a role the bot can't grant.
+    const tl = lang.reactionRole;
     const rawOptions = Array.isArray(body.options) ? body.options : [];
+    if (rawOptions.length > MAX.REACTION_ROLE_OPTIONS) throw ApiError.badRequest(tl.add.maxOptions);
+    if ((await menuRepo.count({ where: { guildId } })) >= MAX.REACTION_ROLE_MENUS) {
+      throw ApiError.badRequest(tl.create.maxMenus);
+    }
+    const botHighest = rawOptions.length > 0 ? (await guild.members.fetchMe()).roles.highest.position : 0;
     const seenEmoji = new Set<string>();
     const options: ReactionRoleOption[] = rawOptions.map((raw, idx) => {
       const opt = (raw ?? {}) as { emoji?: unknown; roleId?: unknown; label?: unknown };
       const emoji = typeof opt.emoji === 'string' ? opt.emoji.trim() : '';
       const roleId = typeof opt.roleId === 'string' ? opt.roleId : '';
       if (!emoji) throw ApiError.badRequest(`options[${idx}]: emoji is required`);
+      if (!validateEmoji(emoji).valid) throw ApiError.badRequest(`options[${idx}]: ${tl.add.invalidEmoji}`);
       // Same identity as the reaction lookup: two spellings of one custom emoji would collide there
       const emojiKey = optionEmojiKey(emoji);
       if (seenEmoji.has(emojiKey)) throw ApiError.badRequest(`options[${idx}]: duplicate emoji`);
       seenEmoji.add(emojiKey);
       if (!isValidSnowflake(roleId)) throw ApiError.badRequest(`options[${idx}]: invalid roleId`);
+      const role = guild.roles.cache.get(roleId);
+      if (!role) throw ApiError.badRequest(`options[${idx}]: role not found`);
+      const roleCheck = validateRoleForMenu(role, guild, botHighest);
+      if (!roleCheck.valid) throw ApiError.badRequest(`options[${idx}]: ${roleCheck.error}`);
       const label = typeof opt.label === 'string' ? opt.label : null;
       return optionRepo.create({ emoji, roleId, description: label, sortOrder: idx });
     });

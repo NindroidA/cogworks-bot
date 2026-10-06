@@ -104,9 +104,10 @@ export function registerApplicationHandlers(
           return null;
         })
       : null;
+    // Failures are a 409, not a 200 {success:false} (see the ticket close handler)
     if (channelFetchFailed) {
       await releaseClose(applicationRepo, app.id, guildId, app.status);
-      return { success: false, archived: false };
+      throw ApiError.conflict('Could not access the application channel; application left open. Try again.');
     }
     if (!channel?.isTextBased()) {
       return { success: true, archived: false };
@@ -139,7 +140,9 @@ export function registerApplicationHandlers(
       // Archive failed — the workflow preserved the channel; revert the status
       // so the archive can be retried instead of stranding it 'closed'.
       await releaseClose(applicationRepo, app.id, guildId, app.status);
-      return { success: false, archived: false };
+      throw ApiError.conflict(
+        'Archiving failed (check bot permissions and the archive forum); application left open. Try again.',
+      );
     }
 
     await writeAuditAction(guildId, body, 'application.archive', {

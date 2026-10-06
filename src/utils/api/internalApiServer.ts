@@ -3,16 +3,31 @@ import type { Client } from 'discord.js';
 import { MAX } from '../constants';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { ApiError } from './apiError';
+import { getBindHost } from './bindHost';
 import { validateAuth } from './internalApiAuth';
 import { type RouteHandler, registerHandlers } from './router';
 
 const MAX_BODY_SIZE = MAX.API_BODY_SIZE;
 
-class InternalApiServer {
+/** Top-level routes live under /internal/ (e.g. GET /internal/guilds); every other key is guild-scoped. */
+const TOP_LEVEL_PREFIX = '/internal/';
+
+interface RouteTable {
+  exact: Map<string, RouteHandler>;
+  patterns: Array<{ regex: RegExp; handler: RouteHandler }>;
+}
+
+const emptyTable = (): RouteTable => ({ exact: new Map(), patterns: [] });
+
+export class InternalApiServer {
   private server: Server | null = null;
   private client: Client | null = null;
   private routes: Map<string, RouteHandler> = new Map();
-  private compiledPatterns: Array<{ regex: RegExp; handler: RouteHandler }> = [];
+  // Separate tables so a guild handler is only reachable behind
+  // /internal/guilds/:id (which checks the bot is in that guild) and a
+  // top-level handler never runs with a guildId.
+  private topLevel: RouteTable = emptyTable();
+  private guildScoped: RouteTable = emptyTable();
 
   initialize(client: Client): void {
     this.client = client;
@@ -29,11 +44,16 @@ class InternalApiServer {
 
   private recompilePatterns(): void {
     // Pre-compile parameterized route patterns for O(n) matching without per-request regex creation
-    this.compiledPatterns = [];
-    for (const [pattern, handler] of this.routes) {
-      if (pattern.includes(':')) {
-        const regex = new RegExp(`^${pattern.replace(/:(\w+)/g, '(\\d+)')}$`);
-        this.compiledPatterns.push({ regex, handler });
+    this.topLevel = emptyTable();
+    this.guildScoped = emptyTable();
+    for (const [key, handler] of this.routes) {
+      const path = key.slice(key.indexOf(' ') + 1);
+      const table = path.startsWith(TOP_LEVEL_PREFIX) ? this.topLevel : this.guildScoped;
+      if (key.includes(':')) {
+        const regex = new RegExp(`^${key.replace(/:(\w+)/g, '(\\d+)')}$`);
+        table.patterns.push({ regex, handler });
+      } else {
+        table.exact.set(key, handler);
       }
     }
   }
@@ -45,8 +65,9 @@ class InternalApiServer {
       void this.handleRequest(req, res);
     });
 
-    this.server.listen(port, '0.0.0.0', () => {
-      enhancedLogger.info(`Internal API server listening on 0.0.0.0:${port}`, LogCategory.SYSTEM);
+    const host = getBindHost();
+    this.server.listen(port, host, () => {
+      enhancedLogger.info(`Internal API server listening on ${host}:${port}`, LogCategory.SYSTEM);
     });
 
     this.server.on('error', (error: Error) => {
@@ -81,28 +102,12 @@ class InternalApiServer {
       }
     }
 
-    // Try non-guild routes first (e.g. GET /internal/guilds, GET /internal/health)
+    // Top-level routes (e.g. GET /internal/guilds, GET /internal/health)
     const urlPath = url.split('?')[0].replace(/\/$/, ''); // strip query params and trailing slash
-    const topLevelKey = `${method} ${urlPath}`;
-    const topLevelHandler = this.matchRoute(topLevelKey);
+    const topLevelHandler = matchRoute(this.topLevel, `${method} ${urlPath}`);
     if (topLevelHandler) {
       enhancedLogger.debug(`Internal API: ${method} ${url}`, LogCategory.API);
-      try {
-        const result = await topLevelHandler('', body, url);
-        sendJson(res, 200, result);
-      } catch (error) {
-        if (error instanceof ApiError) {
-          sendJson(res, error.statusCode, { error: error.message });
-          return;
-        }
-        enhancedLogger.error(
-          `Internal API handler error: ${url}`,
-          error instanceof Error ? error : undefined,
-          LogCategory.API,
-          { url },
-        );
-        sendJson(res, 500, { error: 'Internal server error' });
-      }
+      await runHandler(res, topLevelHandler, '', body, url);
       return;
     }
 
@@ -124,8 +129,7 @@ class InternalApiServer {
     }
 
     // Find matching route
-    const routeKey = `${method} ${subPath}`;
-    const handler = this.matchRoute(routeKey);
+    const handler = matchRoute(this.guildScoped, `${method} ${subPath}`);
 
     if (!handler) {
       sendJson(res, 404, { error: 'Endpoint not found' });
@@ -136,35 +140,7 @@ class InternalApiServer {
       guildId,
     });
 
-    try {
-      const result = await handler(guildId, body, url);
-      sendJson(res, 200, result);
-    } catch (error) {
-      if (error instanceof ApiError) {
-        sendJson(res, error.statusCode, { error: error.message });
-        return;
-      }
-      enhancedLogger.error(
-        `Internal API handler error: ${url}`,
-        error instanceof Error ? error : undefined,
-        LogCategory.API,
-        { guildId, url },
-      );
-      sendJson(res, 500, { error: 'Internal server error' });
-    }
-  }
-
-  private matchRoute(routeKey: string): RouteHandler | null {
-    // Try exact match first
-    const exact = this.routes.get(routeKey);
-    if (exact) return exact;
-
-    // Try pre-compiled parameterized patterns (no per-request regex creation)
-    for (const { regex, handler } of this.compiledPatterns) {
-      if (regex.test(routeKey)) return handler;
-    }
-
-    return null;
+    await runHandler(res, handler, guildId, body, url);
   }
 
   stop(): Promise<void> {
@@ -183,6 +159,40 @@ class InternalApiServer {
 
   isRunning(): boolean {
     return this.server !== null;
+  }
+}
+
+function matchRoute(table: RouteTable, routeKey: string): RouteHandler | null {
+  const exact = table.exact.get(routeKey);
+  if (exact) return exact;
+  for (const { regex, handler } of table.patterns) {
+    if (regex.test(routeKey)) return handler;
+  }
+  return null;
+}
+
+/** Run a handler: 200 with its result, the ApiError's status, or a logged 500. */
+async function runHandler(
+  res: ServerResponse,
+  handler: RouteHandler,
+  guildId: string,
+  body: Record<string, unknown>,
+  url: string,
+): Promise<void> {
+  try {
+    sendJson(res, 200, await handler(guildId, body, url));
+  } catch (error) {
+    if (error instanceof ApiError) {
+      sendJson(res, error.statusCode, { error: error.message });
+      return;
+    }
+    enhancedLogger.error(
+      `Internal API handler error: ${url}`,
+      error instanceof Error ? error : undefined,
+      LogCategory.API,
+      guildId ? { guildId, url } : { url },
+    );
+    sendJson(res, 500, { error: 'Internal server error' });
   }
 }
 
@@ -212,7 +222,13 @@ function parseBody(req: IncomingMessage): Promise<Record<string, unknown>> {
     req.on('end', () => {
       try {
         const raw = Buffer.concat(chunks).toString('utf-8');
-        resolve(raw ? JSON.parse(raw) : {});
+        const parsed: unknown = raw ? JSON.parse(raw) : {};
+        // Handlers index body[field]; null, arrays and primitives are a 400, not a 500
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+          reject(new Error('Body must be a JSON object'));
+          return;
+        }
+        resolve(parsed as Record<string, unknown>);
       } catch {
         reject(new Error('Invalid JSON'));
       }

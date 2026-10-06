@@ -5,6 +5,68 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.33] - 2026-10-06
+
+Internal API fixes for the dashboard (NindroidA/cogworks-bot#41): the "Post
+rules message" button works, failed ticket closes and application archives
+report an error instead of success, dashboard config changes refresh the
+guild's command list, the internal API is tighter about what it accepts,
+and its bind address can be restricted to loopback.
+
+### Fixed
+
+- **Dashboard "Post rules message" always failed with "channelId is
+  required".** The dashboard saves the rules config itself and then sends only
+  who clicked; `POST /rules/setup` now posts from the stored config (body
+  fields still override). It runs the same checks as `/rules setup` before
+  posting (emoji format, @everyone, managed roles, roles at or above the bot,
+  a missing role, 2000-character messages). A missing Send Messages or Add
+  Reactions permission is a 403 that says so. If the reaction can't be added
+  or the config can't be saved, the posted message is deleted again. The
+  default text stays out of `customMessage`. A re-post in the same channel
+  removes the previous rules message once the new one is saved; after the
+  channel is changed on the dashboard, the old message stays in the old
+  channel and has to be deleted by hand.
+- **A failed dashboard ticket close or application archive showed as
+  success.** When the channel couldn't be read or the archive failed, the bot
+  reopened the ticket but answered 200 `{ success: false }`, which the
+  dashboard treated as done. These now return 409 with a reason ("ticket left
+  open"). A channel that is already gone still closes with 200.
+- **Dashboard config changes didn't update the command list.** `POST
+  /config/refresh` (called after the dashboard toggles the bait channel or
+  creates a memory or announcement config) now requests a debounced guild
+  command refresh, so `/baitchannel` and the other gated commands show or hide
+  without a restart.
+- **`/announcement send` validates the stored defaults.** The default
+  announcement channel and role are validated against the current server
+  before sending: a default channel that no longer resolves (for example, one
+  that was deleted) gets a clear invalid-channel error, and a default role the
+  server doesn't have is left out of the message.
+- **Dashboard reaction-role menus skipped the slash-command checks.** `POST
+  /reaction-roles` now enforces the 20-option and 25-menu limits, the emoji
+  format, and the role rules (exists in the server, not @everyone, not
+  managed, below the bot) before posting anything.
+
+### Security
+
+- **Guild routes only run behind `/internal/guilds/:id`.** Top-level and
+  guild routes shared one table, so a guild route called without the prefix
+  ran with an empty guild id and skipped the bot-in-guild check (for example
+  creating `guildId ''` setup or permission rows). They now live in separate
+  tables. A JSON body that isn't an object (`null`, an array, a string) is a
+  400 instead of a 500.
+- **Maintenance mode's auth check could crash the bot** on some malformed
+  `Authorization` headers. It now uses the full-mode `validateAuth`, and the
+  listener catches anything else. Both maintenance-mode servers also log a
+  listen error (for example a bad `BOT_INTERNAL_HOST` or a busy port) instead
+  of crashing.
+- **New `BOT_INTERNAL_HOST` setting for the internal API (3002) and health
+  server (3003) bind address**, maintenance mode included. The default stays
+  `0.0.0.0` (every interface), so nothing changes on deploy. Setting it to
+  `127.0.0.1` is recommended once ninsys-api is confirmed to reach the bot via
+  localhost (host networking): with `network_mode: host`, the default leaves
+  both ports open on the host's other interfaces.
+
 ## [3.16.25] - 2026-10-06
 
 Health checks for the community features: announcements, XP, the starboard and
