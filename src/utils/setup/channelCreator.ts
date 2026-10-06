@@ -8,9 +8,17 @@
  * that file to customize the names for auto-created channels.
  */
 
-import { ChannelType, type Guild, PermissionFlagsBits } from 'discord.js';
+import {
+  ChannelType,
+  type Guild,
+  type GuildBasedChannel,
+  GuildFeature,
+  OverwriteType,
+  PermissionFlagsBits,
+} from 'discord.js';
+import { verifiedChannelDelete } from '../discord/verifiedDelete';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
-import { SYSTEM_CHANNELS, type SystemType } from './channelDefaults';
+import { type ChannelTemplate, SYSTEM_CHANNELS, type SystemType } from './channelDefaults';
 import { type ChannelFormat, formatCategoryName, formatChannelName } from './channelFormatDetector';
 
 // Re-export types from channelDefaults so existing imports still work
@@ -56,14 +64,30 @@ export async function createSystemChannels(
   const maxPosition =
     guild.channels.cache.reduce((max, ch) => Math.max(max, 'rawPosition' in ch ? ch.rawPosition || 0 : 0), 0) + 1;
 
-  // Helper: build staff-only permission overwrites
-  const buildPerms = (staffOnly?: boolean) =>
-    staffOnly
-      ? [
-          { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-          ...(staffRoleId ? [{ id: staffRoleId, allow: [PermissionFlagsBits.ViewChannel] }] : []),
-        ]
+  const { ViewChannel, SendMessages, ManageChannels } = PermissionFlagsBits;
+  // An unknown role id would fail the whole create, so only a role the guild still has gets the allow
+  const staffAllow =
+    staffRoleId && guild.roles.cache.has(staffRoleId)
+      ? [{ id: staffRoleId, type: OverwriteType.Role, allow: [ViewChannel] }]
       : [];
+  // The bot keeps access too: without it, a bot that isn't Administrator is locked out of what it just created
+  const botId = guild.members.me?.id ?? guild.client.user?.id;
+  const botAllow = botId
+    ? [{ id: botId, type: OverwriteType.Member, allow: [ViewChannel, SendMessages, ManageChannels] }]
+    : [];
+
+  const buildPerms = (template: ChannelTemplate) => {
+    if (template.staffOnly) {
+      return [{ id: guild.id, type: OverwriteType.Role, deny: [ViewChannel] }, ...staffAllow, ...botAllow];
+    }
+    // A channel created under a staff-only category with no overwrites of its own
+    // syncs to the category's @everyone deny, so members' channels get an explicit allow.
+    if (template.memberAccess) {
+      const allow = template.memberAccess === 'post' ? [ViewChannel, SendMessages] : [ViewChannel];
+      return [{ id: guild.id, type: OverwriteType.Role, allow }];
+    }
+    return [];
+  };
 
   // Phase 1: Create ALL categories first (category, threadCategory, etc.)
   for (const [key, template] of Object.entries(templates)) {
@@ -79,7 +103,7 @@ export async function createSystemChannels(
         name: formattedName,
         type: ChannelType.GuildCategory,
         position: maxPosition,
-        permissionOverwrites: buildPerms(template.staffOnly),
+        permissionOverwrites: buildPerms(template),
       });
 
       created[key] = category.id;
@@ -114,11 +138,17 @@ export async function createSystemChannels(
     // For text/forum channels, use simple hyphen format (Discord forces lowercase + hyphens anyway)
     const formattedName = formatChannelName(name, emoji, format);
 
+    // Announcement channels need a Community server; anywhere else a text channel does the job
+    const type =
+      template.type === ChannelType.GuildAnnouncement && !guild.features.includes(GuildFeature.Community)
+        ? ChannelType.GuildText
+        : template.type;
+
     try {
-      const perms = buildPerms(template.staffOnly);
+      const perms = buildPerms(template);
       const channel = await guild.channels.create({
         name: formattedName,
-        type: template.type,
+        type,
         parent: parentCategory,
         permissionOverwrites: perms.length > 0 ? perms : undefined,
       });
@@ -142,4 +172,20 @@ export async function createSystemChannels(
   }
 
   return created;
+}
+
+/**
+ * Delete what a failed auto-create left behind, channels before their
+ * categories (deleting a category first would leave its channels loose at
+ * the top of the server). Best-effort: verifiedChannelDelete logs failures.
+ */
+export async function deleteCreatedChannels(guild: Guild, created: CreatedChannels): Promise<void> {
+  const channels = Object.values(created)
+    .map(id => guild.channels.cache.get(id))
+    .filter((channel): channel is GuildBasedChannel => channel !== undefined);
+  const isCategory = (channel: GuildBasedChannel) => (channel.type === ChannelType.GuildCategory ? 1 : 0);
+  channels.sort((a, b) => isCategory(a) - isCategory(b));
+  for (const channel of channels) {
+    await verifiedChannelDelete(channel, { guildId: guild.id, label: 'auto-created setup channel' });
+  }
 }

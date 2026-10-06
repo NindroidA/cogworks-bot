@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.34] - 2026-10-06
+
+`/bot-setup` fixes: channels it creates are visible to the right people,
+re-running a step keeps your existing setup, and failures are reported. Plus
+cleanup gaps in the delete events and the server welcome message
+(NindroidA/cogworks-bot#41).
+
+### Fixed
+
+- **Auto-created channels hidden from members**: "Create Channels For Me" put
+  the ticket and application panels and the bait honeypot inside a staff-only
+  category, so they took on its "hide from @everyone" rule. Members couldn't
+  see the panels and spam accounts never saw the honeypot. Those channels now
+  open themselves to members (the honeypot also lets them post). The staff-only
+  categories, the bait log and the archive forums now let the global staff role
+  and the bot in, and the archive forums are staff-only.
+- **Half-finished auto-create**: when the bot could make some channels but not
+  others, it kept the partial set and said nothing, so each retry added
+  another set. It now deletes what it made and shows an error. Announcement
+  channels fall back to a text channel on servers without Community, which was
+  the most common cause. If the ticket or application panel can't be posted,
+  the step says so.
+- **Re-running Bait Channel cut the bait list to one channel** and posted a
+  second warning banner. It now works like `/baitchannel setup`: the channel
+  you pick replaces the main one, the extra bait channels stay, and the banner
+  is kept (or moved if the channel changed).
+- **Re-running Ticket or Application setup left the old panel** and archive
+  welcome thread next to the new ones. The old ones are now deleted first.
+- **Unchecking "Enable Staff Role"** did nothing. It now turns the global staff
+  role off. Picking no role with the box checked tells you what to do.
+- **Rules step**: it saves the channel and role but the rules message comes from
+  `/rules-setup`, and nothing said so. The step now tells you to run
+  `/rules-setup setup` next.
+- **`/memory` stayed hidden after `/memory-setup setup`** when the forum was
+  picked from the menu. The command list now refreshes once the forum is saved.
+- **Deleted channels**: a ticket or application whose channel was deleted by
+  hand is now closed (with a "channel-deleted" history note) instead of
+  counting as open forever. Deleting a memory forum also removes its saved
+  items and tags.
+- **Purged messages**: bulk deletes (purge commands, mod bots) never ran the
+  cleanup that single deletes do, so a purged panel or menu message stayed
+  referenced. They now do.
+- **Server welcome**: the welcome went to the system channel without checking
+  the bot could post there, with no fallback, and a failed post also skipped
+  the join notice to the dashboard. The bot now picks a channel it can post
+  in, tries the next one if a post fails, and always sends the join notice.
+
 ## [3.16.31] - 2026-10-06
 
 Ticket fixes for type management, email import, restrictions and the SLA clock

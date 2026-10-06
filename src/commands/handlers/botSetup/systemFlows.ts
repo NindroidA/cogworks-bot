@@ -34,6 +34,7 @@ import {
   type StringSelectMenuInteraction,
   type TextChannel,
 } from 'discord.js';
+import type { EntityTarget } from 'typeorm';
 import { AppDataSource } from '../../../typeorm';
 import { AnnouncementConfig } from '../../../typeorm/entities/announcement/AnnouncementConfig';
 import { ApplicationConfig } from '../../../typeorm/entities/application/ApplicationConfig';
@@ -52,19 +53,28 @@ import { ArchivedTicketConfig } from '../../../typeorm/entities/ticket/ArchivedT
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
 import {
+  cleanupOldMessage,
   enhancedLogger,
+  extractIdFromMention,
   extractModalBoolean,
   extractModalField,
+  getBaitChannelIds,
   LogCategory,
   lang,
   setBaitChannels,
   showAndAwaitModal,
   TIMEOUTS,
+  verifiedThreadDelete,
 } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { upsertGuildEntity } from '../../../utils/database/guildQueries';
 import { channelSelect, checkbox, labelWrap, radioGroup, rawModal, roleSelect } from '../../../utils/modalComponents';
-import { type CreatedChannels, createSystemChannels, type SystemType } from '../../../utils/setup/channelCreator';
+import {
+  type CreatedChannels,
+  createSystemChannels,
+  deleteCreatedChannels,
+  type SystemType,
+} from '../../../utils/setup/channelCreator';
 import { BAIT_CHANNEL_WARNING } from '../../../utils/setup/channelDefaults';
 import { detectGuildChannelFormat } from '../../../utils/setup/channelFormatDetector';
 import { requestGuildCommandRefresh } from '../../../utils/setup/commandGating';
@@ -73,6 +83,7 @@ import { buildApplicationMessage } from '../application/applicationPosition';
 import { seedMemoryTags } from '../memory/defaultTags';
 
 const VALID_BAIT_ACTIONS: BaitActionType[] = ['ban', 'kick', 'timeout', 'log-only'];
+const tl = lang.botSetup.flows;
 
 /** Best-effort thread pin — logs instead of silently swallowing (max pins / missing perms). */
 async function pinThreadBestEffort(thread: { pin: () => Promise<unknown> }): Promise<void> {
@@ -140,7 +151,7 @@ async function configureStaffRole(
   setupState: SetupState,
 ) {
   const modal = rawModal(`setup_staff_${Date.now()}`, 'Staff Role Configuration', [
-    labelWrap('Staff Role', roleSelect('setup_staff_role'), 'Select the global staff role for all systems'),
+    labelWrap('Staff Role', roleSelect('setup_staff_role', false), 'Select the global staff role for all systems'),
     labelWrap('Enable Staff Role', checkbox('setup_staff_enable', true), 'Use a global staff role across systems'),
   ]);
 
@@ -156,7 +167,21 @@ async function configureStaffRole(
   // box the truthy "false" and ignoring the user disabling the staff role.
   const enabled = extractModalBoolean(submit.fields, 'setup_staff_enable', true);
 
-  if (roleId && enabled) {
+  if (!enabled) {
+    // Unchecked turns the global staff role off, like the dashboard and roleDelete do
+    await upsertGuildEntity(AppDataSource.getRepository(BotConfig), guildId, {
+      apply: config => {
+        config.enableGlobalStaffRole = false;
+        config.globalStaffRole = null;
+      },
+    });
+    const states = { ...(setupState.systemStates ?? DEFAULT_SYSTEM_STATES), staffRole: 'not_started' as const };
+    await saveSetupState(setupState, states, { staffRole: undefined });
+    await submit.deferUpdate();
+    return { updated: true, states };
+  }
+
+  if (roleId) {
     await upsertGuildEntity(AppDataSource.getRepository(BotConfig), guildId, {
       apply: config => {
         config.enableGlobalStaffRole = true;
@@ -175,7 +200,22 @@ async function configureStaffRole(
   }
 
   await submit.deferUpdate();
+  await submit.followUp({ content: tl.staffRoleMissing, flags: [MessageFlags.Ephemeral] });
   return { updated: false, states: setupState.systemStates };
+}
+
+/**
+ * Auto-create a system's channels. Staff-only ones are opened to the global
+ * staff role when one is on (stored as a raw id by setup, possibly as a
+ * mention elsewhere).
+ */
+async function autoCreateChannels(guild: Guild, guildId: string, system: SystemType): Promise<CreatedChannels> {
+  const botConfig = await AppDataSource.getRepository(BotConfig).findOneBy({ guildId });
+  const staffRoleId =
+    botConfig?.enableGlobalStaffRole && botConfig.globalStaffRole
+      ? (extractIdFromMention(botConfig.globalStaffRole) ?? undefined)
+      : undefined;
+  return createSystemChannels(guild, system, detectGuildChannelFormat(guild), undefined, staffRoleId);
 }
 
 // --- Channel Choice Helper ---
@@ -241,6 +281,13 @@ interface ForumSystemData {
   archiveMessageId?: string;
 }
 
+/** The columns the old-panel cleanup reads from a system's config and archive config rows. */
+interface PanelConfigRow {
+  guildId: string;
+  channelId: string;
+  messageId: string;
+}
+
 interface ForumSystemConfig {
   systemKey: SystemType;
   systemLabel: string;
@@ -254,6 +301,9 @@ interface ForumSystemConfig {
   archiveFieldId: string;
   categoryLabel: string;
   categoryFieldId: string;
+  /** Config and archive config entities, read on a re-run to remove the previous panel and archive thread. */
+  configEntity: EntityTarget<PanelConfigRow>;
+  archiveEntity: EntityTarget<PanelConfigRow>;
   sendButtonMessage: (guild: Guild, channelId: string, guildId: string) => Promise<string | undefined>;
   saveConfig: (guildId: string, data: ForumSystemData) => Promise<void>;
 }
@@ -280,44 +330,20 @@ async function configureForumSystem(
       components: [],
     });
     const guild = interaction.guild!;
-    const format = detectGuildChannelFormat(guild);
-    const created = await createSystemChannels(guild, cfg.systemKey, format);
+    const created = await autoCreateChannels(guild, guildId, cfg.systemKey);
 
     const data: ForumSystemData = {
-      channelId: created.button!,
-      archiveId: created.archive!,
-      categoryId: created.threadCategory || created.category!,
+      channelId: created.button,
+      archiveId: created.archive,
+      categoryId: created.threadCategory || created.category,
     };
 
-    if (data.channelId && data.archiveId && data.categoryId) {
-      data.messageId = await cfg.sendButtonMessage(guild, data.channelId, guildId);
-
-      try {
-        const archiveForum = (await guild.channels.fetch(data.archiveId)) as ForumChannel;
-        const thread = await archiveForum.threads.create({
-          name: cfg.archiveThreadName,
-          message: { content: cfg.archiveInitialMsg },
-        });
-        await pinThreadBestEffort(thread);
-        data.archiveMessageId = thread.id;
-      } catch (_error) {
-        enhancedLogger.warn(
-          `Failed to create archive welcome thread during auto-setup (${cfg.systemKey})`,
-          LogCategory.COMMAND_EXECUTION,
-          { guildId },
-        );
-      }
-
-      await cfg.saveConfig(guildId, data);
-      const states = {
-        ...(setupState.systemStates ?? DEFAULT_SYSTEM_STATES),
-        [cfg.systemKey]: 'complete' as const,
-      };
-      await saveSetupState(setupState, states, { [cfg.systemKey]: data });
-      return { updated: true, states };
+    if (!data.channelId || !data.archiveId || !data.categoryId) {
+      // Remove the partial set and report it; otherwise every retry adds another set
+      await deleteCreatedChannels(guild, created);
+      return { updated: false, states: setupState.systemStates, failed: true };
     }
-
-    return { updated: false, states: setupState.systemStates };
+    return finishForumSystem(guild, guildId, setupState, cfg, data, choice.btnInteraction);
   }
 
   // Manual channel selection via modal
@@ -345,51 +371,81 @@ async function configureForumSystem(
       updated: false,
       states: setupState.systemStates ?? DEFAULT_SYSTEM_STATES,
     };
+  await submit.deferUpdate();
 
   const channelId = extractModalField(submit.fields, cfg.channelFieldId) || partial?.channelId;
   const archiveId = extractModalField(submit.fields, cfg.archiveFieldId) || partial?.archiveId;
   const categoryId = extractModalField(submit.fields, cfg.categoryFieldId) || partial?.categoryId;
 
-  const data: Partial<ForumSystemData> = { channelId, archiveId, categoryId };
-
-  if (data.channelId && data.archiveId && data.categoryId) {
-    const guild = submit.guild!;
-
-    data.messageId = await cfg.sendButtonMessage(guild, data.channelId, guildId);
-
-    try {
-      const archiveForum = (await guild.channels.fetch(data.archiveId)) as ForumChannel;
-      const thread = await archiveForum.threads.create({
-        name: cfg.archiveThreadName,
-        message: { content: cfg.archiveInitialMsg },
-      });
-      await pinThreadBestEffort(thread);
-      data.archiveMessageId = thread.id;
-    } catch {
-      enhancedLogger.warn(
-        `Failed to create archive welcome thread during existing-channel setup (${cfg.systemKey})`,
-        LogCategory.COMMAND_EXECUTION,
-        { guildId },
-      );
-    }
-
-    await cfg.saveConfig(guildId, data as ForumSystemData);
-    const states = {
-      ...(setupState.systemStates ?? DEFAULT_SYSTEM_STATES),
-      [cfg.systemKey]: 'complete' as const,
-    };
-    await saveSetupState(setupState, states, { [cfg.systemKey]: data });
-    await submit.deferUpdate();
-    return { updated: true, states };
+  if (channelId && archiveId && categoryId) {
+    return finishForumSystem(submit.guild!, guildId, setupState, cfg, { channelId, archiveId, categoryId }, submit);
   }
 
   const states = {
     ...setupState.systemStates,
     [cfg.systemKey]: 'partial' as const,
   };
-  await saveSetupState(setupState, states, { [cfg.systemKey]: data });
-  await submit.deferUpdate();
+  await saveSetupState(setupState, states, { [cfg.systemKey]: { channelId, archiveId, categoryId } });
   return { updated: true, states };
+}
+
+/**
+ * Post the panel and archive welcome thread, replacing the ones a previous
+ * run posted, then save. `notify` is already acknowledged, so a panel that
+ * couldn't be posted is reported as a follow-up.
+ */
+async function finishForumSystem(
+  guild: Guild,
+  guildId: string,
+  setupState: SetupState,
+  cfg: ForumSystemConfig,
+  data: ForumSystemData,
+  notify: ButtonInteraction | ModalSubmitInteraction,
+) {
+  await removeOldPanel(guild, cfg);
+  data.messageId = await cfg.sendButtonMessage(guild, data.channelId, guildId);
+
+  try {
+    const archiveForum = (await guild.channels.fetch(data.archiveId)) as ForumChannel;
+    const thread = await archiveForum.threads.create({
+      name: cfg.archiveThreadName,
+      message: { content: cfg.archiveInitialMsg },
+    });
+    await pinThreadBestEffort(thread);
+    data.archiveMessageId = thread.id;
+  } catch {
+    enhancedLogger.warn(
+      `Failed to create archive welcome thread during setup (${cfg.systemKey})`,
+      LogCategory.COMMAND_EXECUTION,
+      { guildId },
+    );
+  }
+
+  await cfg.saveConfig(guildId, data);
+  const states = {
+    ...(setupState.systemStates ?? DEFAULT_SYSTEM_STATES),
+    [cfg.systemKey]: 'complete' as const,
+  };
+  await saveSetupState(setupState, states, { [cfg.systemKey]: data });
+  if (!data.messageId) {
+    const content = tl.panelNotPosted.replace('{channelId}', data.channelId);
+    await notify.followUp({ content, flags: [MessageFlags.Ephemeral] }).catch(() => null);
+  }
+  return { updated: true, states };
+}
+
+/** Delete the panel and archive welcome thread a previous run posted, as /ticket-setup does for the panel. */
+async function removeOldPanel(guild: Guild, cfg: ForumSystemConfig): Promise<void> {
+  const [old, oldArchive] = await Promise.all([
+    AppDataSource.getRepository(cfg.configEntity).findOneBy({ guildId: guild.id }),
+    AppDataSource.getRepository(cfg.archiveEntity).findOneBy({ guildId: guild.id }),
+  ]);
+  if (old?.messageId) await cleanupOldMessage(guild, old.channelId, old.messageId);
+  // The archive config's messageId is the welcome thread's id (a forum post, so not cleanupOldMessage)
+  if (oldArchive?.messageId) {
+    const thread = await guild.channels.fetch(oldArchive.messageId).catch(() => null);
+    if (thread?.isThread()) await verifiedThreadDelete(thread, { guildId: guild.id, label: 'old archive thread' });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -402,7 +458,8 @@ async function saveTicketConfig(guildId: string, data: ForumSystemData) {
     apply: config => {
       config.channelId = data.channelId;
       config.categoryId = data.categoryId;
-      if (data.messageId) config.messageId = data.messageId;
+      // The previous panel was deleted before posting, so a failed post leaves no panel to point at
+      config.messageId = data.messageId ?? '';
     },
   });
 
@@ -410,7 +467,7 @@ async function saveTicketConfig(guildId: string, data: ForumSystemData) {
     create: { messageId: '' },
     apply: archive => {
       archive.channelId = data.archiveId;
-      if (data.archiveMessageId) archive.messageId = data.archiveMessageId;
+      archive.messageId = data.archiveMessageId ?? '';
     },
   });
 }
@@ -421,7 +478,8 @@ async function saveApplicationConfig(guildId: string, data: ForumSystemData) {
     apply: config => {
       config.channelId = data.channelId;
       config.categoryId = data.categoryId;
-      if (data.messageId) config.messageId = data.messageId;
+      // The previous panel was deleted before posting, so a failed post leaves no panel to point at
+      config.messageId = data.messageId ?? '';
     },
   });
 
@@ -429,7 +487,7 @@ async function saveApplicationConfig(guildId: string, data: ForumSystemData) {
     create: { messageId: '' },
     apply: archive => {
       archive.channelId = data.archiveId;
-      if (data.archiveMessageId) archive.messageId = data.archiveMessageId;
+      archive.messageId = data.archiveMessageId ?? '';
     },
   });
 }
@@ -497,6 +555,8 @@ async function configureTicket(
     archiveFieldId: 'setup_ticket_archive',
     categoryLabel: 'Ticket Category',
     categoryFieldId: 'setup_ticket_cat',
+    configEntity: TicketConfig,
+    archiveEntity: ArchivedTicketConfig,
     sendButtonMessage: sendTicketButton,
     saveConfig: saveTicketConfig,
   });
@@ -523,6 +583,8 @@ async function configureApplication(
     archiveFieldId: 'setup_app_archive',
     categoryLabel: 'Application Category',
     categoryFieldId: 'setup_app_cat',
+    configEntity: ApplicationConfig,
+    archiveEntity: ArchivedApplicationConfig,
     sendButtonMessage: sendApplicationButton,
     saveConfig: saveApplicationConfig,
   });
@@ -567,6 +629,8 @@ interface SimpleSystemConfig<TData, K extends SimpleSystemKey = SimpleSystemKey>
   toPartialData: (data: TData) => SimplePartialData<K>;
   /** State to set after a successful apply. Defaults to 'complete'. Rules uses 'partial' (two-stage). */
   finalState?: 'complete' | 'partial';
+  /** Follow-up telling the admin what's left to do after the flow saved (rules: run /rules-setup). */
+  nextStep?(saved: SimplePartialData<K>): string;
 }
 
 async function runSimpleSystemFlow<TData, K extends SimpleSystemKey>(
@@ -575,11 +639,15 @@ async function runSimpleSystemFlow<TData, K extends SimpleSystemKey>(
   client: Client,
   guildId: string,
   setupState: SetupState,
-): Promise<{ updated: boolean; states: SystemStates }> {
+): Promise<{ updated: boolean; states: SystemStates; failed?: boolean }> {
   const choice = await askChannelChoice(interaction, cfg.systemLabel, cfg.channelType);
   if (!choice) return { updated: false, states: setupState.systemStates };
 
   const completeState = cfg.finalState ?? 'complete';
+  const sendNextStep = async (to: ButtonInteraction | ModalSubmitInteraction, saved: SimplePartialData<K>) => {
+    if (!cfg.nextStep) return;
+    await to.followUp({ content: cfg.nextStep(saved), flags: [MessageFlags.Ephemeral] }).catch(() => null);
+  };
 
   if (choice.autoCreate) {
     await choice.btnInteraction.update({
@@ -588,11 +656,14 @@ async function runSimpleSystemFlow<TData, K extends SimpleSystemKey>(
       components: [],
     });
     const guild = interaction.guild!;
-    const format = detectGuildChannelFormat(guild);
-    const created = await createSystemChannels(guild, cfg.channelType, format);
+    const created = await autoCreateChannels(guild, guildId, cfg.channelType);
 
     const data = cfg.fromAutoCreate(created, guild);
-    if (!data) return { updated: false, states: setupState.systemStates };
+    if (!data) {
+      // Remove the partial set and report it; otherwise every retry adds another set
+      await deleteCreatedChannels(guild, created);
+      return { updated: false, states: setupState.systemStates, failed: true };
+    }
 
     await cfg.apply(guildId, data, { guild, client });
 
@@ -603,6 +674,7 @@ async function runSimpleSystemFlow<TData, K extends SimpleSystemKey>(
     await saveSetupState(setupState, states, {
       [cfg.systemKey]: cfg.toPartialData(data),
     });
+    await sendNextStep(choice.btnInteraction, cfg.toPartialData(data));
     return { updated: true, states };
   }
 
@@ -635,6 +707,7 @@ async function runSimpleSystemFlow<TData, K extends SimpleSystemKey>(
       [cfg.systemKey]: cfg.toPartialData(result.data),
     });
     await submit.deferUpdate();
+    await sendNextStep(submit, cfg.toPartialData(result.data));
     return { updated: true, states };
   }
 
@@ -645,6 +718,7 @@ async function runSimpleSystemFlow<TData, K extends SimpleSystemKey>(
   };
   await saveSetupState(setupState, states, { [cfg.systemKey]: result.data });
   await submit.deferUpdate();
+  await sendNextStep(submit, result.data);
   return { updated: true, states };
 }
 
@@ -775,19 +849,30 @@ const baitConfig: SimpleSystemConfig<BaitData, 'baitchannel'> = {
     // without this, command-gating would keep /baitchannel hidden with no
     // in-Discord way back. This makes the dashboard the guaranteed re-enable path.
     config.enabled = true;
-    setBaitChannels(config, [data.channelId]);
+    // Same as /baitchannel setup: the pick replaces the primary and channels added with
+    // /baitchannel channels add stay. The banner lives in the legacy channelId column's channel.
+    const current = getBaitChannelIds(config);
+    const bannerHome = config.channelId || current[0];
+    setBaitChannels(config, [data.channelId, ...current.filter(id => id !== current[0])].slice(0, 3));
     config.actionType = data.actionType;
     // Only set testMode when the auto-create path explicitly opts in. Manual
     // path leaves the column at whatever it was (default false on create).
     if (data.testMode) config.testMode = true;
     if (data.logChannelId) config.logChannelId = data.logChannelId;
 
-    // Send warning message in the bait channel — must happen for both paths
-    // (silently skipping it on the manual path was the v3.0.5-fixed bug).
+    // Warning banner, on both paths (skipping it on the manual path was the v3.0.5 bug).
+    // A banner already in this channel is kept; one left in the old primary is removed.
+    if (config.channelMessageId && bannerHome !== data.channelId) {
+      await cleanupOldMessage(guild, bannerHome, config.channelMessageId);
+      config.channelMessageId = null;
+    }
     try {
       const baitChannel = (await guild.channels.fetch(data.channelId)) as TextChannel;
-      const msg = await baitChannel.send({ content: BAIT_CHANNEL_WARNING });
-      config.channelMessageId = msg.id;
+      const existing = config.channelMessageId
+        ? await baitChannel.messages.fetch(config.channelMessageId).catch(() => null)
+        : null;
+      if (existing) await existing.edit({ content: BAIT_CHANNEL_WARNING });
+      else config.channelMessageId = (await baitChannel.send({ content: BAIT_CHANNEL_WARNING })).id;
     } catch {
       enhancedLogger.warn(
         'Failed to send warning message to bait channel during setup',
@@ -955,6 +1040,7 @@ const rulesConfig: SimpleSystemConfig<RulesData, 'rules'> = {
     ...(data.roleId ? { roleId: data.roleId } : {}),
   }),
   finalState: 'partial',
+  nextStep: saved => tl.rulesNextStep.replace('{channelId}', saved.channelId ?? ''),
 };
 
 // --- Simple system descriptor table ---

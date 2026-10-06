@@ -228,6 +228,12 @@
     "message": "Bot setup has been cancelled. No changes were made. Run /bot-setup again anytime to configure your bot."
   },
 
+  "flows": {
+    "panelNotPosted": "Saved, but I couldn't post the panel in <#{channelId}>. Give me View Channel and Send Messages there, then run this step again.",
+    "staffRoleMissing": "Pick a role to turn on the global staff role, or uncheck **Enable Staff Role** to turn it off.",
+    "rulesNextStep": "Next step: run `/rules-setup setup` with <#{channelId}> as the channel and your verified role to post the rules message. Rules shows **In Progress** until then."
+  },
+
   "logs": {
     "couldNotPin": "Could not pin thread (max pins may be reached)",
     "baitChannelSaved": "Bait channel config saved: channelId={channelId}, enabled={enabled}",
