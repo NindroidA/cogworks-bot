@@ -115,12 +115,16 @@ const fakeInvalidateStarboardCache = jest.fn();
 
 (globalThis as any).mock?.module?.('../../../src/utils/rules/rulesCache', () => ({
   invalidateRulesCache: fakeInvalidateRulesCache,
+  getCachedRulesConfig: jest.fn(() => null),
+  setCachedRulesConfig: jest.fn(),
 }));
 
 import { mock } from 'bun:test';
 
 mock.module('../../../src/utils/rules/rulesCache', () => ({
   invalidateRulesCache: fakeInvalidateRulesCache,
+  getCachedRulesConfig: jest.fn(() => null),
+  setCachedRulesConfig: jest.fn(),
 }));
 mock.module('../../../src/utils/reactionRole/menuCache', () => ({
   invalidateGuildMenuCache: fakeInvalidateGuildMenuCache,

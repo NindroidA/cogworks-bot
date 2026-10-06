@@ -3,6 +3,7 @@ import { lang } from '../../../lang';
 import { AnalyticsConfig } from '../../../typeorm/entities/analytics/AnalyticsConfig';
 import { AnalyticsSnapshot } from '../../../typeorm/entities/analytics/AnalyticsSnapshot';
 import { buildOverviewEmbed } from '../../../utils/analytics/digestBuilder';
+import { snapshotDate, utcDateKey } from '../../../utils/analytics/snapshotDate';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { enhancedLogger, LogCategory } from '../../../utils/monitoring/enhancedLogger';
 
@@ -24,11 +25,10 @@ export async function overviewHandler(_client: Client, interaction: ChatInputCom
       return;
     }
 
-    // Get today's snapshot
-    const today = new Date().toISOString().slice(0, 10);
+    // Get today's (UTC) snapshot
     const snapshot = await snapshotRepo.findOneBy({
       guildId,
-      date: new Date(today),
+      date: snapshotDate(utcDateKey()),
     });
 
     const guildName = interaction.guild?.name ?? 'Server';

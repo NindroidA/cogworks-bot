@@ -21,7 +21,8 @@ import {
   showAndAwaitModal,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
-import { resolveMemoryConfig } from './channelPicker';
+import { buildStarterContent, MEMORY_DESCRIPTION_MAX } from '../../../utils/memory/threadHelpers';
+import { replyFlowError, resolveMemoryConfig } from './channelPicker';
 import { createDefaultSelectionState, runTagSelectionCollector, type TagSelectionState } from './tagSelection';
 
 const tl = lang.memory;
@@ -38,9 +39,10 @@ export async function memoryAddHandler(interaction: ChatInputCommandInteraction)
 
   const guildId = interaction.guildId!;
 
-  // Check if memory system is configured
-  const config = await resolveMemoryConfig(interaction, guildId);
-  if (!config) return;
+  // Check if memory system is configured (2+ forums: the picker's select owns the next response)
+  const resolved = await resolveMemoryConfig(interaction, guildId);
+  if (!resolved) return;
+  const { config, source } = resolved;
 
   // Get available tags for dropdowns
   const categoryTags = await memoryTagRepo.find({
@@ -51,14 +53,14 @@ export async function memoryAddHandler(interaction: ChatInputCommandInteraction)
   });
 
   if (categoryTags.length === 0 || statusTags.length === 0) {
-    await replyEphemeralError(interaction, tl.add.noTagsConfigured);
+    await replyFlowError(source, tl.add.noTagsConfigured);
     return;
   }
 
   const selectionState = createDefaultSelectionState(statusTags);
 
   await runTagSelectionCollector(
-    interaction,
+    source,
     categoryTags,
     statusTags,
     selectionState,
@@ -98,7 +100,7 @@ async function showAddModal(
     .setPlaceholder(tl.add.descriptionPlaceholder)
     .setStyle(TextInputStyle.Paragraph)
     .setRequired(true)
-    .setMaxLength(4000);
+    .setMaxLength(MEMORY_DESCRIPTION_MAX);
 
   modal.addComponents(
     new ActionRowBuilder<TextInputBuilder>().addComponents(titleInput),
@@ -147,7 +149,7 @@ async function handleModalSubmit(
     if (categoryTag?.discordTagId) appliedTags.push(categoryTag.discordTagId);
     if (statusTag?.discordTagId) appliedTags.push(statusTag.discordTagId);
 
-    const content = `**Description:**\n\n${description}\n\n-# Created by ${interaction.user.displayName}`;
+    const content = buildStarterContent(description, `-# Created by ${interaction.user.displayName}`);
 
     const thread = await forum.threads.create({
       name: title,

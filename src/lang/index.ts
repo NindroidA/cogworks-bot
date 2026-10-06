@@ -2,8 +2,10 @@
  * Centralized language/translation system for the Cogworks Bot
  *
  * Strings live under `src/lang/<locale>/*.json`. English (`en`) is the base
- * locale; every other locale falls back to English for missing keys via a
- * recursive Proxy.
+ * locale and the only one shipped today. The machinery for more stays in
+ * place: a translation is a PARTIAL set of JSON files registered in
+ * `LOCALE_REGISTRY`, and a recursive Proxy falls back to English for every
+ * file and key it leaves out (see `TRANSLATING.md`).
  *
  * The default `lang` export stays synchronously available and always resolves
  * to English — this preserves the existing `lang.x.y` access pattern used
@@ -11,7 +13,7 @@
  * `getGuildLang(guildId)` which reads the guild's configured locale from
  * BotConfig and returns a Proxy-wrapped `Language` object.
  *
- * Non-English JSON files are **statically imported** (not `require`d) so that
+ * Locale JSON files are **statically imported** (not `require`d) so that
  * `tsc` copies them into `dist/` for containerized production deploys.
  *
  * @example
@@ -28,30 +30,6 @@
  */
 
 import { createTtlCache } from '../utils/database/configCache';
-import analyticsDe from './de/analytics.json';
-import announcementDe from './de/announcement.json';
-import applicationDe from './de/application.json';
-import automodDe from './de/automod.json';
-import baitChannelDe from './de/baitChannel.json';
-import botConfigDe from './de/botConfig.json';
-import botSetupDe from './de/botSetup.json';
-import consoleDe from './de/console.json';
-import dataExportDe from './de/dataExport.json';
-import devDe from './de/dev.json';
-import errorsDe from './de/errors.json';
-import eventDe from './de/event.json';
-import generalDe from './de/general.json';
-import importDe from './de/import.json';
-import mainDe from './de/main.json';
-import memoryDe from './de/memory.json';
-import onboardingDe from './de/onboarding.json';
-import reactionRoleDe from './de/reactionRole.json';
-import rolesDe from './de/roles.json';
-import rulesDe from './de/rules.json';
-import starboardDe from './de/starboard.json';
-import statusDe from './de/status.json';
-import ticketDe from './de/ticket.json';
-import xpDe from './de/xp.json';
 // --- English (reference) ---
 import analyticsEn from './en/analytics.json';
 import announcementEn from './en/announcement.json';
@@ -78,141 +56,14 @@ import starboardEn from './en/starboard.json';
 import statusEn from './en/status.json';
 import ticketEn from './en/ticket.json';
 import xpEn from './en/xp.json';
-// --- Other locales (scaffolded; may be partially translated) ---
-// Imported as `unknown` so they're free to diverge from EN in shape while the
-// Proxy fills in any missing keys at read time.
-import analyticsEs from './es/analytics.json';
-import announcementEs from './es/announcement.json';
-import applicationEs from './es/application.json';
-import automodEs from './es/automod.json';
-import baitChannelEs from './es/baitChannel.json';
-import botConfigEs from './es/botConfig.json';
-import botSetupEs from './es/botSetup.json';
-import consoleEs from './es/console.json';
-import dataExportEs from './es/dataExport.json';
-import devEs from './es/dev.json';
-import errorsEs from './es/errors.json';
-import eventEs from './es/event.json';
-import generalEs from './es/general.json';
-import importEs from './es/import.json';
-import mainEs from './es/main.json';
-import memoryEs from './es/memory.json';
-import onboardingEs from './es/onboarding.json';
-import reactionRoleEs from './es/reactionRole.json';
-import rolesEs from './es/roles.json';
-import rulesEs from './es/rules.json';
-import starboardEs from './es/starboard.json';
-import statusEs from './es/status.json';
-import ticketEs from './es/ticket.json';
-import xpEs from './es/xp.json';
-import analyticsFr from './fr/analytics.json';
-import announcementFr from './fr/announcement.json';
-import applicationFr from './fr/application.json';
-import automodFr from './fr/automod.json';
-import baitChannelFr from './fr/baitChannel.json';
-import botConfigFr from './fr/botConfig.json';
-import botSetupFr from './fr/botSetup.json';
-import consoleFr from './fr/console.json';
-import dataExportFr from './fr/dataExport.json';
-import devFr from './fr/dev.json';
-import errorsFr from './fr/errors.json';
-import eventFr from './fr/event.json';
-import generalFr from './fr/general.json';
-import importFr from './fr/import.json';
-import mainFr from './fr/main.json';
-import memoryFr from './fr/memory.json';
-import onboardingFr from './fr/onboarding.json';
-import reactionRoleFr from './fr/reactionRole.json';
-import rolesFr from './fr/roles.json';
-import rulesFr from './fr/rules.json';
-import starboardFr from './fr/starboard.json';
-import statusFr from './fr/status.json';
-import ticketFr from './fr/ticket.json';
-import xpFr from './fr/xp.json';
-import analyticsPt from './pt-BR/analytics.json';
-import announcementPt from './pt-BR/announcement.json';
-import applicationPt from './pt-BR/application.json';
-import automodPt from './pt-BR/automod.json';
-import baitChannelPt from './pt-BR/baitChannel.json';
-import botConfigPt from './pt-BR/botConfig.json';
-import botSetupPt from './pt-BR/botSetup.json';
-import consolePt from './pt-BR/console.json';
-import dataExportPt from './pt-BR/dataExport.json';
-import devPt from './pt-BR/dev.json';
-import errorsPt from './pt-BR/errors.json';
-import eventPt from './pt-BR/event.json';
-import generalPt from './pt-BR/general.json';
-import importPt from './pt-BR/import.json';
-import mainPt from './pt-BR/main.json';
-import memoryPt from './pt-BR/memory.json';
-import onboardingPt from './pt-BR/onboarding.json';
-import reactionRolePt from './pt-BR/reactionRole.json';
-import rolesPt from './pt-BR/roles.json';
-import rulesPt from './pt-BR/rules.json';
-import starboardPt from './pt-BR/starboard.json';
-import statusPt from './pt-BR/status.json';
-import ticketPt from './pt-BR/ticket.json';
-import xpPt from './pt-BR/xp.json';
 import type { Language } from './types';
 
 // ---------------------------------------------------------------------------
-// Supported locales
+// Locale registry
 // ---------------------------------------------------------------------------
 
-/**
- * The set of locales the bot can display. Adding a new locale requires:
- *   1) adding its directory under `src/lang/<code>/` with the 24 JSON files
- *   2) adding the static imports above
- *   3) adding the code to this list + to `LOCALE_MODULES`
- *   4) adding a label in `LOCALE_LABELS` in `commands/handlers/botSetup/index.ts`
- */
-export const SUPPORTED_LOCALES = ['en', 'es', 'pt-BR', 'fr', 'de'] as const;
-export type Locale = (typeof SUPPORTED_LOCALES)[number];
-
-export const DEFAULT_LOCALE: Locale = 'en';
-
-export function isSupportedLocale(value: unknown): value is Locale {
-  return typeof value === 'string' && (SUPPORTED_LOCALES as readonly string[]).includes(value);
-}
-
-// ---------------------------------------------------------------------------
-// Building a Language object from a set of JSON modules
-// ---------------------------------------------------------------------------
-
-/**
- * Raw JSON modules for a locale. Any/all fields are optional — missing keys
- * fall back to English via the Proxy wrapper. Typed as `unknown` so partial
- * translations compile even if keys shift between locales.
- */
-interface LocaleModules {
-  analytics: unknown;
-  announcement: unknown;
-  application: unknown;
-  automod: unknown;
-  baitChannel: unknown;
-  botConfig: unknown;
-  botSetup: unknown;
-  console: unknown;
-  dataExport: unknown;
-  dev: unknown;
-  errors: unknown;
-  event: unknown;
-  general: unknown;
-  health: unknown;
-  import: unknown;
-  main: unknown;
-  memory: unknown;
-  onboarding: unknown;
-  reactionRole: unknown;
-  roles: unknown;
-  rules: unknown;
-  starboard: unknown;
-  status: unknown;
-  ticket: unknown;
-  xp: unknown;
-}
-
-const englishModules: LocaleModules = {
+/** English, the complete reference: one module per JSON file in `src/lang/en/`. */
+const englishModules = {
   analytics: analyticsEn,
   announcement: announcementEn,
   application: applicationEn,
@@ -240,123 +91,63 @@ const englishModules: LocaleModules = {
   xp: xpEn,
 };
 
-const LOCALE_MODULES: Record<Locale, LocaleModules> = {
-  en: englishModules,
-  es: {
-    analytics: analyticsEs,
-    announcement: announcementEs,
-    application: applicationEs,
-    automod: automodEs,
-    baitChannel: baitChannelEs,
-    botConfig: botConfigEs,
-    botSetup: botSetupEs,
-    console: consoleEs,
-    dataExport: dataExportEs,
-    dev: devEs,
-    errors: errorsEs,
-    event: eventEs,
-    general: generalEs,
-    health: {}, // not translated yet: the Proxy falls back to English
-    import: importEs,
-    main: mainEs,
-    memory: memoryEs,
-    onboarding: onboardingEs,
-    reactionRole: reactionRoleEs,
-    roles: rolesEs,
-    rules: rulesEs,
-    starboard: starboardEs,
-    status: statusEs,
-    ticket: ticketEs,
-    xp: xpEs,
-  },
-  'pt-BR': {
-    analytics: analyticsPt,
-    announcement: announcementPt,
-    application: applicationPt,
-    automod: automodPt,
-    baitChannel: baitChannelPt,
-    botConfig: botConfigPt,
-    botSetup: botSetupPt,
-    console: consolePt,
-    dataExport: dataExportPt,
-    dev: devPt,
-    errors: errorsPt,
-    event: eventPt,
-    general: generalPt,
-    health: {}, // not translated yet: the Proxy falls back to English
-    import: importPt,
-    main: mainPt,
-    memory: memoryPt,
-    onboarding: onboardingPt,
-    reactionRole: reactionRolePt,
-    roles: rolesPt,
-    rules: rulesPt,
-    starboard: starboardPt,
-    status: statusPt,
-    ticket: ticketPt,
-    xp: xpPt,
-  },
-  fr: {
-    analytics: analyticsFr,
-    announcement: announcementFr,
-    application: applicationFr,
-    automod: automodFr,
-    baitChannel: baitChannelFr,
-    botConfig: botConfigFr,
-    botSetup: botSetupFr,
-    console: consoleFr,
-    dataExport: dataExportFr,
-    dev: devFr,
-    errors: errorsFr,
-    event: eventFr,
-    general: generalFr,
-    health: {}, // not translated yet: the Proxy falls back to English
-    import: importFr,
-    main: mainFr,
-    memory: memoryFr,
-    onboarding: onboardingFr,
-    reactionRole: reactionRoleFr,
-    roles: rolesFr,
-    rules: rulesFr,
-    starboard: starboardFr,
-    status: statusFr,
-    ticket: ticketFr,
-    xp: xpFr,
-  },
-  de: {
-    analytics: analyticsDe,
-    announcement: announcementDe,
-    application: applicationDe,
-    automod: automodDe,
-    baitChannel: baitChannelDe,
-    botConfig: botConfigDe,
-    botSetup: botSetupDe,
-    console: consoleDe,
-    dataExport: dataExportDe,
-    dev: devDe,
-    errors: errorsDe,
-    event: eventDe,
-    general: generalDe,
-    health: {}, // not translated yet: the Proxy falls back to English
-    import: importDe,
-    main: mainDe,
-    memory: memoryDe,
-    onboarding: onboardingDe,
-    reactionRole: reactionRoleDe,
-    roles: rolesDe,
-    rules: rulesDe,
-    starboard: starboardDe,
-    status: statusDe,
-    ticket: ticketDe,
-    xp: xpDe,
-  },
-};
+/**
+ * A locale's JSON modules. Every file is optional and typed as `unknown`: a
+ * translation ships only the files it has translated, each holding only the
+ * keys it has translated, and the Proxy fills in the rest from English.
+ */
+export type LocaleModules = { [File in keyof typeof englishModules]?: unknown };
+
+interface LocaleDefinition {
+  /** Native name shown in the /bot-setup Language picker. */
+  label: string;
+  modules: LocaleModules;
+}
+
+/**
+ * Every locale the bot can display. Adding one is a single entry here plus its
+ * partial JSON files, for example:
+ *
+ *   import ticketEs from './es/ticket.json';
+ *   es: { label: 'Español', modules: { ticket: ticketEs } },
+ *
+ * The /bot-setup Language button appears once more than one locale exists.
+ */
+const LOCALE_REGISTRY = {
+  en: { label: 'English', modules: englishModules },
+} satisfies Record<string, LocaleDefinition>;
+
+export type Locale = keyof typeof LOCALE_REGISTRY;
+
+export const SUPPORTED_LOCALES = Object.keys(LOCALE_REGISTRY) as readonly Locale[];
+
+export const DEFAULT_LOCALE: Locale = 'en';
+
+/**
+ * Guards values read from BotConfig.locale. Codes for locales that are no
+ * longer shipped (es, fr, de and pt-BR were removed in 3.16.19) fail this check,
+ * so those guilds read English without a data migration.
+ */
+export function isSupportedLocale(value: unknown): value is Locale {
+  return typeof value === 'string' && (SUPPORTED_LOCALES as readonly string[]).includes(value);
+}
+
+/** Native display name for a locale, e.g. 'English'. */
+export function getLocaleLabel(locale: Locale): string {
+  return LOCALE_REGISTRY[locale].label;
+}
+
+// ---------------------------------------------------------------------------
+// Building a Language object from a set of JSON modules
+// ---------------------------------------------------------------------------
 
 function assembleLanguage(m: LocaleModules): Language {
-  // English is fully typed; other locales cast through `unknown`. Missing or
-  // divergent keys are filled in by `withFallback` below.
-  const ticket = m.ticket as typeof ticketEn;
-  const roles = m.roles as typeof rolesEn;
+  // Modules are `unknown` (a translation may diverge from or omit any file), so
+  // each is cast to its English shape. Missing or divergent keys are filled in
+  // by `withFallback` below; `?? {}` keeps a partial locale without ticket.json
+  // or roles.json from throwing on the derived keys.
+  const ticket = (m.ticket ?? {}) as typeof ticketEn;
+  const roles = (m.roles ?? {}) as typeof rolesEn;
   return {
     general: m.general as typeof generalEn,
     main: m.main as typeof mainEn,
@@ -369,9 +160,6 @@ function assembleLanguage(m: LocaleModules): Language {
     addRole: roles.addRole,
     removeRole: roles.removeRole,
     getRoles: roles.getRoles,
-    cogdeck: {
-      cmdDescrp: 'Base command for the Cogworks Card Game',
-    },
     announcement: m.announcement as typeof announcementEn,
     baitChannel: m.baitChannel as typeof baitChannelEn,
     dataExport: m.dataExport as typeof dataExportEn,
@@ -452,7 +240,16 @@ function withFallback<T extends object>(target: Partial<T>, fallback: T): T {
 // Locale → Language resolution (cached)
 // ---------------------------------------------------------------------------
 
-const localeLangCache = new Map<Locale, Language>();
+/**
+ * Builds the `Language` for a (partial) set of translated modules: translated
+ * keys win, every missing file or key reads English. Exported for tests.
+ */
+export function buildLocaleLang(modules: LocaleModules): Language {
+  return withFallback(assembleLanguage(modules), englishLang);
+}
+
+// Seeded with English so `en` resolves to the plain `lang` object, not a Proxy.
+const localeLangCache = new Map<Locale, Language>([[DEFAULT_LOCALE, englishLang]]);
 
 /**
  * Returns the fully-resolved `Language` object for the given locale. The
@@ -462,19 +259,12 @@ const localeLangCache = new Map<Locale, Language>();
  * Results are cached after first build — locale modules are static JSON.
  */
 export function getLangForLocale(locale: Locale): Language {
-  const cached = localeLangCache.get(locale);
-  if (cached) return cached;
-
-  if (locale === 'en') {
-    localeLangCache.set(locale, englishLang);
-    return englishLang;
+  let resolved = localeLangCache.get(locale);
+  if (!resolved) {
+    resolved = buildLocaleLang(LOCALE_REGISTRY[locale].modules);
+    localeLangCache.set(locale, resolved);
   }
-
-  const modules = LOCALE_MODULES[locale];
-  const partial = assembleLanguage(modules);
-  const wrapped = withFallback(partial, englishLang);
-  localeLangCache.set(locale, wrapped);
-  return wrapped;
+  return resolved;
 }
 
 // ---------------------------------------------------------------------------
