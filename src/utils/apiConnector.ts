@@ -12,6 +12,7 @@
 
 import type { Client } from 'discord.js';
 import { version } from '../../package.json';
+import { INTERVALS } from './constants';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
 import { sleep } from './time';
 
@@ -81,7 +82,13 @@ export class APIConnector {
   private readonly headers: Record<string, string>;
   private statsInterval: NodeJS.Timeout | null = null;
   private healthCheckInterval: NodeJS.Timeout | null = null;
+  private registerRetryTimer: NodeJS.Timeout | null = null;
+  private registerRetries = 0;
+  private stopped = false;
   private isConnected: boolean = false;
+  /** True when COGWORKS_API_TOKEN is unset and the Discord bot token is sent instead. */
+  private readonly usingLegacyToken: boolean;
+  private legacyTokenWarned = false;
 
   // Circuit breaker state
   private circuitState: CircuitState = CircuitState.CLOSED;
@@ -115,12 +122,30 @@ export class APIConnector {
     halfOpenMaxAttempts: 3,
   };
 
-  constructor(apiUrl: string, botToken: string) {
+  /**
+   * @param apiToken  Dedicated bot -> API secret (COGWORKS_API_TOKEN)
+   * @param legacyBotToken  Discord bot token, sent only while apiToken is unset.
+   *   Deprecated: it leaks the Discord credential to ninsys-api and its logs.
+   */
+  constructor(apiUrl: string, apiToken: string | undefined, legacyBotToken: string) {
     this.baseURL = apiUrl;
+    const dedicated = apiToken?.trim();
+    this.usingLegacyToken = !dedicated;
     this.headers = {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${botToken}`,
+      Authorization: `Bearer ${dedicated || legacyBotToken}`,
     };
+  }
+
+  /** One warning per process; names the env vars only, never a value. */
+  private warnIfLegacyToken(): void {
+    if (!this.usingLegacyToken || this.legacyTokenWarned) return;
+    this.legacyTokenWarned = true;
+    enhancedLogger.warn(
+      'COGWORKS_API_TOKEN is not set, so the bot authenticates to the API with its Discord bot token. ' +
+        'This fallback is deprecated: set the same COGWORKS_API_TOKEN on the bot and on ninsys-api.',
+      LogCategory.SECURITY,
+    );
   }
 
   /**
@@ -158,6 +183,7 @@ export class APIConnector {
    * Register the bot with API with retry logic.
    */
   async registerBot(client: Client): Promise<void> {
+    this.warnIfLegacyToken();
     try {
       await this.makeRequestWithRetry(() => this.request('GET', '/health'));
 
@@ -167,9 +193,60 @@ export class APIConnector {
       this.isConnected = true;
       this.startHealthCheck();
       enhancedLogger.info('Bot registered with API', LogCategory.API);
-    } catch {
-      enhancedLogger.error('Failed to register bot with API', new Error('API registration failed'), LogCategory.API);
+    } catch (error) {
+      // The message carries method, path and status only — no headers.
+      enhancedLogger.error('Failed to register bot with API', new Error('API registration failed'), LogCategory.API, {
+        reason: error instanceof Error ? error.message : String(error),
+      });
       this.isConnected = false;
+    }
+  }
+
+  /**
+   * Register and start stats sync. If the API is unreachable (for example it
+   * restarted together with the bot), keep retrying in the background —
+   * 30s, 60s, 2m, 4m, then every 5m — instead of staying offline until the
+   * next bot restart. Resolves with the first attempt's outcome.
+   */
+  async connect(client: Client): Promise<boolean> {
+    // No API configured (API_URL unset): nothing to register with or retry.
+    if (!this.baseURL) return false;
+    this.stopped = false;
+    await this.registerBot(client);
+    if (this.isConnected) {
+      this.startStatsSync(client);
+      return true;
+    }
+    this.scheduleRegisterRetry(client);
+    return false;
+  }
+
+  private scheduleRegisterRetry(client: Client): void {
+    if (this.stopped || this.registerRetryTimer) return;
+    const delay = Math.min(
+      INTERVALS.API_REGISTER_RETRY_BASE * 2 ** this.registerRetries,
+      INTERVALS.API_REGISTER_RETRY_MAX,
+    );
+    this.registerRetries++;
+    enhancedLogger.warn(`API registration will be retried in ${Math.round(delay / 1000)}s`, LogCategory.API, {
+      retry: this.registerRetries,
+    });
+    this.registerRetryTimer = setTimeout(() => {
+      this.registerRetryTimer = null;
+      void this.retryRegistration(client);
+    }, delay);
+  }
+
+  private async retryRegistration(client: Client): Promise<void> {
+    if (this.stopped) return;
+    await this.registerBot(client);
+    if (this.stopped) return;
+    if (this.isConnected) {
+      this.registerRetries = 0;
+      this.startStatsSync(client);
+      enhancedLogger.info('Registered with API after retrying', LogCategory.API);
+    } else {
+      this.scheduleRegisterRetry(client);
     }
   }
 
@@ -428,6 +505,12 @@ export class APIConnector {
   }
 
   async disconnect(): Promise<void> {
+    this.stopped = true;
+    if (this.registerRetryTimer) {
+      clearTimeout(this.registerRetryTimer);
+      this.registerRetryTimer = null;
+    }
+
     if (this.statsInterval) {
       clearInterval(this.statsInterval);
       this.statsInterval = null;

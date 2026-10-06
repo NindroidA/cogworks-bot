@@ -89,7 +89,7 @@ import { lang } from '../utils';
 lang.ticket.created;          // Direct access
 lang.ticketSetup.createTicket; // Setup strings are under ticketSetup/applicationSetup keys
 ```
-Translation files: per-locale dirs `src/lang/<locale>/*.json` (en, es, fr, de, pt-BR — English is the Proxy fallback) with types in `src/lang/types.ts`.
+Strings live in `src/lang/en/*.json` with types in `src/lang/types.ts`; add new user-facing text there. English is the only shipped locale. The locale machinery stays for future translations: a translation is a partial JSON set (only translated keys) plus one `LOCALE_REGISTRY` entry in `src/lang/index.ts`, and a Proxy falls back to English for everything else (`getGuildLang(guildId)` resolves a guild's locale; see `src/lang/TRANSLATING.md`). The `/bot-setup` Language button only shows when more than one locale is registered. Don't add untranslated copies of the English files.
 
 ### Error Handling
 ```typescript
@@ -306,6 +306,7 @@ await runner.runAll(guildIds);
 - `MEMORY_ALERT_CHANNEL_ID` — Memory watchdog alert channel (falls back to `STATUS_CHANNEL_ID`); tunables: `MEMORY_WARN_HEAP_PCT`, `MEMORY_CRIT_HEAP_PCT`, `MEMORY_MAP_WARN_SIZE`
 - `MEMORY_THRESHOLD_MB` — Health-check memory threshold (healthMonitor/healthServer, default 512)
 - `API_URL` — External dashboard API endpoint (apiConnector + guild webhooks)
+- `COGWORKS_API_TOKEN` — Bearer secret apiConnector sends to ninsys-api (must match ninsys-api's). Unset → deprecated fallback to the Discord bot token, with one startup warning
 - `DASHBOARD_URL` — Base URL for user-facing dashboard links (`/dashboard` command, profile embeds)
 - `NODE_ENV` — Log level / file logging / colorization (enhancedLogger)
 
@@ -377,7 +378,7 @@ src/
 ├── events/                 # Discord event handlers
 │   ├── channelDelete.ts    # Config cleanup for 13 entities
 │   ├── messageDelete.ts    # Config cleanup for 8 entities
-│   ├── roleDelete.ts       # Config cleanup for 9 entities
+│   ├── roleDelete.ts       # Config cleanup for 10 entities
 │   ├── threadDelete.ts     # MemoryItem cleanup
 │   ├── guildDelete.ts      # GDPR: full data purge
 │   └── ...
@@ -399,6 +400,7 @@ src/
 │   ├── event/              # event template + reminder helpers
 │   ├── import/             # mee6 / bot-import helpers (some deferred)
 │   ├── interactions/       # guardHelper, confirmHelper, modalHelper (standardized patterns)
+│   ├── memory/             # threadHelpers (memory starter-message clamp, archived-thread tag edits)
 │   ├── monitoring/         # enhancedLogger, healthMonitor, healthServer, memoryWatchdog, errorReporter
 │   ├── offboarding/        # archiveCompiler, messageCleanup (for bot-reset)
 │   ├── onboarding/         # onboarding flow helpers
@@ -407,7 +409,7 @@ src/
 │   ├── security/           # rateLimiter
 │   ├── setup/              # channelCreator, channelDefaults, channelFormatDetector, configStatusEmbed
 │   ├── status/             # statusManager (client-attached)
-│   ├── ticket/             # autoClose, slaChecker, smartRouter, closeWorkflow, builtinTypes, transcriptBuilder, transcriptPoster
+│   ├── ticket/             # autoClose, slaChecker, smartRouter, closeWorkflow, claimAndArchive, builtinTypes, transcriptBuilder, transcriptPoster
 │   ├── validation/         # permissionValidator, featurePermission, inputSanitizer, validators
 │   ├── workflow/           # cross-feature workflow helpers
 │   ├── xp/                 # xp calc + role reward helpers
@@ -440,7 +442,7 @@ When users choose "Create Channels For Me" in bot-setup, channels are auto-creat
 Automatic config cleanup when Discord objects are deleted:
 - `channelDelete` — clears references in 13 entities (TicketConfig, BaitChannelConfig, StarboardConfig, XPConfig, etc.)
 - `messageDelete` — clears tracked messageIds in 8 entities
-- `roleDelete` — clears role references in 9 entities (BotConfig, RulesConfig, ReactionRoleOption, XPRoleReward, etc.)
+- `roleDelete` — clears role references in 10 entities (BotConfig, RulesConfig, ReactionRoleOption, StaffRole, TicketConfig, etc.)
 - `threadDelete` — deletes orphaned MemoryItems
 
 ### Bait Channel Subsystem (v3.2.0)
@@ -521,7 +523,7 @@ const triggeredBy = optionalString(body, 'triggeredBy');   // for audit logs
 - Add new bait actions outside `executeAction` / `executeBanAction` (bypasses idempotency key + retry queue, breaks audit-log correlation)
 
 ### Do
-- Use `archiveAndCloseTicket()` from `utils/ticket/closeWorkflow` for ticket close logic
+- Use `claimAndArchiveTicket()` (`utils/ticket/claimAndArchive`) for Discord-side ticket closes; it wraps `archiveAndCloseTicket()` (`utils/ticket/closeWorkflow`) with `claimClose`/`releaseClose`, so a failed archive reverts the status instead of stranding the ticket
 - Use `verifiedChannelDelete`/`verifiedThreadDelete` for Discord deletions
 - Use `buildErrorMessage()` for user-facing error messages
 - Use `lazyRepo()` for deferred repository access

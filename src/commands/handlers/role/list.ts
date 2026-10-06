@@ -1,7 +1,8 @@
-import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, MessageFlags, roleMention } from 'discord.js';
 import { StaffRole } from '../../../typeorm/entities/StaffRole';
 import {
   enhancedLogger,
+  extractIdFromMention,
   guardAdminRateLimit,
   LogCategory,
   lang,
@@ -45,15 +46,16 @@ export async function roleListHandler(interaction: ChatInputCommandInteraction<C
       .where('guildId = :guildId', { guildId: guildId })
       .getRawMany();
 
-    // group roles by type
+    // group roles by type; stored refs are raw IDs or legacy `<@&id>` — render both as a mention
     const roleGroups: Record<string, { alias: string; role: string }[]> = {};
     foundRoles.forEach(role => {
       if (!roleGroups[role.type]) {
         roleGroups[role.type] = [];
       }
+      const roleId = extractIdFromMention(role.role);
       roleGroups[role.type].push({
         alias: role.alias,
-        role: role.role,
+        role: roleId ? roleMention(roleId) : role.role,
       });
     });
 

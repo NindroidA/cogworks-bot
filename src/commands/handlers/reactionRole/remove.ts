@@ -11,6 +11,7 @@ import {
   updateMenuMessage,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { optionEmojiKey } from '../../../utils/reactionRole/optionEmoji';
 
 const tl = lang.reactionRole;
 const menuRepo = lazyRepo(ReactionRoleMenu);
@@ -42,8 +43,9 @@ export async function reactionRoleRemoveHandler(interaction: ChatInputCommandInt
       return;
     }
 
-    // Find the option by emoji
-    const option = menu.options.find(o => o.emoji === emoji);
+    // Find the option by emoji (custom emoji by id, so any spelling of it matches)
+    const emojiKey = optionEmojiKey(emoji);
+    const option = menu.options.find(o => optionEmojiKey(o.emoji) === emojiKey);
     if (!option) {
       await replyEphemeralError(interaction, tl.remove.notFound);
       return;

@@ -39,7 +39,8 @@ export async function handleRulesReactionAdd(
 ): Promise<void> {
   // Ignore bot reactions
   if (user.bot) return;
-  if (cooldown.isOnCooldown(user.id, reaction.message.id)) return;
+  // Per-direction key: a shared one dropped the un-react that follows a react within 2s
+  if (cooldown.isOnCooldown(user.id, `${reaction.message.id}:add`)) return;
 
   try {
     // Fetch partials if needed
@@ -94,7 +95,7 @@ export async function handleRulesReactionRemove(
 ): Promise<void> {
   // Ignore bot reactions
   if (user.bot) return;
-  if (cooldown.isOnCooldown(user.id, reaction.message.id)) return;
+  if (cooldown.isOnCooldown(user.id, `${reaction.message.id}:remove`)) return;
 
   try {
     // Fetch partials if needed

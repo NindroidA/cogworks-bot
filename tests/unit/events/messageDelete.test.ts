@@ -88,6 +88,8 @@ const fakeBaitHandleMessageDelete = jest.fn();
 
 mock.module('../../../src/utils/rules/rulesCache', () => ({
   invalidateRulesCache: fakeInvalidateRulesCache,
+  getCachedRulesConfig: jest.fn(() => null),
+  setCachedRulesConfig: jest.fn(),
 }));
 mock.module('../../../src/utils/reactionRole/menuCache', () => ({
   invalidateMenuCache: fakeInvalidateMenuCache,

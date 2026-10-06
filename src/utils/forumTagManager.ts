@@ -1,6 +1,16 @@
-import type { ForumChannel, GuildForumTag } from 'discord.js';
+import type { ForumChannel, GuildForumTag, GuildForumTagData, GuildForumTagEmoji } from 'discord.js';
 import { enhancedLogger, LogCategory } from './monitoring/enhancedLogger';
 import { sleep } from './time';
+
+/** Discord's per-forum cap on available tags. */
+export const FORUM_TAG_LIMIT = 20;
+
+/** Convert a stored emoji string (unicode or `<:name:id>`) to a forum tag emoji. */
+export function toForumTagEmoji(emoji: string | null | undefined): GuildForumTagEmoji | null {
+  if (!emoji) return null;
+  const custom = emoji.match(/<a?:(\w+):(\d+)>/);
+  return custom ? { id: custom[2], name: custom[1] } : { id: null, name: emoji };
+}
 
 /**
  * Creates or finds a forum tag based on custom ticket type properties.
@@ -32,7 +42,7 @@ export async function ensureForumTag(
     }
 
     // Discord API limit: 20 tags per forum channel
-    if (forumChannel.availableTags.length >= 20) {
+    if (forumChannel.availableTags.length >= FORUM_TAG_LIMIT) {
       enhancedLogger.warn(
         `Forum channel has reached maximum tag limit (20), cannot create tag for ${displayName}`,
         LogCategory.SYSTEM,
@@ -48,25 +58,8 @@ export async function ensureForumTag(
       name: displayName,
       moderated: false,
     };
-
-    // Add emoji if provided
-    if (emoji) {
-      // Check if emoji is a unicode emoji or custom emoji ID
-      const customEmojiMatch = emoji.match(/<a?:(\w+):(\d+)>/);
-      if (customEmojiMatch) {
-        // Custom emoji - use ID
-        newTagData.emoji = {
-          id: customEmojiMatch[2],
-          name: customEmojiMatch[1],
-        };
-      } else {
-        // Unicode emoji
-        newTagData.emoji = {
-          id: null,
-          name: emoji,
-        };
-      }
-    }
+    const tagEmoji = toForumTagEmoji(emoji);
+    if (tagEmoji) newTagData.emoji = tagEmoji;
 
     // Update forum channel with new tag
     const updatedTags = [...forumChannel.availableTags, newTagData as GuildForumTag];
@@ -103,6 +96,57 @@ export async function ensureForumTag(
     });
     return null;
   }
+}
+
+export interface ForumTagSeed {
+  name: string;
+  emoji: string | null;
+}
+
+/**
+ * Adds `seeds` to a forum's tag list WITHOUT removing anything (the "Forum Tag
+ * System" rule in CLAUDE.md). `setAvailableTags` replaces the whole list, and
+ * Discord deletes every omitted tag and strips it from every post, so this
+ * always sends the forum's current tags (with their ids) first. A seed whose
+ * name already exists (case-insensitive) reuses that tag; the rest are appended
+ * until the 20-tag cap — seeds that don't fit are skipped and logged rather
+ * than failing the whole PATCH.
+ * @returns seed name → forum tag id (null when skipped), plus the skipped names
+ */
+export async function mergeForumTags(
+  forum: ForumChannel,
+  seeds: ForumTagSeed[],
+): Promise<{ ids: Map<string, string | null>; skipped: string[] }> {
+  const existing = forum.availableTags;
+  const known = new Set(existing.map(t => t.name.toLowerCase()));
+  const toAdd: GuildForumTagData[] = [];
+  const skipped: string[] = [];
+
+  for (const seed of seeds) {
+    const key = seed.name.toLowerCase();
+    if (known.has(key)) continue;
+    if (existing.length + toAdd.length >= FORUM_TAG_LIMIT) {
+      skipped.push(seed.name);
+      continue;
+    }
+    known.add(key);
+    toAdd.push({ name: seed.name, emoji: toForumTagEmoji(seed.emoji) });
+  }
+
+  const finalTags = toAdd.length > 0 ? (await forum.setAvailableTags([...existing, ...toAdd])).availableTags : existing;
+
+  if (skipped.length > 0) {
+    enhancedLogger.warn('Forum is at the 20-tag limit — some tags were not added', LogCategory.SYSTEM, {
+      forumId: forum.id,
+      skipped,
+    });
+  }
+
+  const ids = new Map<string, string | null>();
+  for (const seed of seeds) {
+    ids.set(seed.name, finalTags.find(t => t.name.toLowerCase() === seed.name.toLowerCase())?.id ?? null);
+  }
+  return { ids, skipped };
 }
 
 /**
