@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.5] - 2026-10-06
+
+Raid mode now lets go when it should. The 4-hour cap was never enforced while
+the bot was running, and a restart mid-raid made the next release re-lock every
+channel instead of unlocking it.
+
+### Fixed
+
+- **Raid mode auto-releases at its 4-hour cap.** `checkAutoRelease` had no
+  caller, so after the cap every channel stayed read-only for `@everyone` while
+  `/baitchannel raid status` already said "inactive". A one-minute sweep
+  (started by the existing boot-time restore) now releases any lockdown past
+  its cap and restores the channels. Status reports raid mode as active until
+  the lockdown is actually released.
+- **Releasing after a bot restart restores the real permissions.** Boot-time
+  restore re-snapshotted channels it had already locked, so the recorded
+  "prior" state was the bot's own deny and a later release (manual or
+  auto) left the whole server read-only. The pre-raid permission snapshot is
+  now saved in the `raid-mode-entered` log row and reloaded at boot and on
+  release. A raid entered before this version still falls back to inherit
+  for channels it can't account for, with a warning.
+- **Entering raid mode again before the release never overwrites the
+  snapshot.** Re-entering after the cap (still locked) keeps the priors
+  already recorded and only adds channels it hasn't touched. Enter, release
+  and the sweep now run one at a time per guild, so a release in progress
+  can't be captured as the next raid's prior state.
+
 ## [3.16.3] - 2026-07-07
 
 Consistency chore — no behavioral change. Aligns the analytics command name
