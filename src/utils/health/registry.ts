@@ -2,10 +2,11 @@
  * Health check registry. Each feature module exports a list of checks and is
  * appended to `CHECKS`; ids must be unique (the registry test enforces it).
  */
+import { COMMAND_CHECKS } from './checks/commands';
 import { CORE_CHECKS } from './checks/core';
 import type { HealthCheck, HealthSystem } from './types';
 
-const CHECKS: readonly HealthCheck[] = [...CORE_CHECKS];
+const CHECKS: readonly HealthCheck[] = [...CORE_CHECKS, ...COMMAND_CHECKS];
 
 /** Every registered check, or only one system's, in report order. */
 export function getChecks(system?: HealthSystem): readonly HealthCheck[] {
