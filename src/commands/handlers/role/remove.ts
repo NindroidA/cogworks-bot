@@ -1,4 +1,5 @@
-import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
+import { type CacheType, type ChatInputCommandInteraction, MessageFlags, roleMention } from 'discord.js';
+import { In } from 'typeorm';
 import { StaffRole } from '../../../typeorm/entities/StaffRole';
 import {
   enhancedLogger,
@@ -24,40 +25,23 @@ export async function roleRemoveHandler(interaction: ChatInputCommandInteraction
   const subCommand = interaction.options.getSubcommand(); // 'staff' or 'admin'
   if (!interaction.guildId) return;
   const guildId = interaction.guildId;
-  const role = interaction.options.getRole('role_id')!.toString() || '';
-  const roleFinder = await staffRoleRepo.findOneBy({ guildId, role });
-  const guildFinder = await staffRoleRepo.findOneBy({ guildId });
-
-  // check to see if the discord server has any saved roles
-  if (!guildFinder) {
-    await replyEphemeralError(interaction, tl.noType);
-    return;
-  }
-
-  // check to see if the role exists
-  if (!roleFinder) {
-    await replyEphemeralError(interaction, tl.dne);
-    return;
-  }
+  const role = interaction.options.getRole('role_id', true).id;
 
   try {
-    const typeFinder = await staffRoleRepo.findOneBy({
-      guildId,
-      type: subCommand,
+    // Match this role under the requested type only, in both stored formats
+    // (raw ID, legacy `<@&id>`). Checking role and type separately reported
+    // success when the role was saved under the other type and nothing was deleted.
+    const saved = await staffRoleRepo.find({
+      where: { guildId, type: subCommand, role: In([role, roleMention(role)]) },
     });
 
-    if (!typeFinder) {
-      await replyEphemeralError(interaction, tl.noType);
+    if (saved.length === 0) {
+      const anyOfType = await staffRoleRepo.findOneBy({ guildId, type: subCommand });
+      await replyEphemeralError(interaction, anyOfType ? tl.dne : tl.noType);
       return;
     }
 
-    await staffRoleRepo
-      .createQueryBuilder()
-      .delete()
-      .where('role = :role', { role: role })
-      .andWhere('type = :type', { type: subCommand })
-      .andWhere('guildId = :guildId', { guildId })
-      .execute();
+    await staffRoleRepo.remove(saved);
 
     // after completion, send an ephemeral success message
     const successMsg = subCommand === 'staff' ? tl.successStaff : tl.successAdmin;

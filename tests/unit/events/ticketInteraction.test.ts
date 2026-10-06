@@ -219,6 +219,8 @@ function makeGuild() {
   };
   return {
     id: "guild123",
+    // Overwrites are filtered to roles that still exist (v3.16.11).
+    roles: { cache: new Map() },
     channels: {
       create: jest.fn().mockResolvedValue(mockChannel),
     },
@@ -875,6 +877,52 @@ describe("handleTicketInteraction", () => {
           flags: expect.arrayContaining([MessageFlags.Ephemeral]),
         }),
       );
+    });
+
+    test("grants saved staff roles in both formats, skips deleted ones, and pings a raw global staff role as <@&id>", async () => {
+      const STAFF = "123456789012345678";
+      const LEGACY = "223456789012345678";
+      const DELETED = "323456789012345678";
+      // findOneBy serves both TicketConfig and BotConfig here — one merged row.
+      findOneBySpy.mockResolvedValue(
+        makeTicketConfig({
+          pingStaffOnOther: true,
+          enableGlobalStaffRole: true,
+          globalStaffRole: STAFF,
+        }) as never,
+      );
+      createSpy.mockReturnValue({ id: 8 } as never);
+      saveSpy.mockResolvedValue({ id: 8 } as never);
+      DEFAULT_QUERY_BUILDER.getRawMany.mockResolvedValue([
+        { type: "staff", role: STAFF },
+        { type: "admin", role: `<@&${LEGACY}>` },
+        { type: "staff", role: DELETED },
+      ]);
+      const guild = {
+        ...makeGuild(),
+        roles: { cache: new Set(["guild123", STAFF, LEGACY]) },
+      };
+      const interaction = makeModalInteraction("ticket_modal_other", {
+        guild,
+        member: { id: "user123", user: { id: "user123", username: "testuser" } },
+        fields: { getTextInputValue: jest.fn().mockReturnValue("help") },
+      });
+
+      await handleTicketInteraction(mockClient, interaction as never);
+
+      const createArgs = guild.channels.create.mock.calls[0][0] as {
+        permissionOverwrites: Array<{ id: string }>;
+      };
+      expect(createArgs.permissionOverwrites.map((o) => o.id)).toEqual([
+        "guild123",
+        "user123",
+        STAFF,
+        LEGACY,
+      ]);
+      const sent = guild._channel.send.mock.calls.map(
+        (c: unknown[]) => (c[0] as { content?: string }).content ?? c[0],
+      );
+      expect(sent).toContainEqual(expect.stringMatching(new RegExp(`^<@&${STAFF}>\\n`)));
     });
 
     test("should build description from custom field responses without throwing", async () => {

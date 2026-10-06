@@ -377,7 +377,7 @@ src/
 ├── events/                 # Discord event handlers
 │   ├── channelDelete.ts    # Config cleanup for 13 entities
 │   ├── messageDelete.ts    # Config cleanup for 8 entities
-│   ├── roleDelete.ts       # Config cleanup for 9 entities
+│   ├── roleDelete.ts       # Config cleanup for 10 entities
 │   ├── threadDelete.ts     # MemoryItem cleanup
 │   ├── guildDelete.ts      # GDPR: full data purge
 │   └── ...
@@ -440,7 +440,7 @@ When users choose "Create Channels For Me" in bot-setup, channels are auto-creat
 Automatic config cleanup when Discord objects are deleted:
 - `channelDelete` — clears references in 13 entities (TicketConfig, BaitChannelConfig, StarboardConfig, XPConfig, etc.)
 - `messageDelete` — clears tracked messageIds in 8 entities
-- `roleDelete` — clears role references in 9 entities (BotConfig, RulesConfig, ReactionRoleOption, XPRoleReward, etc.)
+- `roleDelete` — clears role references in 10 entities (BotConfig, RulesConfig, ReactionRoleOption, StaffRole, TicketConfig, etc.)
 - `threadDelete` — deletes orphaned MemoryItems
 
 ### Bait Channel Subsystem (v3.2.0)

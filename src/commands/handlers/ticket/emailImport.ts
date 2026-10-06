@@ -15,10 +15,12 @@ import {
 } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BotConfig } from '../../../typeorm/entities/BotConfig';
+import { StaffRole } from '../../../typeorm/entities/StaffRole';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import {
+  createPrivateChannelPermissions,
   enhancedLogger,
   extractIdFromMention,
   formatLang,
@@ -27,6 +29,7 @@ import {
   LogCategory,
   lang,
   maskEmail,
+  PermissionSets,
   RateLimits,
   replyEphemeralError,
   validateSafeUrl,
@@ -169,37 +172,41 @@ async function ensureEmailImportType(guildId: string) {
   return emailType;
 }
 
-/** Build channel permission overwrites for the email ticket channel. */
-function buildEmailTicketPermissions(guildId: string, botUserId: string, botConfig: BotConfig) {
-  const permissionOverwrites = [
-    {
-      id: guildId,
-      deny: [PermissionsBitField.Flags.ViewChannel],
-    },
-    {
-      id: botUserId,
-      allow: [
-        PermissionsBitField.Flags.ViewChannel,
-        PermissionsBitField.Flags.SendMessages,
-        PermissionsBitField.Flags.ManageChannels,
-        PermissionsBitField.Flags.ReadMessageHistory,
-      ],
-    },
-  ];
+/**
+ * Build channel permission overwrites for the email ticket channel: the importer,
+ * every saved staff/admin role (the same set /ticket create grants), the global
+ * staff role when enabled, and the bot. Stored role refs may be raw IDs or legacy
+ * `<@&id>` mentions; roles missing from `existingRoles` are skipped. Exported for tests.
+ */
+export function buildEmailTicketPermissions(opts: {
+  guildId: string;
+  importerId: string;
+  botUserId: string;
+  botConfig: BotConfig;
+  staffRoleRefs: string[];
+  existingRoles: { has(roleId: string): boolean };
+}) {
+  const { botConfig } = opts;
+  const roleRefs = [...opts.staffRoleRefs];
+  if (botConfig.enableGlobalStaffRole && botConfig.globalStaffRole) roleRefs.push(botConfig.globalStaffRole);
+  const roleIds = roleRefs.map(ref => extractIdFromMention(ref)).filter((id): id is string => id !== null);
 
-  if (botConfig.enableGlobalStaffRole && botConfig.globalStaffRole) {
-    const staffRoleId = extractIdFromMention(botConfig.globalStaffRole);
-    if (staffRoleId) {
-      permissionOverwrites.push({
-        id: staffRoleId,
-        allow: [
-          PermissionsBitField.Flags.ViewChannel,
-          PermissionsBitField.Flags.SendMessages,
-          PermissionsBitField.Flags.ReadMessageHistory,
-        ],
-      });
-    }
-  }
+  const permissionOverwrites = createPrivateChannelPermissions(
+    opts.guildId,
+    [opts.importerId],
+    roleIds,
+    PermissionSets.STAFF_MEMBER,
+    opts.existingRoles,
+  );
+  permissionOverwrites.push({
+    id: opts.botUserId,
+    allow: [
+      PermissionsBitField.Flags.ViewChannel,
+      PermissionsBitField.Flags.SendMessages,
+      PermissionsBitField.Flags.ManageChannels,
+      PermissionsBitField.Flags.ReadMessageHistory,
+    ],
+  });
 
   return permissionOverwrites;
 }
@@ -334,6 +341,8 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
       .toLowerCase()
       .replace(/[^a-z0-9-]/g, '-')}`;
 
+    const staffRoles = await AppDataSource.getRepository(StaffRole).find({ where: { guildId } });
+
     try {
       // Create ticket channel
       const ticketChannel = await interaction.guild!.channels.create({
@@ -341,7 +350,14 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
         type: ChannelType.GuildText,
         parent: category.id,
         topic: subject.substring(0, 256),
-        permissionOverwrites: buildEmailTicketPermissions(guildId, interaction.client.user.id, botConfig),
+        permissionOverwrites: buildEmailTicketPermissions({
+          guildId,
+          importerId: userId,
+          botUserId: interaction.client.user.id,
+          botConfig,
+          staffRoleRefs: staffRoles.map(r => r.role),
+          existingRoles: interaction.guild!.roles.cache,
+        }),
       });
 
       // Send welcome embed with action buttons

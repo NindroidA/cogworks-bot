@@ -197,6 +197,8 @@ function makeModalInteraction(
 
   const defaultGuild = {
     id: "guild-123",
+    // Overwrites are filtered to roles that still exist (v3.16.11).
+    roles: { cache: new Map() },
     channels: {
       _createCalls: [] as unknown[],
       create: async function (args: unknown) {
