@@ -10,6 +10,7 @@ import {
   lang,
   replyEphemeralError,
 } from '../../../utils';
+import { setDefaultTicketType } from './typeList';
 
 const tl = lang.ticket.customTypes.typeDefault;
 
@@ -57,12 +58,8 @@ export async function typeDefaultHandler(interaction: ChatInputCommandInteractio
       return;
     }
 
-    // Remove default flag from all other types
-    await typeRepo.update({ guildId, isDefault: true }, { isDefault: false });
-
-    // Set this type as default
-    type.isDefault = true;
-    await typeRepo.save(type);
+    // Clear the old default and set this one in one transaction
+    await setDefaultTicketType(guildId, typeId);
 
     enhancedLogger.info(`Default type set: '${typeId}'`, LogCategory.COMMAND_EXECUTION, {
       userId: interaction.user.id,

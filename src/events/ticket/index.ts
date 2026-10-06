@@ -5,6 +5,7 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
 } from 'discord.js';
+import { Not } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
 import { CustomTicketType } from '../../typeorm/entities/ticket/CustomTicketType';
 import { UserTicketRestriction } from '../../typeorm/entities/ticket/UserTicketRestriction';
@@ -64,10 +65,10 @@ export const customTicketOptions = async (
 ): Promise<ActionRowBuilder<StringSelectMenuBuilder>> => {
   const typeRepo = AppDataSource.getRepository(CustomTicketType);
 
-  // Get all active ticket types for the guild
+  // Active types, the default first. email_import is internal (staff-only email imports).
   let types = await typeRepo.find({
-    where: { guildId, isActive: true },
-    order: { sortOrder: 'ASC' },
+    where: { guildId, isActive: true, typeId: Not('email_import') },
+    order: { isDefault: 'DESC', sortOrder: 'ASC' },
   });
 
   // Filter out restricted types if userId is provided

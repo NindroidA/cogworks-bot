@@ -31,9 +31,9 @@ export async function workflowSettingsHandler(interaction: ChatInputCommandInter
     if (!guard.allowed) return;
 
     const guildId = interaction.guildId!;
-    const config = await ticketConfigRepo.findOneBy({ guildId });
+    const current = await ticketConfigRepo.findOneBy({ guildId });
 
-    if (!config) {
+    if (!current) {
       await replyEphemeralError(interaction, lang.ticket.ticketConfigNotFound);
       return;
     }
@@ -41,18 +41,27 @@ export async function workflowSettingsHandler(interaction: ChatInputCommandInter
     const modal = rawModal(`ticket_wf_settings_${Date.now()}`, 'Ticket Workflow Settings', [
       labelWrap(
         'Enable Workflow',
-        checkbox('wf_enable', config.enableWorkflow),
+        checkbox('wf_enable', current.enableWorkflow),
         'Track ticket statuses, assignments, and history',
       ),
       labelWrap(
         'Enable Auto-Close',
-        checkbox('wf_autoclose', config.autoCloseEnabled),
+        checkbox('wf_autoclose', current.autoCloseEnabled),
         'Automatically close inactive tickets (requires workflow)',
       ),
     ]);
 
     const modalSubmit = await showAndAwaitModal(interaction, modal);
     if (!modalSubmit) return;
+
+    // The modal can stay open for minutes. Apply the two flags to a fresh read:
+    // saving the copy loaded above would revert anything changed meanwhile
+    // (category, SLA, routing, a dashboard save).
+    const config = await ticketConfigRepo.findOneBy({ guildId });
+    if (!config) {
+      await replyEphemeralError(modalSubmit, lang.ticket.ticketConfigNotFound);
+      return;
+    }
 
     const enableWorkflow = extractModalBoolean(modalSubmit.fields, 'wf_enable');
     const enableAutoClose = extractModalBoolean(modalSubmit.fields, 'wf_autoclose');
