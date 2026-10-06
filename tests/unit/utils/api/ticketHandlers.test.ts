@@ -11,7 +11,7 @@
  *   - Happy path: ticket closed, archive succeeds, audit log written
  *   - 404 when ticket not found (guild-scoped lookup)
  *   - 409 conflict when ticket already closed
- *   - 404 when archive config missing
+ *   - 404 when archive config missing, or its forum was deleted (blank channelId)
  *   - Channel-not-found path: marks closed, returns archived: false (no archive call)
  */
 
@@ -271,6 +271,23 @@ describe('POST /tickets/:id/close', () => {
       channelId: 'ticket-channel-1',
     };
     archivedTicketConfigRepoState.findOneByResult = null;
+
+    await expect(getCloseHandler()('guild-1', {}, '/tickets/42/close')).rejects.toMatchObject({
+      statusCode: 404,
+      message: 'Archive config not found',
+    });
+    expect(ticketRepoState.updateCalls).toHaveLength(0);
+    expect(fakeArchiveAndClose).not.toHaveBeenCalled();
+  });
+
+  test('returns 404 when the archive forum was deleted (channelId blanked) — no flip, no archive call', async () => {
+    ticketRepoState.findOneByResult = {
+      id: 42,
+      guildId: 'guild-1',
+      status: 'open',
+      channelId: 'ticket-channel-1',
+    };
+    archivedTicketConfigRepoState.findOneByResult = { guildId: 'guild-1', channelId: '' };
 
     await expect(getCloseHandler()('guild-1', {}, '/tickets/42/close')).rejects.toMatchObject({
       statusCode: 404,
