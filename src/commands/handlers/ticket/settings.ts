@@ -93,32 +93,27 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
 
     let displayName: string;
 
-    // Check if it's a builtin type
-    if (isBuiltinTicketType(typeId)) {
-      const columnName = resolveBuiltinPingColumn(typeId);
-      displayName = builtinTypeInfo(typeId)?.displayName ?? typeId;
+    // Same precedence as resolveTicketType: ticket creation reads the type's
+    // row when one exists (every builtin id gets a seeded row), so update it.
+    // The TicketConfig pingStaffOn* column only counts for a builtin with no row.
+    const customTypeRepo = AppDataSource.getRepository(CustomTicketType);
+    const customType = await customTypeRepo.findOneBy({ guildId, typeId });
 
-      if (columnName) {
-        // Update the builtin type's ping setting
-        await ticketConfigRepo.update({ guildId }, { [columnName]: enabled });
-      }
-    } else {
-      // It's a custom type
-      const customTypeRepo = AppDataSource.getRepository(CustomTicketType);
-      const customType = await customTypeRepo.findOneBy({ guildId, typeId });
-
-      if (!customType) {
-        enhancedLogger.warn(`Settings handler: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION, {
-          userId: interaction.user.id,
-          guildId,
-          typeId,
-        });
-        await replyEphemeralError(interaction, formatLang(tl.typeNotFound, typeId));
-        return;
-      }
-
+    if (customType) {
       displayName = customType.displayName;
       await customTypeRepo.update({ guildId, typeId }, { pingStaffOnCreate: enabled });
+    } else if (isBuiltinTicketType(typeId)) {
+      const columnName = resolveBuiltinPingColumn(typeId);
+      displayName = builtinTypeInfo(typeId)?.displayName ?? typeId;
+      if (columnName) await ticketConfigRepo.update({ guildId }, { [columnName]: enabled });
+    } else {
+      enhancedLogger.warn(`Settings handler: type '${typeId}' not found`, LogCategory.COMMAND_EXECUTION, {
+        userId: interaction.user.id,
+        guildId,
+        typeId,
+      });
+      await replyEphemeralError(interaction, formatLang(tl.typeNotFound, typeId));
+      return;
     }
 
     enhancedLogger.info(`Setting updated: ping-on-create for '${typeId}'=${enabled}`, LogCategory.COMMAND_EXECUTION, {

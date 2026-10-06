@@ -1,12 +1,9 @@
 import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  type ButtonInteraction,
   ButtonStyle,
   type ChatInputCommandInteraction,
-  ComponentType,
   EmbedBuilder,
   MessageFlags,
+  type ModalSubmitInteraction,
   type User,
 } from 'discord.js';
 import { In } from 'typeorm';
@@ -14,16 +11,18 @@ import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import { UserTicketRestriction } from '../../../typeorm/entities/ticket/UserTicketRestriction';
 import {
+  awaitConfirmation,
+  clampText,
   enhancedLogger,
   guardFeatureAccess,
   handleInteractionError,
   LogCategory,
   lang,
+  logHandlerError,
   replyEphemeralError,
   showAndAwaitModal,
-  TIMEOUTS,
 } from '../../../utils';
-import { checkboxGroup, labelWrap, rawModal } from '../../../utils/modalComponents';
+import { checkboxGroup, labelWrap, type RawModal, rawModal } from '../../../utils/modalComponents';
 
 const tl = lang.ticket.customTypes.userRestrict;
 
@@ -118,106 +117,133 @@ async function handleSingleTypeToggle(
     ? tl.confirmAllow.replace('{user}', targetUser.toString()).replace('{type}', ticketType.displayName)
     : tl.confirmRestrict.replace('{user}', targetUser.toString()).replace('{type}', ticketType.displayName);
 
-  // Create confirmation buttons
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`restrict_confirm_${targetUser.id}_${typeId}`)
-      .setLabel(isCurrentlyRestricted ? 'Allow' : 'Restrict')
-      .setStyle(isCurrentlyRestricted ? ButtonStyle.Success : ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId(`restrict_cancel_${targetUser.id}_${typeId}`)
-      .setLabel(lang.general.buttons.cancel)
-      .setStyle(ButtonStyle.Secondary),
-  );
-
-  await interaction.reply({
-    content: confirmMessage,
-    components: [row],
-    flags: [MessageFlags.Ephemeral],
+  // awaitConfirmation collects from this one reply. The old channel-wide
+  // collector also saw other members' clicks (the ticket panel included) and
+  // answered each with "not your interaction".
+  const result = await awaitConfirmation(interaction, {
+    message: confirmMessage,
+    confirmLabel: isCurrentlyRestricted ? 'Allow' : 'Restrict',
+    confirmStyle: isCurrentlyRestricted ? ButtonStyle.Success : ButtonStyle.Danger,
+    idPrefix: `ur_toggle_${interaction.id}`,
   });
+  if (!result) return;
 
-  const filter = (i: ButtonInteraction) => {
-    if (i.user.id !== interaction.user.id) {
-      i.reply({
-        content: tl.notYourInteraction,
-        flags: [MessageFlags.Ephemeral],
+  try {
+    if (isCurrentlyRestricted) {
+      await restrictionRepo.remove(existingRestriction);
+      await result.interaction.editReply({
+        content: tl.successAllow.replace('{user}', targetUser.toString()).replace('{type}', ticketType.displayName),
+        components: [],
       });
-      return false;
-    }
-    return i.customId.startsWith('restrict_confirm_') || i.customId.startsWith('restrict_cancel_');
-  };
 
-  const collector = interaction.channel?.createMessageComponentCollector({
-    filter,
-    componentType: ComponentType.Button,
-    time: TIMEOUTS.CONFIRMATION,
-    max: 1,
-  });
-
-  collector?.on('collect', async i => {
-    if (i.customId.startsWith('restrict_confirm_')) {
-      try {
-        if (isCurrentlyRestricted) {
-          await restrictionRepo.remove(existingRestriction);
-          await i.update({
-            content: tl.successAllow.replace('{user}', targetUser.toString()).replace('{type}', ticketType.displayName),
-            components: [],
-          });
-
-          enhancedLogger.info(
-            `Ticket restriction removed: ${targetUser.tag} can now create ${typeId}`,
-            LogCategory.COMMAND_EXECUTION,
-            {
-              guildId,
-              userId: targetUser.id,
-              typeId,
-              removedBy: interaction.user.id,
-            },
-          );
-        } else {
-          const newRestriction = restrictionRepo.create({
-            guildId,
-            userId: targetUser.id,
-            typeId,
-            restrictedBy: interaction.user.id,
-          });
-          await restrictionRepo.save(newRestriction);
-
-          await i.update({
-            content: tl.successRestrict
-              .replace('{user}', targetUser.toString())
-              .replace('{type}', ticketType.displayName),
-            components: [],
-          });
-
-          enhancedLogger.info(
-            `Ticket restriction added: ${targetUser.tag} restricted from ${typeId}`,
-            LogCategory.COMMAND_EXECUTION,
-            {
-              guildId,
-              userId: targetUser.id,
-              typeId,
-              restrictedBy: interaction.user.id,
-            },
-          );
-        }
-      } catch {
-        await i.update({ content: tl.error, components: [] });
-      }
+      enhancedLogger.info(
+        `Ticket restriction removed: ${targetUser.tag} can now create ${typeId}`,
+        LogCategory.COMMAND_EXECUTION,
+        {
+          guildId,
+          userId: targetUser.id,
+          typeId,
+          removedBy: interaction.user.id,
+        },
+      );
     } else {
-      await i.update({ content: tl.cancelled, components: [] });
-    }
-  });
+      const newRestriction = restrictionRepo.create({
+        guildId,
+        userId: targetUser.id,
+        typeId,
+        restrictedBy: interaction.user.id,
+      });
+      await restrictionRepo.save(newRestriction);
 
-  collector?.on('end', async collected => {
-    if (collected.size === 0) {
-      try {
-        await interaction.editReply({ content: tl.cancelled, components: [] });
-      } catch {
-        // Interaction may have expired
-      }
+      await result.interaction.editReply({
+        content: tl.successRestrict.replace('{user}', targetUser.toString()).replace('{type}', ticketType.displayName),
+        components: [],
+      });
+
+      enhancedLogger.info(
+        `Ticket restriction added: ${targetUser.tag} restricted from ${typeId}`,
+        LogCategory.COMMAND_EXECUTION,
+        {
+          guildId,
+          userId: targetUser.id,
+          typeId,
+          restrictedBy: interaction.user.id,
+        },
+      );
     }
-  });
+  } catch (error) {
+    logHandlerError('userRestrict toggle', error, { guildId, typeId });
+    await result.interaction.editReply({ content: tl.error, components: [] });
+  }
+}
+
+/** Discord limits: 10 options per checkbox group, 5 top-level components per modal. */
+const TYPES_PER_GROUP = 10;
+const MAX_GROUPS = 5;
+
+/**
+ * Checkbox groups for a restrictions modal: one per 10 types, up to 50 types.
+ * Returns the Label components and the ids of the types they show.
+ */
+export function buildRestrictionGroups(
+  ticketTypes: CustomTicketType[],
+  restrictedTypeIds: Set<string>,
+  idPrefix: string,
+): { components: RawModal['components']; shownIds: Set<string> } {
+  const shown = ticketTypes.slice(0, TYPES_PER_GROUP * MAX_GROUPS);
+  const components: RawModal['components'] = [];
+  for (let start = 0; start < shown.length; start += TYPES_PER_GROUP) {
+    const options = shown.slice(start, start + TYPES_PER_GROUP).map(type => ({
+      label: type.displayName,
+      value: type.typeId,
+      description: type.emoji ? `${type.emoji} ${type.typeId}` : type.typeId,
+      default: restrictedTypeIds.has(type.typeId),
+    }));
+    const group = start / TYPES_PER_GROUP;
+    components.push(
+      labelWrap(
+        group === 0 ? 'Restricted Ticket Types' : `Restricted Ticket Types (${group + 1})`,
+        checkboxGroup(`${idPrefix}_${group}`, options, 0),
+        group === 0 ? 'Check the types this user should be BLOCKED from creating' : undefined,
+      ),
+    );
+  }
+  return { components, shownIds: new Set(shown.map(t => t.typeId)) };
+}
+
+/**
+ * Read a submitted restrictions modal and diff it against the stored
+ * restrictions. Only the types the modal showed can be added or lifted; a
+ * restriction on a type that didn't fit stays as it is.
+ */
+export function diffRestrictionSubmit(
+  fields: ModalSubmitInteraction['fields'],
+  idPrefix: string,
+  shownIds: Set<string>,
+  restrictedTypeIds: Set<string>,
+): { toAdd: string[]; toRemove: string[]; restricted: Set<string> } {
+  const selected = new Set<string>();
+  for (let group = 0; group * TYPES_PER_GROUP < shownIds.size; group++) {
+    let values: unknown;
+    try {
+      values = (fields.getField(`${idPrefix}_${group}`) as { values?: unknown }).values;
+    } catch {
+      values = undefined; // group missing from the submission
+    }
+    for (const id of Array.isArray(values) ? values : []) {
+      // Only ids this guild's modal offered (no cross-guild injection)
+      if (typeof id === 'string' && shownIds.has(id)) selected.add(id);
+    }
+  }
+  const toAdd = [...selected].filter(id => !restrictedTypeIds.has(id));
+  const toRemove = [...restrictedTypeIds].filter(id => shownIds.has(id) && !selected.has(id));
+  const restricted = new Set([...restrictedTypeIds].filter(id => !toRemove.includes(id)).concat(toAdd));
+  return { toAdd, toRemove, restricted };
+}
+
+/** Modal titles are capped at 45 characters. */
+export function restrictionModalTitle(displayName: string): string {
+  return clampText(`Restrictions: ${displayName}`, 45);
 }
 
 /**
@@ -241,35 +267,21 @@ async function showRestrictionsModal(
   });
   const restrictedTypeIds = new Set(restrictions.map(r => r.typeId));
 
-  // Build checkbox group options (max 10 per Discord API)
-  const options = ticketTypes.slice(0, 10).map(type => ({
-    label: type.displayName,
-    value: type.typeId,
-    description: type.emoji ? `${type.emoji} ${type.typeId}` : type.typeId,
-    default: restrictedTypeIds.has(type.typeId),
-  }));
-
-  const modal = rawModal(`ur_modal_${targetUser.id}_${Date.now()}`, `Restrictions: ${targetUser.displayName}`, [
-    labelWrap(
-      'Restricted Ticket Types',
-      checkboxGroup('ur_restricted_types', options, 0),
-      'Check the types this user should be BLOCKED from creating',
-    ),
-  ]);
+  const { components, shownIds } = buildRestrictionGroups(ticketTypes, restrictedTypeIds, 'ur_restricted_types');
+  const modal = rawModal(
+    `ur_modal_${targetUser.id}_${Date.now()}`,
+    restrictionModalTitle(targetUser.displayName),
+    components,
+  );
 
   const modalSubmit = await showAndAwaitModal(interaction, modal);
   if (!modalSubmit) return;
 
-  // Get selected (restricted) type IDs from checkbox group
-  const rawSelectedValues: string[] = (modalSubmit.fields as any).getField('ur_restricted_types')?.values ?? [];
-  // Validate submitted values against guild-owned ticket types (prevents cross-guild data injection)
-  const validTypeIds = new Set(ticketTypes.map(t => t.typeId));
-  const selectedValues = rawSelectedValues.filter(id => validTypeIds.has(id));
-  const newRestrictedSet = new Set(selectedValues);
-
-  // Compute diff: add new restrictions, remove old ones
-  const toAdd = [...newRestrictedSet].filter(id => !restrictedTypeIds.has(id));
-  const toRemove = [...restrictedTypeIds].filter(id => !newRestrictedSet.has(id));
+  const {
+    toAdd,
+    toRemove,
+    restricted: newRestrictedSet,
+  } = diffRestrictionSubmit(modalSubmit.fields, 'ur_restricted_types', shownIds, restrictedTypeIds);
 
   // Batch: remove lifted restrictions in one query (the additions below were
   // already batched via save(array))

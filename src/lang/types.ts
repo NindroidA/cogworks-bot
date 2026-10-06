@@ -530,6 +530,7 @@ export interface LangTicket {
       inactiveLabel: string;
       defaultLabel: string;
       fieldValue: string;
+      moreTypes: string;
     };
     typeToggle: {
       cmdDescrp: string;
@@ -558,7 +559,6 @@ export interface LangTicket {
       error: string;
       notFound: string;
       noTypes: string;
-      cancelled: string;
     };
     emailImport: {
       cmdDescrp: string;
@@ -599,10 +599,8 @@ export interface LangTicket {
       alreadyRestricted: string;
       notRestricted: string;
       error: string;
-      cancelled: string;
       noRestrictions: string;
       currentRestrictions: string;
-      notYourInteraction: string;
       saved: string;
       footer: string;
     };
@@ -848,6 +846,8 @@ export interface LangApplication {
     failRefresh: string;
     failUpdate: string;
     successRefresh: string;
+    panelUpdateFailed: string;
+    panelTooMany: string;
     reindex: string;
     failReindex: string;
     sessionExpired: string;
@@ -905,6 +905,7 @@ export interface LangApplication {
     statusExists: string;
     maxStatuses: string;
     invalidStatusId: string;
+    reservedStatusId: string;
     checkNoApplication: string;
     checkTitle: string;
     checkPosition: string;

@@ -39,6 +39,28 @@ const positionRepo = lazyRepo(Position);
 const staffRoleRepo = lazyRepo(StaffRole);
 
 /**
+ * Splits a message at Discord's 2000-character limit, at the last line break
+ * or space before it so words stay whole (a word over half the limit is cut,
+ * never inside an emoji). Only the break it splits at is dropped, and blank
+ * parts are skipped (Discord rejects an empty message).
+ */
+export function splitAnswer(text: string, limit = 2000): string[] {
+  const parts: string[] = [];
+  let rest = text;
+  while (rest.length > limit) {
+    const lastBreak = Math.max(rest.lastIndexOf('\n', limit), rest.lastIndexOf(' ', limit));
+    const atBreak = lastBreak > limit / 2;
+    let at = atBreak ? lastBreak : limit;
+    const last = rest.charCodeAt(at - 1);
+    if (!atBreak && last >= 0xd800 && last <= 0xdbff) at -= 1; // keep a surrogate pair together
+    parts.push(rest.slice(0, at));
+    rest = rest.slice(atBreak ? at + 1 : at);
+  }
+  parts.push(rest);
+  return parts.filter(part => part.trim());
+}
+
+/**
  * Build and show the application modal for a position.
  * Uses custom fields if configured, otherwise shows a single default field.
  */
@@ -195,8 +217,11 @@ export const submitApplicationModal = async (_client: Client, interaction: Modal
     return;
   }
 
-  // Check rate limit (2 applications per day per user)
-  const rateLimitKey = createRateLimitKey.user(interaction.user.id, 'application-create');
+  // Check rate limit (2 applications per day per user, per server)
+  const rateLimitKey = createRateLimitKey.userGuild(interaction.user.id, guildId, 'application-create');
+  const firstAttempt =
+    rateLimiter.getRemaining(rateLimitKey, RateLimits.APPLICATION_CREATE.maxAttempts) ===
+    RateLimits.APPLICATION_CREATE.maxAttempts;
   const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.APPLICATION_CREATE);
 
   if (!rateCheck.allowed) {
@@ -210,6 +235,8 @@ export const submitApplicationModal = async (_client: Client, interaction: Modal
     return;
   }
 
+  let savedId: number | null = null;
+  let channelCreated = false;
   try {
     const customFields = position.customFields;
     const positionEmoji = position.emoji || '📝';
@@ -241,6 +268,7 @@ export const submitApplicationModal = async (_client: Client, interaction: Modal
       type: `position_${positionId}`,
     });
     const savedApplication = await applicationRepo.save(newApplication);
+    savedId = savedApplication.id;
 
     const channelName = `${savedApplication.id}-${position.title.toLowerCase().replace(/\s+/g, '-')}-${member.user.username}`;
 
@@ -275,6 +303,12 @@ export const submitApplicationModal = async (_client: Client, interaction: Modal
       parent: category,
       permissionOverwrites: permOverwrites,
     });
+    channelCreated = true;
+
+    // Store the channel before anything else can fail (an expired interaction,
+    // a send): the Close button and /application status, note and claim find
+    // the application by it.
+    await applicationRepo.update({ id: savedApplication.id, guildId }, { channelId: channel.id, status: 'opened' });
 
     await interaction.reply({
       content: `✅ Your application has been submitted! Please check ${channel} for updates.`,
@@ -293,25 +327,24 @@ export const submitApplicationModal = async (_client: Client, interaction: Modal
 
     const newChannel = channel as TextChannel;
 
+    // Answers are the applicant's own text: never let them ping anyone.
+    const noPings = { parse: [] };
     const welcome = await newChannel.send({
       content: welcomeMsg,
       components: [buttonOptions],
+      allowedMentions: noPings,
     });
+    await applicationRepo.update({ id: savedApplication.id, guildId }, { messageId: welcome.id });
 
-    await newChannel.send({ content: headerMsg });
+    await newChannel.send({ content: headerMsg, allowedMentions: noPings });
 
+    // One message per answer, split when it's over Discord's 2000-char limit
+    // (paragraph fields allow up to 4000).
     for (const msg of fieldMessages) {
-      await newChannel.send({ content: msg });
+      for (const chunk of splitAnswer(msg)) {
+        await newChannel.send({ content: chunk, allowedMentions: noPings });
+      }
     }
-
-    await applicationRepo.update(
-      { id: savedApplication.id, guildId },
-      {
-        messageId: welcome.id,
-        channelId: newChannel.id,
-        status: 'opened',
-      },
-    );
 
     enhancedLogger.info(
       `Application created: #${savedApplication.id} for position ${positionId}`,
@@ -335,6 +368,21 @@ export const submitApplicationModal = async (_client: Client, interaction: Modal
         positionId,
       },
     );
+
+    // Nothing exists on Discord yet: drop the row and give the attempt back.
+    // (A reset refunds exactly one attempt only when this was the first.)
+    if (!channelCreated) {
+      if (savedId !== null) {
+        await applicationRepo.delete({ id: savedId, guildId }).catch((deleteError: unknown) => {
+          enhancedLogger.warn('Failed to remove application row after a failed create', LogCategory.DATABASE, {
+            guildId,
+            applicationId: savedId,
+            error: String(deleteError),
+          });
+        });
+      }
+      if (firstAttempt) rateLimiter.reset(rateLimitKey);
+    }
 
     // Unconditional: a failure AFTER the "submitted!" reply (welcome/header
     // sends, the status update) used to be invisible to the applicant —

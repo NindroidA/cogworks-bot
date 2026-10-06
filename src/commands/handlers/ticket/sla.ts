@@ -9,7 +9,7 @@ import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
-import { getTicketCreationTime } from '../../../utils/ticket/slaChecker';
+import { getFirstResponseMs, getTicketOpenedAt } from '../../../utils/ticket/slaChecker';
 
 const tl = lang.ticket.sla;
 const ticketConfigRepo = lazyRepo(TicketConfig);
@@ -174,12 +174,15 @@ export async function slaStatsHandler(interaction: ChatInputCommandInteraction<C
   const days = interaction.options.getInteger('days') || 30;
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  // Get tickets in the date range (using lastActivityAt as a proxy for creation time)
-  const tickets = await ticketRepo
-    .createQueryBuilder('ticket')
-    .where('ticket.guildId = :guildId', { guildId })
-    .andWhere('ticket.lastActivityAt >= :cutoff', { cutoff })
-    .getMany();
+  // Tickets opened in the range. lastActivityAt only moves forward from
+  // creation, so this query keeps every one of them; the open time decides.
+  const tickets = (
+    await ticketRepo
+      .createQueryBuilder('ticket')
+      .where('ticket.guildId = :guildId', { guildId })
+      .andWhere('ticket.lastActivityAt >= :cutoff', { cutoff })
+      .getMany()
+  ).filter(t => getTicketOpenedAt(t) >= cutoff.getTime());
 
   if (tickets.length === 0) {
     await interaction.reply({
@@ -198,11 +201,7 @@ export async function slaStatsHandler(interaction: ChatInputCommandInteraction<C
   let avgResponseMinutes = 0;
 
   if (respondedTickets.length > 0) {
-    const totalResponseMs = respondedTickets.reduce((sum, t) => {
-      const created = getTicketCreationTime(t);
-      const responded = new Date(t.firstResponseAt!).getTime();
-      return sum + (responded - created);
-    }, 0);
+    const totalResponseMs = respondedTickets.reduce((sum, t) => sum + (getFirstResponseMs(t) ?? 0), 0);
     avgResponseMinutes = Math.round(totalResponseMs / respondedTickets.length / 60_000);
   }
 

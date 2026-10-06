@@ -70,6 +70,141 @@ stops paying for the AFK channel, and AutoMod backups restore what they saved.
   Server Settings can be removed; `keyword add` treats a different-case copy as
   a duplicate.
 
+## [3.16.32] - 2026-10-06
+
+Applications, events and announcements hit fewer Discord limits
+(NindroidA/cogworks-bot#41). A long application answer no longer leaves a
+channel nobody can close, two default announcement templates can be sent
+again, voice and stage event templates work, and rescheduling an event keeps
+its custom reminders.
+
+### Fixed
+
+- **Long application answers.** An answer near 2000 characters (built-in
+  templates allow 2000, custom paragraph fields 4000) made the post fail after
+  the channel existed, so the application row never got its channel: Close and
+  `/application status`, `note` and `claim` said it didn't exist and the rest
+  of the answers were lost. Long answers are now split across messages, and the
+  channel is saved right after it's created, before anything is posted in it.
+  If the channel itself can't be created, the empty application row is removed
+  and a first attempt doesn't count against the daily limit.
+- **`/announcement send` for the default "Scheduled Maintenance" and "Scheduled
+  Update" templates** (and any template using `{time_relative}`) failed before
+  the form opened, because one field label was 47 characters (Discord allows
+  45). The label is shorter, labels and the form title are capped at 45, and a
+  template that uses both `{time}` and `{time_relative}` asks for the time once
+  (both are filled from it).
+- **`/application info` stopped working** in a channel once a recent internal
+  note was about 980+ characters (an embed field holds 1024). The notes list
+  shows the first 150 characters of each note.
+- **The application panel stopped updating** when a position's emoji wasn't a
+  real emoji (e.g. `staff`), more than 25 positions were active, or the text
+  went past 2000 characters, while every command still said it worked. An
+  invalid emoji now shows as 📝, only the first 25 active positions are listed
+  (Discord allows 25 buttons), and long descriptions are shortened to fit.
+  `/application position refresh` reports a failure, and add, remove, toggle
+  and reindex add a warning when the panel couldn't be updated or some
+  positions didn't fit.
+- **Voice and stage event templates never created an event.** `/event
+  from-template` and `/event recurring` have a new optional `channel` option
+  (voice or stage); the channel's type decides which kind of event it is, and
+  the next occurrence of a recurring event uses the same channel. Without a
+  channel they say so instead of failing. `/event recurring` only marks the
+  template recurring once its first event exists, and if saving fails after
+  that it warns instead of saying it failed (running it again would start a
+  second series).
+- **Rescheduling an event dropped its `/event remind` reminders.** Moving the
+  start time now moves every pending reminder by the same amount (ones that
+  would be in the past are dropped) and adds the default reminder only if the
+  event had none at that minute.
+- **A recurring chain could start from an event made by hand** in Discord with
+  the same title as a recurring template. Only events the bot created continue
+  a chain.
+- **Archived applications never got their position tag** when the title was
+  over 20 characters (Discord's tag-name limit), which covers 3 of the 5
+  built-in templates. Tag names are cut to 20 characters, dropping a trailing
+  " Application" first ("Developer Application" tags as "Developer"). Ticket
+  types with long names get their archive tag the same way, and the health
+  check matches tags by the same name.
+- **A custom workflow status named `closed`** (or `created`, `opened`,
+  `error`) made an application vanish from every lookup, so it couldn't be
+  closed or archived. `/application workflow-add-status` refuses those IDs and
+  `/application status` won't set them.
+
+### Security
+
+- Application answers are posted with mentions turned off, so an applicant
+  can't ping `@everyone`, `@here` or roles through the bot.
+- The application rate limit (2 a day) is counted per server instead of across
+  every server the bot is in.
+
+## [3.16.31] - 2026-10-06
+
+Ticket fixes for type management, email import, restrictions and the SLA clock
+(NindroidA/cogworks-bot#41), and the two leftovers from issue #2.
+
+### Fixed
+
+- **SLA clock**: breach checks and `/ticket sla stats` measured from the
+  ticket's last activity, which every message moves. An opener who kept
+  posting restarted the clock, so the breach never fired, and a user reply
+  after the first staff reply made that ticket's response time negative. Both
+  now run from when the ticket opened (its channel's creation time). Stats
+  count tickets by when they opened, and a response time is never below zero.
+- **Email import type in the ticket menu**: the first `/ticket manage
+  import-email` created the internal "Email Import" type as active, so it then
+  showed in every member's ticket menu. It is now created inactive, and the
+  menu never lists it (this also hides it in servers that already have it).
+- **Orphaned email-import channels**: the embed was built after the channel
+  was created, so a long subject or long attachment links made it fail and
+  left an empty channel with no ticket behind. The embed is now built first,
+  the title is shortened to fit, links that don't fit in the embed are posted
+  as follow-up messages, and the channel is deleted if anything fails before
+  the ticket is saved. The subject box allows 255 characters (it allowed 256,
+  one more than the database column).
+- **Restrictions on types 11 and later were lifted on save**: the restriction
+  modals (`/ticket manage user-restrict` and the Manage Restrictions context
+  menu) listed the first 10 types but lifted any restriction they didn't show.
+  They now list up to 50 types in groups of 10 and only change the types they
+  show; the summary shows every type's real status. A long member name no
+  longer makes the modal title too long for Discord.
+- **`/ticket type remove`** listened to every button in the channel: a second
+  remove prompt's Delete also deleted the first type, and other buttons (the
+  ticket panel included) were overwritten with "cancelled". It now waits on
+  its own prompt only, and deleting a type also clears restrictions on it.
+  `/ticket manage user-restrict` with a type had the same channel-wide
+  listener and answered other members' clicks with "not your interaction";
+  it now waits on its own prompt too.
+- **Ping on create for the five builtin types**: `/ticket manage settings
+  setting:ping-on-create` for ban_appeal, player_report, bug_report, 18_verify
+  or other wrote a setting ticket creation no longer reads (each has its own
+  type row). It now updates the type's row. A ping turned on this way before
+  this release did not take effect; turn it on again.
+- **`/ticket workflow settings`** saved the settings it loaded before the
+  modal opened, undoing anything changed while it was open (category, SLA,
+  routing, dashboard). It now applies the two checkboxes to a fresh copy.
+- **`/ticket type list`**: more than 25 types, or long names and descriptions,
+  went past Discord's embed limits and the command failed. The summary now
+  shortens descriptions, stops before the limits and says how many types it
+  left out. A custom-emoji type no longer breaks the select menu.
+- **Set as Default** (issue #2) saved every type one by one; it is now two
+  updates in one transaction. It refuses an inactive type (as `/ticket type
+  default` does), deactivating the default type clears its default flag, and
+  the default type is now listed first in the members' ticket menu (before,
+  the flag did nothing).
+- **Modals with no custom ID** (issue #2) now raise an error instead of
+  opening and waiting 5 minutes for a submission that could never match.
+
+### Changed
+
+- Opening the email-import modal has its own 3-per-hour limit; it is now
+  counted per user in each server too, like the submit's ticket limit since
+  3.16.29 (it was counted across every server the bot is in).
+- `/dev-test sla-backdate-ticket` changes a ticket's last activity, which no
+  longer moves the SLA clock for a ticket with a channel; its reply and the
+  dev-suite SLA checklist now say to use a 1-minute target and wait.
+- `/ticket type default` uses the same single transaction as Set as Default.
+
 ## [3.16.30] - 2026-10-06
 
 Feature commands are now visible to every member, so the dashboard's
