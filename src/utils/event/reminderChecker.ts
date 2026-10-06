@@ -3,13 +3,22 @@
  *
  * Periodically checks for unsent reminders whose time has arrived
  * and posts them to the configured reminder channel.
- * Called by a periodic interval (every hour), same pattern as ticket autoClose.
+ * Scheduled every INTERVALS.REMINDER_CHECK by startPeriodicJobs (utils/startup.ts).
  */
 
-import { type Client, EmbedBuilder, type TextChannel, TimestampStyles, time } from 'discord.js';
+import {
+  type Client,
+  EmbedBuilder,
+  type GuildScheduledEvent,
+  GuildScheduledEventStatus,
+  type TextChannel,
+  TimestampStyles,
+  time,
+} from 'discord.js';
 import { LessThanOrEqual } from 'typeorm';
 import { EventConfig } from '../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../typeorm/entities/event/EventReminder';
+import { SCHEDULER_GUARDS } from '../constants';
 import { lazyRepo } from '../database/lazyRepo';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
@@ -17,8 +26,22 @@ const eventConfigRepo = lazyRepo(EventConfig);
 const eventReminderRepo = lazyRepo(EventReminder);
 
 /**
+ * A reminder that can no longer arrive "before" its event — the event already
+ * started, ended or was cancelled, or (when it can't be fetched) the reminder
+ * is long overdue, e.g. the bot was offline at reminderAt.
+ */
+export function isStaleReminder(
+  reminder: Pick<EventReminder, 'reminderAt'>,
+  event: Pick<GuildScheduledEvent, 'status' | 'scheduledStartTimestamp'> | null,
+  now = Date.now(),
+): boolean {
+  if (!event) return now - new Date(reminder.reminderAt).getTime() > SCHEDULER_GUARDS.REMINDER_STALE_AFTER_MS;
+  if (event.status !== GuildScheduledEventStatus.Scheduled) return true;
+  return event.scheduledStartTimestamp !== null && event.scheduledStartTimestamp <= now;
+}
+
+/**
  * Check all pending reminders and send notifications.
- * Called by a periodic interval (every hour).
  */
 export async function checkAndSendReminders(client: Client): Promise<void> {
   try {
@@ -82,13 +105,37 @@ async function processGuildReminders(client: Client, guildId: string, reminders:
     return;
   }
 
+  // One post per event and reminder minute. Events the bot created used to
+  // get two identical rows (the command's, plus guildScheduledEventCreate's
+  // auto-reminder, since Discord sends that for the bot's own events too), and
+  // those rows are still in the table. Repeats are marked sent unposted.
+  const seen = new Set<string>();
   for (const reminder of reminders) {
+    const key = `${reminder.discordEventId}:${Math.floor(new Date(reminder.reminderAt).getTime() / 60_000)}`;
+    if (seen.has(key)) {
+      reminder.sent = true;
+      await eventReminderRepo.save(reminder);
+      continue;
+    }
+    seen.add(key);
+
     try {
       // Try to fetch the actual event from Discord to get current info
       const guild = client.guilds.cache.get(guildId);
       const scheduledEvent = guild
         ? await guild.scheduledEvents.fetch(reminder.discordEventId).catch(() => null)
         : null;
+
+      // Marked sent without posting, so a restart doesn't flood the channel.
+      if (isStaleReminder(reminder, scheduledEvent)) {
+        reminder.sent = true;
+        await eventReminderRepo.save(reminder);
+        enhancedLogger.info('Skipped stale event reminder', LogCategory.SYSTEM, {
+          guildId,
+          reminderId: reminder.id,
+        });
+        continue;
+      }
 
       const eventTitle = scheduledEvent?.name || reminder.eventTitle || 'Unknown Event';
       const startTimestamp = scheduledEvent?.scheduledStartAt
