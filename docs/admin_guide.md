@@ -1433,7 +1433,11 @@ Exports every record Cogworks stores for your server (tickets, applications, ann
 /bot-reset
 ```
 
-Complete factory reset: removes all configuration and data. Compiles an archive before deletion (sent via DM). Requires confirmation. **Irreversible** — use `/data-export` first if you want a backup.
+Complete factory reset: removes all configuration and data, and Cogworks' panels, messages and archive threads. `/bot-setup` and the other setup commands stay available; module commands come back when you set the module up again. Three confirmation steps. **Irreversible.**
+
+- **Save Data First** DMs you a `.json.gz` archive (archived tickets and applications, memory items, announcement, audit and bait logs) before anything is deleted. If the archive can't be sent (DMs closed, or over 8 MB), the reset stops and nothing is deleted. For a copy of every table, run `/data-export` first.
+- If some tables can't be purged, the summary says **Factory Reset Incomplete** and lists them; run `/bot-reset` again to finish.
+- Rate limited: one completed reset per 24 hours (cancelling, or a reset that stops or doesn't finish, doesn't count)
 
 ### Archive Cleanup
 

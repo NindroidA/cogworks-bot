@@ -33,11 +33,17 @@ export default {
       const deletionResult = await deleteAllGuildData(guildId);
       invalidateBaitCaches(client, guildId);
 
-      if (deletionResult.success) {
+      if (deletionResult.success && deletionResult.failed.length === 0) {
         enhancedLogger.info(
           `Successfully deleted ${deletionResult.total} records across ${deletionResult.tables} tables for guild ${guildName}`,
           LogCategory.DATABASE,
           { guildId, details: deletionResult.details },
+        );
+      } else if (deletionResult.success) {
+        enhancedLogger.warn(
+          `Deleted ${deletionResult.total} records for guild ${guildName}, but ${deletionResult.failed.length} table(s) failed. Manual cleanup may be required`,
+          LogCategory.DATABASE,
+          { guildId, failedTables: deletionResult.failed },
         );
       } else {
         enhancedLogger.error(`Failed to delete data for guild ${guildName}`, undefined, LogCategory.DATABASE, {

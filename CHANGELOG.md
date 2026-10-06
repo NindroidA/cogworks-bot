@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.9] - 2026-10-06
+
+`/bot-reset` no longer deletes everything after failing to deliver the archive
+the admin asked for, no longer removes `/bot-setup`, and no longer spends the
+day's reset on a run that didn't finish.
+
+### Fixed
+
+- **`/bot-reset` purged everything after the archive DM failed.** If the admin
+  chose to save and the archive can't be delivered (DMs closed, file over
+  8 MB), the reset now stops before deleting anything.
+- **`/bot-reset` removed `/bot-setup`.** It replaced the guild's commands with
+  an empty list. It now re-registers the command set after the purge, which
+  leaves `/bot-setup` and the other setup commands available.
+- **`/bot-reset` spent its daily limit before the confirmations**, so Cancel,
+  a timeout or "Archive Too Large" locked the admin out for 24 hours (with a
+  refusal that talked about data exports). The limit is now checked up front,
+  spent at the final confirmation, and given back if the reset aborts, fails
+  or doesn't finish. The refusal names `/bot-reset`.
+- **A partly failed purge was reported as "Factory Reset Complete".**
+  `deleteAllGuildData` swallowed each table's error and returned success. It
+  now reports the tables it couldn't purge (`failed`): `/bot-reset` shows
+  "Factory Reset Incomplete" with those tables and gives the daily limit back
+  so it can be run again, and guild leave logs them as a warning.
+- **Every reset error said data "may have been partially deleted"**, even when
+  the archive step failed before anything was deleted. It now says nothing was
+  deleted in that case.
+- **The "Save Your Data?" step said the archive held XP data and
+  configurations.** It holds archived tickets and applications, memory items,
+  and announcement, audit and bait logs; the step now says so and points to
+  `/data-export` for every table. "Archive Too Large" no longer suggests
+  `/data-export` (same 8 MB cap, more tables), and says `/archive cleanup`
+  only shrinks the ticket and application archives.
+- The admin guide's `/bot-reset` section describes the new behavior.
+
 ## [3.16.8] - 2026-10-06
 
 `/data-export` now reaches the admin and covers every guild table, and the
