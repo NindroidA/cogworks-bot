@@ -19,12 +19,16 @@ release.
   channel (a thread included), or missing the bot's permissions (a default
   channel that isn't cached could be an archived thread, so it isn't reported
   as deleted); the ping role is deleted, or can't be pinged (not mentionable
-  and the bot lacks Mention Everyone); built-in templates added after the
-  server was set up are missing;
-  a template has a color the renderer can't parse or exceeds Discord's embed
+  and the bot lacks Mention Everyone; when the role is @everyone, which
+  `/bot-setup` saves by default and which has no mentionable toggle, the
+  finding says it can't ping everyone and points to picking a real role);
+  built-in templates added after the server was set up are missing; a
+  template has a color the renderer can't parse or exceeds Discord's embed
   limits, so it can't be sent.
 - **XP** (only while enabled): the level-up channel is deleted, can't hold
-  messages or is missing the bot's permissions; deleted ignored channels,
+  messages or is missing the bot's permissions (the bot grants reward roles
+  only after posting the level-up message, so the text says rewards are
+  skipped too); deleted ignored channels,
   ignored roles and multiplier channels; multipliers of 0 or less; a minimum
   XP per message above the maximum; reward roles that were deleted, are managed
   or @everyone, or sit above the bot's highest role; Manage Roles missing; more
@@ -35,12 +39,18 @@ release.
   Message History missing (existing posts don't update their counts); a
   threshold below 1; deleted ignored channels. Any unicode emoji passes,
   including flags, skin tones, keycaps and ZWJ sequences.
-- **Onboarding** (only while enabled): no steps; a welcome message over 2,000
-  characters (over 4,096 Discord rejects it); the completion role or a
+- **Onboarding** (only while enabled): no steps; a welcome message that,
+  with the server name and a member's display name filled in, is longer than
+  the 4,096 characters a Discord embed allows (the welcome DM fails and
+  onboarding never starts: for every member, or only for members with long
+  names); the completion role or a
   role-select option is deleted, managed or @everyone, or above the bot; Manage
   Roles missing; steps with a repeated id, an unknown type, an id too long for
-  Discord's custom ids, more than 25 role options or the same role twice. A
-  step that can't be sent is rated as blocking when it's required.
+  the custom ids its type builds (`continue_` for message, channel-suggest and
+  custom-question steps, `accept_` for rules-accept, `confirmrole_` for
+  role-select steps with options; steps that send no buttons aren't checked),
+  more than 25 role options or the same role twice. A step that can't be sent
+  is rated as blocking when it's required.
 - New health systems `xp`, `starboard` and `onboarding` (features set up by
   their own commands rather than `/bot-setup`), shared reference rules in
   `src/utils/health/checks/featureRefs.ts` (a channel the bot posts in, a role

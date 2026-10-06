@@ -95,6 +95,20 @@ describe('announcement.config', () => {
     expect(await run({ defaultRoleId: MUTED_ROLE }, withMention)).toEqual([]);
   });
 
+  test('@everyone as the role: never "not mentionable"; without MentionEveryone it can\'t ping everyone', async () => {
+    const [f] = await run({ defaultRoleId: G });
+    expect(f).toMatchObject({
+      code: 'announcement.config.role_everyone',
+      severity: 'degraded',
+      repair: 'manual',
+      field: 'defaultRoleId',
+      refId: G,
+    });
+    expect(codes(await run({ defaultRoleId: G }))).toEqual(['announcement.config.role_everyone']);
+    const withMention = { botPermissions: [...BOT_PERMS, PermissionFlagsBits.MentionEveryone] };
+    expect(await run({ defaultRoleId: G }, withMention)).toEqual([]);
+  });
+
   test('isConfigured follows the config row', () => {
     const check = getChecks('announcement').find(c => c.id === id)!;
     expect(check.isConfigured?.(makeCheckContext({ rows: { AnnouncementConfig: [] } }))).toBe(false);
