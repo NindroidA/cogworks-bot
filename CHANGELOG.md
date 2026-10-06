@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.35] - 2026-10-06
+
+`/import` now writes the XP it reports, plus a set of smaller core fixes:
+rules setup, automatic bot status, the command audit log, the RELEASE check
+for command registration and the guild isolation script
+(NindroidA/cogworks-bot#41).
+
+### Fixed
+
+- **`/import mee6` and `/import csv` write XP.** Both parsed the records and
+  reported "Import complete! Imported: N" without writing a single XPUser row,
+  then blocked a retry for an hour. Records are now upserted into the guild's
+  XP table in one transaction, in chunks of 500. The level is recomputed from
+  XP with the bot's own curve (the source's level column is ignored). Without
+  `overwrite`, members who already have XP keep it and count as skipped; with
+  it, their XP, level and message count are replaced (voice minutes stay).
+  A database error rolls the whole import back and reports a failure.
+- **Only a written import starts the 1-hour cooldown.** A dry run is logged as
+  `dry_run` (shown with a magnifier in `/import history`) and a failed write
+  as `failed`, so neither blocks the real import. A dry run also counts the
+  members it would skip.
+- **Imports in two servers at once can't mix their data.** The CSV text and
+  the parsed records travelled through fields on importers shared by every
+  server; they now travel with each call. A second import in the same server
+  is refused before the first one starts, and `/import cancel` now stops the
+  write.
+- **`/rules setup` no longer deletes the old rules message first.** It posts
+  and reacts on the new message and saves the config, then deletes the old
+  one. If the bot can't post or react (missing permission, an emoji from
+  another server), the new message is removed and the old message keeps
+  granting the role.
+- **An expired manual `/status set` now clears itself.** The health loop only
+  reset the status on a degraded → healthy change, so a 24-hour override
+  stayed until a restart. Every healthy check now reverts an expired override
+  to operational, resolves its incident and posts the resolution.
+- **A database outage now shows as "major outage".** That status is set when
+  the database is unreachable, but setting it read and saved the status row
+  first, so it always failed. The presence now changes without the database;
+  nothing is saved until it is back, and the presence recovers when it is.
+- **The command audit log only records commands that ran.** The "not
+  configured" reply is no longer logged. `/bot-reset` and `/data-export` write
+  their own row once the reset reaches the purge or the export is delivered,
+  so a cancelled, timed-out or rate-limited run no longer looks like a reset
+  or an export.
+- **`RELEASE=Dev` (any case or padding) registers commands with the dev bot.**
+  The shared REST client compared `RELEASE === 'dev'` strictly while the rest
+  of the bot normalizes it, so the dev bot could push its command set to the
+  production application.
+
+### Changed
+
+- **`scripts/verifyGuildIsolation.ts` rewritten; run it with
+  `bun run verify:isolation`.** It checked 6 tables, its cross-guild check
+  always passed and it exited 0 on failure. It now reads every guild-scoped
+  table (44) from the entity metadata, flags rows with a missing or malformed
+  guildId and memory items or tags whose memory config is missing or belongs
+  to another guild, uses a connection that never synchronizes or migrates,
+  and exits 1 on any problem.
+
 ## [3.16.21] - 2026-10-06
 
 Health-check engine, the foundation for the upcoming `/bot-health` command

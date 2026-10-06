@@ -30,6 +30,7 @@ import {
   type RateLimitConfig,
   rateLimiter,
 } from '../../utils';
+import { writeAuditLog } from '../../utils/api/handlers/auditHelper';
 import { TRANSCRIPT_CAPTURE_BUDGET_MS } from '../../utils/archive/transcriptCapture';
 import { Colors } from '../../utils/colors';
 import { deleteAllGuildData } from '../../utils/database/guildQueries';
@@ -392,6 +393,9 @@ async function executeReset(
     const purgeResult = await deps.deleteAllGuildData(guildId);
     invalidateBaitCaches(client, guildId); // a message handled mid-purge may have re-cached the config
     const purge = describePurge(purgeResult);
+    // Audited here, not by the dispatcher, so a cancelled or aborted reset leaves no row. Written after
+    // the purge, which deletes the guild's earlier audit rows.
+    void writeAuditLog(guildId, 'command:bot-reset', interaction.user.id, { complete: purge.complete }, 'command');
 
     // 5. Re-register commands. Must follow the purge: with no config rows left, only the
     //    always-visible set (/bot-setup and every *-setup command) is registered.

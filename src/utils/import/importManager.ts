@@ -5,12 +5,14 @@
  * tracks running imports, persists ImportLog records, and enforces cooldowns.
  */
 
+import { lang } from '../../lang';
 import { AppDataSource } from '../../typeorm';
 import { ImportLog } from '../../typeorm/entities/import/ImportLog';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { CsvImporter } from './csvImporter';
 import { Mee6Importer } from './mee6Importer';
 import type { BotImporter, ImportOptions, ImportResult } from './types';
+import { writeImportedXp } from './xpWriter';
 
 /** Cooldown: 1 import per guild per hour */
 const IMPORT_COOLDOWN_MS = 60 * 60 * 1000;
@@ -19,7 +21,8 @@ export class ImportManager {
   private importers: Map<string, BotImporter> = new Map();
   private runningImports: Map<string, ImportLog> = new Map();
 
-  constructor() {
+  /** `writeXp` is injectable so tests can run an import without a database. */
+  constructor(private readonly writeXp: typeof writeImportedXp = writeImportedXp) {
     // Register built-in importers
     const mee6 = new Mee6Importer();
     const csv = new CsvImporter();
@@ -76,7 +79,10 @@ export class ImportManager {
   }
 
   /**
-   * Start an import. Creates an ImportLog, runs the importer, and updates the log on completion.
+   * Start an import. Creates an ImportLog, runs the importer, writes the XP and
+   * updates the log. Only a written import is logged as 'completed' (the status
+   * the cooldown counts): a dry run is logged as 'dry_run', and a failed write
+   * rolls back and is logged as 'failed'.
    */
   async startImport(
     guildId: string,
@@ -108,7 +114,19 @@ export class ImportManager {
       };
     }
 
-    // Create ImportLog record
+    if (this.runningImports.has(guildId)) {
+      return {
+        success: false,
+        imported: 0,
+        skipped: 0,
+        failed: 0,
+        errors: [lang.import.commands.importAlreadyRunning],
+        durationMs: 0,
+      };
+    }
+
+    // Create ImportLog record. Claim the guild's slot before the first await so
+    // two quick submits can't both start.
     const repo = AppDataSource.getRepository(ImportLog);
     const importLog = repo.create({
       guildId,
@@ -116,13 +134,26 @@ export class ImportManager {
       dataType,
       triggeredBy,
       status: 'running',
+      startedAt: new Date(),
     });
-    await repo.save(importLog);
-
     this.runningImports.set(guildId, importLog);
 
     try {
-      const result = await importer.import(guildId, dataType, options);
+      await repo.save(importLog);
+      const { records = [], ...result } = await importer.import(guildId, dataType, options);
+
+      // /import cancel already saved the log as 'cancelled': write nothing.
+      if (importLog.status === 'cancelled') {
+        return { ...result, success: false, imported: 0, errors: [lang.import.commands.importCancelled] };
+      }
+
+      if (result.success) {
+        const dryRun = options?.dryRun ?? false;
+        const written = await this.writeXp(guildId, records, { overwrite: options?.overwrite ?? false, dryRun });
+        result.imported = written.written;
+        result.skipped += written.skippedExisting;
+        result.durationMs = Date.now() - importLog.startedAt.getTime();
+      }
 
       // Update log with results
       importLog.importedCount = result.imported;
@@ -131,7 +162,7 @@ export class ImportManager {
       importLog.errors = result.errors.length > 0 ? result.errors : null;
       importLog.completedAt = new Date();
       importLog.durationMs = result.durationMs;
-      importLog.status = result.success ? 'completed' : 'failed';
+      importLog.status = !result.success ? 'failed' : options?.dryRun ? 'dry_run' : 'completed';
       await repo.save(importLog);
 
       return result;
@@ -164,7 +195,8 @@ export class ImportManager {
         durationMs: importLog.durationMs,
       };
     } finally {
-      this.runningImports.delete(guildId);
+      // After a cancel the slot may already belong to a newer import.
+      if (this.runningImports.get(guildId) === importLog) this.runningImports.delete(guildId);
     }
   }
 

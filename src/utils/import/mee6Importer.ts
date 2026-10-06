@@ -32,11 +32,6 @@ export class Mee6Importer implements BotImporter {
   displayName = 'MEE6';
   supportedData = ['xp'];
 
-  /**
-   * Collected records from the last import (available for downstream consumption)
-   */
-  public lastImportRecords: RawXpRecord[] = [];
-
   async import(guildId: string, dataType: string, options?: ImportOptions): Promise<ImportResult> {
     const startTime = Date.now();
     const errors: string[] = [];
@@ -182,8 +177,6 @@ export class Mee6Importer implements BotImporter {
       }
     }
 
-    this.lastImportRecords = records;
-
     const durationMs = Date.now() - startTime;
 
     enhancedLogger.info(
@@ -198,6 +191,7 @@ export class Mee6Importer implements BotImporter {
       failed,
       errors,
       durationMs,
+      records,
     };
   }
 }
