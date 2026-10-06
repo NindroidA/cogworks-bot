@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { applyForumTags } from '../../../src/utils/forumTagManager';
+import { applyForumTags, mergeForumTags, toForumTagEmoji } from '../../../src/utils/forumTagManager';
 
 function makeForum(liveTags: string[] | null, opts: { threadMissing?: boolean } = {}) {
   const applied: string[][] = [];
@@ -66,5 +66,69 @@ describe('applyForumTags', () => {
     const { forum, applied } = makeForum(null);
     await applyForumTags(forum, 't1', ['a']);
     expect(applied).toEqual([['a']]);
+  });
+});
+
+describe('mergeForumTags', () => {
+  function makeTagForum(tags: Array<{ id: string; name: string }>) {
+    const sent: unknown[][] = [];
+    const forum = {
+      id: 'forum-1',
+      availableTags: tags.map(t => ({ ...t, moderated: false, emoji: null })),
+      setAvailableTags: async (next: Array<{ id?: string; name: string }>) => {
+        sent.push(next);
+        let n = 0;
+        return { availableTags: next.map(t => ({ ...t, id: t.id ?? `new-${++n}` })) };
+      },
+    };
+    return { forum: forum as any, sent };
+  }
+
+  test("keeps every existing tag (with its id) and appends only what's missing", async () => {
+    const { forum, sent } = makeTagForum([
+      { id: 'c1', name: 'Curated' },
+      { id: 'b1', name: 'bug' },
+    ]);
+    const { ids, skipped } = await mergeForumTags(forum, [
+      { name: 'Bug', emoji: '🐛' },
+      { name: 'Note', emoji: null },
+    ]);
+
+    expect(sent).toHaveLength(1);
+    const payload = sent[0] as Array<{ id?: string; name: string }>;
+    expect(payload.slice(0, 2).map(t => t.id)).toEqual(['c1', 'b1']);
+    expect(payload.map(t => t.name)).toEqual(['Curated', 'bug', 'Note']);
+    // Case-insensitive name match reuses the existing tag's id
+    expect(ids.get('Bug')).toBe('b1');
+    expect(ids.get('Note')).toBe('new-1');
+    expect(skipped).toEqual([]);
+  });
+
+  test('no PATCH when every seed already exists', async () => {
+    const { forum, sent } = makeTagForum([{ id: 'o1', name: 'Open' }]);
+    const { ids } = await mergeForumTags(forum, [{ name: 'Open', emoji: null }]);
+    expect(sent).toHaveLength(0);
+    expect(ids.get('Open')).toBe('o1');
+  });
+
+  test('stops at the 20-tag cap and reports what was skipped', async () => {
+    const existing = Array.from({ length: 19 }, (_, i) => ({ id: `t${i}`, name: `Tag ${i}` }));
+    const { forum, sent } = makeTagForum(existing);
+    const { ids, skipped } = await mergeForumTags(forum, [
+      { name: 'A', emoji: null },
+      { name: 'B', emoji: null },
+    ]);
+    expect((sent[0] as unknown[]).length).toBe(20);
+    expect(skipped).toEqual(['B']);
+    expect(ids.get('A')).toBe('new-1');
+    expect(ids.get('B')).toBeNull();
+  });
+});
+
+describe('toForumTagEmoji', () => {
+  test('unicode, custom and empty emoji', () => {
+    expect(toForumTagEmoji('🐛')).toEqual({ id: null, name: '🐛' });
+    expect(toForumTagEmoji('<:cog:123456789012345678>')).toEqual({ id: '123456789012345678', name: 'cog' });
+    expect(toForumTagEmoji(null)).toBeNull();
   });
 });

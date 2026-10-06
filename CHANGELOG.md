@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.17] - 2026-10-06
+
+Memory setup no longer deletes forum tags. Setup used to replace a forum's
+whole tag list with the 9 defaults, which deletes every other tag in Discord
+and strips it from every post.
+
+### Fixed
+
+- **Setup keeps a forum's tags.** `/memory-setup setup`, `/memory-setup
+  add-channel` and the `/bot-setup` memory flow now add the default tags to
+  the forum's existing ones (reusing same-named tags, case-insensitive, and
+  stopping at Discord's 20-tag cap) instead of replacing the list.
+- **Re-running the `/bot-setup` memory flow on the same forum no longer adds
+  tags, rows or welcome posts.** It only restores memory tags that were
+  deleted from the forum. A memory tag still linked to one of the forum's tags
+  is left alone, even if an admin renamed it in Discord, and a config that
+  already has its default tags isn't seeded with them again, so a default
+  renamed with `/memory tags action:edit` or `/memory-setup tag-edit` doesn't
+  come back under its old name. Missing tags are upserted by name instead of
+  inserted again, the flow prefers the config already on the chosen forum,
+  and it keeps the existing welcome thread instead of posting another.
+
+### Notes
+
+- Duplicate memory tag rows left by earlier `/bot-setup` re-runs are not
+  cleaned up; re-runs just stop adding more.
+- `/memory-setup tag-reset` still replaces the forum's tags on purpose, behind
+  its confirmation.
+
 ## [3.16.16] - 2026-10-06
 
 Memory command fixes — multi-forum guilds, reopening items, and long text.
