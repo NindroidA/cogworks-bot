@@ -408,7 +408,7 @@ src/
 │   ├── security/           # rateLimiter
 │   ├── setup/              # channelCreator, channelDefaults, channelFormatDetector, configStatusEmbed
 │   ├── status/             # statusManager (client-attached)
-│   ├── ticket/             # autoClose, slaChecker, smartRouter, closeWorkflow, builtinTypes, transcriptBuilder, transcriptPoster
+│   ├── ticket/             # autoClose, slaChecker, smartRouter, closeWorkflow, claimAndArchive, builtinTypes, transcriptBuilder, transcriptPoster
 │   ├── validation/         # permissionValidator, featurePermission, inputSanitizer, validators
 │   ├── workflow/           # cross-feature workflow helpers
 │   ├── xp/                 # xp calc + role reward helpers
@@ -522,7 +522,7 @@ const triggeredBy = optionalString(body, 'triggeredBy');   // for audit logs
 - Add new bait actions outside `executeAction` / `executeBanAction` (bypasses idempotency key + retry queue, breaks audit-log correlation)
 
 ### Do
-- Use `archiveAndCloseTicket()` from `utils/ticket/closeWorkflow` for ticket close logic
+- Use `claimAndArchiveTicket()` (`utils/ticket/claimAndArchive`) for Discord-side ticket closes; it wraps `archiveAndCloseTicket()` (`utils/ticket/closeWorkflow`) with `claimClose`/`releaseClose`, so a failed archive reverts the status instead of stranding the ticket
 - Use `verifiedChannelDelete`/`verifiedThreadDelete` for Discord deletions
 - Use `buildErrorMessage()` for user-facing error messages
 - Use `lazyRepo()` for deferred repository access
