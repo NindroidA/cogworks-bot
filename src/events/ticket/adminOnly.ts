@@ -5,6 +5,7 @@ import {
   ButtonStyle,
   type Client,
   MessageFlags,
+  roleMention,
   type TextChannel,
 } from 'discord.js';
 import { AppDataSource } from '../../typeorm';
@@ -66,8 +67,11 @@ export const ticketAdminOnlyEvent = async (
   const ticket = await deps.ticketRepo.findOneBy({ guildId, channelId: channelId });
 
   const botConfig = await deps.getBotConfig(guildId);
-  const gsrFlag = botConfig?.enableGlobalStaffRole;
-  const globalStaffRole = botConfig?.globalStaffRole;
+  // Stored raw (canonical) or as a legacy `<@&id>` mention — parse, then render
+  // the ping ourselves so a raw ID never posts as a bare number.
+  const globalStaffRoleId = botConfig?.enableGlobalStaffRole
+    ? extractIdFromMention(botConfig.globalStaffRole ?? '')
+    : null;
 
   // check if the ticket exists in the database
   if (!ticket) {
@@ -88,9 +92,9 @@ export const ticketAdminOnlyEvent = async (
     // configured — `globalStaffRole` may be null/empty, and the old
     // `${botConfig?.globalStaffRole}\n` template was always truthy, so it could
     // ping a literal "undefined".
-    if (gsrFlag && globalStaffRole && shouldMentionStaff) {
+    if (globalStaffRoleId && shouldMentionStaff) {
       await channel.send({
-        content: `${globalStaffRole}\n${tl.modsAlert} ${user} ${tl.request}`,
+        content: `${roleMention(globalStaffRoleId)}\n${tl.modsAlert} ${user} ${tl.request}`,
       });
     } else {
       await channel.send({
@@ -115,6 +119,8 @@ export const ticketAdminOnlyEvent = async (
       enhancedLogger.warn(`Invalid role format: ${role.role}`, LogCategory.COMMAND_EXECUTION);
       continue;
     }
+    // A saved role deleted while the bot was offline: nothing to hide.
+    if (interaction.guild && !interaction.guild.roles.cache.has(roleId)) continue;
     try {
       await channel.permissionOverwrites.edit(roleId, { ViewChannel: false });
     } catch (error) {

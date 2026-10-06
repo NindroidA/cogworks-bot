@@ -4,6 +4,7 @@ import { ReactionRoleOption } from '../../../typeorm/entities/reactionRole/React
 import { lazyRepo } from '../../database/lazyRepo';
 import { buildMenuEmbed, updateMenuMessage } from '../../reactionRole/menuBuilder';
 import { invalidateGuildMenuCache } from '../../reactionRole/menuCache';
+import { optionEmojiKey } from '../../reactionRole/optionEmoji';
 import { ApiError } from '../apiError';
 import { getAndValidateEntity, isValidSnowflake, optionalEnum, optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
@@ -47,11 +48,16 @@ export function registerReactionRoleHandlers(client: Client, routes: Map<string,
     // unchecked `as` cast on body fields per project rules; an invalid roleId
     // or empty emoji must not silently create a broken menu or orphan a message).
     const rawOptions = Array.isArray(body.options) ? body.options : [];
+    const seenEmoji = new Set<string>();
     const options: ReactionRoleOption[] = rawOptions.map((raw, idx) => {
       const opt = (raw ?? {}) as { emoji?: unknown; roleId?: unknown; label?: unknown };
       const emoji = typeof opt.emoji === 'string' ? opt.emoji.trim() : '';
       const roleId = typeof opt.roleId === 'string' ? opt.roleId : '';
       if (!emoji) throw ApiError.badRequest(`options[${idx}]: emoji is required`);
+      // Same identity as the reaction lookup: two spellings of one custom emoji would collide there
+      const emojiKey = optionEmojiKey(emoji);
+      if (seenEmoji.has(emojiKey)) throw ApiError.badRequest(`options[${idx}]: duplicate emoji`);
+      seenEmoji.add(emojiKey);
       if (!isValidSnowflake(roleId)) throw ApiError.badRequest(`options[${idx}]: invalid roleId`);
       const label = typeof opt.label === 'string' ? opt.label : null;
       return optionRepo.create({ emoji, roleId, description: label, sortOrder: idx });

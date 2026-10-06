@@ -27,11 +27,19 @@ export async function memoryAutocomplete(interaction: AutocompleteInteraction) {
     );
   } else if (focused.name === 'status') {
     const query = focused.value.toLowerCase();
+
+    // Each memory forum has its own copy of the status tags. Once the item is
+    // picked, offer that forum's statuses: a same-named tag from another forum
+    // has a different id. Without an item yet, dedupe by name across forums
+    // (update-status re-resolves the name within the item's forum).
+    const threadId = interaction.options.getString('thread');
+    const item = threadId ? await memoryItemRepo.findOneBy({ guildId, threadId }) : null;
     const tags = await memoryTagRepo.find({
-      where: { guildId, tagType: 'status' },
+      where: item
+        ? { guildId, tagType: 'status', memoryConfigId: item.memoryConfigId }
+        : { guildId, tagType: 'status' },
     });
 
-    // Deduplicate by name (tags across configs may share names)
     const seen = new Set<string>();
     const unique = tags.filter(t => {
       if (seen.has(t.name)) return false;

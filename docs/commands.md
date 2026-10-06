@@ -838,9 +838,10 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 ### Data Export (GDPR Compliance)
 **`/data-export`**
 - **Admin-only command**
-- Exports all server data to JSON format
-- Sent via DM for privacy
-- **Rate limited**: Once per 24 hours per server
+- Exports every record Cogworks stores for the server as compressed JSON (`.json.gz`; open it with any unzip tool)
+- Sent via DM for privacy. If your DMs are closed, the file is attached to the command's private (ephemeral) reply instead
+- Files over Discord's 8 MB upload limit can't be sent yet. That attempt still counts as the day's export, since running it again builds the same file
+- **Rate limited**: Once per 24 hours per server. An export that fails to send (for example, both the DM and the private-reply fallback fail) doesn't count
 - **Includes**:
   - Bot configuration
   - Ticket configuration and active tickets
@@ -855,12 +856,14 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
   - Rules configuration
   - Reaction role menus and options
   - Memory configuration, items, and tags
-  - Bot status
+  - Starboard, XP, events, onboarding and analytics data
+  - Role permission grants (dashboard feature permissions)
+  - Setup progress (setup dashboard state)
   - Audit logs (dashboard actions)
   - Archived tickets and applications
 
 **Data Privacy:**
-- Data sent privately via DM
+- Data sent privately via DM (or the private reply when DMs are closed)
 - Comprehensive export for compliance
 - Automatic cleanup when bot leaves server
 - Full transparency of stored data

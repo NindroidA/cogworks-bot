@@ -2,14 +2,17 @@ import type { ChatInputCommandInteraction, ForumChannel, MessageComponentInterac
 import { MemoryConfig, MemoryItem, MemoryTag } from '../../../typeorm/entities/memory';
 import {
   E,
+  enhancedLogger,
   guardFeatureRateLimit,
   healthMonitor,
+  LogCategory,
   lang,
   logHandlerError,
   RateLimits,
   replyEphemeralError,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { editMemoryThreadTags } from '../../../utils/memory/threadHelpers';
 import { createDefaultSelectionState, runTagSelectionCollector, type TagSelectionState } from './tagSelection';
 
 const tl = lang.memory;
@@ -106,12 +109,19 @@ async function applyTagUpdate(
   memoryItem: MemoryItem,
   startTime: number,
 ) {
-  await interaction.editReply({ embeds: [], components: [] });
-
   try {
+    // The Continue click arrives unacknowledged (add/capture open a modal from
+    // it), so answer it before anything else — editReply alone threw
+    // InteractionNotReplied and every update-tags run failed.
+    await interaction.update({
+      content: `${E.loading} ${tl.channelPicker.processing}`,
+      embeds: [],
+      components: [],
+    });
+
     const forum = (await interaction.guild!.channels.fetch(forumChannelId)) as ForumChannel;
     if (!forum) {
-      await replyEphemeralError(interaction, tl.errors.forumNotFound);
+      await showTagUpdateError(interaction, tl.errors.forumNotFound);
       return;
     }
 
@@ -119,7 +129,7 @@ async function applyTagUpdate(
     try {
       thread = (await interaction.guild!.channels.fetch(threadId)) as ThreadChannel;
     } catch {
-      await replyEphemeralError(interaction, tl.quickUpdate.threadNotFound);
+      await showTagUpdateError(interaction, tl.quickUpdate.threadNotFound);
       return;
     }
 
@@ -147,8 +157,13 @@ async function applyTagUpdate(
     if (categoryTag?.discordTagId) appliedTags.push(categoryTag.discordTagId);
     if (statusTag?.discordTagId) appliedTags.push(statusTag.discordTagId);
 
-    // Update forum thread tags (Discord caps appliedTags at 5)
-    await thread.edit({ appliedTags: appliedTags.slice(0, 5) });
+    // Update forum thread tags (Discord caps appliedTags at 5). An archived
+    // (e.g. Completed) thread is unarchived in the same request; only a move
+    // away from Completed unlocks it, and otherwise it is archived again below.
+    const { wasArchived, reopened } = await editMemoryThreadTags(thread, appliedTags.slice(0, 5), {
+      from: memoryItem.status,
+      to: statusTag?.name ?? memoryItem.status,
+    });
 
     // Update database status
     if (statusTag) {
@@ -160,10 +175,30 @@ async function applyTagUpdate(
       content: `${E.success} ${tl.quickUpdate.tagsSuccess} \u2014 <#${threadId}>`,
     });
 
+    if (wasArchived && !reopened) {
+      await thread.setArchived(true).catch(() => {
+        enhancedLogger.warn('Could not re-archive memory thread after a tag update', LogCategory.COMMAND_EXECUTION, {
+          guildId,
+          threadId,
+        });
+      });
+    }
+
     healthMonitor.recordCommand('memory update-tags', Date.now() - startTime, false);
   } catch (error) {
     logHandlerError('Memory update-tags', error, { guildId });
-    await replyEphemeralError(interaction, tl.quickUpdate.tagsError);
+    await showTagUpdateError(interaction, tl.quickUpdate.tagsError);
     healthMonitor.recordCommand('memory update-tags', Date.now() - startTime, true);
   }
+}
+
+/** Once the click is acknowledged, an error replaces the "Processing…" screen instead of stacking a follow-up. */
+async function showTagUpdateError(interaction: MessageComponentInteraction, message: string) {
+  if (!interaction.replied) {
+    await replyEphemeralError(interaction, message);
+    return;
+  }
+  await interaction
+    .editReply({ content: `${E.error} ${message}` })
+    .catch(() => replyEphemeralError(interaction, message));
 }

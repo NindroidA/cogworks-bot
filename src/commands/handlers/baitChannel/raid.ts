@@ -8,7 +8,7 @@
 
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { formatLang, guardFeatureAccess, handleInteractionError, lang, toUnixSeconds } from '../../../utils';
-import { getRaidModeManager } from '../../../utils/baitChannel/raidModeManager';
+import { getRaidModeManager, RaidModeGuildUnavailableError } from '../../../utils/baitChannel/raidModeManager';
 import { Colors } from '../../../utils/colors';
 
 const tl = lang.baitChannel.raid;
@@ -88,12 +88,15 @@ export async function raidHandler(_client: Client, interaction: ChatInputCommand
 
       case 'release': {
         await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-        const released = await mgr.releaseRaidMode(
-          interaction.guild,
-          interaction.user.id,
-          'manual release via slash command',
+        const released = await mgr
+          .releaseRaidMode(interaction.guild, interaction.user.id, 'manual release via slash command')
+          .catch(error => {
+            if (error instanceof RaidModeGuildUnavailableError) return 'unavailable' as const;
+            throw error;
+          });
+        await interaction.editReply(
+          released === 'unavailable' ? tl.guildUnavailable : released ? tl.released : tl.notActive,
         );
-        await interaction.editReply(released ? tl.released : tl.notActive);
         return;
       }
 

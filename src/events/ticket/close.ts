@@ -9,9 +9,10 @@ import {
 } from 'discord.js';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
-import { claimClose, enhancedLogger, LogCategory, lang, releaseClose, replyEphemeralError } from '../../utils';
+import { enhancedLogger, LogCategory, lang, replyEphemeralError } from '../../utils';
 import { lazyRepo } from '../../utils/database/lazyRepo';
-import { type ArchiveTicketResult, archiveAndCloseTicket } from '../../utils/ticket/closeWorkflow';
+import { claimAndArchiveTicket, reportTicketCloseOutcome } from '../../utils/ticket/claimAndArchive';
+import { archiveAndCloseTicket } from '../../utils/ticket/closeWorkflow';
 
 const tl = lang.ticket.close;
 const ticketRepo = lazyRepo(Ticket);
@@ -54,7 +55,11 @@ export const ticketCloseEvent = async (
   // "Closing ticket..." (interaction.update). A bare return would freeze that
   // message forever — the reported "close button hangs, ticket never closes".
   // So each guard surfaces an ephemeral followUp before bailing.
-  if (!archivedConfig) {
+  //
+  // Deleting the archive forum blanks the config's channelId (channelDelete)
+  // instead of removing the row, so an empty id means "not configured" too —
+  // otherwise every close fails later with a misleading transcript error.
+  if (!archivedConfig?.channelId) {
     enhancedLogger.warn(lang.ticket.archiveTicketConfigNotFound, LogCategory.SYSTEM, { guildId });
     await deps.replyEphemeralError(interaction, tl.notConfigured);
     return;
@@ -76,80 +81,22 @@ export const ticketCloseEvent = async (
     return;
   }
 
-  // Immediately mark as closed to prevent concurrent close attempts. The
-  // status guard above is check-then-set — two near-simultaneous confirms
-  // could both pass it — so the flip itself is atomic (claimClose): whoever
-  // loses the UPDATE bails as a duplicate.
-  if (!(await claimClose(deps.ticketRepo, ticket.id, guildId))) {
-    enhancedLogger.warn('Ticket close lost the flip race — concurrent close already in progress', LogCategory.SYSTEM, {
-      guildId,
-      channelId,
-    });
-    await deps.replyEphemeralError(interaction, tl.alreadyClosed);
-    return;
-  }
-
-  let result: ArchiveTicketResult;
-  try {
-    result = await deps.archiveAndCloseTicket(client, ticket, guildId, channel, archivedConfig.channelId, undefined, {
+  // The status guard above is check-then-set, so claimAndArchiveTicket flips
+  // the status atomically (a lost race reports already-closed) and reverts it
+  // if the archive fails, keeping the channel for a retry.
+  const outcome = await claimAndArchiveTicket(
+    client,
+    ticket,
+    guildId,
+    channel,
+    archivedConfig.channelId,
+    {
       id: interaction.user.id,
       username: interaction.user.username,
-    });
-  } catch (error) {
-    // An unexpected throw escaped the workflow (e.g. a transient DB error while
-    // resolving a custom ticket type — closeWorkflow's metadata region isn't
-    // inside its try blocks). The ticket was flipped to 'closed' above but the
-    // channel still exists, so revert the status (otherwise the dup-close guard
-    // strands it permanently) and tell the user instead of leaving them on
-    // "Closing ticket...".
-    await releaseClose(deps.ticketRepo, ticket.id, guildId, ticket.status);
-    enhancedLogger.error(
-      'Ticket close threw unexpectedly — status reverted, channel preserved for retry',
-      error instanceof Error ? error : undefined,
-      LogCategory.ERROR,
-      { guildId, channelId, ticketId: ticket.id },
-    );
-    await deps.replyEphemeralError(interaction, tl.transcriptCreate.error).catch(() => {});
-    return;
-  }
-
-  if (!result.archived) {
-    // Close did not complete (transcript fetch or forum post failed). The
-    // workflow deliberately preserved the channel, so revert the status —
-    // otherwise the ticket is stranded 'closed' with a live channel and the
-    // dup-close guard blocks any retry.
-    await releaseClose(deps.ticketRepo, ticket.id, guildId, ticket.status);
-    enhancedLogger.warn(
-      'Ticket close reverted — archive failed, channel + ticket preserved for retry',
-      LogCategory.SYSTEM,
-      {
-        guildId,
-        channelId,
-        ticketId: ticket.id,
-        transcriptFailed: result.transcriptFailed ?? false,
-      },
-    );
-    // replyEphemeralError picks reply/editReply/followUp from the interaction
-    // state internally, so no branch on replied/deferred is needed.
-    await deps.replyEphemeralError(interaction, tl.transcriptCreate.error).catch((err: unknown) => {
-      enhancedLogger.error(
-        'Failed to deliver ticket-close failure notice to the user',
-        err instanceof Error ? err : undefined,
-        LogCategory.SYSTEM,
-        { guildId, channelId, ticketId: ticket.id },
-      );
-    });
-  } else if (result.channelDeleted === false) {
-    // Transcript archived OK, but Discord refused to delete the channel (e.g.
-    // missing Manage Channels). The channel — and the "Closing ticket..." ack —
-    // are still here, so tell the user instead of looking like a hang.
-    enhancedLogger.warn('Ticket archived but channel delete failed — notifying user', LogCategory.SYSTEM, {
-      guildId,
-      channelId,
-      ticketId: ticket.id,
-    });
-    await deps.replyEphemeralError(interaction, tl.archivedChannelRemains, { bugReport: true }).catch(() => {});
-  }
+    },
+    deps,
+  );
+  await reportTicketCloseOutcome(interaction, outcome, deps.replyEphemeralError);
 };
 
 // Auth model for the in-channel close/confirm/cancel buttons:
