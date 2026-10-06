@@ -1,7 +1,7 @@
 /**
  * Claim → archive → revert-on-failure: the close sequence shared by the Close
- * button (events/ticket/close.ts) and `/ticket manage status closed`. (The
- * internal API handler runs the same steps inline.)
+ * button (events/ticket/close.ts), `/ticket manage status closed` and the
+ * auto-close scheduler. (The internal API handler runs the same steps inline.)
  *
  * The status flip happens first and atomically (claimClose), so a concurrent
  * close loses cleanly. If the archive throws or reports archived:false, the
