@@ -9,6 +9,8 @@ export interface ImportOptions {
   dryRun?: boolean;
   /** File content for file-based importers (CSV). Passed per call: importers are shared by every guild. */
   content?: string;
+  /** Set by importManager: true once /import cancel was used. Long-running importers should stop. */
+  isCancelled?: () => boolean;
   onProgress?: (imported: number, total: number) => void;
 }
 

@@ -16,6 +16,8 @@ import { writeImportedXp } from './xpWriter';
 
 /** Cooldown: 1 import per guild per hour */
 const IMPORT_COOLDOWN_MS = 60 * 60 * 1000;
+/** Dry runs per guild: 1 per 2 minutes, so a MEE6 dry run can't hammer its API. */
+const DRY_RUN_COOLDOWN_MS = 2 * 60 * 1000;
 
 export class ImportManager {
   private importers: Map<string, BotImporter> = new Map();
@@ -59,20 +61,19 @@ export class ImportManager {
   }
 
   /**
-   * Check cooldown: returns null if allowed, or a Date of when the next import is available
+   * Check cooldown: returns null if allowed, or a Date of when the next import is available.
+   * A completed import blocks every import for an hour; a dry run blocks only the next dry run.
    */
-  async checkCooldown(guildId: string): Promise<Date | null> {
+  async checkCooldown(guildId: string, dryRun = false): Promise<Date | null> {
     const repo = AppDataSource.getRepository(ImportLog);
-    const lastImport = await repo.findOne({
-      where: { guildId, status: 'completed' },
-      order: { completedAt: 'DESC' },
-    });
+    const rules: Array<[status: string, ms: number]> = [['completed', IMPORT_COOLDOWN_MS]];
+    if (dryRun) rules.push(['dry_run', DRY_RUN_COOLDOWN_MS]);
 
-    if (!lastImport?.completedAt) return null;
-
-    const nextAvailable = new Date(lastImport.completedAt.getTime() + IMPORT_COOLDOWN_MS);
-    if (nextAvailable > new Date()) {
-      return nextAvailable;
+    for (const [status, ms] of rules) {
+      const last = await repo.findOne({ where: { guildId, status }, order: { completedAt: 'DESC' } });
+      if (!last?.completedAt) continue;
+      const nextAvailable = new Date(last.completedAt.getTime() + ms);
+      if (nextAvailable > new Date()) return nextAvailable;
     }
 
     return null;
@@ -80,9 +81,9 @@ export class ImportManager {
 
   /**
    * Start an import. Creates an ImportLog, runs the importer, writes the XP and
-   * updates the log. Only a written import is logged as 'completed' (the status
-   * the cooldown counts): a dry run is logged as 'dry_run', and a failed write
-   * rolls back and is logged as 'failed'.
+   * updates the log. Only an import that wrote rows is logged as 'completed'
+   * (the status the 1-hour cooldown counts). Otherwise the log is 'dry_run',
+   * 'no_changes', 'failed' (the write rolled back) or 'cancelled'.
    */
   async startImport(
     guildId: string,
@@ -138,18 +139,22 @@ export class ImportManager {
     });
     this.runningImports.set(guildId, importLog);
 
+    // /import cancel saves the log as 'cancelled'; the importer and the writer stop at their next check.
+    const isCancelled = () => importLog.status === 'cancelled';
+    const dryRun = options?.dryRun ?? false;
+
     try {
       await repo.save(importLog);
-      const { records = [], ...result } = await importer.import(guildId, dataType, options);
+      const { records = [], ...result } = await importer.import(guildId, dataType, { ...options, isCancelled });
 
-      // /import cancel already saved the log as 'cancelled': write nothing.
-      if (importLog.status === 'cancelled') {
+      if (isCancelled()) {
+        await repo.save(importLog); // cancelImport skips its save if it ran before the first one finished
         return { ...result, success: false, imported: 0, errors: [lang.import.commands.importCancelled] };
       }
 
       if (result.success) {
-        const dryRun = options?.dryRun ?? false;
-        const written = await this.writeXp(guildId, records, { overwrite: options?.overwrite ?? false, dryRun });
+        const writeOptions = { overwrite: options?.overwrite ?? false, dryRun, isCancelled };
+        const written = await this.writeXp(guildId, records, writeOptions);
         result.imported = written.written;
         result.skipped += written.skippedExisting;
         result.durationMs = Date.now() - importLog.startedAt.getTime();
@@ -162,11 +167,33 @@ export class ImportManager {
       importLog.errors = result.errors.length > 0 ? result.errors : null;
       importLog.completedAt = new Date();
       importLog.durationMs = result.durationMs;
-      importLog.status = !result.success ? 'failed' : options?.dryRun ? 'dry_run' : 'completed';
+      // A cancel that lands while the transaction commits is too late to undo: the log keeps
+      // 'cancelled' (with the written counts) rather than being overwritten.
+      if (!isCancelled()) {
+        importLog.status = !result.success
+          ? 'failed'
+          : dryRun
+            ? 'dry_run'
+            : result.imported > 0
+              ? 'completed'
+              : 'no_changes';
+      }
       await repo.save(importLog);
 
       return result;
     } catch (error) {
+      if (isCancelled()) {
+        // The writer rolled back; the log already says 'cancelled'.
+        await repo.save(importLog);
+        return {
+          success: false,
+          imported: 0,
+          skipped: 0,
+          failed: 0,
+          errors: [lang.import.commands.importCancelled],
+          durationMs: Date.now() - importLog.startedAt.getTime(),
+        };
+      }
       const message = error instanceof Error ? error.message : 'Unknown error';
 
       enhancedLogger.error(
@@ -195,25 +222,26 @@ export class ImportManager {
         durationMs: importLog.durationMs,
       };
     } finally {
-      // After a cancel the slot may already belong to a newer import.
-      if (this.runningImports.get(guildId) === importLog) this.runningImports.delete(guildId);
+      // Freed only here, also after a cancel, so a new import can't start while this one still runs.
+      this.runningImports.delete(guildId);
     }
   }
 
   /**
-   * Cancel a running import for a guild
+   * Cancel a running import for a guild. The import stops (and rolls back any
+   * write in progress) at its next check; startImport frees the guild's slot.
    */
   async cancelImport(guildId: string): Promise<boolean> {
     const importLog = this.runningImports.get(guildId);
     if (!importLog) return false;
+    if (importLog.status === 'cancelled') return true;
 
-    const repo = AppDataSource.getRepository(ImportLog);
     importLog.status = 'cancelled';
     importLog.completedAt = new Date();
     importLog.durationMs = Date.now() - importLog.startedAt.getTime();
-    await repo.save(importLog);
-
-    this.runningImports.delete(guildId);
+    // Before startImport's first save has inserted the row, saving here would insert a second one;
+    // startImport saves the cancelled log itself when it stops.
+    if (importLog.id !== undefined) await AppDataSource.getRepository(ImportLog).save(importLog);
     return true;
   }
 

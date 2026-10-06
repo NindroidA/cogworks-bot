@@ -102,3 +102,75 @@ describe('command audit log', () => {
     expect(fakeWriteAuditLog).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// /bot-reset writes its own row (dispatcher no longer audits it)
+// ---------------------------------------------------------------------------
+
+describe('/bot-reset audit row', () => {
+  const client = { baitChannelManager: { clearConfigCache() {}, clearKeywordCache() {} } } as any;
+
+  function resetInteraction(clicks: string[]) {
+    const guildId = `3000000000000${String(++seq).padStart(5, '0')}`;
+    const message = {
+      awaitMessageComponent: async () => {
+        const customId = clicks.shift();
+        if (!customId) throw new Error('time');
+        return { customId, update: async () => undefined };
+      },
+    };
+    const interaction: any = {
+      guildId,
+      guild: { name: 'Test' },
+      commandName: 'bot-reset',
+      createdTimestamp: Date.now(),
+      member: { permissions: { has: () => true } },
+      user: { id: 'admin-1', tag: 'admin#0001', send: async () => undefined },
+      isRepliable: () => true,
+      reply: async () => ({ resource: { message } }),
+      editReply: async () => undefined,
+    };
+    return { interaction, guildId };
+  }
+
+  function deps(opts: { cleanupThrows?: boolean } = {}) {
+    return {
+      compileGuildArchive: async () => {
+        throw new Error('not used: "No, Delete Everything"');
+      },
+      cleanupGuildMessages: async () => {
+        if (opts.cleanupThrows) throw new Error('Missing Access');
+        return { deleted: 0, failed: 0, details: [], keptChannelIds: [] };
+      },
+      deleteAllGuildData: async () => ({ success: true, total: 1, tables: 1, details: {}, failed: [] }),
+      registerGuildCommands: async () => undefined,
+    } as any;
+  }
+
+  const CONFIRM = ['reset_continue', 'reset_save_no', 'reset_confirm_final'];
+
+  test('a finished reset writes one row', async () => {
+    const { botResetHandler } = await import('../../../src/commands/handlers/botReset');
+    const { interaction, guildId } = resetInteraction([...CONFIRM]);
+    await botResetHandler(client, interaction, deps());
+    expect(fakeWriteAuditLog.mock.calls).toEqual([
+      [guildId, 'command:bot-reset', 'admin-1', { complete: true }, 'command'],
+    ] as any);
+  });
+
+  test('an error after deletion started still writes the row, marked incomplete', async () => {
+    const { botResetHandler } = await import('../../../src/commands/handlers/botReset');
+    const { interaction, guildId } = resetInteraction([...CONFIRM]);
+    await botResetHandler(client, interaction, deps({ cleanupThrows: true }));
+    expect(fakeWriteAuditLog.mock.calls).toEqual([
+      [guildId, 'command:bot-reset', 'admin-1', { complete: false }, 'command'],
+    ] as any);
+  });
+
+  test('Cancel writes nothing', async () => {
+    const { botResetHandler } = await import('../../../src/commands/handlers/botReset');
+    const { interaction } = resetInteraction(['reset_cancel']);
+    await botResetHandler(client, interaction, deps());
+    expect(fakeWriteAuditLog).not.toHaveBeenCalled();
+  });
+});

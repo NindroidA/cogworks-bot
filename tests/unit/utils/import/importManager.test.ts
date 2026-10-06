@@ -14,7 +14,12 @@ import { lang } from '../../../../src/lang';
 import { AppDataSource } from '../../../../src/typeorm';
 import { ImportManager } from '../../../../src/utils/import/importManager';
 import type { BotImporter, ImportOptions, ImportResult, RawXpRecord } from '../../../../src/utils/import/types';
-import type { writeImportedXp } from '../../../../src/utils/import/xpWriter';
+import {
+  writeImportedXp,
+  XP_WRITE_CHUNK_SIZE,
+  type XpImportStore,
+  type XpImportTransaction,
+} from '../../../../src/utils/import/xpWriter';
 
 type GetRepository = (entity: unknown) => unknown;
 
@@ -22,7 +27,10 @@ const logs: any[] = [];
 const fakeLogRepo = {
   create: (data: Record<string, unknown>) => ({ importedCount: 0, skippedCount: 0, failedCount: 0, ...data }),
   async save(entity: any) {
-    if (!logs.includes(entity)) logs.push(entity);
+    if (!logs.includes(entity)) {
+      entity.id = logs.length + 1; // assigned on insert, like the database
+      logs.push(entity);
+    }
     return entity;
   },
   async findOne({ where }: { where: { guildId: string; status: string } }) {
@@ -65,7 +73,7 @@ function makeManager(
 ) {
   const writes: Array<{ guildId: string; userIds: string[]; options: { overwrite: boolean; dryRun: boolean } }> = [];
   const manager = new ImportManager(async (guildId, records, options) => {
-    writes.push({ guildId, userIds: records.map(r => r.userId), options });
+    writes.push({ guildId, userIds: records.map(r => r.userId), options: { overwrite: options.overwrite, dryRun: options.dryRun } });
     return write(guildId, records, options);
   });
   manager.registerImporter(importer);
@@ -103,6 +111,27 @@ describe('ImportManager.startImport', () => {
     expect(writes[0].options).toEqual({ overwrite: true, dryRun: true });
     expect(result.success).toBe(true);
     expect(logs.find(l => l.guildId === guild)?.status).toBe('dry_run');
+    expect(await manager.checkCooldown(guild)).toBeNull();
+
+    // Another dry run waits about 2 minutes, so MEE6 dry runs can't hammer its API
+    const next = await manager.checkCooldown(guild, true);
+    expect(next).toBeInstanceOf(Date);
+    const wait = (next as Date).getTime() - Date.now();
+    expect(wait).toBeGreaterThan(60_000);
+    expect(wait).toBeLessThanOrEqual(120_000);
+  });
+
+  test('an import that writes no rows does not start the cooldown', async () => {
+    const guild = nextGuild();
+    const { manager } = makeManager(
+      fakeImporter({ [guild]: { imported: 2, records: [rec('1'), rec('2')] } }),
+      async () => ({ written: 0, skippedExisting: 2 }),
+    );
+
+    const result = await manager.startImport(guild, 'fake', 'xp', 'admin');
+
+    expect(result).toMatchObject({ success: true, imported: 0, skipped: 2 });
+    expect(logs.find(l => l.guildId === guild)?.status).toBe('no_changes');
     expect(await manager.checkCooldown(guild)).toBeNull();
   });
 
@@ -157,14 +186,61 @@ describe('ImportManager.startImport', () => {
     const { manager, writes } = makeManager(fakeImporter({ [guild]: { records: [rec('1')] } }, gate));
 
     const running = manager.startImport(guild, 'fake', 'xp', 'admin');
-    await Bun.sleep(0);
     expect(await manager.cancelImport(guild)).toBe(true);
+    // The slot stays taken until the import has actually stopped
+    expect(manager.isRunning(guild)).toBe(true);
     release();
     const result = await running;
 
     expect(writes).toHaveLength(0);
     expect(result).toMatchObject({ success: false, errors: [lang.import.commands.importCancelled] });
     expect(logs.find(l => l.guildId === guild)?.status).toBe('cancelled');
+    expect(manager.isRunning(guild)).toBe(false);
+  });
+
+  test('a cancel during the write rolls it back and keeps the log cancelled', async () => {
+    const guild = nextGuild();
+    let firstChunk!: () => void;
+    const firstChunkStarted = new Promise<void>(resolve => {
+      firstChunk = resolve;
+    });
+    let releaseChunk!: () => void;
+    const chunkGate = new Promise<void>(resolve => {
+      releaseChunk = resolve;
+    });
+    const inserted: number[] = [];
+    let committed = false;
+    const store: XpImportStore = {
+      existingUserIds: async () => new Set(),
+      insertNew: async rows => {
+        inserted.push(rows.length);
+        firstChunk();
+        await chunkGate;
+      },
+      upsert: async () => undefined,
+    };
+    const transaction: XpImportTransaction = async work => {
+      const out = await work(store);
+      committed = true;
+      return out;
+    };
+    const records = Array.from({ length: XP_WRITE_CHUNK_SIZE + 1 }, (_, i) => rec(String(i)));
+    const { manager } = makeManager(fakeImporter({ [guild]: { records } }), (g, r, o) =>
+      writeImportedXp(g, r, o, transaction),
+    );
+
+    const running = manager.startImport(guild, 'fake', 'xp', 'admin');
+    await firstChunkStarted;
+    await manager.cancelImport(guild);
+    releaseChunk();
+    const result = await running;
+
+    expect(inserted).toEqual([XP_WRITE_CHUNK_SIZE]);
+    expect(committed).toBe(false);
+    expect(result).toMatchObject({ success: false, imported: 0, errors: [lang.import.commands.importCancelled] });
+    expect(logs.find(l => l.guildId === guild)?.status).toBe('cancelled');
+    expect(await manager.checkCooldown(guild)).toBeNull();
+    expect(manager.isRunning(guild)).toBe(false);
   });
 
   test('concurrent imports in two guilds each write only their own records', async () => {

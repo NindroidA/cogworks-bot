@@ -22,16 +22,24 @@ for command registration and the guild isolation script
   `overwrite`, members who already have XP keep it and count as skipped; with
   it, their XP, level and message count are replaced (voice minutes stay).
   A database error rolls the whole import back and reports a failure.
-- **Only a written import starts the 1-hour cooldown.** A dry run is logged as
-  `dry_run` (shown with a magnifier in `/import history`) and a failed write
-  as `failed`, so neither blocks the real import. A dry run also counts the
-  members it would skip.
+- **A failed MEE6 page fails the whole import.** A network or JSON error on
+  any page used to keep the pages fetched so far; now nothing is written, as
+  with a 403, 429 or 5xx response.
+- **Only an import that wrote rows starts the 1-hour cooldown.** An import
+  that wrote nothing (every member already had XP) is logged as `no_changes`
+  (➖ in `/import history`), a dry run as `dry_run` (🔍) and a failed write as
+  `failed`; none of them blocks the real import. A dry run also counts the
+  members it would skip, and dry runs are limited to one per server every 2
+  minutes so a MEE6 dry run can't hammer its API.
+- **`/import cancel` stops the import, including a write in progress.** The
+  writer checks before every chunk and before committing, so a cancel rolls
+  the whole write back and the log stays `cancelled`. The server's import
+  slot stays taken until the import has actually stopped.
 - **Imports in two servers at once can't mix their data.** The CSV text and
   the parsed records travelled through fields on importers shared by every
   server; they now travel with each call. A second import in the same server
-  is refused before the first one starts, and `/import cancel` now stops the
-  write.
-- **`/rules setup` no longer deletes the old rules message first.** It posts
+  is refused before the first one starts.
+- **`/rules-setup setup` no longer deletes the old rules message first.** It posts
   and reacts on the new message and saves the config, then deletes the old
   one. If the bot can't post or react (missing permission, an emoji from
   another server), the new message is removed and the old message keeps
@@ -46,9 +54,10 @@ for command registration and the guild isolation script
   nothing is saved until it is back, and the presence recovers when it is.
 - **The command audit log only records commands that ran.** The "not
   configured" reply is no longer logged. `/bot-reset` and `/data-export` write
-  their own row once the reset reaches the purge or the export is delivered,
-  so a cancelled, timed-out or rate-limited run no longer looks like a reset
-  or an export.
+  their own row once the reset reaches the purge (or fails after deleting
+  something, marked `complete: false`) or the export is delivered, so a
+  cancelled, timed-out or rate-limited run no longer looks like a reset or an
+  export.
 - **`RELEASE=Dev` (any case or padding) registers commands with the dev bot.**
   The shared REST client compared `RELEASE === 'dev'` strictly while the rest
   of the bot normalizes it, so the dev bot could push its command set to the

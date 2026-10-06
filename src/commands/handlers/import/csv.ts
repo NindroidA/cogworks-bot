@@ -39,7 +39,7 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
   }
 
   // Check cooldown
-  const cooldownUntil = await importManager.checkCooldown(guildId);
+  const cooldownUntil = await importManager.checkCooldown(guildId, dryRun);
   if (cooldownUntil) {
     const timestamp = toUnixSeconds(cooldownUntil);
     await interaction.reply({

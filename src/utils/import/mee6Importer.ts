@@ -32,6 +32,9 @@ export class Mee6Importer implements BotImporter {
   displayName = 'MEE6';
   supportedData = ['xp'];
 
+  /** `requestDelayMs` is injectable so tests don't wait between pages. */
+  constructor(private readonly requestDelayMs = REQUEST_DELAY_MS) {}
+
   async import(guildId: string, dataType: string, options?: ImportOptions): Promise<ImportResult> {
     const startTime = Date.now();
     const errors: string[] = [];
@@ -59,7 +62,7 @@ export class Mee6Importer implements BotImporter {
       overwrite: options?.overwrite,
     });
 
-    while (hasMore) {
+    while (hasMore && !options?.isCancelled?.()) {
       try {
         const url = `${MEE6_API_BASE}/${guildId}?page=${page}&limit=${PAGE_LIMIT}`;
         const response = await fetch(url);
@@ -155,11 +158,11 @@ export class Mee6Importer implements BotImporter {
         } else {
           page++;
           // Rate limit: wait between requests
-          await sleep(REQUEST_DELAY_MS);
+          await sleep(this.requestDelayMs);
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        errors.push(`Error fetching page ${page}: ${message}`);
+        errors.unshift(`Error fetching page ${page}: ${message}`); // first: the handler shows errors[0]
         failed++;
 
         enhancedLogger.error(
@@ -172,8 +175,8 @@ export class Mee6Importer implements BotImporter {
           },
         );
 
-        // Stop on network errors
-        hasMore = false;
+        // A failed page fails the whole import: no partial leaderboard is written.
+        return { success: false, imported: 0, skipped, failed, errors, durationMs: Date.now() - startTime };
       }
     }
 

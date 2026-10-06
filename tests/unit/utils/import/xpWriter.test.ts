@@ -10,6 +10,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { RawXpRecord } from '../../../../src/utils/import/types';
 import {
+  ImportCancelledError,
   writeImportedXp,
   XP_WRITE_CHUNK_SIZE,
   type XpImportRow,
@@ -148,6 +149,36 @@ describe('writeImportedXp', () => {
     await expect(
       writeImportedXp(GUILD, [record('1', 10)], { overwrite: false, dryRun: false }, failing),
     ).rejects.toThrow('ER_LOCK_WAIT_TIMEOUT');
+  });
+
+  test('a cancel stops before the next chunk and before the commit', async () => {
+    const store = makeStore();
+    const records = Array.from({ length: XP_WRITE_CHUNK_SIZE + 1 }, (_, i) => record(String(i), i));
+    let cancelled = false;
+    const cancelAfterFirstChunk: XpImportTransaction = work =>
+      store.transaction(s =>
+        work({
+          ...s,
+          insertNew: async rows => {
+            await s.insertNew(rows);
+            cancelled = true;
+          },
+        }),
+      );
+
+    await expect(
+      writeImportedXp(GUILD, records, { overwrite: false, dryRun: false, isCancelled: () => cancelled }, cancelAfterFirstChunk),
+    ).rejects.toBeInstanceOf(ImportCancelledError);
+    expect(store.calls.insert).toEqual([XP_WRITE_CHUNK_SIZE]);
+
+    // Cancelled during the last chunk: still thrown inside the transaction, so it rolls back
+    const single = makeStore();
+    let late = false;
+    const lateCancel: XpImportTransaction = work =>
+      single.transaction(s => work({ ...s, insertNew: async rows => { await s.insertNew(rows); late = true; } }));
+    await expect(
+      writeImportedXp(GUILD, [record('1', 5)], { overwrite: false, dryRun: false, isCancelled: () => late }, lateCancel),
+    ).rejects.toBeInstanceOf(ImportCancelledError);
   });
 
   test('no records opens no transaction', async () => {

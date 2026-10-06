@@ -58,18 +58,27 @@ function managerStore(manager: EntityManager): XpImportStore {
 const defaultTransaction: XpImportTransaction = work =>
   AppDataSource.transaction(manager => work(managerStore(manager)));
 
+/** Thrown between chunks when the import was cancelled; it rolls the transaction back. */
+export class ImportCancelledError extends Error {
+  constructor() {
+    super('Import cancelled');
+    this.name = 'ImportCancelledError';
+  }
+}
+
 function toInt(value: number): number {
   return Math.min(MAX_INT, Math.max(0, Math.floor(value)));
 }
 
 /**
  * Write (or, for a dry run, only count) imported XP. Throws on a database
- * error, which rolls the whole import back.
+ * error, or with ImportCancelledError once `isCancelled()` turns true (checked
+ * before each chunk and before the commit), which rolls the whole import back.
  */
 export async function writeImportedXp(
   guildId: string,
   records: RawXpRecord[],
-  options: { overwrite: boolean; dryRun: boolean },
+  options: { overwrite: boolean; dryRun: boolean; isCancelled?: () => boolean },
   transaction: XpImportTransaction = defaultTransaction,
 ): Promise<{ written: number; skippedExisting: number }> {
   let written = 0;
@@ -78,6 +87,7 @@ export async function writeImportedXp(
 
   await transaction(async store => {
     for (let i = 0; i < records.length; i += XP_WRITE_CHUNK_SIZE) {
+      if (options.isCancelled?.()) throw new ImportCancelledError();
       const rows = records.slice(i, i + XP_WRITE_CHUNK_SIZE).map(record => {
         const xp = toInt(record.xp);
         return { guildId, userId: record.userId, xp, level: calculateLevel(xp), messages: toInt(record.messageCount) };
@@ -99,6 +109,7 @@ export async function writeImportedXp(
       }
       written += toWrite.length;
     }
+    if (options.isCancelled?.()) throw new ImportCancelledError();
   });
 
   return { written, skippedExisting };

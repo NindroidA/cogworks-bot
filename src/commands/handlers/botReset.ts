@@ -326,6 +326,7 @@ async function executeReset(
 ): Promise<boolean> {
   // Set just before the first deletion, so an error before it can say that nothing was deleted.
   let deletionStarted = false;
+  let audited = false;
   try {
     let sizeFormatted = '';
     let cleanupOptions: CleanupOptions = {};
@@ -396,6 +397,7 @@ async function executeReset(
     // Audited here, not by the dispatcher, so a cancelled or aborted reset leaves no row. Written after
     // the purge, which deletes the guild's earlier audit rows.
     void writeAuditLog(guildId, 'command:bot-reset', interaction.user.id, { complete: purge.complete }, 'command');
+    audited = true;
 
     // 5. Re-register commands. Must follow the purge: with no config rows left, only the
     //    always-visible set (/bot-setup and every *-setup command) is registered.
@@ -486,6 +488,9 @@ async function executeReset(
       guildId,
       deletionStarted,
     });
+    if (deletionStarted && !audited) {
+      void writeAuditLog(guildId, 'command:bot-reset', interaction.user.id, { complete: false }, 'command');
+    }
     await interaction
       .editReply({
         content: deletionStarted
