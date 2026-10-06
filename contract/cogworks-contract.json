@@ -1,6 +1,6 @@
 {
   "contractVersion": "1",
-  "botVersion": "3.16.21",
+  "botVersion": "3.16.25",
   "features": {
     "keys": [
       "tickets",
@@ -29,6 +29,84 @@
       "name": "bot-setup",
       "description": "Sets up the bot for your server",
       "default_member_permissions": "8",
+      "type": 1
+    },
+    {
+      "options": [
+        {
+          "type": 1,
+          "name": "check",
+          "description": "Check the saved settings against this server's channels, roles and commands",
+          "options": [
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "All systems",
+                  "value": "all"
+                },
+                {
+                  "name": "Core (settings, roles, permissions, commands)",
+                  "value": "core"
+                },
+                {
+                  "name": "Staff role",
+                  "value": "staffRole"
+                },
+                {
+                  "name": "Tickets",
+                  "value": "ticket"
+                },
+                {
+                  "name": "Applications",
+                  "value": "application"
+                },
+                {
+                  "name": "Announcements",
+                  "value": "announcement"
+                },
+                {
+                  "name": "Bait channel",
+                  "value": "baitchannel"
+                },
+                {
+                  "name": "Memory",
+                  "value": "memory"
+                },
+                {
+                  "name": "Rules",
+                  "value": "rules"
+                },
+                {
+                  "name": "Reaction roles",
+                  "value": "reactionRole"
+                }
+              ],
+              "name": "system",
+              "description": "Only check one system (default: all)",
+              "required": false
+            },
+            {
+              "name": "deep",
+              "description": "Also look up messages and threads through Discord (slower; once per 10 minutes)",
+              "required": false,
+              "type": 5
+            },
+            {
+              "type": 3,
+              "name": "guild-id",
+              "description": "Bot owner only: check another server by its ID",
+              "required": false,
+              "max_length": 20,
+              "min_length": 17
+            }
+          ]
+        }
+      ],
+      "name": "bot-health",
+      "description": "Check this server's Cogworks setup for problems",
+      "default_member_permissions": "8",
+      "dm_permission": false,
       "type": 1
     },
     {

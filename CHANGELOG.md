@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.25] - 2026-10-06
+
+`/bot-health check`: server admins (and the bot owner) can now see what is
+broken or stale in their server's Cogworks setup, with no setup needed first
+(NindroidA/cogworks-bot#41). This is the first user-visible part of the health
+check: the command appears in every server, and it only reads; repairs come in
+a later release.
+
+### Added
+
+- **`/bot-health check [system] [deep]`** (Administrator, or the bot owner):
+  runs the read-only health check and replies ephemerally with a summary (bot
+  version, check time, one line per system: ✅ no problems, ⚠️ n found,
+  ❌ n found with something broken, ➖ not set up; footer: how many are
+  automatic, need confirmation or are manual fixes). A select opens each
+  system's findings, 10 per page with Previous/Next, each explained in plain
+  language with deleted objects shown as raw IDs and existing ones as
+  mentions, and every page kept inside Discord's embed limits. **Export JSON**
+  attaches the full report (IDs and codes only) for support. The buttons stop
+  after 5 minutes.
+- It runs on a server without a BotConfig row (like `/bot-setup` and
+  `/bot-reset`), is never hidden by module gating, and is audit-logged.
+- **Rate limits** per server: one check a minute, one deep check every
+  10 minutes. The bot owner is not limited.
+- **Owner-only `guild-id` option**: the bot owner can check another server the
+  bot is in, by ID; anyone else who passes it gets an error.
+- **Slash-command sync check** (`core.commands`): compares the server's
+  registered commands (one Discord call) with the set the bot would register
+  there now. Missing or out-of-date commands are degraded, leftover ones are
+  cleanup, all fixable by re-registering (the later repair); Discord refusing
+  the list (50001) means the bot lacks the `applications.commands` scope and
+  the finding links a re-invite.
+
+### Changed
+
+- `filterCommandsByEnabled` in `utils/setup/commandGating.ts` is exported
+  (the command sync check's expected set).
+- The dispatcher's no-BotConfig commands are a small route table
+  (`NO_CONFIG_ROUTES`) instead of an if/else chain.
+
 ## [3.16.21] - 2026-10-06
 
 Health-check engine, the foundation for the upcoming `/bot-health` command

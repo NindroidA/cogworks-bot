@@ -64,7 +64,7 @@ All commands follow this structure (see `src/commands/commands.ts`):
 ```typescript
 // 1. Global rate limit check (30 cmd/min per user)
 // 2. Guild validation
-// 3. BotConfig check (except /bot-setup)
+// 3. BotConfig check (except NO_CONFIG_ROUTES: /bot-setup, /bot-reset, /bot-health)
 // 4. Route to handler in src/commands/handlers/
 // 5. Record metrics: healthMonitor.recordCommand(commandName, executionTime, failed)
 ```
@@ -131,7 +131,7 @@ if (!check.allowed) { /* deny */ }
 ```
 
 ### Permission Validation
-Prefer the `guard*` wrappers from `utils/interactions` over the raw `require*` validators — they reply ephemerally and return `{ allowed }` in one line. Use feature-scoped guards when the action is in the `FEATURES` catalog (see `src/utils/validation/featurePermission.ts`); reserve `guardAdmin` / `guardOwner` for meta-features (`/bot-setup`, `/bot-reset`, `/data-export`, `/status`).
+Prefer the `guard*` wrappers from `utils/interactions` over the raw `require*` validators — they reply ephemerally and return `{ allowed }` in one line. Use feature-scoped guards when the action is in the `FEATURES` catalog (see `src/utils/validation/featurePermission.ts`); reserve `guardAdmin` / `guardOwner` for meta-features (`/bot-setup`, `/bot-reset`, `/bot-health`, `/data-export`, `/status`).
 
 ```typescript
 import { guardAdmin, guardOwner, guardFeatureAccess, guardFeatureRateLimit } from '../utils';
@@ -359,6 +359,7 @@ src/
 │   │   ├── application/    # applicationSetup, applicationFields, applicationPosition
 │   │   ├── archive/        # cleanup (export + delete archived data)
 │   │   ├── baitChannel/    # setup, detection, keywords, stats, settings, etc.
+│   │   ├── botHealth/      # /bot-health check: guard, owner guild-id, renderer (summary, pages, JSON export)
 │   │   ├── botSetup/       # Unified setup dashboard (v3)
 │   │   │   ├── index.ts          # Dashboard controller
 │   │   │   ├── setupDashboard.ts # Embed builder + state detection
@@ -548,12 +549,13 @@ const triggeredBy = optionalString(body, 'triggeredBy');   // for audit logs
 - Announcements: 5/hour per user
 - Bot setup: 5/hour per guild
 - Data export: 1/24h per guild
+- Health check: 1/min per guild, deep 1/10min (owner bypass)
 - Global: 30 cmd/min per user
 
 ### Permission Levels
 | Level | Access |
 |-------|--------|
-| **Bot Owner** | Status commands (`BOT_OWNER_ID`) |
+| **Bot Owner** | Status commands, `/bot-health check` on any server (`BOT_OWNER_ID`) |
 | **Admin** | All setup + management + data export |
 | **Staff** | Ticket replies, limited moderation |
 

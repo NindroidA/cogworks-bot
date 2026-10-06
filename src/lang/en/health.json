@@ -1,4 +1,75 @@
 {
+  "command": {
+    "builder": {
+      "check": {
+        "deep": "Also look up messages and threads through Discord (slower; once per 10 minutes)",
+        "descrp": "Check the saved settings against this server's channels, roles and commands",
+        "guildId": "Bot owner only: check another server by its ID",
+        "system": "Only check one system (default: all)"
+      },
+      "cmdDescrp": "Check this server's Cogworks setup for problems"
+    },
+    "details": {
+      "back": "Back to summary",
+      "findings": "{count} found",
+      "next": "Next",
+      "page": "Page {page} of {pages}",
+      "placeholder": "Show what was found in…",
+      "previous": "Previous",
+      "title": "{system}: what was found"
+    },
+    "errors": {
+      "failed": "The health check couldn't finish. Try again in a minute.",
+      "guildNotFound": "The bot isn't in a server with the ID `{guildId}`.",
+      "invalidGuildId": "`{guildId}` isn't a valid server ID.",
+      "notOwner": "Only the bot owner can use the `guild-id` option."
+    },
+    "export": {
+      "button": "Export JSON",
+      "content": "The full report is attached (IDs only). Share it with support if you need help."
+    },
+    "notChecked": {
+      "botMember": "The bot's own member wasn't cached, so its permissions weren't checked.",
+      "guildUnavailable": "Discord reported this server as unavailable, so channels and roles weren't checked.",
+      "rest": "`{label}`: the Discord lookup limit for one run was reached. Run the check again later."
+    },
+    "repair": {
+      "auto": "can be fixed automatically",
+      "confirm": "the fix needs your confirmation",
+      "manual": "needs a manual fix"
+    },
+    "severity": {
+      "block": "❌ Broken",
+      "cosmetic": "💡 Cleanup",
+      "degraded": "⚠️ Degraded"
+    },
+    "summary": {
+      "fail": "❌ **{system}**: {count} found, something is broken",
+      "footer": "{auto} automatic · {confirm} need confirmation · {manual} manual",
+      "hint": "Pick a system below to see the details.",
+      "meta": "Cogworks v{version} · checked <t:{time}:f>",
+      "metaDeep": "Cogworks v{version} · deep check <t:{time}:f>",
+      "noChecks": "There are no checks for this system yet.",
+      "notChecked": "Not checked",
+      "notConfigured": "➖ **{system}**: not set up",
+      "ok": "✅ **{system}**: no problems",
+      "title": "Server health",
+      "titleFor": "Server health: {guildName}",
+      "warn": "⚠️ **{system}**: {count} found"
+    },
+    "systems": {
+      "all": "All systems",
+      "announcement": "Announcements",
+      "application": "Applications",
+      "baitchannel": "Bait channel",
+      "core": "Core (settings, roles, permissions, commands)",
+      "memory": "Memory",
+      "reactionRole": "Reaction roles",
+      "rules": "Rules",
+      "staffRole": "Staff role",
+      "ticket": "Tickets"
+    }
+  },
   "findings": {
     "core.global_staff_role.enabled_without_role": "The global staff role is turned on, but no role is selected, so new tickets ping nobody.",
     "core.global_staff_role.invalid": "The saved global staff role isn't a valid role. Pick it again in `/bot-setup`.",

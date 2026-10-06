@@ -35,6 +35,7 @@ import {
 import { archiveCleanupHandler } from './handlers/archive/cleanup';
 import { automodHandler } from './handlers/automod';
 import { baitChannelHandler } from './handlers/baitChannel';
+import { botHealthHandler } from './handlers/botHealth';
 import { botResetHandler } from './handlers/botReset';
 import { botSetupHandler } from './handlers/botSetup/index';
 import { coffeeHandler } from './handlers/coffee';
@@ -179,6 +180,13 @@ const SUBCOMMAND_ROUTES: Record<string, Record<string, InteractionHandler>> = {
   },
 };
 
+/** Commands that run without a BotConfig row: setup, reset, and the health check (it must work on a half-set-up server). */
+const NO_CONFIG_ROUTES: Record<string, FullHandler> = {
+  'bot-setup': botSetupHandler,
+  'bot-reset': botResetHandler,
+  'bot-health': botHealthHandler,
+};
+
 const botConfigRepo = lazyRepo(BotConfig);
 
 // ---------------------------------------------------------------------------
@@ -218,11 +226,9 @@ export const handleSlashCommand = async (client: Client, interaction: ChatInputC
   }
 
   try {
-    // bot-setup and bot-reset are allowed without prior config
-    if (commandName === 'bot-setup') {
-      await botSetupHandler(client, interaction);
-    } else if (commandName === 'bot-reset') {
-      await botResetHandler(client, interaction);
+    const noConfigHandler = NO_CONFIG_ROUTES[commandName];
+    if (noConfigHandler) {
+      await noConfigHandler(client, interaction);
     } else {
       const botConfig = await botConfigRepo.findOneBy({ guildId });
       if (!botConfig) {
@@ -437,6 +443,7 @@ async function dispatchApplicationCommand(
 const AUDITABLE_COMMANDS = new Set([
   'bot-setup',
   'bot-reset',
+  'bot-health',
   'ticket-setup',
   'application-setup',
   'announcement-setup',

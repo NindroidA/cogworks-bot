@@ -823,6 +823,18 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 - Shows WebSocket latency, API round-trip time, and uptime
 - Available to all users
 
+### Server Health Check
+**`/bot-health check [system] [deep] [guild-id]`**
+- **Admin-only** (the bot owner can also run it); works even before `/bot-setup` has been run
+- Checks the saved Cogworks settings against the server's live channels, roles and slash commands, and reports what is broken or stale. It only reads; nothing is changed
+- `system` - (Optional) Check one system: Core, Staff role, Tickets, Applications, Announcements, Bait channel, Memory, Rules, Reaction roles (default: all)
+- `deep` - (Optional) Also look up messages and threads through Discord (slower)
+- `guild-id` - (Optional, bot owner only) Check another server the bot is in
+- **Summary**: one line per system (✅ no problems, ⚠️ found, ❌ something is broken, ➖ not set up) and how many problems can be fixed automatically, need confirmation, or need a manual fix
+- **Details**: pick a system to page through its findings (10 per page); deleted channels and roles are shown by ID
+- **Export JSON**: attaches the full report (IDs only) to share with support
+- **Rate limited**: one check per minute and one deep check per 10 minutes per server (not for the bot owner)
+
 ### Data Export (GDPR Compliance)
 **`/data-export`**
 - **Admin-only command**
@@ -870,6 +882,7 @@ All commands are protected with rate limiting:
 - **Reaction role changes**: 5 per hour per guild (add/remove/edit)
 - **Status commands**: 5 per hour (set/clear)
 - **Bot setup**: 5 per hour per guild
+- **Health check** (`/bot-health check`): 1 per minute per guild; deep checks 1 per 10 minutes
 - **Data export**: Once per 24 hours per guild
 - **Reaction cooldown**: 2 seconds per user on reaction-based features
 - **Global throttle**: 30 commands/minute per user
@@ -884,7 +897,7 @@ All commands are protected with rate limiting:
 
 | Level | Access |
 |-------|--------|
-| **Bot Owner** | Status commands (BOT_OWNER_ID env var) |
-| **Admin** | All commands + role management + setup + data export |
+| **Bot Owner** | Status commands, `/bot-health check` on any server (BOT_OWNER_ID env var) |
+| **Admin** | All commands + role management + setup + data export + health check |
 | **Staff** | Ticket replies only |
 | **User**  | None (all commands are staff-only) |
