@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.29] - 2026-10-06
+
+Ticket creation robustness (NindroidA/cogworks-bot#41): smart routing now
+actually assigns tickets, long or oddly configured ticket types can be opened
+again, and a failed creation no longer leaves an orphan channel or a broken
+ticket row behind.
+
+### Fixed
+
+- **Smart routing assigns new tickets.** `routeTicket` was only ever called by
+  the dev test command, so `/ticket routing` rules did nothing. Ticket creation
+  now routes when smart routing and the workflow system are on and a rule
+  matches the type: the picked staff member gets a channel overwrite,
+  `assignedTo`/`assignedAt` are saved, and the channel gets the
+  "automatically assigned" notice that pings them. The opener is never picked,
+  and a routing failure only leaves the ticket unassigned.
+- **Routing finds staff without presence data.** The bot runs without the
+  privileged GuildPresences intent, so the online/idle filter matched nobody.
+  Without that intent every non-bot member of the rule's role is now eligible
+  (with it, the online/idle filter still applies). Guilds up to 1,000 members
+  fetch the member list first, since the member cache keeps only 200.
+- **Ticket types with long names open again.** The modal title and field
+  labels are clamped to Discord's 45-character limit (without splitting an
+  emoji), placeholders to 100, and stored min/max lengths are kept within
+  0-4000 with min no greater than max. A `<:name:id>` custom emoji is left out
+  of the modal title, which can't render it.
+- **One bad emoji or a 26th type no longer breaks the ticket menu.** An emoji
+  Discord won't accept (`:bug:`, plain text) falls back to 🎫 instead of failing
+  the whole menu, and the menu shows the first 25 types.
+- **Restricted users and deactivated types are refused everywhere.** The legacy
+  type buttons and the modal submit now check user restrictions and inactive
+  types like the menu does, so the button fallback can't bypass them.
+- **No more orphan channels or broken rows.** The reply is deferred before any
+  work, the channel id is saved right after the channel is created, and if
+  setup fails before the welcome message is posted the channel is deleted and
+  then the row (Discord first). A failure after the welcome keeps the linked
+  ticket, and the opener is pointed at it.
+- **The bot keeps access to the ticket channels it creates.** Each ticket
+  channel gets an overwrite for the bot (View Channel, Send Messages, Read
+  Message History, Manage Channels), so a bot without Administrator can post the
+  welcome message and read the channel for transcripts.
+- **Ticket answers can't ping @everyone or roles.** The opener's answers are
+  sent with no allowed mentions, the welcome message can mention only the
+  opener, and the staff ping can mention only the configured staff role.
+- **Ticket rate limits are per server.** The 3-per-hour limit is now counted
+  per user in each server instead of across every server the bot is in;
+  `/ticket email-import` shares the same per-server budget.
+
 ## [3.16.21] - 2026-10-06
 
 Health-check engine, the foundation for the upcoming `/bot-health` command
