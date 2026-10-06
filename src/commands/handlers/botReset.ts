@@ -20,7 +20,6 @@ import {
   MessageFlags,
   Routes,
 } from 'discord.js';
-import type { ExtendedClient } from '../../types/ExtendedClient';
 import {
   enhancedLogger,
   formatBytes,
@@ -32,6 +31,7 @@ import {
 import { Colors } from '../../utils/colors';
 import { deleteAllGuildData } from '../../utils/database/guildQueries';
 import { compileGuildArchive } from '../../utils/offboarding/archiveCompiler';
+import { invalidateBaitCaches } from '../../utils/offboarding/guildCaches';
 import { cleanupGuildMessages } from '../../utils/offboarding/messageCleanup';
 import { getClientId, getRest } from '../../utils/restClient';
 import { clearGuildCommandSignature } from '../../utils/setup/commandGating';
@@ -64,7 +64,7 @@ export async function botResetHandler(client: Client, interaction: ChatInputComm
           '- All memory items and tags\n' +
           '- All bot-sent messages (buttons, menus, embeds)\n' +
           '- All XP data, event data, analytics data\n' +
-          '- All audit logs and bait detection logs\n' +
+          '- All audit logs, bait detection logs and role permission grants\n' +
           '- All slash commands (re-registered on `/bot-setup`)',
       );
 
@@ -274,15 +274,13 @@ async function executeReset(
     // 2. Clean up messages
     const cleanup = await cleanupGuildMessages(client, guildId);
 
-    // 3. Clear caches
-    try {
-      (client as ExtendedClient).baitChannelManager?.clearConfigCache(guildId);
-    } catch {
-      /* cache clear is best-effort */
-    }
+    // 3. Clear caches. deleteAllGuildData drops the other per-guild caches itself; the bait
+    //    caches live on the client, so clear them here, on both sides of the purge.
+    invalidateBaitCaches(client, guildId);
 
     // 4. Purge database
     const purgeResult = await deleteAllGuildData(guildId);
+    invalidateBaitCaches(client, guildId); // a message handled mid-purge may have re-cached the config
 
     // 5. Unregister guild commands
     let commandsRemoved = false;

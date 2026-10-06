@@ -3,26 +3,14 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'disc
 import { StarboardConfig } from '../typeorm/entities/starboard/StarboardConfig';
 import { StarboardEntry } from '../typeorm/entities/starboard/StarboardEntry';
 import { enhancedLogger, fetchPartial, LogCategory } from '../utils';
-import { CACHE_TTL } from '../utils/constants';
-import { createTtlCache } from '../utils/database/configCache';
 import { lazyRepo } from '../utils/database/lazyRepo';
+import { getStarboardConfig, invalidateStarboardCache } from '../utils/starboard/configCache';
+
+// The config cache moved to utils so the guild purge can invalidate it; re-exported for existing callers.
+export { invalidateStarboardCache };
 
 const configRepo = lazyRepo(StarboardConfig);
 const entryRepo = lazyRepo(StarboardEntry);
-
-// Guild-config TTL cache — the same createTtlCache the other six config
-// caches adopted in v3.7.0 (this was the surviving hand-rolled outlier).
-const configCache = createTtlCache<string, StarboardConfig>(CACHE_TTL.STARBOARD_CONFIG);
-
-/** Invalidate starboard cache for a guild (call on config change or guild leave) */
-export function invalidateStarboardCache(guildId: string): void {
-  configCache.invalidate(guildId);
-}
-
-/** Get starboard config with TTL cache (getOrLoad never caches misses) */
-function getStarboardConfig(guildId: string): Promise<StarboardConfig | null> {
-  return configCache.getOrLoad(guildId, id => configRepo.findOneBy({ guildId: id }));
-}
 
 /** Get gold-gradient color based on star count */
 function getStarColor(count: number): number {
