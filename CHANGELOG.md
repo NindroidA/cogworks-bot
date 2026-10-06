@@ -66,10 +66,11 @@ Auto-close is fixed separately in 3.16.13.
 ### Fixed
 
 - **`/ticket manage status closed` archives and deletes the channel** like the
-  Close button. It used to set the status to `closed` and nothing else, which
-  left a live channel that every close path (the Close button, the dashboard,
-  `/ticket manage`) then refused as already closed. The Close button's
-  claim → archive → revert-on-failure sequence moved into
+  Close button, right away and with no confirmation step (the transcript is
+  kept in the archive forum). It used to set the status to `closed` and
+  nothing else, which left a live channel that every close path (the Close
+  button, the dashboard, `/ticket manage`) then refused as already closed. The
+  Close button's claim → archive → revert-on-failure sequence moved into
   `utils/ticket/claimAndArchive.ts`, and both now use it.
 - **A deleted archive forum gives a clear "not configured" error.** Deleting
   the forum blanks the archive config's channel instead of removing the row, so
@@ -91,7 +92,8 @@ Auto-close is fixed separately in 3.16.13.
   `tickets` permission** at the `manage` level, like the other `/ticket`
   subcommands. A server that gave staff `/ticket` through Discord's
   Integrations settings but has no dashboard permission rows falls back to
-  admin-only for these three until an admin grants `tickets: manage`.
+  admin-only for these three until an admin grants `tickets: manage`. Roles
+  granted only `tickets: use` also need `manage` for these three.
 
 ## [3.16.3] - 2026-07-07
 
