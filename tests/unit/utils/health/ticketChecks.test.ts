@@ -421,7 +421,16 @@ describe('ticket system status', () => {
   });
 
   test('a config row makes the system configured', async () => {
+    const rows = {
+      TicketConfig: [{ id: 1, guildId: G, channelId: TICKET_CHANNEL, messageId: '', categoryId: null }],
+    };
+    expect((await report(rows))?.status).not.toBe('not_configured');
+  });
+
+  test('a config whose panel channel was blanked fails instead of passing', async () => {
     const rows = { TicketConfig: [{ id: 1, guildId: G, channelId: '', messageId: '', categoryId: null }] };
-    expect(await report(rows)).toEqual({ status: 'ok', findings: [] });
+    const system = await report(rows);
+    expect(system?.status).toBe('fail');
+    expect(system?.findings.map(f => f.code)).toContain('ticket.panel.panel_unset');
   });
 });
