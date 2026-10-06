@@ -117,9 +117,15 @@ describe('memory.forum', () => {
   });
 
   test('fail: the same forum set up twice reports the newer config once', async () => {
-    const findings = await runChecks(id, { MemoryConfig: [config({ id: 7, channelName: 'Copy' }), config({ id: 3 })] }, guild());
+    const rows = [config({ id: 7, channelName: 'Copy' }), config({ id: 3, channelName: 'Ideas' })];
+    const findings = await runChecks(id, { MemoryConfig: rows }, guild());
     expect(codes(findings)).toEqual(['memory.forum.duplicate']);
-    expect(findings[0]).toMatchObject({ severity: 'cosmetic', rowId: 7, params: { keptRowId: 3, name: 'Copy' } });
+    expect(findings[0]).toMatchObject({
+      severity: 'cosmetic',
+      repair: 'manual',
+      rowId: 7,
+      params: { keptRowId: 3, keptName: 'Ideas', name: 'Copy' },
+    });
   });
 
   test('welcome post: an uncached thread is only looked up in deep mode', async () => {

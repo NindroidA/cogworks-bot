@@ -16,7 +16,10 @@ planned for this step come in a separate release to keep this one reviewable.
 
 - **Rules**: the rules channel (deleted, a channel without a text chat, or the
   bot can't see reactions there; the text chat of a voice or stage channel,
-  which the dashboard offers, counts as working), the rules message (deep mode
+  which the dashboard offers, counts as working; missing Send Messages or Add
+  Reactions is only degraded, and the text says they're needed to post the
+  message again, which re-running setup does after deleting the current one),
+  the rules message (deep mode
   only, and still looked up when only Add Reactions or Send Messages is
   missing), the role it gives (deleted, @everyone, managed by an integration, or
   at/above the bot's highest role), Manage Roles, and an emoji a reaction can
@@ -33,10 +36,12 @@ planned for this step come in a separate release to keep this one reviewable.
   so an option whose menu row is gone can't be tied to a guild and isn't
   checked.
 - **Memory**: each memory forum (deleted, not a forum, missing permissions, set
-  up twice) and its welcome post, tags whose memory channel is gone, whose forum
+  up twice: the text names both entries, says which one commands in its posts
+  use, and warns that removing one also deletes its memories, tags and welcome
+  post) and its welcome post, tags whose memory channel is gone, whose forum
   tag is missing or whose type isn't category or status, stale copies of a tag
-  left by earlier setup re-runs (reported as removable, since re-running setup
-  keeps the linked copy and leaves them), and memories whose memory channel is
+  left by earlier setup re-runs (removable by the coming repair, since
+  re-running setup keeps the linked copy and leaves them), and memories whose memory channel is
   gone or whose post was deleted. Archived posts aren't cached, so a deleted
   post is only reported in deep mode, through the REST budget: at most 20 posts
   per run (the rest are listed as not checked), and none in a forum the bot
@@ -46,7 +51,8 @@ planned for this step come in a separate release to keep this one reviewable.
   channel's type and the bot's permissions in it in one lookup, role
   assignability, and deep-mode message and thread lookups that only report
   "missing" on proof (Unknown Message / Unknown Channel).
-- English strings for every new finding code in `src/lang/en/health.json`.
+- English strings for every new finding code in `src/lang/en/health.json`. Each
+  names the command that fixes the problem, or says when no action is needed.
 
 ### Changed — health-check engine REST budget (internal)
 
