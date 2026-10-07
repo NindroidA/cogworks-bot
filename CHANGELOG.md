@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.17.1] - 2026-10-07
+
+The dashboard side of `/bot-health` (NindroidA/cogworks-bot#41): two
+internal API endpoints let the dashboard show a server's health report and
+run the same repairs as `/bot-health repair`. Nothing changes in Discord.
+
+### Added
+
+- **`GET /internal/guilds/:guildId/bot-health/report?system=&deep=0|1`**
+  returns the health report and its repair plan: the fixes, and the findings
+  that can't be fixed and why. Each finding comes with its key (what a repair
+  request picks it by), its explanation with the values filled in, and
+  whether a fix exists and what it does. A report is cached for 60 seconds per
+  server, system and deep setting. A deep check that isn't cached uses the
+  server's deep-check slot, the one `/bot-health check deep:true` uses; once
+  it's used up the endpoint answers 429.
+- **`POST /internal/guilds/:guildId/bot-health/repair`** with
+  `{ keys?, auto?, dryRun?, system?, deep?, triggeredBy }` always checks the
+  server again, then plans the picked fixes (`keys`, plus every automatic
+  fix with `auto: true`).
+  - A dry run returns each write with its values before and after, and
+    changes nothing.
+  - Otherwise `triggeredBy` is required. The repair uses one of the server's 5
+    repairs an hour (shared with `/bot-health repair`; a deep one also uses
+    the deep-check slot), is applied and audited as a dashboard action, and
+    returns each write's outcome, a fresh report, and the keys that matched
+    no fix. While another repair of the server runs, the answer is 409.
+  - A slot is given back when what it paid for didn't run: a failed check, a
+    failed or refused repair, or a request with nothing to fix.
+- `src/utils/health/repair/serialize.ts`: the JSON for reports, plans, steps
+  and results.
+
 ## [3.16.51] - 2026-10-07
 
 Groundwork for `/bot-health repair` (NindroidA/cogworks-bot#41): the screens

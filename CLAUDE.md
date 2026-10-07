@@ -502,7 +502,11 @@ thread.edit({ appliedTags: mergedTags });
 ### Internal API (v3.0.0)
 HTTP server on port 3002 for dashboard. Auth: Bearer token with timing-safe comparison.
 - Pattern: `POST /internal/guilds/:guildId/<feature>/<action>`
-- Handlers: `src/utils/api/handlers/` — tickets, applications, announcements, memory, rules, reactionRoles, guilds, config, setup, analytics, baitChannel, commands, maintenance, permissions, status
+- Handlers: `src/utils/api/handlers/` — tickets, applications, announcements, memory, rules, reactionRoles, guilds, config, setup, analytics, baitChannel, commands, maintenance, permissions, status, botHealth
+- Route keys that start with `/internal/` are top-level (`GET /internal/guilds`, `GET /internal/health`); every other key is guild-scoped, reachable only as `/internal/guilds/:guildId/<key>` after the bot-in-guild check. A guild handler's `guildId` comes from the path: never read one from the body.
+- **Bot health** (`botHealthHandlers.ts`, the dashboard side of `/bot-health`):
+  - `GET /internal/guilds/:guildId/bot-health/report?system=&deep=0|1` → `{ report, plan: { fixes, unsupported } }`; each finding gains `key`, `text`, `fixable` and `label` (`utils/health/repair/serialize.ts`). Cached 60 s per (guild, system, deep). An uncached deep check takes the guild's `bot-health-deep` slot, the one `/bot-health check deep:true` takes (429 when refused).
+  - `POST /internal/guilds/:guildId/bot-health/repair` `{ keys?, auto?, dryRun?, system?, deep?, triggeredBy }` always checks afresh and plans `keys` plus, with `auto`, every automatic fix. `dryRun` returns the `steps` (before/after) and writes nothing. Otherwise `triggeredBy` (a user id) is required, it takes the guild's `bot-health-repair` slot (shared with the command; deep also takes the deep slot), applies with source `dashboard` under the guild's repair lock (409 while one runs) and returns `results`, `counts`, the re-checked `report` and `plan`, and `keysNotFound`. A slot is refunded when what it paid for didn't run.
 - **Body field validation**: Use helpers from `src/utils/api/helpers.ts` — never use `as string` casts on `body` fields:
 ```typescript
 import { requireString, optionalString, requireNumber, optionalNumber, requireBoolean, optionalStringArray } from '../helpers';
