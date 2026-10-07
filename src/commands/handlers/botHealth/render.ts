@@ -26,6 +26,7 @@ import type {
   SystemHealthStatus,
   SystemReport,
 } from '../../../utils/health/types';
+import { clampText } from '../../../utils/validation/inputSanitizer';
 
 const tl = lang.health.command;
 const tr = tl.repair;
@@ -61,8 +62,9 @@ export interface RenderOptions {
 
 const systemLabel = (system: string) => systemLabels[system] ?? system;
 
+/** Cut to `max` UTF-16 units with a trailing `…`, never splitting an emoji: a lone surrogate gets the whole payload rejected. */
 export function truncate(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+  return clampText(text, max);
 }
 
 const SEVERITY_ORDER: Record<HealthSeverity, number> = { block: 0, degraded: 1, cosmetic: 2 };
