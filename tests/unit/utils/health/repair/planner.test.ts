@@ -509,7 +509,7 @@ describe('planRepairs: merging', () => {
 
   test('unsupported: no repair, rows not loaded, row gone, nothing to change', () => {
     const findings = [
-      finding('core.locale.unsupported', 'BotConfig', 1, ''),
+      finding('ticket.panel.message_missing', 'TicketConfig', 1, '', 'confirm'),
       finding('starboard.config.channel_missing', 'StarboardConfig', 8, GONE),
       finding('xp.config.ignored_channel_missing', 'XPConfig', 6, GONE),
       finding('xp.config.ignored_channel_missing', 'XPConfig', 5, GONE_2),
@@ -525,7 +525,7 @@ describe('planRepairs: merging', () => {
     };
     const plan = planRepairs(reportOf(findings), makeCheckContext({ rows }));
     expect(plan.unsupported.map(u => [u.code, u.reason])).toEqual([
-      ['core.locale.unsupported', 'no_action'],
+      ['ticket.panel.message_missing', 'no_action'],
       ['starboard.config.channel_missing', 'rows_unavailable'],
       ['xp.config.ignored_channel_missing', 'row_gone'],
       ['xp.config.ignored_channel_missing', 'no_change'],

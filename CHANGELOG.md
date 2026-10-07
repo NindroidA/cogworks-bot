@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.50] - 2026-10-07
+
+The rest of the repair plan for `/bot-health repair`
+(NindroidA/cogworks-bot#41): fixes for findings about a row's own values,
+the missing built-in announcement templates, and the server's slash commands.
+Nothing calls the repair yet. The only change you could see is a small fix in
+`/bot-health check` (below).
+
+### Added
+
+- **27 field repairs** (`src/utils/health/repair/fieldRepairs.ts`), one table
+  entry per finding code.
+  - Automatic: turn off a global staff role that has no role selected (only
+    while still none is), save legacy `<@&id>` staff roles as the raw id, set
+    an unsupported server language to English, remove a staff role saved twice
+    with the same alias, remove a permission grant for an unknown feature,
+    unknown level or deleted role, unselect unknown systems in the setup
+    dashboard, unmark extra default ticket types, reset an invalid ticket type
+    color, remove tags left from a deleted memory channel, set an unknown
+    reaction-role mode to normal, add the missing built-in announcement
+    templates, and register the server's slash commands again.
+  - Asked first: remove a staff role saved twice under another alias or that
+    isn't a valid role, clear a ticket type or position emoji Discord rejects,
+    remove a ticket restriction for a type that doesn't exist, close a ticket
+    whose channel was never created (only while it still has none), delete a
+    saved memory left from a deleted memory channel (the checks rate it
+    automatic, but the memory has no other copy), remove a zero or negative
+    XP multiplier, swap an inverted XP rate, remove the second XP role reward
+    for one level, and set an invalid starboard threshold to 1.
+- **Inserts and commands in the plan and the applier.** A missing template is
+  inserted as its own step, scoped to the server, and skipped when the
+  server got that template meanwhile. Missing, changed and leftover slash
+  commands become one step that registers the server's command set once,
+  after every database write. A failed registration fails only that step.
+- Every field repair that changes or deletes a row writes only while the row
+  still holds what the check saw, plus any value the fix depends on: picking a
+  global staff role, or the ticket getting its channel, leaves the row alone.
+  Only the permission grant for a deleted role re-checks Discord first.
+- Labels for the new repairs under `health.repair.actions`.
+
+### Fixed
+
+- **`/bot-health check` no longer reports a live XP role reward as the
+  duplicate of one whose role was deleted.** A reward with a deleted role is
+  now only reported as such, and never counts as the reward a level keeps
+  (`src/utils/health/checks/xp.ts`). Before, removing the "duplicate" and then
+  the dead reward would have left that level with no reward at all.
+
 ## [3.16.49] - 2026-10-07
 
 The writing half of `/bot-health repair` (NindroidA/cogworks-bot#41). It

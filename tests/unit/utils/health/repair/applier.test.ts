@@ -73,17 +73,21 @@ function fakeStore(
 function makeDeps(store: RepairStore, overrides: Partial<ApplyDeps> = {}) {
   const flushed: string[] = [];
   const audits: unknown[][] = [];
+  const registered: string[] = [];
   const deps: Partial<ApplyDeps> = {
     store,
     invalidateGuildCaches: guildId => flushed.push(`guild ${guildId}`),
     invalidateBaitCaches: (_client, guildId) => flushed.push(`bait ${guildId}`),
     requestGuildCommandRefresh: guildId => flushed.push(`commands ${guildId}`),
+    registerGuildCommands: async guildId => {
+      registered.push(guildId);
+    },
     writeAuditLog: async (...args) => {
       audits.push(args);
     },
     ...overrides,
   };
-  return { deps, flushed, audits };
+  return { deps, flushed, audits, registered };
 }
 
 describe('applyRepairPlan: outcomes', () => {
@@ -161,6 +165,70 @@ describe('applyRepairPlan: outcomes', () => {
     const steps = [step('set', [role(GONE_ROLE), role(ROLE)])];
     const result = await applyRepairPlan(guildOf(), plan(steps), ACTOR, makeDeps(store).deps);
     expect(result.results.map(r => r.outcome)).toEqual(['skipped-not-missing']);
+    expect(calls).toEqual([]);
+  });
+});
+
+describe('applyRepairPlan: inserts and commands', () => {
+  const insert = (values: Record<string, unknown>) =>
+    step('insert', [], { entity: 'AnnouncementTemplate', where: { guildId: G }, guard: {}, values });
+  const command = () =>
+    step('command', [], {
+      entity: 'ApplicationCommand',
+      where: { guildId: G },
+      guard: {},
+      command: 'registerGuildCommands',
+    });
+
+  test('they run after sets and deletes, the command last; an insert always names the target guild', async () => {
+    const inserted: Record<string, unknown>[] = [];
+    const { store, calls } = fakeStore();
+    store.insert = async (entity, values) => {
+      calls.push(`insert ${entity}`);
+      inserted.push(values);
+      return 'applied';
+    };
+    const { deps, registered, audits } = makeDeps(store);
+    const steps = [command(), insert({ name: 'welcome', guildId: OTHER }), step('delete', []), step('set', [])];
+    const result = await applyRepairPlan(guildOf(), plan(steps), ACTOR, deps);
+    expect(result.results.map(r => [r.step.op, r.outcome])).toEqual([
+      ['set', 'applied'],
+      ['delete', 'applied'],
+      ['insert', 'applied'],
+      ['command', 'applied'],
+    ]);
+    expect(calls).toEqual([
+      `set XPConfig:${steps[3].where.id}`,
+      `delete XPConfig:${steps[2].where.id}`,
+      'insert AnnouncementTemplate',
+    ]);
+    expect(inserted).toEqual([{ name: 'welcome', guildId: G }]);
+    expect(registered).toEqual([G]);
+    // The audit row shows the row as written.
+    expect((audits[0][3] as any).steps[2]).toMatchObject({ op: 'insert', values: { name: 'welcome', guildId: G } });
+  });
+
+  test('an insert on a taken key is exists and flushes nothing; a failing command fails only its step', async () => {
+    const { store } = fakeStore(({ op }) => (op === 'insert' ? 'exists' : 'applied'));
+    const { deps, flushed, audits } = makeDeps(store, {
+      registerGuildCommands: async () => {
+        throw new Error('rest 50001');
+      },
+    });
+    const result = await applyRepairPlan(guildOf(), plan([insert({ name: 'welcome' }), command()]), ACTOR, deps);
+    expect(result.results.map(r => [r.step.op, r.outcome, r.error])).toEqual([
+      ['insert', 'exists', undefined],
+      ['command', 'failed', 'rest 50001'],
+    ]);
+    expect(flushed).toEqual([]);
+    expect((audits[0][3] as any).steps[0]).toMatchObject({ op: 'insert', values: { name: 'welcome' } });
+  });
+
+  test('a row step naming ApplicationCommand fails instead of reaching the store', async () => {
+    const { store, calls } = fakeStore();
+    const steps = [step('set', [], { entity: 'ApplicationCommand' })];
+    const result = await applyRepairPlan(guildOf(), plan(steps), ACTOR, makeDeps(store).deps);
+    expect(result.results.map(r => r.outcome)).toEqual(['failed']);
     expect(calls).toEqual([]);
   });
 });

@@ -4,13 +4,14 @@
  *
  * Each step first re-proves that the objects it relies on are still gone
  * (`verifyProof`), then writes through the store, which only writes while the
- * row still holds the values the plan saw. A step that fails is recorded and
- * the others still run. Afterwards the guild's caches are flushed once (only
+ * row still holds the values the plan saw (an insert skips a row already on
+ * its unique key), or runs its command. A step that fails is recorded and the
+ * others still run. Afterwards the guild's caches are flushed once (only
  * if something changed) and one audit row is written to the guild.
  *
- * The default store, cache flushes and audit writer are loaded on first use,
- * so importing this module never loads the cache modules, command gating or
- * the audit helper; tests inject fakes.
+ * The default store, cache flushes, command registration and audit writer are
+ * loaded on first use, so importing this module never loads the cache modules,
+ * command gating or the audit helper; tests inject fakes.
  */
 import type { Client, Guild } from 'discord.js';
 import type { AuditSource } from '../../api/handlers/auditHelper';
@@ -18,7 +19,7 @@ import { enhancedLogger, LogCategory } from '../../monitoring/enhancedLogger';
 import { createRestFetcher, type RestFetcher } from '../context';
 import { RepairBusyError, tryLockGuildRepair } from './lock';
 import { appRepairDb, createRepairStore, type RepairStore, type StoreOutcome } from './store';
-import type { RepairPlan, RepairStep } from './types';
+import type { RepairEntityName, RepairPlan, RepairStep } from './types';
 import { verifyProof } from './verify';
 
 /**
@@ -55,6 +56,8 @@ export interface ApplyDeps {
   invalidateGuildCaches(guildId: string): void;
   invalidateBaitCaches(client: Client, guildId: string): void;
   requestGuildCommandRefresh(guildId: string): void;
+  /** A command step: registers the guild's slash commands now. Throws on a Discord error. */
+  registerGuildCommands(guildId: string): Promise<void>;
   writeAuditLog(
     guildId: string,
     action: string,
@@ -73,7 +76,7 @@ const OUTCOMES: readonly StepOutcome[] = [
   'skipped-unverified',
   'failed',
 ];
-/** Sets, then deletes, then inserts and commands (later PRs), so a command sync sees the final rows. */
+/** Sets, then deletes, then inserts, then commands, so a command registration sees the final rows. */
 const OP_ORDER: Readonly<Record<string, number>> = { set: 0, delete: 1, insert: 2, command: 3 };
 const AUDIT_MAX_STEPS = 100;
 const AUDIT_MAX_VALUE = 200;
@@ -83,6 +86,7 @@ const DEFAULTED = [
   'invalidateGuildCaches',
   'invalidateBaitCaches',
   'requestGuildCommandRefresh',
+  'registerGuildCommands',
   'writeAuditLog',
 ] as const;
 
@@ -100,17 +104,34 @@ async function withDefaults(deps: Partial<ApplyDeps>): Promise<ApplyDeps> {
     invalidateGuildCaches: caches.invalidateGuildCaches,
     invalidateBaitCaches: caches.invalidateBaitCaches,
     requestGuildCommandRefresh: gating.requestGuildCommandRefresh,
+    registerGuildCommands: gating.registerGuildCommands,
     writeAuditLog: audit.writeAuditLog,
   };
   return { rest: createRestFetcher(), ...defaults, ...given };
 }
 
-function write(store: RepairStore, step: RepairStep): Promise<StoreOutcome> {
+/** An insert's row as written: the guild's id last, so the values can't name another guild. */
+const insertedRow = (step: RepairStep, guildId: string) => ({ ...step.values, guildId });
+
+/** The table a row step writes. Only a command step names `ApplicationCommand`. */
+function tableOf(step: RepairStep): RepairEntityName {
+  if (step.entity === 'ApplicationCommand') throw new Error(`A ${step.op} step can't write ${step.entity}`);
+  return step.entity;
+}
+
+async function write(guild: Guild, step: RepairStep, deps: ApplyDeps): Promise<StoreOutcome> {
+  const { store } = deps;
   switch (step.op) {
     case 'set':
-      return store.set(step.entity, step.where, step.guard, step.set ?? {});
+      return store.set(tableOf(step), step.where, step.guard, step.set ?? {});
     case 'delete':
-      return store.delete(step.entity, step.where, step.guard, step.cascade);
+      return store.delete(tableOf(step), step.where, step.guard, step.cascade);
+    case 'insert':
+      return store.insert(tableOf(step), insertedRow(step, guild.id));
+    case 'command':
+      if (step.command !== 'registerGuildCommands') throw new Error(`Unknown repair command ${step.command}`);
+      await deps.registerGuildCommands(guild.id);
+      return 'applied';
   }
 }
 
@@ -121,7 +142,7 @@ async function applyStep(guild: Guild, step: RepairStep, deps: ApplyDeps): Promi
       if (status === 'ok') return { step, outcome: 'skipped-not-missing' };
       if (status !== 'missing') return { step, outcome: 'skipped-unverified' };
     }
-    return { step, outcome: await write(deps.store, step) };
+    return { step, outcome: await write(guild, step, deps) };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     enhancedLogger.warn(`Repair step on ${step.entity} failed`, LogCategory.DATABASE, {
@@ -162,7 +183,7 @@ function clip(values: Record<string, unknown>): Record<string, unknown> {
   );
 }
 
-function auditDetails(plan: RepairPlan, result: RepairResult, checkedAt: string): Record<string, unknown> {
+function auditDetails(plan: RepairPlan, result: RepairResult, guildId: string, checkedAt: string) {
   const codeOf = new Map(plan.fixes.map(fix => [fix.key, fix.code]));
   const steps = result.results.slice(0, AUDIT_MAX_STEPS).map(({ step, outcome }) => ({
     entity: step.entity,
@@ -172,6 +193,7 @@ function auditDetails(plan: RepairPlan, result: RepairResult, checkedAt: string)
     codes: [...new Set(step.keys.map(key => codeOf.get(key) ?? key))],
     guard: clip(step.guard),
     ...(step.set ? { set: clip(step.set) } : {}),
+    ...(step.values ? { values: clip(insertedRow(step, guildId)) } : {}),
   }));
   const omitted = result.results.length - steps.length;
   return { checkedAt, counts: result.counts, steps, ...(omitted > 0 ? { stepsOmitted: omitted } : {}) };
@@ -204,7 +226,7 @@ export async function applyRepairPlan(
     if (counts.applied > 0) flushCaches(guild, resolved);
 
     const action = actor.source === 'command' ? 'command:bot-health:repair' : 'bot-health.repair';
-    const details = auditDetails(plan, result, actor.checkedAt);
+    const details = auditDetails(plan, result, guild.id, actor.checkedAt);
     await resolved.writeAuditLog(guild.id, action, actor.userId, details, actor.source);
     return result;
   } finally {

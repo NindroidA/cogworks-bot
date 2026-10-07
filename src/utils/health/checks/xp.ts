@@ -5,6 +5,7 @@
  */
 import { rowsOf } from '../context';
 import { defineCheck, type FindingTarget } from '../define';
+import { resolveRole } from '../refs';
 import type { HealthCheck, HealthFinding } from '../types';
 import {
   assignableRoleFindings,
@@ -86,12 +87,15 @@ const roleRewards = defineCheck(
       const { id, level } = row;
       const at: FindingTarget = { entity: 'XPRoleReward', rowId: id, field: 'roleId', params: { level } };
       // One reward per level is enforced by /xp-setup only (no unique index). Both are granted,
-      // but `/xp-setup role-reward-remove` only ever removes the first.
-      const kept = firstAtLevel.get(level);
-      if (!kept) firstAtLevel.set(level, { id, roleId: row.roleId });
-      else {
-        const params = { level, roleId: row.roleId, keptRowId: kept.id, keptRoleId: kept.roleId };
-        out.push(emit('duplicate_level', 'cosmetic', 'confirm', { ...at, field: 'level', params }));
+      // but `/xp-setup role-reward-remove` only ever removes the first. A reward whose role was
+      // deleted is only role_missing: kept, it would make the live reward the one to remove.
+      if (resolveRole(ctx.guild, row.roleId).status !== 'missing') {
+        const kept = firstAtLevel.get(level);
+        if (!kept) firstAtLevel.set(level, { id, roleId: row.roleId });
+        else {
+          const params = { level, roleId: row.roleId, keptRowId: kept.id, keptRoleId: kept.roleId };
+          out.push(emit('duplicate_level', 'cosmetic', 'confirm', { ...at, field: 'level', params }));
+        }
       }
       // roleDelete removes the reward when its role goes.
       out.push(...assignableRoleFindings(ctx, emit, 'role', row.roleId, at, { severity: 'cosmetic', repair: 'auto' }));

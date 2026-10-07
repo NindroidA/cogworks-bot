@@ -4,32 +4,48 @@
  * and never changes `ctx`: every value it returns is a copy.
  */
 import { isDeepStrictEqual } from 'node:util';
-import type { RefCascade, RefEntityName } from '../../cleanup/refPatches';
+import type { RefCascade } from '../../cleanup/refPatches';
 import type { CheckContext, HealthEntityName } from '../context';
 import type { HealthFinding, HealthReport } from '../types';
+import { FIELD_REPAIRS, type FieldRepair, type InsertRepair } from './fieldRepairs';
 import { findingKey } from './keys';
-import { REF_REPAIRS, type RefRepair, repairLabel } from './refRepairs';
-import type { PlanOptions, RepairFix, RepairPlan, RepairProof, RepairStep, UnsupportedReason } from './types';
+import { REF_REPAIRS, type RowRepair, repairLabel } from './refRepairs';
+import type {
+  PlanOptions,
+  RepairCommand,
+  RepairEntityName,
+  RepairFix,
+  RepairPlan,
+  RepairProof,
+  RepairStep,
+  UnsupportedReason,
+} from './types';
 
 type Row = Record<string, unknown>;
 
-/** A fix plus what merging it into a step needs. */
+/** A fix on a loaded row plus what merging it into a step needs. */
 interface Planned {
   fix: RepairFix;
-  def: RefRepair;
+  def: RowRepair;
   row: Row;
-  refId: string;
-  proof: RepairProof;
+  finding: HealthFinding;
+  proof?: RepairProof;
   cascade?: readonly RefCascade[];
 }
+
+/** An insert is a step of its own; a command's step is shared, so only its name is kept. */
+type Standalone = { fix: RepairFix; step: RepairStep } | { fix: RepairFix; command: RepairCommand };
+
+/** What every fix carries, whatever it does. */
+type FixBase = Pick<RepairFix, 'key' | 'code' | 'label' | 'system' | 'repair'>;
 
 const copy = <T>(value: T): T => structuredClone(value);
 
 /** BotConfig is keyed by its guild; every other row by its id. */
-const primaryKey = (entity: RefEntityName) => (entity === 'BotConfig' ? 'guildId' : 'id');
+const primaryKey = (entity: RepairEntityName) => (entity === 'BotConfig' ? 'guildId' : 'id');
 
 /** An entity's loaded rows, or null when they failed to load or this run didn't load them. Options load with their menu. */
-function loadedRows(ctx: CheckContext, entity: RefEntityName): Row[] | null {
+function loadedRows(ctx: CheckContext, entity: RepairEntityName): Row[] | null {
   if (entity === 'ReactionRoleOption')
     return loadedRows(ctx, 'ReactionRoleMenu')?.flatMap(menu => (menu.options as Row[] | undefined) ?? []) ?? null;
   return (ctx.rows[entity as HealthEntityName] as Row[] | null | undefined) ?? null;
@@ -47,38 +63,29 @@ function changed(row: Row, set: Row, fields: readonly string[]): Row {
   );
 }
 
-function whereOf(guildId: string, entity: RefEntityName, row: Row): RepairStep['where'] {
+function whereOf(guildId: string, entity: RepairEntityName, row: Row): RepairStep['where'] {
   if (entity === 'BotConfig') return { guildId };
   const where = { guildId, id: row.id as number };
   return entity === 'ReactionRoleOption' ? { ...where, menuId: row.menuId as number } : where;
 }
 
 /** One finding as a fix against its loaded row, or why it can't be one. */
-function planFinding(
-  f: HealthFinding & { refId: string; rowId: string | number },
-  def: RefRepair,
-  ctx: CheckContext,
-  base: Pick<RepairFix, 'key' | 'repair'>,
-): Planned | UnsupportedReason {
+function planRow(f: HealthFinding, def: RowRepair, ctx: CheckContext, base: FixBase): Planned | UnsupportedReason {
+  // A repair the applier must re-prove needs the object's id.
+  if (f.rowId === undefined || (def.proof && !f.refId)) return 'no_action';
   const rows = loadedRows(ctx, def.entity);
   if (!rows) return 'rows_unavailable';
   const row = rows.find(r => String(r[primaryKey(def.entity)]) === String(f.rowId));
   if (!row) return 'row_gone';
-  const patch = def.patch(row, f.refId);
+  const patch = def.patch(row, f);
   if (!patch) return def.keeps?.(row) ? 'kept_outcome' : 'no_change';
-  const fix = {
-    ...base,
-    code: f.code,
-    label: repairLabel(f.code),
-    system: f.system,
-    entity: def.entity,
-    rowId: f.rowId,
-  };
+  const fix = { ...base, entity: def.entity, rowId: f.rowId };
   const channelId = def.proof === 'message' ? { channelId: String(row.channelId) } : {};
-  const planned = { def, row, refId: f.refId, proof: { kind: def.proof, id: f.refId, ...channelId } };
+  const proof = def.proof && f.refId ? { proof: { kind: def.proof, id: f.refId, ...channelId } } : {};
+  const planned = { def, row, finding: f, ...proof };
 
   if ('remove' in patch) {
-    const cascade: Partial<Record<RefEntityName, number>> = {};
+    const cascade: Partial<Record<RepairEntityName, number>> = {};
     for (const child of patch.cascade ?? []) {
       // The preview must say what goes with the row ("deletes N saved memories"), so no count, no fix.
       const children = loadedRows(ctx, child.entity);
@@ -97,8 +104,35 @@ function planFinding(
   return changes.length > 0 ? { ...planned, fix: { ...fix, op: 'set', changes } } : 'no_change';
 }
 
+/** An insert of the finding's row, scoped to the guild, as its own step. */
+function planInsert(f: HealthFinding, def: InsertRepair, ctx: CheckContext, base: FixBase): Standalone | 'no_action' {
+  const values = def.insert(f);
+  if (!values) return 'no_action';
+  const where = { guildId: ctx.guildId };
+  const step: RepairStep = {
+    entity: def.entity,
+    where,
+    op: 'insert',
+    values: { ...values, ...where },
+    guard: {},
+    proofs: [],
+    keys: [base.key],
+  };
+  return { fix: { ...base, entity: def.entity, op: 'insert', changes: [] }, step };
+}
+
+/** The fix for one finding: a command, an insert, or a write to the flagged row. */
+function planFix(f: HealthFinding, def: FieldRepair, ctx: CheckContext, base: FixBase) {
+  if ('command' in def) {
+    const fix: RepairFix = { ...base, entity: 'ApplicationCommand', op: 'command', changes: [] };
+    return { fix, command: def.command };
+  }
+  return 'insert' in def ? planInsert(f, def, ctx, base) : planRow(f, def, ctx, base);
+}
+
 function uniqueProofs(group: readonly Planned[]): RepairProof[] {
-  return [...new Map(group.map(({ proof }) => [`${proof.kind}:${proof.id}`, proof])).values()];
+  const proofs = group.flatMap(({ proof }) => (proof ? [proof] : []));
+  return [...new Map(proofs.map(proof => [`${proof.kind}:${proof.id}`, proof])).values()];
 }
 
 /** The fixes on one row as one write. A delete absorbs the row's sets. */
@@ -116,12 +150,13 @@ function rowStep(group: readonly Planned[], guildId: string): RepairStep {
   const working: Row = { ...row };
   const set: Row = {};
   for (const p of group) {
-    const patch = p.def.patch(working, p.refId);
+    const patch = p.def.patch(working, p.finding);
     const next = patch && 'set' in patch ? changed(working, patch.set as Row, p.def.fields) : {};
     Object.assign(working, next);
     Object.assign(set, next);
   }
-  return { ...base, op: 'set', set: copy(set), guard: pick(row, Object.keys(set)), proofs: uniqueProofs(group) };
+  const guarded = new Set([...Object.keys(set), ...group.flatMap(p => p.def.guards ?? [])]);
+  return { ...base, op: 'set', set: copy(set), guard: pick(row, guarded), proofs: uniqueProofs(group) };
 }
 
 /** One step per row, then a parent's delete absorbs its children's steps: their rows go with its cascade. */
@@ -152,33 +187,48 @@ function mergeSteps(planned: readonly Planned[], guildId: string): RepairStep[] 
  * The fixes and writes for a report's auto and confirm findings, against the
  * rows the same run loaded (`runHealthCheckWithContext`). Manual findings are
  * skipped; ones without a repair, or whose row can't be read, are listed in
- * `unsupported`. `keys` and `classes` narrow it to a selection.
+ * `unsupported`. `keys` and `classes` narrow it to a selection. Row writes come
+ * first, then inserts, then one step per command however many fixes ask for it.
  */
 export function planRepairs(report: HealthReport, ctx: CheckContext, opts: PlanOptions = {}): RepairPlan {
   const keys = opts.keys ? new Set(opts.keys) : null;
   const classes = opts.classes ?? ['auto', 'confirm'];
   const plan: RepairPlan = { fixes: [], steps: [], unsupported: [] };
   const planned: Planned[] = [];
+  const inserts: RepairStep[] = [];
+  const commands = new Map<RepairCommand, string[]>();
   const seen = new Set<string>();
   for (const f of Object.values(report.systems).flatMap(system => system?.findings ?? [])) {
     const key = findingKey(f);
     // A list holding one id twice yields the same finding twice: one fix covers both.
     if (f.repair === 'manual' || seen.has(key)) continue;
     seen.add(key);
-    const def = REF_REPAIRS[f.code];
+    const def = REF_REPAIRS[f.code] ?? FIELD_REPAIRS[f.code];
     const repair = f.repair === 'confirm' || def?.confirm ? 'confirm' : 'auto';
     if ((keys && !keys.has(key)) || !classes.includes(repair)) continue;
-    const { refId, rowId } = f;
-    const result =
-      def && refId && rowId !== undefined
-        ? planFinding({ ...f, refId, rowId }, def, ctx, { key, repair })
-        : 'no_action';
-    if (typeof result === 'string') plan.unsupported.push({ key, code: f.code, reason: result });
-    else {
-      planned.push(result);
-      plan.fixes.push(result.fix);
+    const base = { key, code: f.code, label: repairLabel(f.code), system: f.system, repair } as const;
+    const result = def ? planFix(f, def, ctx, base) : 'no_action';
+    if (typeof result === 'string') {
+      plan.unsupported.push({ key, code: f.code, reason: result });
+      continue;
     }
+    plan.fixes.push(result.fix);
+    if ('def' in result) planned.push(result);
+    else if ('step' in result) inserts.push(result.step);
+    else commands.set(result.command, [...(commands.get(result.command) ?? []), key]);
   }
-  plan.steps = mergeSteps(planned, ctx.guildId);
+  const where = { guildId: ctx.guildId };
+  const commandSteps = [...commands].map(
+    ([command, stepKeys]): RepairStep => ({
+      entity: 'ApplicationCommand',
+      where,
+      op: 'command',
+      command,
+      guard: {},
+      proofs: [],
+      keys: stepKeys,
+    }),
+  );
+  plan.steps = [...mergeSteps(planned, ctx.guildId), ...inserts, ...commandSteps];
   return plan;
 }
