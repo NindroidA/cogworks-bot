@@ -823,17 +823,28 @@ A forum-based tracking system for bugs, features, suggestions, reminders, and no
 - Shows WebSocket latency, API round-trip time, and uptime
 - Available to all users
 
-### Server Health Check
+### Server Health Check and Repair
 **`/bot-health check [system] [deep] [guild-id]`**
 - **Admin-only** (the bot owner can also run it); works even before `/bot-setup` has been run
 - Checks the saved Cogworks settings against the server's live channels, roles and slash commands, and reports what is broken or stale. It only reads; nothing is changed
 - `system` - (Optional) Check one system: Core (which includes the staff roles and the slash commands), Tickets, Applications, Announcements, Memory, Rules, Reaction roles, XP, Starboard, Onboarding (default: all). The bait channel has no checks yet; a check of all systems lists it as not checked yet
 - `deep` - (Optional) Also look up messages and threads through Discord (slower)
 - `guild-id` - (Optional, bot owner only) Check another server the bot is in
-- **Summary**: one line per system (✅ no problems, ⚠️ found, ❌ something is broken, ➖ not set up or not checked yet). Deep-mode lookups that were skipped are listed by what they cover; the per-run caps are fixed, so a second run skips the same ones
-- **Details**: pick a system to page through its findings (10 per page); deleted channels and roles are shown by ID. Each finding ends with what to do (a command, the web dashboard, or a permission to grant) or says no action is needed. Nothing is changed by the check
+- **Summary**: one line per system (✅ no problems, ⚠️ found, ❌ something is broken, ➖ not set up or not checked yet). Deep-mode lookups that were skipped are listed by what they cover; the per-run caps are fixed, so a second run skips the same ones. The footer counts how many findings `/bot-health repair` can fix automatically, how many it fixes once you confirm them, and how many are left for you
+- **Details**: pick a system to page through its findings (10 per page); deleted channels and roles are shown by ID. Each finding ends with what to do (a command, the web dashboard, or a permission to grant) or says no action is needed, and a finding the repair can fix says so (🔧). Nothing is changed by the check
 - **Export JSON**: attaches the full report to share with support. It holds only IDs, finding codes and numbers: names, titles and other text from the server's settings are left out
 - **Rate limited**: one check per minute and one deep check per 10 minutes per server (not for the bot owner). A check that fails doesn't count, so it can be run again right away
+
+**`/bot-health repair [system] [deep] [guild-id]`**
+- **Admin-only** (the bot owner can also run it, on any server with `guild-id`); works even before `/bot-setup` has been run. Same options as `/bot-health check`
+- Runs the health check, then shows a **preview**. Nothing changes until you press a button
+  - **Automatic fixes**, grouped by what they do (for example "Remove the deleted channel from the XP ignored channels ×2"): clearing deleted channels and roles from settings, turning off a feature whose channel is gone, rewriting legacy or unsupported values, removing duplicate or leftover rows, adding missing built-in announcement templates, and registering the server's slash commands again
+  - **Fixes to confirm**, numbered, with a menu to pick them (25 per page; picks are kept when you change pages): fixes that delete something you may want to keep, such as closing a ticket whose channel was deleted, deleting a reaction-role menu or the rules setup whose message is gone, or deleting saved memories. A fix that deletes a memory channel's settings says how many saved memories go with it
+  - **Left for you**: findings the repair can't fix; `/bot-health check` explains each
+- **Apply automatic fixes** runs every automatic fix; **Apply selected** runs the fixes you picked; **Cancel** changes nothing. Only the admin who ran the command can use the buttons, and Administrator is checked again when you apply
+- Each fix writes only while the setting still holds what the check saw, and a fix for a deleted channel, role, thread or message first checks with Discord that it's still gone. The results say how many fixes were applied, how many were left alone because the setting changed since the check, how many were left alone because the bot couldn't confirm the object is deleted, and how many failed. A fresh check follows (it doesn't count toward the rate limit), with **Preview remaining fixes** to continue
+- One repair runs per server at a time; a second one is told to wait. Every repair is recorded in the server's audit log
+- **Rate limited**: 5 repairs per hour per server; a deep repair also uses the deep check's 10-minute slot (not for the bot owner). A repair whose check fails doesn't count
 
 ### Data Export (GDPR Compliance)
 **`/data-export`**
@@ -886,6 +897,7 @@ All commands are protected with rate limiting:
 - **Status commands**: 5 per hour (set/clear)
 - **Bot setup**: 5 per hour per guild
 - **Health check** (`/bot-health check`): 1 per minute per guild; deep checks 1 per 10 minutes
+- **Repair** (`/bot-health repair`): 5 per hour per guild; a deep repair also uses the deep check's slot
 - **Data export**: Once per 24 hours per guild
 - **Reaction cooldown**: 2 seconds per user on reaction-based features
 - **Global throttle**: 30 commands/minute per user
@@ -912,7 +924,7 @@ Member-facing commands need no grant: `/application check` (your own open applic
 
 | Level | Access |
 |-------|--------|
-| **Bot Owner** | Status commands, `/bot-health check` on any server (BOT_OWNER_ID env var) |
+| **Bot Owner** | Status commands, `/bot-health check` and `/bot-health repair` on any server (BOT_OWNER_ID env var) |
 | **Admin** | All commands + role management + setup + data export + health check |
 | **Feature grant** | The features and levels a dashboard role grant gives (see above) |
 | **User**  | Member-facing commands only (`/application check`, `/rank`, `/leaderboard`, `/ping`, `/coffee`, `/dashboard`) |

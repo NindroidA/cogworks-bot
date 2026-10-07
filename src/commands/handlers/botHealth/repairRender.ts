@@ -19,7 +19,7 @@ import type { RepairResult, StepOutcome } from '../../../utils/health/repair/app
 import { findingKey } from '../../../utils/health/repair/keys';
 import type { RepairFix, RepairPlan } from '../../../utils/health/repair/types';
 import type { HealthReport } from '../../../utils/health/types';
-import { buildSummaryEmbed, findingText, truncate } from './render';
+import { buildSummaryEmbed, type FixableKeys, findingText, truncate } from './render';
 
 const tl = lang.health.command;
 const tr = tl.repair;
@@ -55,6 +55,7 @@ export interface RepairRenderOptions {
   disabled?: boolean;
 }
 
+export const fixesOf = (plan: RepairPlan): FixableKeys => new Map(plan.fixes.map(fix => [fix.key, fix.repair]));
 export const confirmFixes = (plan: RepairPlan) => plan.fixes.filter(fix => fix.repair === 'confirm');
 export const autoKeys = (plan: RepairPlan) => plan.fixes.filter(fix => fix.repair === 'auto').map(fix => fix.key);
 const findingsOf = (report: HealthReport) => Object.values(report.systems).flatMap(system => system?.findings ?? []);
@@ -224,7 +225,7 @@ export function renderResults(result: RepairResult, next: PreviewState | null, o
     new EmbedBuilder().setTitle(tr.results.title).setColor(Colors.status[color]).setDescription(lines.join('\n')),
   ];
   if (!next) return { embeds, components: [] };
-  embeds.push(buildSummaryEmbed(next.report, { guildName: opts.guildName }));
+  embeds.push(buildSummaryEmbed(next.report, { guildName: opts.guildName, fixable: fixesOf(next.plan) }));
   if (next.plan.fixes.length === 0) return { embeds, components: [] };
   const again = button(REPAIR_CID.again, tr.results.again, ButtonStyle.Primary, false);
   return { embeds, components: [new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(again)] };

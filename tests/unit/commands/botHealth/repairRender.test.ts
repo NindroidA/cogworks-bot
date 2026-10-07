@@ -250,6 +250,7 @@ describe('renderResults', () => {
     expect(summary.description).toContain('❌ Failed: 1');
     expect(summary.description).toContain('support server');
     expect(health.title).toBe('Server health');
+    expect(health.footer?.text).toBe('/bot-health repair: 0 automatic, 1 to confirm, 0 to fix yourself');
     expect(view.components[0].toJSON().components[0]).toMatchObject({
       custom_id: REPAIR_CID.again,
       label: 'Preview remaining fixes',

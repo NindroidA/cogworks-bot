@@ -1,7 +1,8 @@
 /**
  * `/bot-health check` handler: who may run it (admins, the bot owner, nobody
  * else), the owner-only `guild-id` option, per-guild rate limits with the
- * owner bypass, and the collector (details view, Export JSON).
+ * owner bypass, the collector (details view, Export JSON), and the marks on
+ * findings `/bot-health repair` can fix.
  */
 import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
@@ -12,6 +13,7 @@ import type { HealthRunOptions } from '../../../../src/utils/health/runner';
 import type { HealthReport } from '../../../../src/utils/health/types';
 import { rateLimiter } from '../../../../src/utils/security/rateLimiter';
 import { makeFakeGuild } from '../../../helpers/fakeGuild';
+import { makeCheckContext } from '../../../helpers/healthContext';
 
 const G = '100000000000000001';
 const OTHER = '100000000000000002';
@@ -51,6 +53,7 @@ function sampleReport(guildId: string): HealthReport {
             severity: 'cosmetic',
             repair: 'auto',
             entity: 'BotConfig',
+            rowId: guildId,
             params: { locale: 'jp' },
           },
         ],
@@ -82,9 +85,11 @@ function setup(opts: Options = {}) {
   };
   const runs: { guild: Guild; options: HealthRunOptions }[] = [];
   const deps = {
-    runHealthCheck: async (target: Guild, options: HealthRunOptions = {}) => {
+    runHealthCheckWithContext: async (target: Guild, options: HealthRunOptions = {}) => {
       runs.push({ guild: target, options });
-      return sampleReport(target.id);
+      // The row the finding is about, so the repair planner can fix it.
+      const rows = { BotConfig: [{ guildId: target.id, locale: 'jp' }] };
+      return { report: sampleReport(target.id), ctx: makeCheckContext({ guild: target, rows }) };
     },
   };
 
@@ -165,7 +170,7 @@ describe('access', () => {
       throw new Error('boom');
     };
     await botHealthCheckHandler({ guilds: { cache: new Map() } } as never, t.interaction as never, {
-      runHealthCheck: failing,
+      runHealthCheckWithContext: failing,
     });
     expect(replyText(t.calls)).toContain("couldn't finish");
     expect(replyText(t.calls)).toContain('run it again right away');
@@ -225,7 +230,7 @@ describe('rate limits (per guild, owner bypass)', () => {
   test.each([false, true])('a check the engine fails gives its slot back (deep: %p)', async deep => {
     const failed = setup({ deep });
     await botHealthCheckHandler({ guilds: { cache: new Map() } } as never, failed.interaction as never, {
-      runHealthCheck: async () => {
+      runHealthCheckWithContext: async () => {
         throw new Error('boom');
       },
     });
@@ -244,7 +249,7 @@ describe('rate limits (per guild, owner bypass)', () => {
     await quick.run();
     const failed = setup({ deep: true });
     await botHealthCheckHandler({ guilds: { cache: new Map() } } as never, failed.interaction as never, {
-      runHealthCheck: async () => {
+      runHealthCheckWithContext: async () => {
         throw new Error('boom');
       },
     });
@@ -290,6 +295,8 @@ describe('collector', () => {
     await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(updates[0].embeds[0].toJSON().fields[0].value).toContain('`jp`');
+    // The repair would set the language to English, so the finding says it can fix it.
+    expect(updates[0].embeds[0].toJSON().fields[0].value).toContain('`/bot-health repair` can fix this.');
     expect(exports[0].files[0].name).toStartWith(`bot-health-${G}-`);
     expect(exports[0].flags).toBeDefined();
   });
@@ -316,6 +323,35 @@ describe('collector', () => {
     expect(replies).toHaveLength(1);
     expect(replies[0].content).toContain("That part of the report couldn't be shown");
     expect(replies[0].content).not.toContain("couldn't finish");
+  });
+
+  test('the summary footer counts what the repair can fix', async () => {
+    const t = setup();
+    await t.run();
+    expect(t.calls.edits[0].embeds[0].toJSON().footer.text).toBe(
+      '/bot-health repair: 1 automatic, 0 to confirm, 0 to fix yourself',
+    );
+  });
+
+  test('a finding whose row the check did not load is not marked fixable', async () => {
+    const t = setup();
+    const edits: any[] = [];
+    const interaction = {
+      ...t.interaction,
+      editReply: async (payload: unknown) => {
+        edits.push(payload);
+        return { createMessageComponentCollector: () => t.collector };
+      },
+    };
+    await botHealthCheckHandler({ guilds: { cache: new Map() } } as never, interaction as never, {
+      runHealthCheckWithContext: async (target: Guild) => ({
+        report: sampleReport(target.id),
+        ctx: makeCheckContext({ guild: target }),
+      }),
+    });
+    expect(edits[0].embeds[0].toJSON().footer.text).toBe(
+      '/bot-health repair: 0 automatic, 0 to confirm, 1 to fix yourself',
+    );
   });
 
   test('when the collector ends the components are removed', async () => {

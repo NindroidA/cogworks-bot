@@ -1,7 +1,8 @@
 /**
  * `/bot-health check` renderer: lang strings with named params, Discord's
  * embed limits (1024 per field, 25 fields, 6000 per embed) with a large
- * synthetic report, pagination, and the JSON export.
+ * synthetic report, pagination, the marks and counts for what
+ * `/bot-health repair` can fix, and the JSON export.
  */
 import { describe, expect, test } from 'bun:test';
 import type { APIEmbed } from 'discord.js';
@@ -15,6 +16,7 @@ import {
   parseViewRequest,
   renderView,
 } from '../../../../src/commands/handlers/botHealth/render';
+import { findingKey } from '../../../../src/utils/health/repair/keys';
 import type { HealthFinding, HealthReport } from '../../../../src/utils/health/types';
 
 const G = '100000000000000001';
@@ -87,33 +89,43 @@ describe('findingField', () => {
     expect(field.value).not.toContain('/bot-health repair');
   });
 
-  test('no repair command yet: the repair class never shows, whatever it is (it stays in the export)', () => {
+  test('the repair class alone never shows: only a fix the plan has is marked (the class stays in the export)', () => {
+    const text = `The saved role "Mods" (\`${ROLE}\`) was deleted. New ticket channels skip it. No action is needed.`;
     const fields = (['auto', 'confirm', 'manual'] as const).map(repair => findingField(finding({ repair })));
     for (const field of fields) {
-      expect(field).toEqual(fields[0]);
-      expect(field.value).toBe(
-        `The saved role "Mods" (\`${ROLE}\`) was deleted. New ticket channels skip it. No action is needed.\n\`core.staff_role.missing\``,
-      );
+      expect(field.value).toBe(`${text}\n\`core.staff_role.missing\``);
       expect(`${field.name} ${field.value}`).not.toMatch(/repair|automatic|coming soon/i);
     }
+    expect(findingField(finding(), 'auto').value).toBe(
+      `${text}\n🔧 \`/bot-health repair\` can fix this.\n\`core.staff_role.missing\``,
+    );
+    expect(findingField(finding(), 'confirm').value).toContain(
+      'can fix this once you confirm it.\n`core.staff_role.missing`',
+    );
   });
 
   test('a code without a string falls back to the code itself', () => {
     expect(findingField(finding({ code: 'test.unknown' })).value).toStartWith('test.unknown');
   });
 
-  test('an oversized value is cut to 1024 and still shows the code', () => {
+  test('an oversized value is cut to 1024 and still shows the code (and the fix mark)', () => {
     const field = findingField(finding({ params: { roleId: ROLE, alias: 'y'.repeat(5_000) } }));
     expect(field.value.length).toBe(1024);
     expect(field.value.endsWith('…\n`core.staff_role.missing`')).toBe(true);
+    const marked = findingField(finding({ params: { roleId: ROLE, alias: 'y'.repeat(5_000) } }), 'confirm');
+    expect(marked.value.length).toBe(1024);
+    expect(marked.value.endsWith('confirm it.\n`core.staff_role.missing`')).toBe(true);
   });
 });
 
 describe('paginateFindings', () => {
-  test('a large report: every page within Discord limits, nothing lost, worst first', () => {
+  test('a large report, every finding marked fixable: every page within Discord limits, nothing lost, worst first', () => {
     const big = bigReport();
+    const fixable = new Map(
+      Object.values(big.systems).flatMap(r => r!.findings.map(f => [findingKey(f), 'confirm'] as const)),
+    );
     for (const [system, result] of Object.entries(big.systems)) {
-      const pages = paginateFindings(result!.findings);
+      const pages = paginateFindings(result!.findings, fixable);
       expect(pages.flat()).toHaveLength(result!.findings.length);
       pages.forEach((page, i) => {
         expect(page.length).toBeGreaterThan(0);
@@ -122,8 +134,9 @@ describe('paginateFindings', () => {
           expect(field.value.length).toBeLessThanOrEqual(1024);
           expect(field.name.length).toBeLessThanOrEqual(256);
         }
-        const view = renderView(big, { kind: 'details', system, page: i });
+        const view = renderView(big, { kind: 'details', system, page: i }, { fixable });
         const embed = view.embeds[0].toJSON();
+        expect(embed.fields?.map(f => f.value)).toEqual(page.map(f => f.value));
         expect(embed.fields?.length).toBeLessThanOrEqual(25);
         expect(embedLength(embed)).toBeLessThanOrEqual(6000);
       });
@@ -147,7 +160,7 @@ describe('paginateFindings', () => {
 });
 
 describe('buildSummaryEmbed', () => {
-  test('one line per system, no footer, colour from the worst status', () => {
+  test('one line per system, colour from the worst status', () => {
     const embed = buildSummaryEmbed(
       report({
         systems: {
@@ -165,17 +178,35 @@ describe('buildSummaryEmbed', () => {
     expect(lines).toContain('❌ **Tickets**: 1 found, something is broken');
     expect(lines).toContain('➖ **Memory**: not set up');
     expect(lines).toContain('✅ **Rules**: no problems');
-    // Repairable findings (counts.auto/confirm) don't change the summary: there's no repair command yet.
-    expect(embed.footer).toBeUndefined();
-    expect(JSON.stringify(embed)).not.toMatch(/repair|automatic/i);
     expect(embed.color).toBe(0xed4245);
     expect(embed.title).toBe('Server health');
   });
 
-  test('no footer for a clean report or manual-only findings either', () => {
+  test('the footer counts what the repair can fix (each distinct finding once); the class alone counts as manual', () => {
+    const auto = finding({ rowId: 1 });
+    const confirm = finding({ rowId: 2, repair: 'confirm' });
+    const r = report({
+      systems: {
+        core: { status: 'warn', findings: [auto, auto, confirm, finding({ rowId: 3 })] },
+        ticket: { status: 'fail', findings: [finding({ rowId: 4, repair: 'manual', severity: 'block' })] },
+      },
+    });
+    const fixable = new Map([
+      [findingKey(auto), 'auto' as const],
+      [findingKey(confirm), 'confirm' as const],
+    ]);
+    expect(buildSummaryEmbed(r, { fixable }).toJSON().footer?.text).toBe(
+      '/bot-health repair: 1 automatic, 1 to confirm, 2 to fix yourself',
+    );
+    expect(buildSummaryEmbed(r).toJSON().footer?.text).toBe(
+      '/bot-health repair: 0 automatic, 0 to confirm, 4 to fix yourself',
+    );
+  });
+
+  test('no footer for a clean report', () => {
     expect(buildSummaryEmbed(report()).toJSON().footer).toBeUndefined();
-    const manualOnly = report({ counts: { auto: 0, confirm: 0, manual: 3 } });
-    expect(buildSummaryEmbed(manualOnly).toJSON().footer).toBeUndefined();
+    const countsOnly = report({ counts: { auto: 0, confirm: 0, manual: 3 } });
+    expect(buildSummaryEmbed(countsOnly).toJSON().footer).toBeUndefined();
   });
 
   test('deep runs, other servers and notChecked are shown', () => {

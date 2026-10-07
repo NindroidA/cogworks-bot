@@ -7,7 +7,13 @@
         "guildId": "Bot owner only: check another server by its ID",
         "system": "Only check one system (default: all)"
       },
-      "cmdDescrp": "Check this server's Cogworks setup for problems"
+      "cmdDescrp": "Check this server's Cogworks setup for problems and fix them",
+      "repair": {
+        "deep": "Also look up messages and threads through Discord (slower; shares the deep check's 10-minute limit)",
+        "descrp": "Fix what the health check finds, after showing you each change",
+        "guildId": "Bot owner only: repair another server by its ID",
+        "system": "Only repair one system (default: all)"
+      }
     },
     "details": {
       "back": "Back to summary",
@@ -79,12 +85,23 @@
       "xp": "XP"
     },
     "repair": {
+      "errors": {
+        "applyFailed": "The repair couldn't finish. Run `/bot-health check` to see what changed.",
+        "busy": "Another repair is running on this server. Wait for it to finish, then try again.",
+        "failed": "The repair preview couldn't be built. You can run it again right away: a run that fails doesn't count toward the rate limit."
+      },
+      "footer": "/bot-health repair: {auto} automatic, {confirm} to confirm, {manual} to fix yourself",
+      "mark": {
+        "auto": "🔧 `/bot-health repair` can fix this.",
+        "confirm": "🔧 `/bot-health repair` can fix this once you confirm it."
+      },
       "preview": {
         "applyAuto": "Apply automatic fixes ({count})",
         "applySelected": "Apply selected ({count})",
         "auto": "Automatic fixes ({count})",
         "autoLine": "• {label} ×{count}",
         "cancel": "Cancel",
+        "cancelled": "Repair cancelled. Nothing was changed.",
         "confirm": "**Fixes to confirm ({count})**: pick the ones to apply in the menu below.",
         "confirmLine": "`{number}.` {label}",
         "intro": "Nothing changes until you press a button. Each fix writes only while the setting still matches what the check saw.",

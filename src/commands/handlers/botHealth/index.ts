@@ -4,11 +4,13 @@
  */
 import type { CacheType, ChatInputCommandInteraction, Client } from 'discord.js';
 import { botHealthCheckHandler } from './check';
+import { botHealthRepairHandler } from './repair';
 
 type SubcommandHandler = (client: Client, interaction: ChatInputCommandInteraction<CacheType>) => Promise<void>;
 
 const SUBCOMMANDS: Record<string, SubcommandHandler> = {
   check: botHealthCheckHandler,
+  repair: botHealthRepairHandler,
 };
 
 export async function botHealthHandler(client: Client, interaction: ChatInputCommandInteraction<CacheType>) {

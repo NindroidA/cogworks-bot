@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.17.0] - 2026-10-07
+
+**New: `/bot-health repair`** (NindroidA/cogworks-bot#41). It fixes what
+`/bot-health check` finds, after showing you every change. Server admins can
+run it on their own server, and the bot owner on any server with `guild-id`.
+
+### Added
+
+- **`/bot-health repair [system] [deep] [guild-id]`** runs the health check
+  and shows a preview. Nothing changes until you press a button.
+  - **Automatic fixes** are grouped by what they do ("Remove the deleted
+    channel from the XP ignored channels ×2"). They clear deleted channels and
+    roles from settings, turn off a starboard whose channel is gone, rewrite
+    legacy or unsupported values, remove duplicate or leftover rows, add
+    missing built-in announcement templates, and register the server's slash
+    commands again. **Apply automatic fixes** runs them all.
+  - **Fixes to confirm** are numbered, with a menu to pick them (25 per page,
+    and picks are kept across pages). These delete something you may want to
+    keep: closing a ticket or application whose channel was deleted, deleting
+    a reaction-role menu or the rules setup whose message is gone, or deleting
+    saved memories (the preview says how many). **Apply selected** runs only
+    the ones you picked.
+  - **Left for you** counts what the repair can't fix; `/bot-health check`
+    explains each one.
+- **Safe to run while settings change.** Each fix writes only while the
+  setting still holds what the check saw, and a fix for a deleted channel,
+  role, thread or message checks with Discord first that it's still gone. The
+  results say how many fixes were applied, how many were left alone because
+  the setting changed or the bot couldn't confirm the deletion, and how many
+  failed. A fresh check follows, with **Preview remaining fixes** to carry on.
+- **Guard rails.** Only the admin who ran the command can use its buttons,
+  and Administrator is checked again when they apply. One repair runs per
+  server at a time. Every repair is recorded in the server's audit log, and a
+  repair the bot owner runs on another server is also logged as a security
+  event.
+- **Rate limit:** 5 repairs per hour per server. A deep repair also uses the
+  deep check's 10-minute slot. A repair whose check fails doesn't count, and
+  the bot owner isn't limited.
+
+### Changed
+
+- **`/bot-health check` marks what the repair can fix.** A finding the repair
+  can fix ends with "🔧 `/bot-health repair` can fix this" (or "once you
+  confirm it"), and the summary's footer counts the automatic fixes, the fixes
+  to confirm, and the findings left for you. The marks come from a dry run of
+  the repair against the same rows the check read, so they match the preview.
+
 ## [3.16.51] - 2026-10-07
 
 Groundwork for `/bot-health repair` (NindroidA/cogworks-bot#41): the screens
