@@ -6,9 +6,9 @@ import {
 } from 'discord.js';
 import { lang } from '../../utils';
 
-const tlAdd = lang.addRole;
-const tlRemove = lang.removeRole;
-const tlGet = lang.getRoles;
+const tlAdd = lang.roles.addRole;
+const tlRemove = lang.roles.removeRole;
+const tlGet = lang.roles.getRoles;
 
 /* add subcommand group */
 const addStaff = new SlashCommandSubcommandBuilder()

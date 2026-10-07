@@ -86,10 +86,10 @@ Commands using groups: `ticket` (5 groups), `baitchannel` (6 groups), `applicati
 Use centralized `lang` module (NOT hardcoded strings):
 ```typescript
 import { lang } from '../utils';
-lang.ticket.created;          // Direct access
-lang.ticketSetup.createTicket; // Setup strings are under ticketSetup/applicationSetup keys
+lang.ticket.created;            // lang.<file>.<key>, mirroring src/lang/en/<file>.json
+lang.ticket.setup.createTicket; // nested JSON objects are nested keys
 ```
-Strings live in `src/lang/en/*.json` with types in `src/lang/types.ts`; add new user-facing text there. English is the only shipped locale. The locale machinery stays for future translations: a translation is a partial JSON set (only translated keys) plus one `LOCALE_REGISTRY` entry in `src/lang/index.ts`, and a Proxy falls back to English for everything else (`getGuildLang(guildId)` resolves a guild's locale; see `src/lang/TRANSLATING.md`). The `/bot-setup` Language button only shows when more than one locale is registered. Don't add untranslated copies of the English files.
+Strings live in `src/lang/en/*.json`; add new user-facing text there. The `Language` type (`src/lang/types.ts`) is derived from those files, so a new key needs only the JSON edit (a new JSON file also needs one line in `src/lang/en/index.ts`). English is the only shipped locale. The locale machinery stays for future translations: a translation is a partial JSON set (only translated keys) plus one `LOCALE_REGISTRY` entry in `src/lang/index.ts`, and a Proxy falls back to English for everything else (`getGuildLang(guildId)` resolves a guild's locale; see `src/lang/TRANSLATING.md`). The `/bot-setup` Language button only shows when more than one locale is registered. Don't add untranslated copies of the English files.
 
 ### Error Handling
 ```typescript

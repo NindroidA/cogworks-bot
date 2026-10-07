@@ -9,6 +9,8 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { buildDashboardButtons } from '../../../src/commands/handlers/botSetup';
 import {
   buildLocaleLang,
@@ -57,6 +59,15 @@ describe('isSupportedLocale', () => {
   });
 });
 
+describe('English modules (src/lang/en/index.ts)', () => {
+  test('every JSON file in src/lang/en is registered under its file name', () => {
+    const files = readdirSync(join(process.cwd(), 'src', 'lang', 'en'))
+      .filter(f => f.endsWith('.json'))
+      .map(f => f.slice(0, -'.json'.length));
+    expect(Object.keys(lang).sort()).toEqual(files.sort());
+  });
+});
+
 describe('getLangForLocale', () => {
   test('returns the English singleton for "en" on every call', () => {
     expect(getLangForLocale('en')).toBe(lang);
@@ -77,18 +88,16 @@ describe('buildLocaleLang (partial translations)', () => {
     expect(es.botConfig.notFound).toBe(lang.botConfig.notFound);
   });
 
-  test('keys derived from ticket.json and roles.json fall back when those files are missing', () => {
+  test('an empty translation reads every file from English', () => {
     const empty = buildLocaleLang({});
-    expect(empty.ticketSetup.createTicket).toBe(lang.ticketSetup.createTicket);
-    expect(empty.addRole.cmdDescrp).toBe(lang.addRole.cmdDescrp);
-    expect(empty.removeRole.cmdDescrp).toBe(lang.removeRole.cmdDescrp);
-    expect(empty.getRoles.cmdDescrp).toBe(lang.getRoles.cmdDescrp);
+    expect(empty.ticket.setup.createTicket).toBe(lang.ticket.setup.createTicket);
+    expect(empty.roles.addRole.cmdDescrp).toBe(lang.roles.addRole.cmdDescrp);
   });
 
-  test('a translated ticket.setup key surfaces under ticketSetup', () => {
+  test('a translated nested key wins; its siblings fall back to English', () => {
     const es = buildLocaleLang({ ticket: { setup: { createTicket: 'Crear ticket' } } });
-    expect(es.ticketSetup.createTicket).toBe('Crear ticket');
-    expect(es.ticketSetup.cmdDescrp).toBe(lang.ticketSetup.cmdDescrp);
+    expect(es.ticket.setup.createTicket).toBe('Crear ticket');
+    expect(es.ticket.setup.cmdDescrp).toBe(lang.ticket.setup.cmdDescrp);
   });
 
   test('array keys are replaced as whole arrays (no per-element fallback)', () => {

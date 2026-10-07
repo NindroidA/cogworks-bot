@@ -25,7 +25,7 @@ import { lazyRepo } from '../../../utils/database/lazyRepo';
 import type { ConfigItem } from '../../../utils/setup/configStatusEmbed';
 import { closeNeedsArchiveWarning } from '../../../utils/setup/configStatusEmbed';
 
-const tl = lang.ticketSetup;
+const tl = lang.ticket.setup;
 const ticketConfigRepo = lazyRepo(TicketConfig);
 const archivedTicketConfigRepo = lazyRepo(ArchivedTicketConfig);
 

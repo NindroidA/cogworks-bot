@@ -11,7 +11,7 @@ import {
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
-const tl = lang.getRoles;
+const tl = lang.roles.getRoles;
 const staffRoleRepo = lazyRepo(StaffRole);
 
 export async function roleListHandler(interaction: ChatInputCommandInteraction<CacheType>) {
