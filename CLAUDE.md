@@ -91,6 +91,8 @@ lang.ticket.setup.createTicket; // nested JSON objects are nested keys
 ```
 Strings live in `src/lang/en/*.json`; add new user-facing text there. The `Language` type (`src/lang/types.ts`) is derived from those files, so a new key needs only the JSON edit (a new JSON file also needs one line in `src/lang/en/index.ts`). English is the only shipped locale. The locale machinery stays for future translations: a translation is a partial JSON set (only translated keys) plus one `LOCALE_REGISTRY` entry in `src/lang/index.ts`, and a Proxy falls back to English for everything else (`getGuildLang(guildId)` resolves a guild's locale; see `src/lang/TRANSLATING.md`). The `/bot-setup` Language button only shows when more than one locale is registered. Don't add untranslated copies of the English files.
 
+`tests/unit/lang/keys.test.ts` scans `src/` for the keys the code reads (its header lists the patterns it follows) and fails on a read of a missing key, a key nothing reads, and a `formatLang`/`.replace()` call that doesn't match the string's placeholders. `deadKeys.allowlist.json` beside it holds the unread keys still to clean up. It only shrinks: delete or use a dead key, never add one to the list.
+
 ### Error Handling
 ```typescript
 // Pre-reply: log + send a user-facing error embed

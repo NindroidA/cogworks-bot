@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.42] - 2026-10-06
+
+A test now checks the language keys (NindroidA/cogworks-bot#41). CI fails when
+code reads a key the English JSON doesn't have, when a key goes unread,
+or when a `formatLang` or `.replace()` call doesn't match the string's
+placeholders. Tests only; the bot is unchanged.
+
+### Added
+
+- **`tests/unit/lang/keys.test.ts`** parses `src/` with the TypeScript parser
+  (under a second) and follows `lang.x.y` chains, `const tl = lang.x` aliases,
+  destructuring, direct `lang/en/*.json` imports and `typeof lang.x`
+  parameters. Whatever it can't follow, such as `tl.levels[level]`, counts as
+  reading every key under it, so it can miss a dead key but never flags a live
+  one. The header comment lists the patterns it understands.
+- **`tests/unit/lang/deadKeys.allowlist.json`** lists the 509 keys nothing
+  reads today (193 in `botSetup`, all 29 in `console`), so CI starts green. An
+  entry that is read again, or deleted from the JSON, has to leave the list, so
+  it only shrinks; the next #41 steps delete or wire up these keys.
+- The placeholder check found no mismatches today: the 162 `formatLang` calls
+  and 131 `.replace()` calls on lang strings all match their templates.
+- CLAUDE.md's language section describes the test and says never to add to
+  the allowlist.
+
 ## [3.16.40] - 2026-10-06
 
 Language types come from the English JSON (NindroidA/cogworks-bot#41). The
