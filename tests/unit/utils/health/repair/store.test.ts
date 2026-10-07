@@ -1,18 +1,18 @@
 /**
- * RepairStore against fake repositories. The fake transaction snapshots every
- * table and restores it on a throw, like a database rollback, and logs each
- * write with whether it ran inside the transaction.
+ * RepairStore against fake repositories (`tests/helpers/repairDb.ts`): the
+ * fake transaction rolls every table back on a throw and logs each write with
+ * whether it ran inside the transaction.
  */
 import { describe, expect, test } from 'bun:test';
 import { FindOperator } from 'typeorm';
-import { REF_PATCHES, type RefEntityName, type RemovePatch } from '../../../../../src/utils/cleanup/refPatches';
+import { REF_PATCHES, type RemovePatch } from '../../../../../src/utils/cleanup/refPatches';
 import { applyRepairPlan } from '../../../../../src/utils/health/repair/applier';
 import { planRepairs } from '../../../../../src/utils/health/repair/planner';
-import { createRepairStore, type RepairDb } from '../../../../../src/utils/health/repair/store';
+import { createRepairStore } from '../../../../../src/utils/health/repair/store';
 import type { HealthFinding, HealthReport } from '../../../../../src/utils/health/types';
 import { makeFakeGuild } from '../../../../helpers/fakeGuild';
-import { type FakeRepo, makeFakeRepo } from '../../../../helpers/fakeRepo';
 import { makeCheckContext } from '../../../../helpers/healthContext';
+import { makeRepairDb as makeDb } from '../../../../helpers/repairDb';
 
 const G = '100000000000000001';
 const OTHER = '100000000000000002';
@@ -21,50 +21,6 @@ const GONE = '300000000000000666';
 const GONE_2 = '300000000000000667';
 const GONE_ROLE = '200000000000000666';
 const LOCK = { mode: 'pessimistic_write' };
-
-function makeDb(tables: Partial<Record<RefEntityName, any[]>>) {
-  const repos = new Map<RefEntityName, FakeRepo>();
-  const log: string[] = [];
-  let depth = 0;
-  let transactions = 0;
-  const repo = (entity: RefEntityName) => {
-    let fake = repos.get(entity);
-    if (!fake) {
-      fake = makeFakeRepo();
-      repos.set(entity, fake);
-      for (const method of ['update', 'delete', 'insert'] as const) {
-        const inner = fake[method] as (...args: any[]) => Promise<any>;
-        (fake as any)[method] = (...args: any[]) => {
-          log.push(`${depth > 0 ? 'tx ' : ''}${method} ${entity}`);
-          return inner(...args);
-        };
-      }
-    }
-    return fake;
-  };
-  for (const [entity, rows] of Object.entries(tables)) {
-    const fake = repo(entity as RefEntityName);
-    for (const row of rows ?? []) fake.rows.set(String(row.id ?? row.guildId), row);
-  }
-  const db: RepairDb = {
-    repo,
-    async transaction(work) {
-      transactions++;
-      const snapshot = [...repos.values()].map(fake => [fake, structuredClone(fake.rows)] as const);
-      depth++;
-      try {
-        return await work({ repo });
-      } catch (error) {
-        for (const [fake, rows] of snapshot) fake.rows = rows;
-        throw error;
-      } finally {
-        depth--;
-      }
-    },
-  };
-  const ids = (entity: RefEntityName) => [...repo(entity).rows.values()].map(row => row.id);
-  return { db, store: createRepairStore(db), repo, log, ids, transactions: () => transactions };
-}
 
 const cascadeOf = (patch: unknown) => (patch as RemovePatch).cascade;
 
@@ -380,6 +336,7 @@ describe('planner steps through the applier into the store', () => {
         invalidateGuildCaches: noop,
         invalidateBaitCaches: noop,
         requestGuildCommandRefresh: noop,
+        registerGuildCommands: async () => {},
         writeAuditLog: async () => {},
       },
     );

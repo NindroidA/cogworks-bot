@@ -10,21 +10,29 @@ import {
   REF_PATCHES,
   type RefEntityName,
   type RefKind,
+  type RefPatch,
   type RefPatchFn,
 } from '../../cleanup/refPatches';
-import type { RepairProof } from './types';
+import type { HealthFinding } from '../types';
+import type { RepairEntityName, RepairProof } from './types';
 
-export interface RefRepair {
-  entity: RefEntityName;
-  patch: RefPatchFn;
-  /** A set may change only these columns. For a delete, the reference that justifies it (its guard). */
+type Row = Record<string, unknown>;
+
+/** How the planner fixes one finding code on its row: these delete-event repairs, and the field repairs. */
+export interface RowRepair {
+  entity: RepairEntityName;
+  /** What the flagged row becomes, or null when there is nothing to change. Never mutates the row. */
+  patch(row: Row, finding: HealthFinding): RefPatch | null;
+  /** A set may change only these columns. For a delete, the values that justify it (its guard). */
   fields: readonly string[];
-  /** How the applier re-proves the object is gone. */
-  proof: RepairProof['kind'];
+  /** Columns a set doesn't change but depends on: they join its guard. */
+  guards?: readonly string[];
+  /** How the applier re-proves the object is gone. None when the database alone shows the problem. */
+  proof?: RepairProof['kind'];
   /** Ask first even when the check rates the finding auto. */
   confirm?: true;
   /** True for a row the patch leaves alone on purpose, though it still holds the reference. */
-  keeps?: (row: Record<string, unknown>) => boolean;
+  keeps?: (row: Row) => boolean;
 }
 
 type PatchedBy<K extends RefKind> = keyof (typeof REF_PATCHES)[K] & RefEntityName;
@@ -33,14 +41,15 @@ function ref<K extends RefKind>(
   kind: K,
   entity: PatchedBy<K>,
   fields: readonly string[],
-  extra: Partial<Pick<RefRepair, 'proof' | 'confirm' | 'keeps'>> = {},
-): RefRepair {
-  const patch = (REF_PATCHES[kind] as Partial<Record<RefEntityName, RefPatchFn>>)[entity] as RefPatchFn;
-  return { entity, patch, fields, proof: kind, ...extra };
+  extra: Partial<Pick<RowRepair, 'proof' | 'confirm' | 'keeps'>> = {},
+): RowRepair {
+  const patchFn = (REF_PATCHES[kind] as Partial<Record<RefEntityName, RefPatchFn>>)[entity] as RefPatchFn;
+  // The planner only plans a repair with a proof for a finding that names the object (refId).
+  return { entity, patch: (row, f) => (f.refId ? patchFn(row, f.refId) : null), fields, proof: kind, ...extra };
 }
 
 /** An application already accepted or rejected keeps that outcome: the close patch skips it. */
-const keepsOutcome = (row: Record<string, unknown>) => FINAL_STATUSES.has(String(row.status));
+const keepsOutcome = (row: Row) => FINAL_STATUSES.has(String(row.status));
 
 // The posted panel goes with its channel, so the message id is cleared too.
 const panel = (system: string, config: PatchedBy<'channel'>, archive: PatchedBy<'channel'>) => ({
@@ -53,7 +62,7 @@ const panel = (system: string, config: PatchedBy<'channel'>, archive: PatchedBy<
  * Repair per finding code. Memory deletes always ask first: saved memory text
  * has no other copy. A code without an entry is reported as unsupported.
  */
-export const REF_REPAIRS: Readonly<Record<string, RefRepair>> = {
+export const REF_REPAIRS: Readonly<Record<string, RowRepair>> = {
   'core.global_staff_role.missing': ref('role', 'BotConfig', ['globalStaffRole', 'enableGlobalStaffRole']),
   'core.staff_role.missing': ref('role', 'StaffRole', ['role']),
   ...panel('ticket', 'TicketConfig', 'ArchivedTicketConfig'),

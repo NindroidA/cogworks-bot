@@ -3,8 +3,12 @@
  * `/bot-health` repair preview lists, and the writes an applier makes. Planning
  * itself never writes.
  */
-import type { RefCascade, RefEntityName } from '../../cleanup/refPatches';
+import type { RefCascade } from '../../cleanup/refPatches';
+import type { HealthEntityName } from '../context';
 import type { HealthSystem } from '../types';
+
+/** The tables a repair writes: every entity the checks load, plus reaction-role options (loaded with their menu). */
+export type RepairEntityName = HealthEntityName | 'ReactionRoleOption';
 
 /**
  * What the applier re-checks right before a write: the object must still be
@@ -18,7 +22,11 @@ export interface RepairProof {
   channelId?: string;
 }
 
-export type RepairOp = 'set' | 'delete';
+/** Sets, deletes and inserts write one row; a command runs once for the guild. */
+export type RepairOp = 'set' | 'delete' | 'insert' | 'command';
+
+/** A command step's action: register the guild's slash commands again. */
+export type RepairCommand = 'registerGuildCommands';
 
 export interface RepairChange {
   field: string;
@@ -36,29 +44,36 @@ export interface RepairFix {
   system: HealthSystem;
   /** The finding's class, or `confirm` where repair asks first even though the check rates it auto. */
   repair: 'auto' | 'confirm';
-  entity: RefEntityName;
-  rowId: string | number;
+  entity: RepairEntityName | 'ApplicationCommand';
+  /** The row a set or delete changes; an insert or command has none. */
+  rowId?: string | number;
   op: RepairOp;
-  /** A set: each column it changes, against the row as loaded (so it doesn't depend on which other fixes run). */
+  /** A set: each column it changes, against the row as loaded (so it doesn't depend on which other fixes run); else empty. */
   changes: RepairChange[];
   /** A delete: the child rows deleted with the row, per entity (`MemoryItem` is the "deletes N saved memories" count). */
-  cascade?: Partial<Record<RefEntityName, number>>;
+  cascade?: Partial<Record<RepairEntityName, number>>;
 }
 
-/** One write: every selected fix on one row, merged. */
+/** One write: every selected fix on one row merged, one inserted row, or one command for the guild. */
 export interface RepairStep {
-  entity: RefEntityName;
+  entity: RepairEntityName | 'ApplicationCommand';
   /**
-   * Always scoped by `guildId`. `ReactionRoleOption` has no guildId column: its
-   * where adds `menuId`, and the store checks the menu belongs to the guild.
+   * Always scoped by `guildId` (an insert or command: only that).
+   * `ReactionRoleOption` has no guildId column: its where adds `menuId`, and
+   * the store checks the menu belongs to the guild.
    */
   where: Record<string, string | number>;
   op: RepairOp;
   /** A set: the new value of every column it changes. */
   set?: Record<string, unknown>;
+  /** An insert: the new row. Insert-ignore: a row already on its unique key leaves it alone (`exists`). */
+  values?: Record<string, unknown>;
+  /** A command: what the applier runs. */
+  command?: RepairCommand;
   /**
-   * The loaded value of every column the step changes (for a delete: the
-   * reference that justifies it). The applier writes only while these still match.
+   * The loaded value of every column the step changes, plus any column the
+   * fix depends on (for a delete: the values that justify it). The applier
+   * writes only while these still match. Empty for an insert or command.
    */
   guard: Record<string, unknown>;
   /** A delete: child rows (`column` = this row's id) removed first. */

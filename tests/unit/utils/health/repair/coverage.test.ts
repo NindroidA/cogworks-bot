@@ -1,21 +1,32 @@
 /**
  * Repair coverage: every action belongs to a real check code and has a label,
  * and every code a check emits as auto or confirm today either has an action
- * or is deferred to a named later PR.
+ * or is deferred past this series.
  */
 import { describe, expect, test } from 'bun:test';
 import { lang } from '../../../../../src/lang';
 import { getChecks } from '../../../../../src/utils/health/registry';
+import { FIELD_REPAIRS } from '../../../../../src/utils/health/repair/fieldRepairs';
 import { REF_REPAIRS, repairLabel } from '../../../../../src/utils/health/repair/refRepairs';
 
 const checkCodes = new Set(getChecks().flatMap(check => check.codes));
-const actions = Object.keys(REF_REPAIRS);
+const actions = [...Object.keys(REF_REPAIRS), ...Object.keys(FIELD_REPAIRS)];
 const labels = lang.health.repair.actions as Record<string, string>;
 
 const FIELD_INPUTS = ['too_many_fields', 'field_id', 'field_label', 'field_placeholder', 'field_length'];
 
+/** Deferred past this series: a re-post is a Discord action, and the rest need the admin's input. */
+const DEFERRED = [
+  'ticket.panel.message_missing',
+  'application.panel.message_missing',
+  ...FIELD_INPUTS.map(name => `ticket.type.${name}`),
+  ...FIELD_INPUTS.map(name => `application.position.${name}`),
+  'memory.tag.duplicate',
+  'memory.tag.not_in_forum',
+];
+
 /** Field-level repairs and the default-template top-up (#41 repair plan, PR-5). */
-const PR5 = [
+const FIELD_CODES = [
   'core.global_staff_role.enabled_without_role',
   'core.global_staff_role.format_legacy',
   'core.locale.unsupported',
@@ -45,18 +56,6 @@ const PR5 = [
   'starboard.config.threshold_invalid',
 ];
 
-/** Deferred past this series: a re-post is a Discord action, and the rest need the admin's input. */
-const LATER = [
-  'ticket.panel.message_missing',
-  'application.panel.message_missing',
-  ...FIELD_INPUTS.map(name => `ticket.type.${name}`),
-  ...FIELD_INPUTS.map(name => `application.position.${name}`),
-  'memory.tag.duplicate',
-  'memory.tag.not_in_forum',
-];
-
-const DEFERRED = [...PR5, ...LATER];
-
 /**
  * The codes checks emit as auto or confirm today, read from the checks (the
  * repair class is chosen per finding, so it can't be listed from the registry).
@@ -65,6 +64,7 @@ const DEFERRED = [...PR5, ...LATER];
  */
 const REPAIRABLE_TODAY = [
   ...DEFERRED,
+  ...FIELD_CODES,
   'core.global_staff_role.missing',
   'core.staff_role.missing',
   ...['ticket', 'application'].flatMap(system => [
@@ -106,7 +106,7 @@ describe('repair coverage', () => {
 
   test('repairLabel reads the label, and falls back to the code', () => {
     for (const code of actions) expect({ code, label: repairLabel(code) }).toEqual({ code, label: labels[code] });
-    expect(repairLabel('core.locale.unsupported')).toBe('core.locale.unsupported');
+    expect(repairLabel('memory.tag.duplicate')).toBe('memory.tag.duplicate');
   });
 
   test('every action runs a delete-event patch on the columns of its finding', () => {
@@ -132,10 +132,21 @@ describe('repair coverage', () => {
     expect(DEFERRED.filter(code => actions.includes(code))).toEqual([]);
   });
 
+  test('every field repair names its columns, and the two tables share no code', () => {
+    for (const [code, repair] of Object.entries(FIELD_REPAIRS)) {
+      const kind = 'command' in repair ? 'command' : 'insert' in repair ? 'insert' : 'row';
+      expect({ code, ok: kind !== 'row' || ('fields' in repair && repair.fields.length > 0) }).toEqual({
+        code,
+        ok: true,
+      });
+    }
+    expect(Object.keys(FIELD_REPAIRS).filter(code => code in REF_REPAIRS)).toEqual([]);
+  });
+
   test('saved-memory deletes ask first even though the checks rate them auto', () => {
-    const confirmed = Object.entries(REF_REPAIRS)
+    const confirmed = Object.entries({ ...REF_REPAIRS, ...FIELD_REPAIRS })
       .filter(([, repair]) => repair.confirm)
       .map(([code]) => code);
-    expect(confirmed).toEqual(['memory.forum.missing', 'memory.item.thread_missing']);
+    expect(confirmed).toEqual(['memory.forum.missing', 'memory.item.thread_missing', 'memory.item.orphan']);
   });
 });

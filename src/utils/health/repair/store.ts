@@ -16,7 +16,8 @@
  */
 import { isDeepStrictEqual } from 'node:util';
 import { type EntityTarget, IsNull, type ObjectLiteral } from 'typeorm';
-import type { RefCascade, RefEntityName } from '../../cleanup/refPatches';
+import type { RefCascade } from '../../cleanup/refPatches';
+import type { RepairEntityName } from './types';
 
 type Row = Record<string, unknown>;
 type Where = Record<string, string | number>;
@@ -38,20 +39,20 @@ export interface StoreRepo {
 }
 
 export interface RepairDb {
-  repo(entity: RefEntityName): StoreRepo;
+  repo(entity: RepairEntityName): StoreRepo;
   /** Runs `work` in one transaction; a throw rolls it back. */
   transaction<T>(work: (tx: Pick<RepairDb, 'repo'>) => Promise<T>): Promise<T>;
 }
 
 export interface RepairStore {
-  set(entity: RefEntityName, where: Where, guard: Row, set: Row): Promise<StoreOutcome>;
-  delete(entity: RefEntityName, where: Where, guard: Row, cascade?: readonly RefCascade[]): Promise<StoreOutcome>;
+  set(entity: RepairEntityName, where: Where, guard: Row, set: Row): Promise<StoreOutcome>;
+  delete(entity: RepairEntityName, where: Where, guard: Row, cascade?: readonly RefCascade[]): Promise<StoreOutcome>;
   /** Insert-ignore: `exists` when the unique key is already taken. */
-  insert(entity: RefEntityName, values: Row): Promise<StoreOutcome>;
+  insert(entity: RepairEntityName, values: Row): Promise<StoreOutcome>;
 }
 
 /** Entities without a guildId column: the row must belong to a parent row of the guild. */
-const OWNED_BY: Partial<Record<RefEntityName, { entity: RefEntityName; column: string }>> = {
+const OWNED_BY: Partial<Record<RepairEntityName, { entity: RepairEntityName; column: string }>> = {
   ReactionRoleOption: { entity: 'ReactionRoleMenu', column: 'menuId' },
 };
 
@@ -92,7 +93,7 @@ async function conditional(
 /** Locks the row (and an owned row's parent), checks the guard, then runs `write` in the same transaction. */
 async function locked(
   db: RepairDb,
-  entity: RefEntityName,
+  entity: RepairEntityName,
   where: Where,
   guard: Row,
   write: (tx: Pick<RepairDb, 'repo'>, rowWhere: Row) => Promise<void>,
@@ -125,7 +126,7 @@ async function locked(
 }
 
 export function createRepairStore(db: RepairDb): RepairStore {
-  const needsLock = (entity: RefEntityName, guard: Row, cascade?: readonly RefCascade[]) =>
+  const needsLock = (entity: RepairEntityName, guard: Row, cascade?: readonly RefCascade[]) =>
     Boolean(OWNED_BY[entity] || cascade?.length || !Object.values(guard).every(isScalar));
 
   return {
@@ -182,10 +183,10 @@ export async function appRepairDb(): Promise<RepairDb> {
     import('../context'),
     import('../../../typeorm/entities/reactionRole/ReactionRoleOption'),
   ]);
-  const targets: Record<RefEntityName, EntityTarget<ObjectLiteral>> = { ...HEALTH_ENTITIES, ReactionRoleOption };
+  const targets: Record<RepairEntityName, EntityTarget<ObjectLiteral>> = { ...HEALTH_ENTITIES, ReactionRoleOption };
   type Manager = { getRepository(target: EntityTarget<ObjectLiteral>): unknown };
   const reposOf = (manager: Manager) => ({
-    repo: (entity: RefEntityName) => manager.getRepository(targets[entity]) as StoreRepo,
+    repo: (entity: RepairEntityName) => manager.getRepository(targets[entity]) as StoreRepo,
   });
   return { ...reposOf(AppDataSource), transaction: work => AppDataSource.transaction(m => work(reposOf(m))) };
 }
