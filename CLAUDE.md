@@ -257,7 +257,7 @@ const { baitChannelManager, statusManager } = client as ExtendedClient;
 - The `DEFERRED` codes: `*.panel.message_missing` (re-posting is a Discord action), custom-field input problems (`too_many_fields`, `field_*`), `memory.tag.duplicate` and `memory.tag.not_in_forum`.
 - Discord changes: registering commands is the only Discord action a repair takes.
 - The bait channel, which has no checks yet.
-- Still open from #41: an archive-tag backfill repair that retires `/migrate`; a `GuildPermission` cleaner in `roleDelete` (until then, the repair removes grants for deleted roles); and the dashboard health page.
+- Still open (tracked in #94): an archive-tag backfill repair that retires `/migrate`; a `GuildPermission` cleaner in `roleDelete` (until then, the repair removes grants for deleted roles); and the dashboard health page.
 
 ## Database
 
