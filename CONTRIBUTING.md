@@ -45,8 +45,8 @@ bun test           # Run tests
 - **Biome** handles linting and formatting (config in `biome.json`)
 - Single quotes, semicolons, trailing commas, 120-char line width
 - Use `enhancedLogger` instead of `console.log` in production code
-- Use `lang` module for all user-facing strings (no hardcoded text)
-- Use `lazyRepo()` for database repository access
+- Use `lang` module for all user-facing strings (no hardcoded text): add them to `src/lang/en/*.json`, fill values through named `{placeholders}` with `fmt()`, and leave no dead keys (a test enforces both). See [`src/lang/TRANSLATING.md`](src/lang/TRANSLATING.md)
+- Fetch repositories with `AppDataSource.getRepository` inside the function in new modules (a module-scope `lazyRepo()` caches one repository across test files)
 - Use `MessageFlags.Ephemeral` (not deprecated `ephemeral: true`)
 
 ## Critical Rules
@@ -61,7 +61,11 @@ See `CLAUDE.md` for the full developer guide.
 ## Pull Requests
 
 - Create a feature branch from `main`
-- Ensure `bun run build` and `bun run check` pass
+- Run the full gate and make sure every step passes (CI runs the same checks with Bun 1.3.14):
+  ```bash
+  bun install --frozen-lockfile && bun run test && bun run check && bun run build && bun run build:contract && bun run check:contract && bun run check:changelog
+  ```
+- Bump the version in `package.json` (patch for fixes, minor for user-facing features), add a matching `## [x.y.z] - YYYY-MM-DD` entry at the top of `CHANGELOG.md`, and commit the regenerated `contract/cogworks-contract.json`. `check:changelog` and `check:contract` fail without them
 - Keep PRs focused — one feature or fix per PR
 - Include a clear description of what changed and why
 

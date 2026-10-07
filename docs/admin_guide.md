@@ -1,6 +1,6 @@
 # Administrator Guide
 
-**Last Updated:** `March 26, 2026`
+**Last Updated:** `October 7, 2026`
 
 Complete guide for server administrators using Cogworks Bot v3.
 
@@ -26,6 +26,7 @@ Complete guide for server administrators using Cogworks Bot v3.
 - [AutoMod Integration](#automod-integration)
 - [Context Menu Commands](#context-menu-commands)
 - [Data Management](#data-management)
+- [Server Health Check and Repair](#server-health-check-and-repair)
 - [Troubleshooting](#troubleshooting)
 - [Quick Reference](#quick-reference)
 
@@ -1474,9 +1475,53 @@ When the bot leaves your server, **ALL server data is automatically deleted** �
 
 ---
 
+## Server Health Check and Repair
+
+Start here when something stopped working, for example after a channel or role was deleted. Both commands are for admins, run privately, and work even before `/bot-setup` has been run.
+
+### Checking Your Server
+
+```
+/bot-health check
+/bot-health check system:Tickets
+/bot-health check deep:true
+```
+
+Compares Cogworks' saved settings with your server's channels, roles, permissions and slash commands. It only reads; nothing is changed.
+
+- The summary has one line per system (✅ no problems, ⚠️ found, ❌ something is broken, ➖ not set up or not checked yet). Pick a system to page through what was found. Each finding says what to do, and 🔧 marks the ones `/bot-health repair` can fix.
+- `system` checks one system instead of all of them.
+- `deep:true` also looks up messages and threads through Discord, such as the ticket panel, the rules message, reaction-role menus and memory posts. It's slower and makes at most 60 Discord lookups per run, so on a large server some are listed as not checked. Running it again skips the same ones.
+- Rate limited: one check per minute and one deep check per 10 minutes per server. A check that fails doesn't count.
+
+### Repairing Problems
+
+```
+/bot-health repair
+```
+
+Runs the same check, then shows a **preview**. Nothing changes until you press a button. It takes the same `system` and `deep` options.
+
+- **Apply automatic fixes** applies the safe fixes, such as clearing a deleted channel or role from a setting or registering the server's commands again.
+- **Fixes to confirm** are numbered. Pick the ones you want in the menu, then press **Apply selected**. These close or delete something you may want to keep (a ticket whose channel was deleted, or saved memories) or change a value someone chose.
+- **Left for you** are problems you fix yourself. `/bot-health check` explains each one.
+- A fix is applied only while the setting still matches what the check saw, and a fix for a deleted channel, role, thread or message first confirms with Discord that it's really gone. The results show what was fixed and what was left alone, and **Preview remaining fixes** lets you continue.
+- Only the admin who ran the command can press its buttons. Every repair is recorded in the server's audit log.
+- Rate limited: 5 repairs per hour per server. A deep repair also uses the deep check's 10-minute slot.
+
+### Getting Help
+
+- **Export JSON** on the check report attaches the full report as a file. It holds only IDs, finding codes and numbers, with no names or other text from your settings, so you can share it with [support](https://discord.gg/nkwMUaVSYH).
+- When helping with support, the bot owner can run the check or the repair on your server by its ID (the `guild-id` option, which only the bot owner can use). These runs are logged, and a repair the owner runs is recorded in your server's audit log like any other.
+
+---
+
 ## Troubleshooting
 
 ### Common Issues
+
+**Not Sure What Broke:**
+- Run `/bot-health check` to see what's wrong with the setup, then `/bot-health repair` to fix what it can (see [Server Health Check and Repair](#server-health-check-and-repair))
 
 **Commands Not Working:**
 - Check the bot has required permissions (Administrator is recommended)
@@ -1549,6 +1594,8 @@ When the bot leaves your server, **ALL server data is automatically deleted** �
 | `/role list` | View configured roles | Admin |
 | `/data-export` | Export server data | Admin |
 | `/bot-reset` | Factory reset | Admin |
+| `/bot-health check` | Check the setup for problems | Admin |
+| `/bot-health repair` | Fix what the check finds | Admin |
 | `/archive cleanup` | Clean archived data | Admin |
 | `/ticket-setup` | Configure ticket system | Admin |
 | `/ticket type list` | View ticket types | Admin |

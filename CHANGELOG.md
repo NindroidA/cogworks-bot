@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.17.2] - 2026-10-07
+
+Documentation for the `/bot-health` work and the testing rules learned along
+the way (NindroidA/cogworks-bot#41). No code changes.
+
+### Changed
+
+- **Admin guide:** a new "Server Health Check and Repair" section covers what
+  `/bot-health check` shows, deep checks and their limit, how a
+  `/bot-health repair` preview works (automatic fixes, fixes to confirm,
+  problems left for you), the rate limits, Export JSON for support, and the
+  bot owner's `guild-id` option. Troubleshooting and the quick reference
+  point to it.
+- **CONTRIBUTING.md:** the pull request checklist lists the full check
+  sequence CI runs, plus the version bump, changelog entry and regenerated
+  contract every PR needs. The code style notes cover named `{placeholders}`
+  with `fmt()` and the no-dead-keys rule.
+- **CLAUDE.md:** a health check and repair section (engine layout, how
+  repairs stay safe, how to add a check or a repair, what isn't automated
+  yet), the testing rules that keep suites independent and CI green on its
+  pinned Bun version, and a short releases note.
+
 ## [3.17.1] - 2026-10-07
 
 The dashboard side of `/bot-health` (NindroidA/cogworks-bot#41): two
