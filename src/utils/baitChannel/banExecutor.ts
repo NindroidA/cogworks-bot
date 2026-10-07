@@ -10,12 +10,13 @@
  *    Discord.js `GuildMember` partial has been evicted (post-leave,
  *    post-cache-flush).
  *
- * 2. **Idempotent.** Every execution writes an `IdempotencyKey` row keyed
- *    on `(guildId, userId, action, dayBucket)` before touching the Discord
- *    API. Conflicts → return `{ status: 'duplicate' }` and skip. Closes the
- *    mod-vs-bot race (Phase 4 also writes this key from
- *    `auditLogEntryCreate` when a mod beats us to the action) and prevents
- *    retry-queue double-execution.
+ * 2. **Idempotent per bait post.** Before touching the Discord API, an
+ *    execution claims an `IdempotencyKey` for its post (see `claimKey`),
+ *    shared by the first attempt, the retry queue and the leave-drain. A
+ *    claim whose action did not land is released so a retry really runs.
+ *    An action taken on the user after the post (a mod's, from
+ *    `auditLogEntryCreate`, or ours for another post) covers it →
+ *    `{ status: 'duplicate' }`; a later post is a new event.
  *
  * 3. **Audit-reason-aware.** The reason passed to Discord is the structured
  *    `cogworks:bait …` form from `auditReason.ts`. Mods reviewing the audit
@@ -25,19 +26,22 @@
  * shape that the retry queue (Phase 3) picks up.
  */
 
-import { DiscordAPIError, type Guild, type GuildMember } from 'discord.js';
+import { DiscordAPIError, type Guild, type GuildMember, SnowflakeUtil } from 'discord.js';
 import type { Repository } from 'typeorm';
 import type { IdempotencyKey } from '../../typeorm/entities/bait/IdempotencyKey';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { sleep } from '../time';
 
-export type BanExecutorAction = 'ban' | 'softban' | 'kick' | 'timeout' | 'log-only';
+/** `unban` only finishes a softban whose unban step failed (see `retryAction`). */
+export type BanExecutorAction = 'ban' | 'softban' | 'kick' | 'timeout' | 'log-only' | 'unban';
 
 export interface BanExecutorOptions {
   guild: Guild;
   userId: string;
   action: BanExecutorAction;
+  /** The bait message this answers; retries and the leave-drain pass the pending row's messageId. */
+  eventId: string;
   reason: string;
   /** Bot client.user.id when self-attributed; mod ID when superseded. */
   executorId?: string | null;
@@ -52,7 +56,7 @@ export interface BanExecutorOptions {
    * will silently demote to log-only (timeout requires a live member).
    */
   member?: GuildMember;
-  /** Dry-run flag. Writes idempotency key with `testMode=true`. Skips Discord API. */
+  /** Dry-run flag. Claims a test-mode key that never covers a real action. Skips Discord API. */
   testMode?: boolean;
   /** Delay between ban and unban for softban. Keep ≥500ms so Discord processes deletion. */
   softbanDelayMs?: number;
@@ -61,7 +65,7 @@ export interface BanExecutorOptions {
 export type BanExecutorStatus =
   /** Action was performed (or, in test mode, dry-run logged). */
   | 'executed'
-  /** Idempotency key already exists — someone (bot retry, mod) already did this today. */
+  /** This post was already handled, or an action taken on the user since it was posted covers it. */
   | 'duplicate'
   /** Action could not be executed and should be retried by the retry queue. */
   | 'queued'
@@ -74,14 +78,18 @@ export interface BanExecutorResult {
   failureReason?: string;
   /** Discord API error code if applicable (e.g., 10007 = unknown member). */
   errorCode?: number;
+  /** Set on `queued` when only this step is left: a softban whose ban landed retries as `unban`. */
+  retryAction?: BanExecutorAction;
 }
 
 const DEFAULT_SOFTBAN_DELAY_MS = 500;
+/** Starts the reason of every ban a softban places (see isOwnSoftban). */
+const SOFTBAN_REASON_PREFIX = 'Softban — ';
 export const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000; // 24h — auditLogEntryCreate imports this so the two can never drift
 
 /**
- * Compute today's UTC midnight as the dayBucket. Same-day retries dedup;
- * cross-day re-attempts are accepted as repeat-offender events.
+ * Compute today's UTC midnight as the dayBucket. The key's own scope is the
+ * bait post (see `claimKey`); the day only fills the UNIQUE index.
  */
 function todayUtc(): Date {
   const now = new Date();
@@ -89,53 +97,105 @@ function todayUtc(): Date {
 }
 
 /**
- * Claim the idempotency key. Returns `true` if this caller is the one
- * authorized to execute; `false` if the key already exists (someone else
- * already did this).
+ * Earlier actions that cover this one, when taken after the post was made:
+ * the user was already banned (or timed out, or softbanned) for it. An unban
+ * is covered by any ban, so finishing a softban never lifts a real ban.
+ */
+const COVERED_BY: Record<BanExecutorAction, readonly string[]> = {
+  ban: ['ban'],
+  softban: ['ban', 'softban'],
+  unban: ['ban'],
+  kick: ['ban', 'kick'],
+  timeout: ['ban', 'timeout'],
+  'log-only': [],
+};
+
+/** DATETIME columns keep whole seconds (MySQL rounds), so compare with a second of slack. */
+const CLOCK_SLACK_MS = 1000;
+
+/**
+ * A bait claim's `action` value: `<action>:<eventId>`, plus `:t` in test mode
+ * (mod keys hold the bare action). Fits varchar(32): 8 + 1 + 20 + 2 = 31.
+ */
+function claimKey(action: BanExecutorAction, eventId: string, testMode: boolean): string {
+  return `${action}:${eventId}${testMode ? ':t' : ''}`;
+}
+
+/** When the post was made, from its snowflake; anything else counts as long ago. */
+function postedAt(eventId: string): number {
+  return /^\d{17,20}$/.test(eventId) ? SnowflakeUtil.timestampFrom(eventId) : 0;
+}
+
+/**
+ * When a key's action was taken, from `expiresAt` (both writers set it to
+ * now + TTL on the bot's clock; `createdAt` uses the database's clock and timezone).
+ */
+function actedAt(key: IdempotencyKey): number {
+  return key.expiresAt.getTime() - IDEMPOTENCY_TTL_MS;
+}
+
+type Claim =
+  | { claimed: true; key: string }
+  | { claimed: false; reason: 'duplicate'; existing: IdempotencyKey }
+  | { claimed: false; reason: 'db_error' };
+
+/**
+ * Claim the idempotency key for this post. `claimed` means this caller acts.
+ * `duplicate` means an action taken on the user after the post covers it
+ * (see COVERED_BY), or another caller holds this post's key right now. A
+ * dry run is covered by anything; a real action never by a dry run.
  *
- * Implementation note: TypeORM's `save()` on a new row will trigger the
- * UNIQUE constraint and throw. We catch the duplicate-key error specifically
- * and return false. Any other error propagates.
+ * The UNIQUE index closes the race between two callers on the same post:
+ * the loser's save throws, and a re-read tells a duplicate from a DB error.
  */
 async function claimIdempotencyKey(
   repo: Repository<IdempotencyKey>,
   guildId: string,
-  userId: string,
-  action: BanExecutorAction,
-  executorId: string | null | undefined,
-  testMode: boolean,
-): Promise<
-  | { claimed: true }
-  | { claimed: false; reason: 'duplicate'; existing: IdempotencyKey }
-  | { claimed: false; reason: 'db_error' }
-> {
-  const dayBucket = todayUtc();
-  const expiresAt = new Date(Date.now() + IDEMPOTENCY_TTL_MS);
+  opts: { userId: string; action: BanExecutorAction; eventId: string; executorId?: string | null; testMode: boolean },
+): Promise<Claim> {
+  const { userId, action, eventId, testMode } = opts;
+  const key = claimKey(action, eventId, testMode);
+  const since = postedAt(eventId) - CLOCK_SLACK_MS;
+
+  try {
+    const prior = await repo.find({ where: { guildId, userId } });
+    const covers = prior.filter(
+      k => (testMode || !k.testMode) && COVERED_BY[action].includes(k.action.split(':')[0]) && actedAt(k) >= since,
+    );
+    // Report another action over this post's own key (see the softban case in executeBanAction).
+    const cover = covers.find(k => k.action !== key) ?? covers[0];
+    if (cover) return { claimed: false, reason: 'duplicate', existing: cover };
+  } catch (error) {
+    logError({
+      category: ErrorCategory.DATABASE,
+      severity: ErrorSeverity.HIGH,
+      message: 'Idempotency lookup failed (transient DB error)',
+      error,
+      context: { guildId, userId, action },
+    });
+    return { claimed: false, reason: 'db_error' };
+  }
 
   try {
     const entity = repo.create({
       guildId,
       userId,
-      action,
-      dayBucket,
-      executorId: executorId ?? null,
+      action: key,
+      dayBucket: todayUtc(),
+      executorId: opts.executorId ?? null,
       testMode,
-      expiresAt,
+      expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
     });
     await repo.save(entity);
-    return { claimed: true };
+    return { claimed: true, key };
   } catch (error) {
-    // Distinguish duplicate from transient DB failure. The save failed —
-    // either the UNIQUE constraint fired (someone else claimed first), or
-    // the DB is unavailable. We can tell the two apart by re-reading: if
-    // a row exists for our key, it was a duplicate; if the second query
-    // also fails or returns null, treat as a real DB error and let the
-    // caller queue for retry rather than silently skip enforcement.
+    // Either the UNIQUE constraint fired (another caller holds this post's
+    // key) or the DB is unavailable. Re-read to tell them apart; if that
+    // fails too or finds nothing, report a DB error so the caller queues a
+    // retry rather than silently skipping enforcement.
     let existing: IdempotencyKey | null = null;
     try {
-      existing = await repo.findOne({
-        where: { guildId, userId, action, dayBucket },
-      });
+      existing = await repo.findOne({ where: { guildId, userId, action: key } });
     } catch (lookupError) {
       logError({
         category: ErrorCategory.DATABASE,
@@ -157,6 +217,39 @@ async function claimIdempotencyKey(
       context: { guildId, userId, action },
     });
     return { claimed: false, reason: 'db_error' };
+  }
+}
+
+/**
+ * After the Discord call. A claim whose action landed is re-dated to now, so
+ * a post made while a slow (rate-limited) call was in flight is covered. One
+ * whose action did not land is given back, so the retry queue (or the
+ * leave-drain) can claim the same post again and actually run it. The key is
+ * this post's own, never a mod's.
+ */
+async function settleClaim(
+  repo: Repository<IdempotencyKey>,
+  guildId: string,
+  userId: string,
+  key: string,
+  landed: boolean,
+): Promise<void> {
+  try {
+    if (landed) {
+      await repo.update({ guildId, userId, action: key }, { expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS) });
+    } else {
+      await repo.delete({ guildId, userId, action: key });
+    }
+  } catch (error) {
+    logError({
+      category: ErrorCategory.DATABASE,
+      severity: landed ? ErrorSeverity.LOW : ErrorSeverity.HIGH,
+      message: landed
+        ? 'Failed to re-date idempotency claim'
+        : 'Failed to release idempotency claim; a retry of this action will be skipped as a duplicate',
+      error,
+      context: { guildId, userId, key },
+    });
   }
 }
 
@@ -194,32 +287,55 @@ function isTerminalDiscordError(error: unknown): boolean {
  * the leave may have been a ban by a mod or another bot.
  */
 export async function fetchBanState(guild: Guild, userId: string): Promise<boolean | null> {
+  const ban = await fetchBan(guild, userId);
+  return ban === undefined ? null : ban !== null;
+}
+
+/** The user's ban here: null when not banned, undefined when it can't be read. */
+export async function fetchBan(guild: Guild, userId: string): Promise<{ reason?: string | null } | null | undefined> {
   try {
-    await guild.bans.fetch({ user: userId, force: true });
-    return true;
+    return await guild.bans.fetch({ user: userId, force: true });
   } catch (error) {
-    return error instanceof DiscordAPIError && Number(error.code) === 10026 ? false : null;
+    return isUnknownBan(error) ? null : undefined;
   }
 }
+
+const isUnknownBan = (error: unknown): boolean => error instanceof DiscordAPIError && Number(error.code) === 10026;
+
+/** A ban one of our softbans placed (by its reason); an `unban` lifts only those. */
+export const isOwnSoftban = (ban: { reason?: string | null }): boolean =>
+  ban.reason?.startsWith(SOFTBAN_REASON_PREFIX) === true;
 
 export async function executeBanAction(
   opts: BanExecutorOptions,
   idempotencyRepo: Repository<IdempotencyKey>,
 ): Promise<BanExecutorResult> {
-  const { guild, userId, action, reason, deleteMessageSeconds, timeoutMs, member, executorId } = opts;
-  const testMode = opts.testMode === true;
+  const { guild, userId, action, eventId, executorId } = opts;
+  // An unban only undoes our own softban's ban, so it is never a dry run.
+  const testMode = opts.testMode === true && action !== 'unban';
   const softbanDelayMs = opts.softbanDelayMs ?? DEFAULT_SOFTBAN_DELAY_MS;
 
-  // Step 1: Claim the idempotency slot. Distinguish three outcomes:
+  // Step 1: Claim this post's idempotency key. Distinguish three outcomes:
   //   - claimed:    we own this action, proceed to Discord API
-  //   - duplicate:  someone else already did this — skip, return duplicate
+  //   - duplicate:  already handled or covered — skip, return duplicate
   //   - db_error:   transient DB failure — queue for retry instead of
   //                 silently skipping (the bug was to treat this as duplicate)
-  const claim = await claimIdempotencyKey(idempotencyRepo, guild.id, userId, action, executorId, testMode);
+  const claim = await claimIdempotencyKey(idempotencyRepo, guild.id, { userId, action, eventId, executorId, testMode });
   if (!claim.claimed) {
     if (claim.reason === 'duplicate') {
+      // A softban covered only by its own post's key may have stopped between
+      // its ban and unban (a restart): finish it as an unban, which does
+      // nothing if the softban completed.
+      if (!testMode && action === 'softban' && claim.existing.action === claimKey(action, eventId, false)) {
+        return {
+          status: 'queued',
+          action,
+          retryAction: 'unban',
+          failureReason: 'softban may have stopped before its unban',
+        };
+      }
       enhancedLogger.debug(
-        `Skipping ${action} on ${userId} — idempotency key already claimed${claim.existing.executorId ? ` by ${claim.existing.executorId}` : ''}`,
+        `Skipping ${action} on ${userId} — covered by ${claim.existing.action}${claim.existing.executorId ? ` by ${claim.existing.executorId}` : ''}`,
         LogCategory.SECURITY,
         { guildId: guild.id, userId, action },
       );
@@ -244,7 +360,16 @@ export async function executeBanAction(
     return { status: 'executed', action };
   }
 
-  // Step 3: Execute the action.
+  // Step 3: Execute the action, then settle the claim (see settleClaim). A
+  // softban whose ban landed keeps its claim, and only its unban is retried.
+  const result = await performAction(opts, softbanDelayMs);
+  await settleClaim(idempotencyRepo, guild.id, userId, claim.key, result.status === 'executed' || !!result.retryAction);
+  return result;
+}
+
+/** The Discord call for executeBanAction. Failures come back as a result, never thrown. */
+async function performAction(opts: BanExecutorOptions, softbanDelayMs: number): Promise<BanExecutorResult> {
+  const { guild, userId, action, reason, deleteMessageSeconds, timeoutMs, member } = opts;
   try {
     switch (action) {
       case 'ban': {
@@ -257,7 +382,7 @@ export async function executeBanAction(
 
       case 'softban': {
         await guild.bans.create(userId, {
-          reason: `Softban — ${reason}`,
+          reason: `${SOFTBAN_REASON_PREFIX}${reason}`,
           deleteMessageSeconds: deleteMessageSeconds ?? 24 * 3600,
         });
         // Brief delay so Discord finishes the message-purge step before we
@@ -267,11 +392,13 @@ export async function executeBanAction(
           await guild.bans.remove(userId, 'Softban complete — user may rejoin');
         } catch (removeError) {
           // Ban succeeded but unban failed → user is now permanently banned
-          // by accident. Log loud, queue the unban for retry.
+          // by accident. Queue only the unban: rerunning the softban would
+          // ban (and purge) a second time.
           if (!isTerminalDiscordError(removeError)) {
             return {
               status: 'queued',
               action,
+              retryAction: 'unban',
               failureReason: `softban unban step failed: ${(removeError as Error).message}`,
               errorCode: removeError instanceof DiscordAPIError ? Number(removeError.code) : undefined,
             };
@@ -286,6 +413,33 @@ export async function executeBanAction(
               error: (removeError as Error).message,
             },
           );
+        }
+        return { status: 'executed', action };
+      }
+
+      case 'unban': {
+        // The rest of a softban whose unban step failed. Only a ban our
+        // softban placed (by its reason) is lifted, never anyone else's; one
+        // already gone (10026) leaves nothing to do.
+        const ban = await fetchBan(guild, userId);
+        if (ban === undefined) return { status: 'queued', action, failureReason: 'ban list unreadable' };
+        if (ban && !isOwnSoftban(ban)) {
+          enhancedLogger.warn(
+            `Bait unban for ${userId} skipped: the ban in place is not our softban's`,
+            LogCategory.SECURITY,
+            {
+              guildId: guild.id,
+              userId,
+              banReason: ban.reason ?? null,
+            },
+          );
+          return { status: 'duplicate', action };
+        }
+        // A 10026 on remove: lifted by hand since the fetch, which is what we wanted.
+        if (ban) {
+          await guild.bans.remove(userId, 'Softban complete — user may rejoin').catch(error => {
+            if (!isUnknownBan(error)) throw error;
+          });
         }
         return { status: 'executed', action };
       }
@@ -322,6 +476,10 @@ export async function executeBanAction(
             action,
             failureReason: 'timeout requires positive timeoutMs',
           };
+        }
+        // A longer timeout already in place (a mod's) covers this one: never shorten it.
+        if ((member.communicationDisabledUntilTimestamp ?? 0) >= Date.now() + timeoutMs) {
+          return { status: 'duplicate', action };
         }
         await member.timeout(timeoutMs, reason);
         return { status: 'executed', action };

@@ -335,6 +335,7 @@ client.once('clientReady', async () => {
       client,
       pendingActionRepo: AppDataSource.getRepository(PendingAction),
       idempotencyRepo: AppDataSource.getRepository(IdempotencyKey),
+      logRepo: AppDataSource.getRepository(BaitChannelLog),
     }).start(),
   );
 

@@ -11,7 +11,7 @@ import {
   PermissionFlagsBits,
   type TextChannel,
 } from 'discord.js';
-import { Between, LessThan, type Repository } from 'typeorm';
+import { Between, IsNull, LessThan, type Repository } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
 import type { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelConfig';
 import type { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
@@ -178,11 +178,16 @@ export class BaitChannelManager {
     if (!this.pendingActionRepo) return;
 
     try {
+      // Only grace rows (attempts = 0, not dead-lettered) are this manager's:
+      // retry rows belong to the retry queue and dead-lettered rows stay for
+      // mod review, so neither is deleted or timed here.
+      const grace = { attempts: 0, deadAt: IsNull() };
+
       // Clean up expired entries
-      await this.pendingActionRepo.delete({ expiresAt: LessThan(new Date()) });
+      await this.pendingActionRepo.delete({ ...grace, expiresAt: LessThan(new Date()) });
 
       // Load unexpired pending bans and re-create timeouts
-      const activeBans = await this.pendingActionRepo.find();
+      const activeBans = await this.pendingActionRepo.find({ where: grace });
       for (const ban of activeBans) {
         const remainingMs = ban.expiresAt.getTime() - Date.now();
         if (remainingMs <= 0) {
@@ -309,13 +314,19 @@ export class BaitChannelManager {
     });
   }
 
+  /** True while a task is queued or running in this member's chain. */
+  memberBusy(guildId: string, userId: string): boolean {
+    return this.memberChains.has(`${guildId}:${userId}`);
+  }
+
   /**
    * Run `task` after any earlier grace resolution or bait action for the same
    * member in the same guild has finished. Without this, two posts' timers
    * (or a timer and the leave our own softban causes) can act at once, and a
-   * ban can land between a softban's ban and unban steps and be lifted.
+   * ban can land between a softban's ban and unban steps and be lifted. The
+   * retry queue and the leave-drain run their actions here too.
    */
-  private inMemberChain<T>(guildId: string, userId: string, task: () => Promise<T>): Promise<T> {
+  inMemberChain<T>(guildId: string, userId: string, task: () => Promise<T>): Promise<T> {
     const chainKey = `${guildId}:${userId}`;
     const run = (this.memberChains.get(chainKey) ?? Promise.resolve()).then(task);
     const tail = run.then(
@@ -1305,6 +1316,7 @@ export class BaitChannelManager {
             guild: message.guild!,
             userId: member.id,
             action: apiAction,
+            eventId: message.id,
             reason: auditReason,
             executorId: this.client.user?.id ?? null,
             deleteMessageSeconds: apiAction === 'ban' || apiAction === 'softban' ? deleteHours * 3600 : undefined,
@@ -1354,20 +1366,6 @@ export class BaitChannelManager {
       actionResult = 'failed';
       actionTaken = 'queued';
       failureReason = executorResult.failureReason;
-
-      // Never queue a test-mode dry run: the retry queue would run it for real.
-      const queue = isTestMode ? null : getRetryQueue();
-      if (queue) {
-        await queue.enqueue({
-          guildId: message.guild!.id,
-          userId: member.id,
-          messageId: message.id,
-          channelId: message.channelId,
-          action: apiAction as 'ban' | 'softban' | 'kick' | 'timeout' | 'log-only',
-          suspicionScore: analysis.score,
-          lastError: executorResult.failureReason,
-        });
-      }
 
       enhancedLogger.warn(
         `Bait action ${apiAction} for ${member.user.tag} queued for retry: ${executorResult.failureReason ?? 'unknown'}`,
@@ -1483,6 +1481,21 @@ export class BaitChannelManager {
       logDeliveryFailed: !logDelivered,
       executorId: executorResult?.status === 'executed' ? (this.client.user?.id ?? null) : null,
     });
+
+    // Step 7: hand a queued action to the retry queue now that its 'queued'
+    // log row exists for the retry to settle. Never a test-mode dry run: the
+    // retry queue would run it for real.
+    if (executorResult?.status === 'queued' && !isTestMode) {
+      await getRetryQueue()?.enqueue({
+        guildId: message.guild!.id,
+        userId: member.id,
+        messageId: message.id,
+        channelId: message.channelId,
+        action: executorResult.retryAction ?? apiAction,
+        suspicionScore: analysis.score,
+        lastError: executorResult.failureReason,
+      });
+    }
   }
 
   /**

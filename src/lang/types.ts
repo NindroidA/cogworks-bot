@@ -1079,6 +1079,7 @@ export interface LangBaitChannel {
   notConfigured: string;
   setupFirst: string;
   specifyRoleOrUser: string;
+  unbanGaveUp: string;
   builder: {
     cmdDescrp: string;
     setup: {

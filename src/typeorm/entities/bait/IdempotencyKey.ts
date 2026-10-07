@@ -3,15 +3,13 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 
 /**
  * Dedup key for moderation actions.
  *
- * UNIQUE(guildId, userId, action, dayBucket) — a single row covers all
- * attempts to execute the same action against the same user on the same UTC
- * day. INSERT IGNORE: if the row already exists (someone — bot retry or
- * mod — already did this), skip.
- *
- * `dayBucket` is intentionally coarse (date, not timestamp). Cross-day
- * collisions are accepted as repeat-offender attempts, not duplicates.
- * `expiresAt` drives TTL cleanup (24h default; long enough to catch out-of-
- * order retries, short enough that the table stays small).
+ * Bait actions (banExecutor) key on the bait post: `action` holds
+ * `<action>:<messageId>` (plus `:t` for a test-mode dry run), so the first
+ * attempt, retries and the leave-drain share one row per post, and a later
+ * post is a new event. Mod actions (auditLogEntryCreate) hold the bare
+ * action; any key whose action was taken after a post was made covers it.
+ * UNIQUE(guildId, userId, action, dayBucket) closes the race between two
+ * callers on the same post. `expiresAt` drives TTL cleanup (24h).
  */
 @Entity({ name: 'idempotency_keys' })
 @Index(['guildId', 'userId', 'action', 'dayBucket'], { unique: true })
