@@ -7,8 +7,9 @@
  * stands for (not the column default 'ban'); a leave in one guild must never
  * touch another guild's timer; a leave that was a ban must never be softened
  * into a softban (its unban step would lift the ban); and a dashboard cancel
- * must stop the timer. Boot only restores and cleans up grace rows: retry
- * and dead-letter rows are left alone.
+ * must stop the timer. After a restart, a restored grace period settles the
+ * same way when its window closes, and boot leaves retry and dead-letter rows
+ * alone.
  *
  * Runs the real executeAction + REST executor against hand-rolled fakes, so
  * "no real action" is asserted at the Discord call (guild.bans.create /
@@ -658,33 +659,124 @@ describe('test mode never reaches the retry queue', () => {
   });
 });
 
-describe('boot (#29)', () => {
-  test('only grace rows are cleaned up and restored; retry and dead-letter rows are left alone', async () => {
-    const h = makeHarness();
-    const row = (overrides: Record<string, unknown>) => ({
+describe('restart (#29)', () => {
+  /** pending_actions rows as they sit in the database across a restart. */
+  function row(overrides: Record<string, unknown> = {}): any {
+    return {
+      id: 1,
       guildId: GUILD,
       userId: USER,
+      messageId: 'msg-r',
       channelId: BAIT,
+      action: 'ban',
       suspicionScore: 60,
-      warningMessageId: null,
+      warningMessageId: 'warn-msg-r',
+      attempts: 0,
       deadAt: null,
       createdAt: new Date(Date.now() - 60_000),
       expiresAt: new Date(Date.now() + 3_600_000),
       ...overrides,
-    });
-    const rows = [
-      row({ messageId: 'msg-grace', attempts: 0 }),
-      row({ messageId: 'msg-retry', attempts: 1, expiresAt: new Date(Date.now() - 1000) }),
-      row({ messageId: 'msg-dead', attempts: 3, deadAt: new Date(), expiresAt: new Date(Date.now() - 1000) }),
-    ];
-    const isGrace = (where: any) => (r: any) =>
-      r.attempts === where.attempts && (where.deadAt?.type !== 'isNull' || r.deadAt === null);
-    h.pendingActionRepo.find = jest.fn(async ({ where }: any) => rows.filter(isGrace(where)));
-    await h.manager.initialize();
+    };
+  }
 
-    const deleted = h.pendingActionRepo.delete.mock.calls[0][0];
-    expect(rows.filter(isGrace(deleted)).map(r => r.messageId)).toEqual(['msg-grace']);
-    expect([...pending(h.manager).keys()]).toEqual([`${GUILD}:${USER}:msg-grace`]);
-    expect(h.pendingActionRepo.remove).not.toHaveBeenCalled();
+  /** Boot a harness on these rows; find honours the attempts / deadAt filter. */
+  async function boot(rows: any[], configOverrides: Record<string, unknown> = {}) {
+    const h = makeHarness(configOverrides);
+    h.pendingActionRepo.find = jest.fn(async ({ where }: any) =>
+      rows.filter(r => r.attempts === where.attempts && (where.deadAt?.type !== 'isNull' || r.deadAt === null)),
+    );
+    const guild = makeGuild();
+    const member = makeMember(guild);
+    const { message, warning } = makeMessage(guild, member, 'msg-r');
+    const channel = {
+      isTextBased: () => true,
+      messages: {
+        fetch: jest.fn(async (id: string) => {
+          if (id === message.id && !state.messageGone) return message;
+          if (id === warning.id) return warning;
+          throw new Error('Unknown Message');
+        }),
+      },
+    };
+    const state = { messageGone: false, memberGone: false };
+    guild.channels.fetch = jest.fn(async () => channel);
+    guild.members.fetch = jest.fn(async () => {
+      if (state.memberGone) throw new Error('Unknown Member');
+      return member;
+    });
+    const client = (h.manager as any).client;
+    client.guilds.fetch = jest.fn(async () => guild);
+    client.guilds.cache.set(GUILD, guild);
+    await h.manager.initialize();
+    const key = `${GUILD}:${USER}:msg-r`;
+    const fire = () =>
+      (h.manager as any).inMemberChain(GUILD, USER, () =>
+        (h.manager as any).resolveRestored(key, rows[0].action),
+      ) as Promise<void>;
+    return { ...h, guild, member, message, warning, state, key, fire };
+  }
+
+  test('boot leaves retry and dead-letter rows to the retry queue and the dashboard', async () => {
+    const r = await boot([
+      row(),
+      row({ id: 2, messageId: 'msg-retry', attempts: 1, expiresAt: new Date(Date.now() - 1000) }),
+      row({ id: 3, messageId: 'msg-dead', attempts: 3, deadAt: new Date(), expiresAt: new Date(Date.now() - 1000) }),
+    ]);
+    expect([...pending(r.manager).keys()]).toEqual([r.key]);
+    expect(r.pendingActionRepo.delete).not.toHaveBeenCalled();
+    expect(r.pendingActionRepo.remove).not.toHaveBeenCalled();
+  });
+
+  test('a window that closed during the downtime settles on boot: post still there → the action runs', async () => {
+    const r = await boot([row({ expiresAt: new Date(Date.now() - 5 * 60_000) })]);
+    // The restored timer fires on its own, right away.
+    for (let i = 0; i < 100 && pending(r.manager).size > 0; i++) await new Promise(res => setTimeout(res, 10));
+    expect(r.guild.bans.create).toHaveBeenCalledTimes(1);
+    expect(r.loggedActions()).toEqual(['ban']);
+    expect(r.warning.delete).toHaveBeenCalled();
+    expect(r.pendingActionRepo.delete).toHaveBeenCalledWith({ userId: USER, messageId: 'msg-r', guildId: GUILD });
+  });
+
+  test('post deleted during the downtime → no action; the row and the warning reply are removed', async () => {
+    const r = await boot([row()]);
+    r.state.messageGone = true;
+    await r.fire();
+    expect(r.guild.bans.create).not.toHaveBeenCalled();
+    expect(pending(r.manager).size).toBe(0);
+    expect(r.pendingActionRepo.delete).toHaveBeenCalledWith({ userId: USER, messageId: 'msg-r', guildId: GUILD });
+    expect(r.warning.delete).toHaveBeenCalled();
+  });
+
+  test('member left during the downtime → no action', async () => {
+    const r = await boot([row()]);
+    r.state.memberGone = true;
+    await r.fire();
+    expect(r.guild.bans.create).not.toHaveBeenCalled();
+    expect(r.loggedActions()).toEqual([]);
+    expect(pending(r.manager).size).toBe(0);
+  });
+
+  test('member timed out now (a mod may have acted during the downtime) → no action', async () => {
+    const r = await boot([row()]);
+    r.member.communicationDisabledUntilTimestamp = Date.now() + 60 * 60_000;
+    await r.fire();
+    expect(r.guild.bans.create).not.toHaveBeenCalled();
+    expect(r.loggedActions()).toEqual([]);
+    expect(pending(r.manager).size).toBe(0);
+  });
+
+  test('posted in test mode (row saved as log-only) → still a dry run after the restart', async () => {
+    const r = await boot([row({ action: 'log-only' })], { actionType: 'ban', testMode: false });
+    await r.fire();
+    expect(r.guild.bans.create).not.toHaveBeenCalled();
+    expect(r.loggedActions()).toEqual(['test-ban']);
+  });
+
+  test('test mode switched on during the downtime → dry run', async () => {
+    const r = await boot([row()]);
+    r.updateConfig({ testMode: true });
+    await r.fire();
+    expect(r.guild.bans.create).not.toHaveBeenCalled();
+    expect(r.loggedActions()).toEqual(['test-ban']);
   });
 });
