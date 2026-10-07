@@ -111,6 +111,8 @@ interface Options {
   /** The findings of each check run in turn; the last repeats. */
   checks?: HealthFinding[][];
   apply?: RepairDeps['applyRepairPlan'];
+  /** Check runs from this one on (0-based) throw. */
+  failFrom?: number;
 }
 
 function setup(opts: Options = {}) {
@@ -131,6 +133,7 @@ function setup(opts: Options = {}) {
     runHealthCheckWithContext: async (target: Guild, options: HealthRunOptions = {}) => {
       const findings = checks[Math.min(runs.length, checks.length - 1)];
       runs.push({ guild: target, options });
+      if (opts.failFrom !== undefined && runs.length > opts.failFrom) throw new Error('check failed');
       const rows = {
         BotConfig: [{ guildId: target.id, locale: 'jp' }],
         UserTicketRestriction: [{ id: 5, guildId: target.id, typeId: 'gone' }],
@@ -476,11 +479,98 @@ describe('preview collector', () => {
     expect(lastEdit(t)).toEqual({ components: [] });
   });
 
+  test('two clicks at once start one repair', async () => {
+    const t = setup();
+    await t.run();
+    const first = click(REPAIR_CID.auto);
+    const second = click(REPAIR_CID.auto);
+    t.collector.emit('collect', first.i);
+    t.collector.emit('collect', second.i);
+    await settle();
+    expect(t.applied).toHaveLength(1);
+    expect(second.sent.deferUpdates).toBe(1);
+    expect(second.sent.updates).toEqual([]);
+  });
+
+  test('an out-of-range page is stored clamped, so picks made after it still count', async () => {
+    const t = setup();
+    await t.run();
+    await press(t, `${REPAIR_CID.page}7`);
+    await press(t, REPAIR_CID.select, { values: [findingKey(RATE)] });
+    await press(t, REPAIR_CID.apply);
+    expect(t.applied).toHaveLength(1);
+    expect(keysOf(t.applied[0].plan)).toEqual([findingKey(RATE)]);
+  });
+
+  test('the collector ending during a repair: the results come back without buttons', async () => {
+    let release: () => void = () => {};
+    const t = setup({
+      apply: (_guild, plan) =>
+        new Promise(resolve => {
+          release = () =>
+            resolve({ results: plan.steps.map(step => ({ step, outcome: 'applied' })), counts: {} as never });
+        }),
+    });
+    await t.run();
+    t.collector.emit('collect', click(REPAIR_CID.auto).i);
+    await settle();
+    t.collector.emit('end');
+    await settle();
+    release();
+    await settle();
+    expect(lastEdit(t).embeds[0].toJSON().title).toBe('Repair results');
+    expect(lastEdit(t).components).toEqual([]);
+  });
+
   test('when the collector ends the components are removed', async () => {
     const t = setup();
     await t.run();
     t.collector.emit('end');
     await settle();
     expect(lastEdit(t)).toEqual({ components: [] });
+  });
+});
+
+describe('the check after a repair', () => {
+  const deepKey = createRateLimitKey.guild(G, 'bot-health-deep');
+
+  test('after a deep repair it is a normal check while the deep slot is taken', async () => {
+    const t = setup({ deep: true });
+    await t.run();
+    await press(t, REPAIR_CID.auto);
+    expect(t.runs.map(r => r.options.deep)).toEqual([true, false]);
+    expect(deepSlotsLeft()).toBe(0);
+    expect(repairSlotsLeft()).toBe(4);
+  });
+
+  test('once the deep slot is free again, it is deep and takes the slot', async () => {
+    const t = setup({ deep: true });
+    await t.run();
+    rateLimiter.reset(deepKey); // the deep check's 10 minutes have passed
+    await press(t, REPAIR_CID.auto);
+    expect(t.runs.map(r => r.options.deep)).toEqual([true, true]);
+    expect(deepSlotsLeft()).toBe(0);
+  });
+
+  test('a deep check afterwards that fails gives the deep slot back', async () => {
+    const t = setup({ deep: true, failFrom: 1 });
+    await t.run();
+    rateLimiter.reset(deepKey);
+    await press(t, REPAIR_CID.auto);
+    expect(t.runs.map(r => r.options.deep)).toEqual([true, true]);
+    expect(deepSlotsLeft()).toBe(1);
+    expect(lastEdit(t).embeds[0].toJSON().description).toContain("The check afterwards couldn't finish");
+  });
+
+  test("the owner's is deep; after a normal repair it is normal and leaves the deep slot alone", async () => {
+    const owner = setup({ userId: OWNER, admin: false, deep: true });
+    await owner.run();
+    await press(owner, REPAIR_CID.auto, { userId: OWNER, admin: false });
+    expect(owner.runs.map(r => r.options.deep)).toEqual([true, true]);
+    const normal = setup();
+    await normal.run();
+    await press(normal, REPAIR_CID.auto);
+    expect(normal.runs.map(r => r.options.deep)).toEqual([false, false]);
+    expect(deepSlotsLeft()).toBe(1);
   });
 });

@@ -22,11 +22,13 @@ run it on their own server, and the bot owner on any server with `guild-id`.
     missing built-in announcement templates, and register the server's slash
     commands again. **Apply automatic fixes** runs them all.
   - **Fixes to confirm** are numbered, with a menu to pick them (25 per page,
-    and picks are kept across pages). These delete something you may want to
-    keep: closing a ticket or application whose channel was deleted, deleting
-    a reaction-role menu or the rules setup whose message is gone, or deleting
-    saved memories (the preview says how many). **Apply selected** runs only
-    the ones you picked.
+    and picks are kept across pages). These are the fixes to look at first.
+    Some close or delete something you may want to keep: a ticket or
+    application whose channel was deleted, a reaction-role menu or the rules
+    setup whose message is gone, or saved memories (the preview says how
+    many). Others change a value someone chose, like clearing a ticket type
+    emoji Discord rejects or swapping an inverted XP rate. **Apply selected**
+    runs only the ones you picked.
   - **Left for you** counts what the repair can't fix; `/bot-health check`
     explains each one.
 - **Safe to run while settings change.** Each fix writes only while the
@@ -35,6 +37,8 @@ run it on their own server, and the bot owner on any server with `guild-id`.
   results say how many fixes were applied, how many were left alone because
   the setting changed or the bot couldn't confirm the deletion, and how many
   failed. A fresh check follows, with **Preview remaining fixes** to carry on.
+  It takes no repair slot. After a deep repair it is deep again only if the
+  deep check's 10-minute slot is free.
 - **Guard rails.** Only the admin who ran the command can use its buttons,
   and Administrator is checked again when they apply. One repair runs per
   server at a time. Every repair is recorded in the server's audit log, and a
@@ -46,11 +50,16 @@ run it on their own server, and the bot owner on any server with `guild-id`.
 
 ### Changed
 
-- **`/bot-health check` marks what the repair can fix.** A finding the repair
-  can fix ends with "🔧 `/bot-health repair` can fix this" (or "once you
-  confirm it"), and the summary's footer counts the automatic fixes, the fixes
-  to confirm, and the findings left for you. The marks come from a dry run of
-  the repair against the same rows the check read, so they match the preview.
+- **`/bot-health check` marks what the repair can fix.** Above its code, a
+  finding the repair can fix says "🔧 `/bot-health repair` can fix this." (or
+  "…can fix this once you confirm it."), and the summary's footer counts the
+  automatic fixes, the fixes to confirm, and the findings left for you. The
+  marks come from a dry run of the repair against the same rows the check
+  read, so they match the preview.
+- **Repair planning is fast on large servers.** The planner looked up each
+  finding's row with a scan, so 10,000 findings took over 2 seconds of the
+  bot's time. Rows are now indexed once per table (about 0.2 seconds), which
+  matters now that every `/bot-health check` plans a dry run.
 
 ## [3.16.51] - 2026-10-07
 

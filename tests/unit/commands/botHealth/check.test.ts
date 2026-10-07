@@ -7,7 +7,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { type Guild, PermissionsBitField } from 'discord.js';
-import { botHealthCheckHandler } from '../../../../src/commands/handlers/botHealth/check';
+import { botHealthCheckHandler, fixableKeys } from '../../../../src/commands/handlers/botHealth/check';
 import { HEALTH_CID } from '../../../../src/commands/handlers/botHealth/render';
 import type { HealthRunOptions } from '../../../../src/utils/health/runner';
 import type { HealthReport } from '../../../../src/utils/health/types';
@@ -352,6 +352,43 @@ describe('collector', () => {
     expect(edits[0].embeds[0].toJSON().footer.text).toBe(
       '/bot-health repair: 0 automatic, 0 to confirm, 1 to fix yourself',
     );
+  });
+
+  test('if planning the fixes throws, the check still shows its report, with no fix marks', async () => {
+    const t = setup();
+    // Planning reads the loaded rows; make every read throw.
+    const throwingCtx = (guild: Guild) => {
+      const ctx = makeCheckContext({ guild });
+      ctx.rows = new Proxy(
+        {},
+        {
+          get() {
+            throw new Error('rows exploded');
+          },
+        },
+      );
+      return ctx;
+    };
+    expect(fixableKeys(sampleReport(G), throwingCtx(t.interaction.guild as never))).toEqual(new Map());
+
+    const edits: any[] = [];
+    const interaction = {
+      ...t.interaction,
+      editReply: async (payload: unknown) => {
+        edits.push(payload);
+        return { createMessageComponentCollector: () => t.collector };
+      },
+    };
+    await botHealthCheckHandler({ guilds: { cache: new Map() } } as never, interaction as never, {
+      runHealthCheckWithContext: async (target: Guild) => ({
+        report: sampleReport(target.id),
+        ctx: throwingCtx(target),
+      }),
+    });
+    const embed = edits[0].embeds[0].toJSON();
+    expect(embed.title).toBe('Server health');
+    expect(embed.footer.text).toBe('/bot-health repair: 0 automatic, 0 to confirm, 1 to fix yourself');
+    expect(replyText({ replies: [], edits })).not.toContain("couldn't finish");
   });
 
   test('when the collector ends the components are removed', async () => {

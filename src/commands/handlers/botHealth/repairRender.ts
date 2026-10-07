@@ -58,12 +58,24 @@ export interface RepairRenderOptions {
 export const fixesOf = (plan: RepairPlan): FixableKeys => new Map(plan.fixes.map(fix => [fix.key, fix.repair]));
 export const confirmFixes = (plan: RepairPlan) => plan.fixes.filter(fix => fix.repair === 'confirm');
 export const autoKeys = (plan: RepairPlan) => plan.fixes.filter(fix => fix.repair === 'auto').map(fix => fix.key);
+/** Pages of fixes to confirm, at least one. */
+export const confirmPages = (plan: RepairPlan) => Math.max(1, Math.ceil(confirmFixes(plan).length / CONFIRM_PER_PAGE));
 const findingsOf = (report: HealthReport) => Object.values(report.systems).flatMap(system => system?.findings ?? []);
 
 /** "(deletes N saved memories)" after a fix that deletes a memory channel's posts with it; else nothing. */
 function memoriesText(count: number): string {
   if (count === 0) return '';
   return ` ${count === 1 ? tr.preview.memory : fmt(tr.preview.memories, { count })}`;
+}
+
+/**
+ * A finding's text for a menu option, which shows text as written: markdown
+ * stripped, and mentions (`<#id>`, `<@&id>`, `<@id>`) shown as `#id` / `@id`.
+ */
+export function optionText(text: string): string {
+  return text
+    .replace(/<(#|@&|@!?)(\d+)>/g, (_, kind: string, id: string) => `${kind === '#' ? '#' : '@'}${id}`)
+    .replace(/[`*]/g, '');
 }
 
 /** Lines that fit in `max` characters; the rest become one "…and N more" line. */
@@ -107,7 +119,7 @@ export function renderPreview(state: PreviewState, opts: RepairRenderOptions = {
   const disabled = opts.disabled ?? false;
   const auto = plan.fixes.filter(fix => fix.repair === 'auto');
   const confirm = confirmFixes(plan);
-  const pages = Math.max(1, Math.ceil(confirm.length / CONFIRM_PER_PAGE));
+  const pages = confirmPages(plan);
   const page = Math.min(Math.max(state.page, 0), pages - 1);
   const first = page * CONFIRM_PER_PAGE;
   const onPage = confirm.slice(first, first + CONFIRM_PER_PAGE);
@@ -140,7 +152,7 @@ export function renderPreview(state: PreviewState, opts: RepairRenderOptions = {
     const findings = new Map(findingsOf(report).map(f => [findingKey(f), f]));
     const options = onPage.map((fix, i) => {
       const finding = findings.get(fix.key);
-      const detail = finding ? truncate(findingText(finding).replace(/[`*]/g, ''), 100) : '';
+      const detail = finding ? truncate(optionText(findingText(finding)), 100) : '';
       return {
         label: truncate(`${first + i + 1}. ${fix.label}`, 100),
         value: fix.key,

@@ -30,12 +30,13 @@ import type { HealthReport } from '../../../utils/health/types';
 import { guardAdmin } from '../../../utils/interactions/guardHelper';
 import { replyEphemeralError } from '../../../utils/interactions/replyHelper';
 import { enhancedLogger, LogCategory, logHandlerError } from '../../../utils/monitoring/enhancedLogger';
-import { RateLimits } from '../../../utils/security/rateLimiter';
+import { createRateLimitKey, RateLimits, rateLimiter } from '../../../utils/security/rateLimiter';
 import { requireBotOwner } from '../../../utils/validation/permissionValidator';
 import {
   autoKeys,
   CONFIRM_PER_PAGE,
   confirmFixes,
+  confirmPages,
   type PreviewState,
   parsePage,
   REPAIR_CID,
@@ -108,25 +109,31 @@ export async function botHealthRepairHandler(
 
   /** Set while a repair runs, so a second click can't start another. */
   let applying = false;
+  /** Set once the collector ends: nothing can be clicked any more, so no view shows buttons. */
+  let ended = false;
   const collector = message.createMessageComponentCollector({
     time: TIMEOUTS.DASHBOARD,
     filter: i => i.user.id === interaction.user.id,
   });
+  const show = (view: ReturnType<typeof renderPreview>) =>
+    interaction.editReply(ended ? { ...view, components: [] } : view);
+  const deepKey = createRateLimitKey.guild(guild.id, 'bot-health-deep');
 
   /** Re-plans `keys` on the preview's rows, applies them, checks again, and shows the results. */
   const apply = async (i: Click, keys: string[], classes: RepairFix['repair'][]) => {
-    // Nothing picked: no repair, no audit row.
-    if (keys.length === 0) {
-      await i.deferUpdate();
-      return;
-    }
-    // Administrator may have been taken away since the command ran.
-    if (!isOwner && !(await guardAdmin(i)).allowed) {
-      collector.stop();
-      return;
-    }
+    // Before the first await, so a second click can't slip in while the first is checked.
     applying = true;
     try {
+      // Nothing picked: no repair, no audit row.
+      if (keys.length === 0) {
+        await i.deferUpdate();
+        return;
+      }
+      // Administrator may have been taken away since the command ran.
+      if (!isOwner && !(await guardAdmin(i)).allowed) {
+        collector.stop();
+        return;
+      }
       await i.update(renderPreview(state, { ...opts, disabled: true }));
       const plan = planRepairs(state.report, state.ctx, { keys, classes });
       const actor: RepairActor = { userId: interaction.user.id, source: 'command', checkedAt: state.report.checkedAt };
@@ -136,7 +143,7 @@ export async function botHealthRepairHandler(
       } catch (error) {
         if (!(error instanceof RepairBusyError)) throw error;
         await replyEphemeralError(i, tr.errors.busy);
-        await interaction.editReply(renderPreview(state, opts));
+        await show(renderPreview(state, opts));
         return;
       }
       if (guild.id !== interaction.guildId) {
@@ -146,14 +153,18 @@ export async function botHealthRepairHandler(
           counts: result.counts,
         });
       }
+      // The check afterwards takes no repair slot. It looks up messages and threads again only while the
+      // deep check's slot is free (the owner always), so a repair never runs deep more often than its limit.
+      const recheckDeep = deep && (isOwner || rateLimiter.check(deepKey, RateLimits.BOT_HEALTH_DEEP).allowed);
       let next: Session | null = null;
       try {
-        next = startSession(await deps.runHealthCheckWithContext(guild, runOptions));
+        next = startSession(await deps.runHealthCheckWithContext(guild, { ...runOptions, deep: recheckDeep }));
         state = next;
       } catch (error) {
+        if (recheckDeep && !isOwner) rateLimiter.refund(deepKey);
         logHandlerError('bot-health repair re-check', error, { guildId: guild.id });
       }
-      await interaction.editReply(renderResults(result, next, opts));
+      await show(renderResults(result, next, opts));
     } finally {
       applying = false;
     }
@@ -186,7 +197,7 @@ export async function botHealthRepairHandler(
         for (const key of i.values) if (onPage.has(key)) state.selected.add(key);
         await i.update(renderPreview(state, opts));
       } else if (page !== null || i.customId === REPAIR_CID.again) {
-        state.page = page ?? 0;
+        state.page = Math.min(Math.max(page ?? 0, 0), confirmPages(state.plan) - 1);
         await i.update(renderPreview(state, opts));
       }
     } catch (error) {
@@ -195,5 +206,8 @@ export async function botHealthRepairHandler(
       if (isApply) collector.stop();
     }
   });
-  collector.on('end', () => removeComponents(interaction));
+  collector.on('end', () => {
+    ended = true;
+    return removeComponents(interaction);
+  });
 }

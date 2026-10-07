@@ -8,6 +8,7 @@ import type { APIEmbed } from 'discord.js';
 import {
   CONFIRM_PER_PAGE,
   fitLines,
+  optionText,
   type PreviewState,
   parsePage,
   REPAIR_CID,
@@ -218,6 +219,21 @@ describe('emoji at a cut', () => {
     expect(option.label.length).toBeLessThanOrEqual(100);
     expect(loneSurrogate.test(option.label)).toBe(false);
     expect(loneSurrogate.test(view.embeds[0].toJSON().description ?? '')).toBe(false);
+  });
+});
+
+describe('optionText', () => {
+  test('a menu option shows mentions as #id / @id and drops markdown', () => {
+    expect(
+      optionText('Post in <#300000000000000001>, ping <@&200000000000000001> or <@!400000000000000001>, **now** `x`'),
+    ).toBe('Post in #300000000000000001, ping @200000000000000001 or @400000000000000001, now x');
+  });
+
+  test('a finding that names an existing role reads as @id in its option', () => {
+    const f = finding('core.staff_role.format_legacy', 1, { repair: 'confirm' });
+    const [option] = componentsOf(renderPreview(state([f], [fixOf(f, 'confirm')])))[0][0].options;
+    expect(option.description).toContain('@200000000000000001');
+    expect(option.description).not.toContain('<@&');
   });
 });
 
