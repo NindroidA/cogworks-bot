@@ -10,6 +10,7 @@ import type { LoadedRows } from '../../../../../src/utils/health/context';
 import { getChecks } from '../../../../../src/utils/health/registry';
 import { findingKey } from '../../../../../src/utils/health/repair/keys';
 import { planRepairs } from '../../../../../src/utils/health/repair/planner';
+import { repairLabel } from '../../../../../src/utils/health/repair/refRepairs';
 import type { PlanOptions, RepairPlan, RepairProof } from '../../../../../src/utils/health/repair/types';
 import { buildReport, runHealthCheckWithContext } from '../../../../../src/utils/health/runner';
 import type { HealthFinding, HealthSystem, RepairClass } from '../../../../../src/utils/health/types';
@@ -335,6 +336,7 @@ describe('planRepairs: one case per repairable code', () => {
       const fix = fixFor(plan, c.code);
       const step = stepFor(plan, fix.key);
       expect(fix.repair).toBe(c.repair);
+      expect(fix.label).toBe(repairLabel(c.code));
       expect(step?.proofs).toEqual([c.proof]);
       if (c.changes) {
         expect(fix.op).toBe('set');
@@ -362,6 +364,39 @@ describe('planRepairs: one case per repairable code', () => {
     ]);
     // Already off: only the column that changes is written and guarded.
     expect(plan.steps[0]).toMatchObject({ set: { globalStaffRole: null }, guard: { globalStaffRole: GONE_ROLE } });
+  });
+});
+
+describe('planRepairs: what a repair leaves alone', () => {
+  test("a repair changes only its finding's columns, even where the delete event would clear more", async () => {
+    // channelDelete also clears an SLA channel with the same id; no health check covers that column.
+    const { plan } = await planFor({ TicketConfig: [ticketConfig({ channelId: GONE, slaBreachChannelId: GONE })] });
+    const fix = fixFor(plan, 'ticket.panel.channel_missing');
+    expect(fix.changes.map(ch => ch.field)).toEqual(['channelId', 'messageId']);
+    expect(stepFor(plan, fix.key)).toMatchObject({
+      set: { channelId: '', messageId: '' },
+      guard: { channelId: GONE, messageId: MSG },
+    });
+    expect(Object.keys(stepFor(plan, fix.key)?.set ?? {})).toEqual(['channelId', 'messageId']);
+  });
+
+  test('an accepted or rejected application keeps its outcome', async () => {
+    const decided = (id: number, status: string) => ({ ...openTicket, id, status });
+    const { plan } = await planFor({ Application: [decided(7, 'accepted'), decided(8, 'rejected')] });
+    expect(plan.unsupported.map(u => [u.code, u.reason])).toEqual([
+      ['application.open.channel_missing', 'kept_outcome'],
+      ['application.open.channel_missing', 'kept_outcome'],
+    ]);
+    expect(plan).toMatchObject({ fixes: [], steps: [] });
+  });
+
+  test('an id listed twice is one fix', async () => {
+    const { findings, plan } = await planFor({ XPConfig: [xp({ ignoredChannels: [GONE, GONE, TEXT] })] });
+    expect(findings.map(findingKey)).toHaveLength(2);
+    expect(new Set(findings.map(findingKey)).size).toBe(1);
+    expect(plan.fixes.map(f => f.code)).toEqual(['xp.config.ignored_channel_missing']);
+    expect(plan.unsupported).toEqual([]);
+    expect(plan.steps).toMatchObject([{ set: { ignoredChannels: [TEXT] }, keys: [plan.fixes[0].key] }]);
   });
 });
 

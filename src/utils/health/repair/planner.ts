@@ -8,7 +8,7 @@ import type { RefCascade, RefEntityName } from '../../cleanup/refPatches';
 import type { CheckContext, HealthEntityName } from '../context';
 import type { HealthFinding, HealthReport } from '../types';
 import { findingKey } from './keys';
-import { REF_REPAIRS, type RefRepair } from './refRepairs';
+import { REF_REPAIRS, type RefRepair, repairLabel } from './refRepairs';
 import type { PlanOptions, RepairFix, RepairPlan, RepairProof, RepairStep, UnsupportedReason } from './types';
 
 type Row = Record<string, unknown>;
@@ -65,8 +65,15 @@ function planFinding(
   const row = rows.find(r => String(r[primaryKey(def.entity)]) === String(f.rowId));
   if (!row) return 'row_gone';
   const patch = def.patch(row, f.refId);
-  if (!patch) return 'no_change';
-  const fix = { ...base, code: f.code, system: f.system, entity: def.entity, rowId: f.rowId };
+  if (!patch) return def.keeps?.(row) ? 'kept_outcome' : 'no_change';
+  const fix = {
+    ...base,
+    code: f.code,
+    label: repairLabel(f.code),
+    system: f.system,
+    entity: def.entity,
+    rowId: f.rowId,
+  };
   const channelId = def.proof === 'message' ? { channelId: String(row.channelId) } : {};
   const planned = { def, row, refId: f.refId, proof: { kind: def.proof, id: f.refId, ...channelId } };
 
@@ -152,9 +159,12 @@ export function planRepairs(report: HealthReport, ctx: CheckContext, opts: PlanO
   const classes = opts.classes ?? ['auto', 'confirm'];
   const plan: RepairPlan = { fixes: [], steps: [], unsupported: [] };
   const planned: Planned[] = [];
+  const seen = new Set<string>();
   for (const f of Object.values(report.systems).flatMap(system => system?.findings ?? [])) {
-    if (f.repair === 'manual') continue;
     const key = findingKey(f);
+    // A list holding one id twice yields the same finding twice: one fix covers both.
+    if (f.repair === 'manual' || seen.has(key)) continue;
+    seen.add(key);
     const def = REF_REPAIRS[f.code];
     const repair = f.repair === 'confirm' || def?.confirm ? 'confirm' : 'auto';
     if ((keys && !keys.has(key)) || !classes.includes(repair)) continue;

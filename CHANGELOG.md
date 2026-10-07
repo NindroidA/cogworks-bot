@@ -16,10 +16,12 @@ before.
 
 - **Repair planner** (`src/utils/health/repair/planner.ts`).
   `planRepairs(report, ctx)` plans from the rows the same check run loaded and
-  returns the fixes (before and after values per column, or the rows a delete
-  takes with it), the writes, and the findings it can't fix with the reason
-  (no repair yet, rows not loaded, row gone, nothing to change). Manual
-  findings are left out. Fixes on one row merge into one write, so two
+  returns the fixes (each with its label and its before and after values per
+  column, or the rows a delete takes with it), the writes, and the findings it
+  can't fix with the reason (no repair yet, rows not loaded, row gone, nothing
+  to change, or an accepted or rejected application whose channel is gone,
+  which keeps its outcome). Manual findings are left out, and an id listed
+  twice is one fix. Fixes on one row merge into one write, so two
   deleted channels in the XP ignored list are both removed; a delete absorbs
   the row's other fixes, and deleting a memory forum or a reaction-role menu
   absorbs the fixes on its own memories or options. Every write carries the
@@ -28,8 +30,9 @@ before.
   is still gone right before writing.
 - **29 reference repairs** (`refRepairs.ts`) for findings about a deleted
   channel, role, message or thread. Each runs the delete event's patch from
-  `refPatches.ts` on the flagged row, limited to the finding's columns, so a
-  repair fixes a reference exactly as the event would have. Deleting a memory
+  `refPatches.ts` on the flagged row, so a repair fixes a reference the way
+  the event would have, but only in the finding's columns (a deleted panel
+  channel that is also the SLA channel only clears the panel). Deleting a memory
   forum's settings or a memory whose post is gone always asks first, even
   though the checks rate them automatic: saved memories have no other copy,
   and the plan counts how many go.
@@ -37,7 +40,8 @@ before.
   re-checks, so a selection made in a preview can be re-planned later.
 - **`runHealthCheckWithContext`** returns the report together with the rows
   it read; `runHealthCheck` wraps it.
-- Labels for every repair under `health.repair.actions`, and a coverage test:
+- Labels for every repair under `health.repair.actions`, read through
+  `repairLabel(code)`, and a coverage test:
   every repair belongs to a check code and has a label, and every code a check
   emits as auto or confirm today has a repair or is listed for a later PR.
 
