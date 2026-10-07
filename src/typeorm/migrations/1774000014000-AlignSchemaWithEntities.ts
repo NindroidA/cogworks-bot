@@ -6,6 +6,8 @@ interface ColumnInfo {
   maxLength: number | null;
   nullable: boolean;
   defaultValue: string | null;
+  /** An expression default (EXTRA = DEFAULT_GENERATED), which can't be restated as a literal. */
+  expressionDefault: boolean;
   charset: string | null;
   collation: string | null;
 }
@@ -14,7 +16,7 @@ interface WidenSpec {
   table: string;
   column: string;
   length: number;
-  /** The entity default, restated because MODIFY replaces the whole column definition. */
+  /** The entity default, used only when a NOT NULL column has no live default. */
   defaultValue?: string;
 }
 
@@ -40,14 +42,14 @@ const WIDEN: WidenSpec[] = [
 const OLD_VARCHAR_LENGTH = 255;
 
 /** NOT NULL columns whose default only ever existed in the entity (dev synchronize). */
-const DEFAULTS: Array<{ table: string; column: string; value: "''" | '0' }> = [
+const DEFAULTS: Array<{ table: string; column: string; value: '' | '0' }> = [
   ...['ticket_configs', 'application_configs', 'archived_ticket_configs', 'archived_application_configs'].flatMap(
     table => [
-      { table, column: 'messageId', value: "''" as const },
-      { table, column: 'channelId', value: "''" as const },
+      { table, column: 'messageId', value: '' as const },
+      { table, column: 'channelId', value: '' as const },
     ],
   ),
-  { table: 'announcement_config', column: 'defaultChannelId', value: "''" },
+  { table: 'announcement_config', column: 'defaultChannelId', value: '' },
   { table: 'bot_configs', column: 'enableGlobalStaffRole', value: '0' },
 ];
 
@@ -59,6 +61,17 @@ const INDEXES = [
 
 const UNIQUE_TABLE = 'announcement_config';
 const UNIQUE_NAME = 'UQ_announcement_config_guildId';
+
+/**
+ * 2026-10-06T23:23:00Z, just before v3.16.32 (#73) merged and deployed. From
+ * then on voice/stage templates get a channel, so a template marked recurring
+ * after this can be a working series. Compared via FROM_UNIXTIME so the
+ * session time zone reads it the same way it wrote `updatedAt`.
+ */
+const RECURRING_FIX_CUTOFF_UNIX = 1791328980;
+
+/** The server default is a year: an ALTER queued behind a metadata lock would hang boot with the container still up. */
+const LOCK_WAIT_TIMEOUT_SECONDS = 60;
 
 const SAFE_IDENT = /^\w+$/;
 
@@ -75,13 +88,15 @@ function isDuplicateEntry(error: unknown): boolean {
  * Brings prod (migrations only, `synchronize` off since v2.12.10) in line with
  * what the entities declare and what dev's `synchronize` already has. Every
  * step reads information_schema first and skips what is already in place, so
- * it is a no-op on dev and safe to re-run after a partial failure (MySQL DDL
- * commits implicitly, so a failed run leaves earlier steps applied). Nothing
- * here drops data:
+ * it is safe to re-run after a partial failure (MySQL DDL commits implicitly,
+ * so a failed run leaves earlier steps applied). Nothing here drops rows. The
+ * session's lock_wait_timeout is capped at 60s while it runs, so a blocked
+ * ALTER fails the boot (and the container retries) instead of hanging it.
  *
  * 1. Widen varchar columns: starboard_entries.attachmentUrl 255 → 2048,
  *    bait_channel_configs.banReason 255 → 512 and warningMessage 255 → 1024.
- *    Charset, collation, nullability and default are kept.
+ *    Nullability and the live default are kept; a column whose collation
+ *    differs from its table's keeps it explicitly.
  * 2. Add the entity-only defaults on NOT NULL columns (messageId/channelId on
  *    the four panel config tables, announcement_config.defaultChannelId,
  *    bot_configs.enableGlobalStaffRole) so an insert that leaves them out works
@@ -90,9 +105,18 @@ function isDuplicateEntry(error: unknown): boolean {
  *    announcement_log (guildId).
  * 4. Make announcement_config.guildId unique. If a guild already has two rows,
  *    log and skip instead of failing the boot (nothing is deleted).
- * 5. Data fix: voice/stage event templates that a failed `/event recurring`
- *    marked recurring (before voice/stage events got a channel) go back to
- *    isRecurring = 0, so a one-off event from the template can't start a chain.
+ * 5. Data fix: voice/stage event templates last saved before the v3.16.32
+ *    deploy and still marked recurring were left that way by a failed
+ *    `/event recurring` (they had no channel, so no event existed). They go
+ *    back to isRecurring = 0, so a one-off event from the template can't start
+ *    a chain.
+ *
+ * down() reverses steps 1-4 where the database still looks the way up() left
+ * it: a column is narrowed only from exactly the widened length and only when
+ * every value fits, keeping its live default; a default is dropped only when
+ * it equals the value up() sets. It can't tell a default or width up() added
+ * from one that was already there (a synchronized dev DB), so on such a DB it
+ * removes those too. The data fix is not reversed.
  *
  * Known gap (not handled here): an empty database still can't be built from
  * migrations alone, because the pre-v3 tables only ever came from the old
@@ -102,16 +126,26 @@ export class AlignSchemaWithEntities1774000014000 implements MigrationInterface 
   name = 'AlignSchemaWithEntities1774000014000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    await this.withLockWaitTimeout(queryRunner, () => this.apply(queryRunner));
+  }
+
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await this.withLockWaitTimeout(queryRunner, () => this.revert(queryRunner));
+  }
+
+  private async apply(queryRunner: QueryRunner): Promise<void> {
     for (const spec of WIDEN) {
       const col = await this.column(queryRunner, spec.table, spec.column);
       if (col?.dataType !== 'varchar' || (col.maxLength ?? 0) >= spec.length) continue;
-      await this.modifyVarchar(queryRunner, spec, col, spec.length);
+      await this.modifyVarchar(queryRunner, spec, col, spec.length, spec.defaultValue);
     }
 
     for (const { table, column, value } of DEFAULTS) {
       const col = await this.column(queryRunner, table, column);
-      if (!col || col.defaultValue !== null) continue;
-      await queryRunner.query(`ALTER TABLE \`${table}\` ALTER COLUMN \`${column}\` SET DEFAULT ${value}`);
+      if (!col || col.nullable || col.defaultValue !== null) continue;
+      await queryRunner.query(
+        `ALTER TABLE \`${table}\` ALTER COLUMN \`${column}\` SET DEFAULT ${value === '' ? "''" : value}`,
+      );
     }
 
     for (const { table, name, columns } of INDEXES) {
@@ -124,27 +158,10 @@ export class AlignSchemaWithEntities1774000014000 implements MigrationInterface 
     }
 
     await this.addUniqueGuildId(queryRunner);
-
-    const isRecurring = await this.column(queryRunner, 'event_templates', 'isRecurring');
-    const entityType = await this.column(queryRunner, 'event_templates', 'entityType');
-    if (isRecurring && entityType) {
-      const result = await queryRunner.query(
-        "UPDATE `event_templates` SET `isRecurring` = 0 WHERE `isRecurring` = 1 AND `entityType` IN ('voice', 'stage')",
-      );
-      const fixed = Number(result?.affectedRows ?? 0);
-      if (fixed > 0) {
-        enhancedLogger.info(
-          `Migration AlignSchemaWithEntities: reset isRecurring on ${fixed} voice/stage event template(s)`,
-          LogCategory.DATABASE,
-        );
-      }
-    }
+    await this.resetBrokenRecurringTemplates(queryRunner);
   }
 
-  public async down(queryRunner: QueryRunner): Promise<void> {
-    // The event_templates data fix is not reversed: the flag it cleared was
-    // left behind by a command that failed.
-
+  private async revert(queryRunner: QueryRunner): Promise<void> {
     if (await this.indexExists(queryRunner, UNIQUE_TABLE, UNIQUE_NAME)) {
       await queryRunner.query(`DROP INDEX \`${UNIQUE_NAME}\` ON \`${UNIQUE_TABLE}\``);
     }
@@ -155,15 +172,15 @@ export class AlignSchemaWithEntities1774000014000 implements MigrationInterface 
       }
     }
 
-    for (const { table, column } of DEFAULTS) {
+    for (const { table, column, value } of DEFAULTS) {
       const col = await this.column(queryRunner, table, column);
-      if (!col || col.defaultValue === null) continue;
+      if (col?.defaultValue !== value) continue;
       await queryRunner.query(`ALTER TABLE \`${table}\` ALTER COLUMN \`${column}\` DROP DEFAULT`);
     }
 
     for (const spec of WIDEN) {
       const col = await this.column(queryRunner, spec.table, spec.column);
-      if (col?.dataType !== 'varchar' || (col.maxLength ?? 0) <= OLD_VARCHAR_LENGTH) continue;
+      if (col?.dataType !== 'varchar' || col.maxLength !== spec.length) continue;
       const rows = await queryRunner.query(
         `SELECT COALESCE(MAX(CHAR_LENGTH(\`${spec.column}\`)), 0) AS longest FROM \`${spec.table}\``,
       );
@@ -173,6 +190,40 @@ export class AlignSchemaWithEntities1774000014000 implements MigrationInterface 
         continue;
       }
       await this.modifyVarchar(queryRunner, spec, col, OLD_VARCHAR_LENGTH);
+    }
+  }
+
+  private async withLockWaitTimeout(queryRunner: QueryRunner, run: () => Promise<void>): Promise<void> {
+    const rows = await queryRunner.query('SELECT @@SESSION.lock_wait_timeout AS v');
+    const previous = Number(rows[0]?.v);
+    await queryRunner.query(`SET SESSION lock_wait_timeout = ${LOCK_WAIT_TIMEOUT_SECONDS}`);
+    try {
+      await run();
+    } finally {
+      if (Number.isInteger(previous) && previous > 0) {
+        try {
+          await queryRunner.query(`SET SESSION lock_wait_timeout = ${previous}`);
+        } catch (error) {
+          warn(`could not restore lock_wait_timeout to ${previous}: ${(error as Error).message}`);
+        }
+      }
+    }
+  }
+
+  private async resetBrokenRecurringTemplates(queryRunner: QueryRunner): Promise<void> {
+    for (const column of ['isRecurring', 'entityType', 'updatedAt']) {
+      if (!(await this.column(queryRunner, 'event_templates', column))) return;
+    }
+    const result = await queryRunner.query(
+      "UPDATE `event_templates` SET `isRecurring` = 0 WHERE `isRecurring` = 1 AND `entityType` IN ('voice', 'stage')" +
+        ` AND \`updatedAt\` < FROM_UNIXTIME(${RECURRING_FIX_CUTOFF_UNIX})`,
+    );
+    const fixed = Number(result?.affectedRows ?? 0);
+    if (fixed > 0) {
+      enhancedLogger.info(
+        `Migration AlignSchemaWithEntities: reset isRecurring on ${fixed} voice/stage event template(s)`,
+        LogCategory.DATABASE,
+      );
     }
   }
 
@@ -198,21 +249,41 @@ export class AlignSchemaWithEntities1774000014000 implements MigrationInterface 
     }
   }
 
-  private async modifyVarchar(queryRunner: QueryRunner, spec: WidenSpec, col: ColumnInfo, length: number) {
-    const charset = col.charset && SAFE_IDENT.test(col.charset) ? ` CHARACTER SET ${col.charset}` : '';
-    const collate = col.collation && SAFE_IDENT.test(col.collation) ? ` COLLATE ${col.collation}` : '';
-    const nullability = col.nullable ? 'NULL' : 'NOT NULL';
-    const hasDefault = spec.defaultValue !== undefined;
+  /**
+   * MODIFY replaces the whole column definition, so restate what is live:
+   * nullability, the live default (or `fallbackDefault` for a NOT NULL column
+   * with none), and the collation when it differs from the table's (restating
+   * an inherited one would pin it as explicit).
+   */
+  private async modifyVarchar(
+    queryRunner: QueryRunner,
+    spec: WidenSpec,
+    col: ColumnInfo,
+    length: number,
+    fallbackDefault?: string,
+  ): Promise<void> {
+    if (col.expressionDefault) {
+      warn(`left ${spec.table}.${spec.column} as is: it has an expression default`);
+      return;
+    }
+    const tableCollation = await this.tableCollation(queryRunner, spec.table);
+    const ownCollation =
+      col.collation !== null &&
+      col.collation !== tableCollation &&
+      SAFE_IDENT.test(col.collation) &&
+      SAFE_IDENT.test(col.charset ?? '');
+    const collate = ownCollation ? ` CHARACTER SET ${col.charset} COLLATE ${col.collation}` : '';
+    const defaultValue = col.defaultValue ?? (col.nullable ? undefined : fallbackDefault);
     await queryRunner.query(
-      `ALTER TABLE \`${spec.table}\` MODIFY \`${spec.column}\` varchar(${length})${charset}${collate} ${nullability}${hasDefault ? ' DEFAULT ?' : ''}`,
-      hasDefault ? [spec.defaultValue] : undefined,
+      `ALTER TABLE \`${spec.table}\` MODIFY \`${spec.column}\` varchar(${length})${collate} ${col.nullable ? 'NULL' : 'NOT NULL'}${defaultValue === undefined ? '' : ' DEFAULT ?'}`,
+      defaultValue === undefined ? undefined : [defaultValue],
     );
   }
 
   private async column(queryRunner: QueryRunner, table: string, column: string): Promise<ColumnInfo | null> {
     const rows = await queryRunner.query(
       `SELECT DATA_TYPE AS dataType, CHARACTER_MAXIMUM_LENGTH AS maxLength, IS_NULLABLE AS isNullable,
-              COLUMN_DEFAULT AS defaultValue, CHARACTER_SET_NAME AS charset, COLLATION_NAME AS collation
+              COLUMN_DEFAULT AS defaultValue, EXTRA AS extra, CHARACTER_SET_NAME AS charset, COLLATION_NAME AS collation
        FROM information_schema.COLUMNS
        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
       [table, column],
@@ -224,9 +295,18 @@ export class AlignSchemaWithEntities1774000014000 implements MigrationInterface 
       maxLength: row.maxLength === null || row.maxLength === undefined ? null : Number(row.maxLength),
       nullable: row.isNullable === 'YES',
       defaultValue: row.defaultValue ?? null,
+      expressionDefault: /DEFAULT_GENERATED/i.test(String(row.extra ?? '')),
       charset: row.charset ?? null,
       collation: row.collation ?? null,
     };
+  }
+
+  private async tableCollation(queryRunner: QueryRunner, table: string): Promise<string | null> {
+    const rows = await queryRunner.query(
+      'SELECT TABLE_COLLATION AS collation FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
+      [table],
+    );
+    return rows[0]?.collation ?? null;
   }
 
   private async indexes(

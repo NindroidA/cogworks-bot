@@ -12,9 +12,11 @@ only since v2.12.10, so several column widths, defaults and indexes the
 entities declare (and dev's `synchronize` already has) never reached it. One
 new migration, `1774000014000-AlignSchemaWithEntities`, closes those gaps. It
 runs at boot, reads `information_schema` before each change, skips anything
-already in place, and never deletes rows. Still open: an empty database
-can't be built from migrations alone, because the pre-v3 tables only ever came
-from the old `synchronize` baseline, so restoring prod needs a full dump.
+already in place, and never deletes rows. A change blocked by a table lock
+gives up after 60 seconds, so the start fails (and the container retries)
+instead of hanging. Still open: an empty database can't be built from
+migrations alone, because the pre-v3 tables only ever came from the old
+`synchronize` baseline, so restoring prod needs a full dump.
 
 ### Fixed
 
@@ -27,9 +29,10 @@ from the old `synchronize` baseline, so restoring prod needs a full dump.
   `banReason` is now `varchar(512)` and `warningMessage` `varchar(1024)`;
   charset, collation and defaults are kept.
 - **Voice and stage event templates left marked recurring** by a failed
-  `/event recurring` (they could never create an event before they got a
-  channel) are reset to not recurring, so a one-off event from that template
-  can't start a repeating chain.
+  `/event recurring` are reset to not recurring, so a one-off event from that
+  template can't start a repeating chain. Only templates last saved before
+  the v3.16.32 deploy are touched: until then a voice or stage template had no
+  channel and could never create an event.
 
 ### Changed
 

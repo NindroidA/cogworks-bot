@@ -13,6 +13,7 @@ interface FakeColumn {
   maxLength: number | null;
   isNullable: 'YES' | 'NO';
   defaultValue: string | null;
+  extra: string;
   charset: string | null;
   collation: string | null;
 }
@@ -33,6 +34,13 @@ interface FakeDb {
   createUniqueError?: unknown;
 }
 
+const TABLE_COLLATION = 'utf8mb4_0900_ai_ci';
+const SERVER_LOCK_WAIT_TIMEOUT = 31536000;
+const ENTITY_WARNING = '⚠️ You have posted in a restricted channel. This channel is monitored for unauthorized access.';
+const DATA_FIX =
+  "UPDATE `event_templates` SET `isRecurring` = 0 WHERE `isRecurring` = 1 AND `entityType` IN ('voice', 'stage')" +
+  ' AND `updatedAt` < FROM_UNIXTIME(1791328980)';
+
 const PANEL_TABLES = [
   'ticket_configs',
   'application_configs',
@@ -51,9 +59,14 @@ function varchar(length: number, nullable: boolean, defaultValue: string | null 
     maxLength: length,
     isNullable: nullable ? 'YES' : 'NO',
     defaultValue,
+    extra: '',
     charset: 'utf8mb4',
-    collation: 'utf8mb4_0900_ai_ci',
+    collation: TABLE_COLLATION,
   };
+}
+
+function other(dataType: string, defaultValue: string | null = null): FakeColumn {
+  return { ...varchar(0, false, defaultValue), dataType, maxLength: null, charset: null, collation: null };
 }
 
 /** The live prod shape: 255-wide columns, no defaults, missing indexes, broken voice templates. */
@@ -61,17 +74,13 @@ function prodDb(): FakeDb {
   const columns = new Map<string, FakeColumn>([
     ['starboard_entries.attachmentUrl', varchar(255, true)],
     ['bait_channel_configs.banReason', varchar(255, false, 'Posted in bait channel - Potential bot/scammer')],
-    ['bait_channel_configs.warningMessage', varchar(255, false, '⚠️ You have posted in a restricted channel.')],
-    ['event_templates.isRecurring', { ...varchar(0, false, '0'), dataType: 'tinyint', maxLength: null }],
+    ['bait_channel_configs.warningMessage', varchar(255, false, ENTITY_WARNING)],
+    ['event_templates.isRecurring', other('tinyint', '0')],
     ['event_templates.entityType', varchar(20, false, 'external')],
+    ['event_templates.updatedAt', other('datetime', 'CURRENT_TIMESTAMP(6)')],
   ]);
   for (const key of DEFAULT_COLUMNS) {
-    columns.set(
-      key,
-      key.endsWith('enableGlobalStaffRole')
-        ? { ...varchar(0, false), dataType: 'tinyint', maxLength: null }
-        : varchar(255, false),
-    );
+    columns.set(key, key.endsWith('enableGlobalStaffRole') ? other('tinyint') : varchar(255, false));
   }
   return {
     tables: new Set([
@@ -109,7 +118,7 @@ function prodDb(): FakeDb {
   };
 }
 
-/** What dev's synchronize (or a completed up()) leaves behind. */
+/** What a completed up() (or dev's synchronize) leaves behind. */
 function alignedDb(): FakeDb {
   const db = prodDb();
   db.columns.set('starboard_entries.attachmentUrl', varchar(2048, true));
@@ -117,7 +126,7 @@ function alignedDb(): FakeDb {
     'bait_channel_configs.banReason',
     varchar(512, false, 'Posted in bait channel - Potential bot/scammer'),
   );
-  db.columns.set('bait_channel_configs.warningMessage', varchar(1024, false, '⚠️ You have posted.'));
+  db.columns.set('bait_channel_configs.warningMessage', varchar(1024, false, ENTITY_WARNING));
   for (const key of DEFAULT_COLUMNS) {
     const col = db.columns.get(key)!;
     db.columns.set(key, { ...col, defaultValue: key.endsWith('enableGlobalStaffRole') ? '0' : '' });
@@ -133,6 +142,7 @@ function alignedDb(): FakeDb {
 
 function makeRunner(db: FakeDb) {
   const writes: Array<{ sql: string; params?: unknown[] }> = [];
+  const sessions: string[] = [];
   const runner = {
     hasTable: async (table: string) => db.tables.has(table),
     query: async (sql: string, params?: unknown[]) => {
@@ -141,8 +151,16 @@ function makeRunner(db: FakeDb) {
         const col = db.tables.has(table) ? db.columns.get(`${table}.${column}`) : undefined;
         return col ? [{ ...col }] : [];
       }
+      if (sql.includes('information_schema.TABLES')) {
+        return db.tables.has((params as string[])[0]) ? [{ collation: TABLE_COLLATION }] : [];
+      }
       if (sql.includes('information_schema.STATISTICS')) {
         return db.indexes.get((params as string[])[0]) ?? [];
+      }
+      if (sql.includes('@@SESSION.lock_wait_timeout')) return [{ v: SERVER_LOCK_WAIT_TIMEOUT }];
+      if (sql.startsWith('SET SESSION')) {
+        sessions.push(sql);
+        return [];
       }
       if (sql.includes('HAVING COUNT(*) > 1')) return [{ cnt: db.dupeGuilds }];
       const longest = sql.match(/CHAR_LENGTH\(`(\w+)`\)\), 0\) AS longest FROM `(\w+)`/);
@@ -154,7 +172,7 @@ function makeRunner(db: FakeDb) {
       return [];
     },
   };
-  return { runner: runner as unknown as QueryRunner, writes, sqls: () => writes.map(w => w.sql) };
+  return { runner: runner as unknown as QueryRunner, writes, sessions, sqls: () => writes.map(w => w.sql) };
 }
 
 const migration = new AlignSchemaWithEntities1774000014000();
@@ -177,9 +195,7 @@ describe('AlignSchemaWithEntities up()', () => {
     await migration.up(runner);
     const run = sqls();
 
-    expect(run).toContain(
-      'ALTER TABLE `starboard_entries` MODIFY `attachmentUrl` varchar(2048) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL',
-    );
+    expect(run).toContain('ALTER TABLE `starboard_entries` MODIFY `attachmentUrl` varchar(2048) NULL');
     expect(run.filter(s => s.startsWith('ALTER TABLE `bait_channel_configs` MODIFY'))).toHaveLength(2);
     for (const key of DEFAULT_COLUMNS) {
       const [table, column] = key.split('.');
@@ -189,9 +205,7 @@ describe('AlignSchemaWithEntities up()', () => {
     expect(run).toContain('CREATE INDEX `IDX_tickets_guildId_channelId` ON `tickets` (`guildId`, `channelId`)');
     expect(run).toContain('CREATE INDEX `IDX_announcement_log_guildId` ON `announcement_log` (`guildId`)');
     expect(run).toContain('CREATE UNIQUE INDEX `UQ_announcement_config_guildId` ON `announcement_config` (`guildId`)');
-    expect(run).toContain(
-      "UPDATE `event_templates` SET `isRecurring` = 0 WHERE `isRecurring` = 1 AND `entityType` IN ('voice', 'stage')",
-    );
+    expect(run).toContain(DATA_FIX);
     expect(run).toHaveLength(3 + DEFAULT_COLUMNS.length + 2 + 1 + 1);
     expect(infoSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).not.toHaveBeenCalled();
@@ -199,27 +213,98 @@ describe('AlignSchemaWithEntities up()', () => {
     expect(run.some(s => /DROP|DELETE|TRUNCATE/i.test(s))).toBe(false);
   });
 
-  test('MODIFY restates charset, collation, NOT NULL and the entity default', async () => {
-    const { runner, writes } = makeRunner(prodDb());
+  test('caps lock_wait_timeout at 60s for the run and restores the session value after', async () => {
+    const { runner, sessions } = makeRunner(prodDb());
+    await migration.up(runner);
+    expect(sessions).toEqual([
+      'SET SESSION lock_wait_timeout = 60',
+      `SET SESSION lock_wait_timeout = ${SERVER_LOCK_WAIT_TIMEOUT}`,
+    ]);
+  });
+
+  test('restores lock_wait_timeout even when a step fails', async () => {
+    const db = prodDb();
+    db.createUniqueError = Object.assign(new Error('Lock wait timeout exceeded'), {
+      code: 'ER_LOCK_WAIT_TIMEOUT',
+      errno: 1205,
+    });
+    const { runner, sessions } = makeRunner(db);
+    await expect(migration.up(runner)).rejects.toThrow('Lock wait timeout exceeded');
+    expect(sessions.at(-1)).toBe(`SET SESSION lock_wait_timeout = ${SERVER_LOCK_WAIT_TIMEOUT}`);
+  });
+
+  test('MODIFY keeps the live default, nullability and an inherited collation implicit', async () => {
+    const db = prodDb();
+    db.columns.set('bait_channel_configs.banReason', varchar(255, false, 'Custom live default'));
+    const { runner, writes } = makeRunner(db);
     await migration.up(runner);
     const banReason = writes.find(w => w.sql.includes('MODIFY `banReason`'));
     expect(banReason?.sql).toBe(
-      'ALTER TABLE `bait_channel_configs` MODIFY `banReason` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT ?',
+      'ALTER TABLE `bait_channel_configs` MODIFY `banReason` varchar(512) NOT NULL DEFAULT ?',
     );
-    expect(banReason?.params).toEqual(['Posted in bait channel - Potential bot/scammer']);
-    const warning = writes.find(w => w.sql.includes('MODIFY `warningMessage`'));
-    expect(warning?.sql).toContain('varchar(1024)');
-    expect(warning?.params).toEqual([
-      '⚠️ You have posted in a restricted channel. This channel is monitored for unauthorized access.',
-    ]);
+    expect(banReason?.params).toEqual(['Custom live default']);
+    const url = writes.find(w => w.sql.includes('MODIFY `attachmentUrl`'));
+    expect(url?.params).toBeUndefined();
+  });
+
+  test('a NOT NULL column without a live default gets the entity default; a nullable one keeps NULL', async () => {
+    const db = prodDb();
+    db.columns.set('bait_channel_configs.warningMessage', varchar(255, false, null));
+    db.columns.set('bait_channel_configs.banReason', varchar(300, true, null));
+    const { runner, writes } = makeRunner(db);
+    await migration.up(runner);
+    expect(writes.find(w => w.sql.includes('MODIFY `warningMessage`'))?.params).toEqual([ENTITY_WARNING]);
+    const banReason = writes.find(w => w.sql.includes('MODIFY `banReason`'));
+    expect(banReason?.sql).toBe('ALTER TABLE `bait_channel_configs` MODIFY `banReason` varchar(512) NULL');
+  });
+
+  test('restates a collation that differs from the table default', async () => {
+    const db = prodDb();
+    db.columns.set('starboard_entries.attachmentUrl', {
+      ...varchar(255, true),
+      charset: 'latin1',
+      collation: 'latin1_bin',
+    });
+    const { runner, sqls } = makeRunner(db);
+    await migration.up(runner);
+    expect(sqls()).toContain(
+      'ALTER TABLE `starboard_entries` MODIFY `attachmentUrl` varchar(2048) CHARACTER SET latin1 COLLATE latin1_bin NULL',
+    );
+  });
+
+  test('a column with an expression default is left alone, with a warning', async () => {
+    const db = prodDb();
+    db.columns.set('bait_channel_configs.banReason', {
+      ...varchar(255, false, "concat('a','b')"),
+      extra: 'DEFAULT_GENERATED',
+    });
+    const { runner, sqls } = makeRunner(db);
+    await migration.up(runner);
+    expect(sqls().some(s => s.includes('MODIFY `banReason`'))).toBe(false);
+    expect(String(warnSpy.mock.calls[0][0])).toContain('expression default');
+  });
+
+  test('the data fix only resets templates last saved before the v3.16.32 deploy', async () => {
+    const { runner, sqls } = makeRunner(prodDb());
+    await migration.up(runner);
+    const update = sqls().find(s => s.startsWith('UPDATE `event_templates`'));
+    expect(update).toContain('AND `updatedAt` < FROM_UNIXTIME(1791328980)');
+    // The cutoff is 2026-10-06T23:23:00Z, just before #73 merged (23:23:05Z).
+    expect(Date.parse('2026-10-06T23:23:00Z') / 1000).toBe(1791328980);
+  });
+
+  test('the data fix is skipped when event_templates has no updatedAt column', async () => {
+    const db = prodDb();
+    db.columns.delete('event_templates.updatedAt');
+    const { runner, sqls } = makeRunner(db);
+    await migration.up(runner);
+    expect(sqls().some(s => s.startsWith('UPDATE'))).toBe(false);
   });
 
   test('is a no-op on an aligned (dev / already migrated) database apart from the zero-row data fix', async () => {
     const { runner, sqls } = makeRunner(alignedDb());
     await migration.up(runner);
-    expect(sqls()).toEqual([
-      "UPDATE `event_templates` SET `isRecurring` = 0 WHERE `isRecurring` = 1 AND `entityType` IN ('voice', 'stage')",
-    ]);
+    expect(sqls()).toEqual([DATA_FIX]);
     expect(infoSpy).not.toHaveBeenCalled();
   });
 
@@ -268,11 +353,12 @@ describe('AlignSchemaWithEntities up()', () => {
     expect(sqls().some(s => s.startsWith('UPDATE `event_templates`'))).toBe(true);
   });
 
-  test('any other error creating the unique key still fails the migration', async () => {
+  test('a nullable column (DEFAULT NULL) is not given a default', async () => {
     const db = prodDb();
-    db.createUniqueError = Object.assign(new Error('Lock wait timeout'), { code: 'ER_LOCK_WAIT_TIMEOUT', errno: 1205 });
-    const { runner } = makeRunner(db);
-    await expect(migration.up(runner)).rejects.toThrow('Lock wait timeout');
+    db.columns.set('ticket_configs.messageId', varchar(255, true, null));
+    const { runner, sqls } = makeRunner(db);
+    await migration.up(runner);
+    expect(sqls().some(s => s.includes('`ticket_configs` ALTER COLUMN `messageId`'))).toBe(false);
   });
 
   test('missing tables and columns are skipped', async () => {
@@ -294,18 +380,40 @@ describe('AlignSchemaWithEntities up()', () => {
 
 describe('AlignSchemaWithEntities down()', () => {
   test('reverts indexes, defaults and widths when the data fits', async () => {
-    const { runner, sqls } = makeRunner(alignedDb());
+    const { runner, sqls, sessions } = makeRunner(alignedDb());
     await migration.down(runner);
     const run = sqls();
     expect(run).toContain('DROP INDEX `UQ_announcement_config_guildId` ON `announcement_config`');
     expect(run).toContain('DROP INDEX `IDX_tickets_guildId_channelId` ON `tickets`');
     expect(run).toContain('DROP INDEX `IDX_announcement_log_guildId` ON `announcement_log`');
     expect(run.filter(s => s.endsWith('DROP DEFAULT'))).toHaveLength(DEFAULT_COLUMNS.length);
-    expect(run).toContain(
-      'ALTER TABLE `starboard_entries` MODIFY `attachmentUrl` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL',
-    );
+    expect(run).toContain('ALTER TABLE `starboard_entries` MODIFY `attachmentUrl` varchar(255) NULL');
     expect(run.filter(s => s.includes('MODIFY') && s.includes('varchar(255)'))).toHaveLength(3);
     expect(run.some(s => s.startsWith('UPDATE') || /DELETE|TRUNCATE/i.test(s))).toBe(false);
+    expect(sessions).toHaveLength(2);
+  });
+
+  test('narrows only from exactly the widened length and keeps the live default', async () => {
+    const db = alignedDb();
+    db.columns.set('starboard_entries.attachmentUrl', varchar(4096, false, ''));
+    db.columns.set('bait_channel_configs.banReason', varchar(512, false, 'Custom live default'));
+    const { runner, writes } = makeRunner(db);
+    await migration.down(runner);
+    expect(writes.some(w => w.sql.includes('`attachmentUrl`'))).toBe(false);
+    const banReason = writes.find(w => w.sql.includes('MODIFY `banReason`'));
+    expect(banReason?.sql).toBe(
+      'ALTER TABLE `bait_channel_configs` MODIFY `banReason` varchar(255) NOT NULL DEFAULT ?',
+    );
+    expect(banReason?.params).toEqual(['Custom live default']);
+  });
+
+  test('drops only defaults equal to the value up() sets', async () => {
+    const db = alignedDb();
+    db.columns.set('ticket_configs.channelId', varchar(255, false, 'keep'));
+    const { runner, sqls } = makeRunner(db);
+    await migration.down(runner);
+    expect(sqls().some(s => s.includes('`ticket_configs` ALTER COLUMN `channelId`'))).toBe(false);
+    expect(sqls().filter(s => s.endsWith('DROP DEFAULT'))).toHaveLength(DEFAULT_COLUMNS.length - 1);
   });
 
   test('keeps a column wide when a stored value would not fit back in 255', async () => {
