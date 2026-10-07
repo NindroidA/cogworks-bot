@@ -20,7 +20,7 @@ import type { HealthReport } from '../../../utils/health/types';
 import { guardAdmin } from '../../../utils/interactions/guardHelper';
 import { replyEphemeralError } from '../../../utils/interactions/replyHelper';
 import { enhancedLogger, LogCategory, logHandlerError } from '../../../utils/monitoring/enhancedLogger';
-import { RateLimits } from '../../../utils/security/rateLimiter';
+import { BOT_HEALTH_ACTIONS, RateLimits } from '../../../utils/security/rateLimiter';
 import { requireBotOwner } from '../../../utils/validation/permissionValidator';
 import { buildExportAttachment, HEALTH_CID, parseViewRequest, type RenderOptions, renderView } from './render';
 import { refundSlots, removeComponents, resolveTargetGuild, systemOption, takeGuildSlots } from './target';
@@ -57,8 +57,8 @@ export async function botHealthCheckHandler(
 
   const deep = interaction.options.getBoolean('deep') ?? false;
   const limit = deep
-    ? { action: 'bot-health-deep', limit: RateLimits.BOT_HEALTH_DEEP }
-    : { action: 'bot-health-check', limit: RateLimits.BOT_HEALTH_CHECK };
+    ? { action: BOT_HEALTH_ACTIONS.deep, limit: RateLimits.BOT_HEALTH_DEEP }
+    : { action: BOT_HEALTH_ACTIONS.check, limit: RateLimits.BOT_HEALTH_CHECK };
   /** The rate-limit slot this run took (none for the owner); given back if the engine fails. */
   const slots = isOwner ? [] : await takeGuildSlots(interaction, guild.id, [limit]);
   if (!slots) return;

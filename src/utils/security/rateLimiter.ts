@@ -323,6 +323,17 @@ export const RateLimits = {
 } as const;
 
 /**
+ * The per-server actions `/bot-health` and the dashboard API take slots under
+ * (`createRateLimitKey.guild(guildId, action)`), so both share each limit:
+ * BOT_HEALTH_CHECK, BOT_HEALTH_DEEP and BOT_HEALTH_REPAIR.
+ */
+export const BOT_HEALTH_ACTIONS = {
+  check: 'bot-health-check',
+  deep: 'bot-health-deep',
+  repair: 'bot-health-repair',
+} as const;
+
+/**
  * Helper function to create rate limit keys
  */
 export const createRateLimitKey = {

@@ -3,6 +3,7 @@ import { registerAnalyticsHandlers } from './handlers/analyticsHandlers';
 import { registerAnnouncementHandlers } from './handlers/announcementHandlers';
 import { registerApplicationHandlers } from './handlers/applicationHandlers';
 import { registerBaitChannelHandlers } from './handlers/baitChannelHandlers';
+import { registerBotHealthHandlers } from './handlers/botHealthHandlers';
 import { registerCommandHandlers } from './handlers/commandHandlers';
 import { registerConfigHandlers } from './handlers/configHandlers';
 import { registerGuildHandlers } from './handlers/guildHandlers';
@@ -40,6 +41,7 @@ export function registerHandlers(client: Client): Map<string, RouteHandler> {
   registerSetupHandlers(client, routes);
   registerAnalyticsHandlers(client, routes);
   registerPermissionHandlers(client, routes);
+  registerBotHealthHandlers(client, routes);
 
   return routes;
 }

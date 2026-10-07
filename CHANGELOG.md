@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.17.1] - 2026-10-07
+
+The dashboard side of `/bot-health` (NindroidA/cogworks-bot#41): two
+internal API endpoints let the dashboard show a server's health report and
+run the same repairs as `/bot-health repair`. Nothing changes in Discord.
+
+### Added
+
+- **`GET /internal/guilds/:guildId/bot-health/report?system=&deep=0|1`**
+  returns the health report and its repair plan: the fixes, and the findings
+  that can't be fixed and why. Each finding comes with its key (what a repair
+  request picks it by), its explanation as Discord markdown with the values
+  filled in, and whether a fix exists and what it does. A fix's value longer
+  than 200 characters (a long list) is cut off, so a server with many
+  findings on one list still gets a small answer. A report is cached for 60
+  seconds per server, system and deep setting (200 reports at most), and a
+  repair through the API drops the server's cached reports. A deep check
+  that isn't cached uses the server's deep-check slot, the one
+  `/bot-health check deep:true` uses; once it's used up the endpoint answers
+  429.
+- **`POST /internal/guilds/:guildId/bot-health/repair`** with
+  `{ keys?, auto?, dryRun?, system?, deep?, triggeredBy }` always checks the
+  server again, then plans the picked fixes: `keys`, plus every automatic fix
+  that check finds with `auto: true`. Send `keys` to apply exactly what a
+  preview showed.
+  - A dry run returns each write with its values before and after, and
+    changes nothing. It uses the server's health-check slot (once a minute,
+    shared with `/bot-health check`).
+  - Otherwise `triggeredBy` is required. The repair uses one of the server's 5
+    repairs an hour (shared with `/bot-health repair`), is applied and
+    audited as a dashboard action, and returns each write's outcome, a fresh
+    report, and the keys that matched no fix. While another repair of the
+    server runs, the answer is 409.
+  - A deep dry run or repair also uses the deep-check slot, unless the API
+    used it in the last 10 minutes: a deep report, then a deep preview, then
+    a deep repair use it once. The check after a repair is deep only while
+    the slot is free.
+  - A slot is given back when what it paid for didn't run: a failed check, or
+    a failed or refused repair. A repair request with nothing to write keeps
+    its slot, since the check ran.
+- `BOT_HEALTH_ACTIONS` names the per-server rate-limit slots `/bot-health`
+  and the API share. `/bot-health check` and `repair` now use it.
+- `src/utils/health/repair/serialize.ts`: the JSON for reports, plans, steps
+  and results.
+
 ## [3.17.0] - 2026-10-07
 
 **New: `/bot-health repair`** (NindroidA/cogworks-bot#41). It fixes what

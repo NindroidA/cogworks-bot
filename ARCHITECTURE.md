@@ -222,6 +222,7 @@ Handlers registered in `src/utils/api/handlers/`:
 - **setup** — dashboard state, system configuration
 - **config** — bot config read/write
 - **guilds** — guild info, member counts
+- **botHealth** — health report, repair (dry run or apply)
 
 ## Key Design Decisions
 
