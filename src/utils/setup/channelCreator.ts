@@ -64,10 +64,11 @@ export async function createSystemChannels(
   const maxPosition =
     guild.channels.cache.reduce((max, ch) => Math.max(max, 'rawPosition' in ch ? ch.rawPosition || 0 : 0), 0) + 1;
 
-  const { ViewChannel, SendMessages, ManageChannels } = PermissionFlagsBits;
-  // An unknown role id would fail the whole create, so only a role the guild still has gets the allow
+  const { ViewChannel, SendMessages, ManageChannels, ReadMessageHistory } = PermissionFlagsBits;
+  // An unknown role id would fail the whole create, so only a role the guild still has gets the
+  // allow, and never @everyone (whose id is the guild's)
   const staffAllow =
-    staffRoleId && guild.roles.cache.has(staffRoleId)
+    staffRoleId && staffRoleId !== guild.id && guild.roles.cache.has(staffRoleId)
       ? [{ id: staffRoleId, type: OverwriteType.Role, allow: [ViewChannel] }]
       : [];
   // The bot keeps access too: without it, a bot that isn't Administrator is locked out of what it just created
@@ -75,6 +76,14 @@ export async function createSystemChannels(
   const botAllow = botId
     ? [{ id: botId, type: OverwriteType.Member, allow: [ViewChannel, SendMessages, ManageChannels] }]
     : [];
+  // A panel channel is read-only for members. Discord refuses an overwrite for a permission
+  // the bot doesn't hold, so only those it holds are denied.
+  const panelDeny = [
+    SendMessages,
+    PermissionFlagsBits.AddReactions,
+    PermissionFlagsBits.CreatePublicThreads,
+    PermissionFlagsBits.SendMessagesInThreads,
+  ].filter(perm => guild.members.me?.permissions.has(perm));
 
   const buildPerms = (template: ChannelTemplate) => {
     if (template.staffOnly) {
@@ -82,9 +91,13 @@ export async function createSystemChannels(
     }
     // A channel created under a staff-only category with no overwrites of its own
     // syncs to the category's @everyone deny, so members' channels get an explicit allow.
-    if (template.memberAccess) {
-      const allow = template.memberAccess === 'post' ? [ViewChannel, SendMessages] : [ViewChannel];
-      return [{ id: guild.id, type: OverwriteType.Role, allow }];
+    if (template.memberAccess === 'post') {
+      return [{ id: guild.id, type: OverwriteType.Role, allow: [ViewChannel, SendMessages] }];
+    }
+    if (template.memberAccess === 'view') {
+      // The bot still posts the panel, so it gets back the Send that @everyone loses
+      const allow = [ViewChannel, ReadMessageHistory];
+      return [{ id: guild.id, type: OverwriteType.Role, allow, deny: panelDeny }, ...botAllow];
     }
     return [];
   };
@@ -177,15 +190,18 @@ export async function createSystemChannels(
 /**
  * Delete what a failed auto-create left behind, channels before their
  * categories (deleting a category first would leave its channels loose at
- * the top of the server). Best-effort: verifiedChannelDelete logs failures.
+ * the top of the server). Returns the ids it couldn't delete.
  */
-export async function deleteCreatedChannels(guild: Guild, created: CreatedChannels): Promise<void> {
+export async function deleteCreatedChannels(guild: Guild, created: CreatedChannels): Promise<string[]> {
   const channels = Object.values(created)
     .map(id => guild.channels.cache.get(id))
     .filter((channel): channel is GuildBasedChannel => channel !== undefined);
   const isCategory = (channel: GuildBasedChannel) => (channel.type === ChannelType.GuildCategory ? 1 : 0);
   channels.sort((a, b) => isCategory(a) - isCategory(b));
+  const left: string[] = [];
   for (const channel of channels) {
-    await verifiedChannelDelete(channel, { guildId: guild.id, label: 'auto-created setup channel' });
+    const result = await verifiedChannelDelete(channel, { guildId: guild.id, label: 'auto-created setup channel' });
+    if (!result.success) left.push(channel.id);
   }
+  return left;
 }

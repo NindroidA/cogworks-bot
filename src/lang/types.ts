@@ -403,6 +403,8 @@ export interface LangBotSetup {
   };
   flows: {
     panelNotPosted: string;
+    oldPanelNotRemoved: string;
+    autoCreateLeftovers: string;
     staffRoleMissing: string;
     rulesNextStep: string;
   };

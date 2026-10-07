@@ -42,6 +42,9 @@ interface ChannelRow {
   statusHistory: TicketStatusHistoryEntry[] | null;
 }
 
+/** Statuses that are already an outcome: closed, or an application decision that must not be lost. */
+const FINAL_STATUSES = new Set(['closed', 'accepted', 'rejected']);
+
 /**
  * Close the tickets/applications whose channel was deleted by hand, so they
  * stop counting as open (workload, SLA alerts, dashboard). The close flows set
@@ -50,7 +53,7 @@ interface ChannelRow {
 function closeRowsInDeletedChannel(name: string, entity: EntityTarget<ChannelRow>, maxHistory: number) {
   return async (guildId: string, channelId: string) => {
     const repo = AppDataSource.getRepository(entity);
-    const open = (await repo.find({ where: { guildId, channelId } })).filter(row => row.status !== 'closed');
+    const open = (await repo.find({ where: { guildId, channelId } })).filter(row => !FINAL_STATUSES.has(row.status));
     for (const row of open) {
       appendStatusHistory(row, 'closed', 'system', maxHistory, 'channel-deleted');
       // Conditional on the status read above, so a close that lands in between wins

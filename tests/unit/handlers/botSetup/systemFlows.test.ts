@@ -1,10 +1,13 @@
 /**
  * /bot-setup system flows (NindroidA/cogworks-bot#41, audits 116, 118, 120, 123, 124).
  *
- * - 116: an auto-create that can't make every channel deletes the partial set
- *   and reports failure; a panel that can't be posted is reported.
- * - 118: re-running the bait flow keeps the extra bait channels and the banner.
- * - 120: re-running ticket setup replaces the old panel and archive thread.
+ * - 116: an auto-create that can't finish (missing channel or a later error)
+ *   deletes the partial set and reports failure, naming what it couldn't delete.
+ * - 118: re-running the bait flow keeps the extra bait channels and the banner;
+ *   a moved banner is deleted only after the new config is saved.
+ * - 120: re-running ticket setup posts and saves the new panel and archive
+ *   thread before deleting the old ones; a failed post keeps the old panel
+ *   tracked, and an old panel that can't be deleted is reported.
  * - 123: unchecking "Enable Staff Role" turns the global staff role off.
  * - 124: the rules step tells the admin to finish with /rules-setup.
  *
@@ -21,6 +24,9 @@ const GUILD = 'g-flows';
 const STAFF = '111111111111111111';
 
 const tables: Record<string, Row[]> = {};
+/** Last row each entity saved, copied at save time (the live rows are mutated in place). */
+const saved: Record<string, Row> = {};
+const failSave = new Set<string>();
 const matches = (row: Row, where: Row = {}) => Object.entries(where).every(([k, v]) => row[k] === v);
 
 function makeRepo(name: string) {
@@ -32,7 +38,9 @@ function makeRepo(name: string) {
     count: async () => 1, // BaitKeyword: seeding sees existing keywords and skips
     create: (obj: Row) => ({ ...obj }),
     save: async (entity: Row) => {
+      if (failSave.has(name)) throw new Error(`boom-save-${name}`);
       if (!rows().includes(entity)) rows().push(entity);
+      saved[name] = { ...entity };
       return entity;
     },
   };
@@ -61,6 +69,8 @@ afterAll(async () => {
 
 beforeEach(() => {
   for (const key of Object.keys(tables)) delete tables[key];
+  for (const key of Object.keys(saved)) delete saved[key];
+  failSave.clear();
 });
 
 afterEach(async () => {
@@ -75,11 +85,38 @@ afterEach(async () => {
 
 const unknown = (code: number) => Object.assign(new Error('Unknown'), { code });
 
-function makeGuild(opts: { failTypes?: ChannelType[]; failSendIn?: string[] } = {}) {
+function makeGuild(
+  opts: {
+    failTypes?: ChannelType[];
+    failSendIn?: string[];
+    /** Ids whose delete fails with Missing Permissions. */
+    failDelete?: string[];
+    failCategoryDelete?: boolean;
+    /** Called as each object is deleted, to see what was saved by then. */
+    onDelete?: (id: string) => void;
+  } = {},
+) {
   let seq = 0;
   const deleted: string[] = [];
   const created: Row[] = [];
   const cache = new Collection<string, any>();
+  const remove = (id: string) => {
+    if (opts.failDelete?.includes(id)) throw new Error('50013: Missing Permissions');
+    opts.onDelete?.(id);
+    deleted.push(id);
+  };
+  const makeMessage = (id: string, messages: Map<string, Row>) => {
+    const message: Row = { id, edits: 0 };
+    message.edit = async () => {
+      message.edits++;
+    };
+    message.delete = async () => {
+      remove(id);
+      messages.delete(id);
+    };
+    messages.set(id, message);
+    return message;
+  };
 
   const textChannel = (id: string) => {
     const messages = new Map<string, Row>();
@@ -99,33 +136,12 @@ function makeGuild(opts: { failTypes?: ChannelType[]; failSendIn?: string[] } = 
       },
       send: async () => {
         if (opts.failSendIn?.includes(id)) throw new Error('50013: Missing Permissions');
-        const message: Row = { id: `${id}-msg-${++seq}`, edits: 0 };
-        message.edit = async () => {
-          message.edits++;
-        };
-        message.delete = async () => {
-          messages.delete(message.id);
-          deleted.push(message.id);
-        };
-        messages.set(message.id, message);
+        const message = makeMessage(`${id}-msg-${++seq}`, messages);
         channel.sent.push(message.id);
         return message;
       },
-      seedMessage: (messageId: string) =>
-        channel.messages.fetch(messageId).catch(async () => {
-          const message: Row = { id: messageId, edits: 0 };
-          message.edit = async () => {
-            message.edits++;
-          };
-          message.delete = async () => {
-            messages.delete(messageId);
-            deleted.push(messageId);
-          };
-          messages.set(messageId, message);
-        }),
-      delete: async () => {
-        deleted.push(id);
-      },
+      seedMessage: (messageId: string) => makeMessage(messageId, messages),
+      delete: async () => remove(id),
     };
     return channel;
   };
@@ -136,8 +152,8 @@ function makeGuild(opts: { failTypes?: ChannelType[]; failSendIn?: string[] } = 
     isTextBased: () => true,
     pin: async () => {},
     delete: async () => {
+      remove(id);
       cache.delete(id);
-      deleted.push(id);
     },
   });
 
@@ -153,9 +169,7 @@ function makeGuild(opts: { failTypes?: ChannelType[]; failSendIn?: string[] } = 
         return t;
       },
     },
-    delete: async () => {
-      deleted.push(id);
-    },
+    delete: async () => remove(id),
   });
 
   const add = (channel: Row) => {
@@ -167,7 +181,7 @@ function makeGuild(opts: { failTypes?: ChannelType[]; failSendIn?: string[] } = 
     id: GUILD,
     features: [],
     roles: { cache: new Collection([[STAFF, { id: STAFF }]]) },
-    members: { me: { id: 'bot-1' } },
+    members: { me: { id: 'bot-1', permissions: { has: () => true } } },
     client: { user: { id: 'bot-1' } },
     deleted,
     created,
@@ -188,7 +202,11 @@ function makeGuild(opts: { failTypes?: ChannelType[]; failSendIn?: string[] } = 
         const id = `auto-${++seq}`;
         if (options.type === ChannelType.GuildForum) return add(forum(id));
         if (options.type === ChannelType.GuildCategory) {
-          return add({ id, type: ChannelType.GuildCategory, delete: async () => deleted.push(id) });
+          const del = async () => {
+            if (opts.failCategoryDelete) throw new Error('50013: Missing Permissions');
+            remove(id);
+          };
+          return add({ id, type: ChannelType.GuildCategory, delete: del });
         }
         return add(textChannel(id));
       },
@@ -335,7 +353,14 @@ describe('Ticket System flow (audits 116, 120)', () => {
   });
 
   test('a re-run replaces the old panel and archive thread instead of adding a second', async () => {
-    const guild = makeGuild();
+    // What was saved when each old object was deleted: the new ids must already be stored,
+    // or the messageDelete cleaner's stale save could write the old row back
+    const savedAtDelete: Record<string, Row> = {};
+    const guild = makeGuild({
+      onDelete: id => {
+        savedAtDelete[id] = { ticket: { ...saved.TicketConfig }, archive: { ...saved.ArchivedTicketConfig } };
+      },
+    });
     const tickets = guild.textChannel('tickets');
     guild.forum('archive');
     guild.add({ id: 'cat', type: ChannelType.GuildCategory });
@@ -351,10 +376,28 @@ describe('Ticket System flow (audits 116, 120)', () => {
     expect(tickets.sent).toHaveLength(1);
     expect(tables.TicketConfig[0].messageId).toBe(tickets.sent[0]);
     expect(tables.ArchivedTicketConfig[0].messageId).toMatch(/^archive-thread-/);
+    expect(savedAtDelete['old-panel'].ticket.messageId).toBe(tickets.sent[0]);
+    expect(savedAtDelete['old-thread'].archive.messageId).toMatch(/^archive-thread-/);
   });
 
-  test('a panel that could not be posted is reported and not left pointing at the old one', async () => {
-    const guild = makeGuild({ failSendIn: ['tickets'] });
+  test('a panel that could not be posted keeps the old panel up and tracked', async () => {
+    const guild = makeGuild({ failSendIn: ['new-tickets'] });
+    const tickets = guild.textChannel('tickets');
+    guild.textChannel('new-tickets');
+    guild.forum('archive');
+    await tickets.seedMessage('old-panel');
+    tables.TicketConfig = [{ guildId: GUILD, channelId: 'tickets', messageId: 'old-panel', categoryId: 'cat' }];
+
+    const { followUps } = await runFlow('ticket', guild, { fields: ticketFields('new-tickets', 'archive', 'cat') });
+
+    expect(guild.deleted).not.toContain('old-panel');
+    expect(tables.TicketConfig[0]).toMatchObject({ channelId: 'tickets', messageId: 'old-panel' });
+    expect(followUps).toHaveLength(1);
+    expect(followUps[0]).toContain('<#new-tickets>');
+  });
+
+  test('an old panel that could not be deleted is reported', async () => {
+    const guild = makeGuild({ failDelete: ['old-panel'] });
     const tickets = guild.textChannel('tickets');
     guild.forum('archive');
     await tickets.seedMessage('old-panel');
@@ -362,9 +405,30 @@ describe('Ticket System flow (audits 116, 120)', () => {
 
     const { followUps } = await runFlow('ticket', guild, { fields: ticketFields('tickets', 'archive', 'cat') });
 
-    expect(tables.TicketConfig[0].messageId).toBe('');
+    expect(tables.TicketConfig[0].messageId).toBe(tickets.sent[0]);
     expect(followUps).toHaveLength(1);
-    expect(followUps[0]).toContain('<#tickets>');
+    expect(followUps[0]).toContain("couldn't delete the old one in <#tickets>");
+  });
+
+  test('an error after the channels were made still removes them', async () => {
+    failSave.add('TicketConfig');
+    const guild = makeGuild();
+
+    const { result } = await runFlow('ticket', guild, { autoCreate: true });
+
+    expect(result).toMatchObject({ updated: false, failed: true });
+    expect(guild.deleted.filter((id: string) => /^auto-\d+$/.test(id))).toHaveLength(4);
+  });
+
+  test('channels the rollback could not delete are named', async () => {
+    const guild = makeGuild({ failTypes: [ChannelType.GuildForum], failCategoryDelete: true });
+
+    const { followUps } = await runFlow('ticket', guild, { autoCreate: true });
+
+    expect(followUps).toHaveLength(1);
+    expect(followUps[0]).toContain("couldn't delete these channels");
+    expect(followUps[0]).toContain('<#auto-1>');
+    expect(followUps[0]).toContain('<#auto-2>');
   });
 });
 
@@ -392,7 +456,8 @@ describe('Bait Channel re-run (audit 118)', () => {
         actionType: 'ban',
       },
     ];
-    return a.seedMessage('banner-a').then(() => a);
+    a.seedMessage('banner-a');
+    return a;
   }
 
   test('same channel: keeps the other bait channels and the existing banner', async () => {
@@ -410,7 +475,12 @@ describe('Bait Channel re-run (audit 118)', () => {
   });
 
   test('new channel: replaces the primary, keeps the extras and moves the banner', async () => {
-    const guild = makeGuild();
+    let savedAtDelete: Row | undefined;
+    const guild = makeGuild({
+      onDelete: id => {
+        if (id === 'banner-a') savedAtDelete = { ...saved.BaitChannelConfig };
+      },
+    });
     await seedBait(guild);
     const d = guild.textChannel('bait-d');
 
@@ -422,6 +492,8 @@ describe('Bait Channel re-run (audit 118)', () => {
     expect(guild.deleted).toEqual(['banner-a']);
     expect(d.sent).toHaveLength(1);
     expect(config.channelMessageId).toBe(d.sent[0]);
+    // Saved before the old banner went, so the messageDelete cleaner can't revert it
+    expect(savedAtDelete).toMatchObject({ channelId: 'bait-d', channelMessageId: d.sent[0] });
   });
 });
 

@@ -470,18 +470,29 @@ describe('channelDelete event handler', () => {
     expect(fakeRepos.Ticket.calls.update).toHaveLength(0);
   });
 
-  test('Application: an accepted application whose channel was deleted is closed', async () => {
+  test('Application: an open application whose channel was deleted is closed', async () => {
     fakeRepos.Application.rows.set('1', {
       id: 1,
       guildId: 'guild-1',
       channelId: 'app-chan',
-      status: 'accepted',
+      status: 'opened',
       statusHistory: [],
     });
 
     await channelDeleteHandler.execute(makeFakeChannel('app-chan', 'guild-1'), mockClient);
 
     expect(fakeRepos.Application.rows.get('1').status).toBe('closed');
+  });
+
+  test('Application: an accepted or rejected decision is kept', async () => {
+    fakeRepos.Application.rows.set('1', { id: 1, guildId: 'guild-1', channelId: 'app-chan', status: 'accepted' });
+    fakeRepos.Application.rows.set('2', { id: 2, guildId: 'guild-1', channelId: 'app-chan', status: 'rejected' });
+
+    await channelDeleteHandler.execute(makeFakeChannel('app-chan', 'guild-1'), mockClient);
+
+    expect(fakeRepos.Application.calls.update).toHaveLength(0);
+    expect(fakeRepos.Application.rows.get('1').status).toBe('accepted');
+    expect(fakeRepos.Application.rows.get('2').status).toBe('rejected');
   });
 
   test('MemoryConfig: deleting the memory forum removes its item and tag rows with the config', async () => {

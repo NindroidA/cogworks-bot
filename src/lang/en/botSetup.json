@@ -229,7 +229,9 @@
   },
 
   "flows": {
-    "panelNotPosted": "Saved, but I couldn't post the panel in <#{channelId}>. Give me View Channel and Send Messages there, then run this step again.",
+    "panelNotPosted": "I couldn't post the panel in <#{channelId}>, so any previous panel stays where it was. Give me View Channel and Send Messages there, then run this step again.",
+    "oldPanelNotRemoved": "The new panel is up, but I couldn't delete the old one in {channels}. Delete it by hand so members don't see two.",
+    "autoCreateLeftovers": "I couldn't delete these channels from the failed setup: {channels}. Delete them by hand before trying again.",
     "staffRoleMissing": "Pick a role to turn on the global staff role, or uncheck **Enable Staff Role** to turn it off.",
     "rulesNextStep": "Next step: run `/rules-setup setup` with <#{channelId}> as the channel and your verified role to post the rules message. Rules shows **In Progress** until then."
   },

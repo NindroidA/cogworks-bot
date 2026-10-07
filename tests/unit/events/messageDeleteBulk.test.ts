@@ -3,7 +3,8 @@
  *
  * A purge arrives as one bulk event, so the per-message config cleanup must
  * run from it: a purged panel message no longer stays referenced. Cached
- * messages the bot didn't write are skipped before any query.
+ * messages the bot didn't write are skipped before any query, and a purge
+ * never touches pending bait grace bans.
  *
  * Strategy: patch AppDataSource.getRepository with one shared fake per
  * entity (the same seam as messageDelete.test.ts).
@@ -64,7 +65,7 @@ const message = (id: string, authorId: string | null) => ({
 });
 
 describe('messageDeleteBulk (audit 121)', () => {
-  test('clears a config reference to a purged message', async () => {
+  test('clears a config reference to a purged message without touching bait grace bans', async () => {
     fakeRepos.TicketConfig.rows.set('1', { id: 1, guildId: 'guild-1', messageId: 'panel', channelId: 'tickets' });
     const messages = new Collection<string, any>([
       ['chat-1', message('chat-1', 'member-1')],
@@ -74,7 +75,8 @@ describe('messageDeleteBulk (audit 121)', () => {
     await bulkHandler.execute(messages, client);
 
     expect(fakeRepos.TicketConfig.rows.get('1').messageId).toBe('');
-    expect(handleMessageDelete).toHaveBeenCalledWith('panel', 'guild-1');
+    // A moderator purge must not cancel pending grace bans (only the user deleting their own post does)
+    expect(handleMessageDelete).not.toHaveBeenCalled();
   });
 
   test('cached messages from other users cost no queries', async () => {

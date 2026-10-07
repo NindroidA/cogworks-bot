@@ -331,19 +331,23 @@ async function configureForumSystem(
     });
     const guild = interaction.guild!;
     const created = await autoCreateChannels(guild, guildId, cfg.systemKey);
-
-    const data: ForumSystemData = {
-      channelId: created.button,
-      archiveId: created.archive,
-      categoryId: created.threadCategory || created.category,
-    };
-
-    if (!data.channelId || !data.archiveId || !data.categoryId) {
-      // Remove the partial set and report it; otherwise every retry adds another set
-      await deleteCreatedChannels(guild, created);
-      return { updated: false, states: setupState.systemStates, failed: true };
+    let finished = false;
+    try {
+      const data: ForumSystemData = {
+        channelId: created.button,
+        archiveId: created.archive,
+        categoryId: created.threadCategory || created.category,
+      };
+      // A missing channel fails the step (the finally removes the partial set)
+      if (!data.channelId || !data.archiveId || !data.categoryId) {
+        return { updated: false, states: setupState.systemStates, failed: true };
+      }
+      const result = await finishForumSystem(guild, guildId, setupState, cfg, data, choice.btnInteraction);
+      finished = true;
+      return result;
+    } finally {
+      if (!finished) await rollBackAutoCreate(guild, created, choice.btnInteraction);
     }
-    return finishForumSystem(guild, guildId, setupState, cfg, data, choice.btnInteraction);
   }
 
   // Manual channel selection via modal
@@ -390,9 +394,10 @@ async function configureForumSystem(
 }
 
 /**
- * Post the panel and archive welcome thread, replacing the ones a previous
- * run posted, then save. `notify` is already acknowledged, so a panel that
- * couldn't be posted is reported as a follow-up.
+ * Post the panel and archive welcome thread, save, and only then remove the
+ * ones a previous run posted. Saving first means the messageDelete cleaner
+ * finds nothing stale to write back; posting first means a failed post keeps
+ * the old panel live and tracked. `notify` is already acknowledged.
  */
 async function finishForumSystem(
   guild: Guild,
@@ -402,8 +407,16 @@ async function finishForumSystem(
   data: ForumSystemData,
   notify: ButtonInteraction | ModalSubmitInteraction,
 ) {
-  await removeOldPanel(guild, cfg);
+  // Copied, not kept as entities: saveConfig below updates those rows
+  const [old, oldArchive] = (
+    await Promise.all([
+      AppDataSource.getRepository(cfg.configEntity).findOneBy({ guildId }),
+      AppDataSource.getRepository(cfg.archiveEntity).findOneBy({ guildId }),
+    ])
+  ).map(row => (row ? { channelId: row.channelId, messageId: row.messageId } : null));
+  const postedIn = data.channelId;
   data.messageId = await cfg.sendButtonMessage(guild, data.channelId, guildId);
+  const posted = data.messageId !== undefined;
 
   try {
     const archiveForum = (await guild.channels.fetch(data.archiveId)) as ForumChannel;
@@ -421,31 +434,48 @@ async function finishForumSystem(
     );
   }
 
+  // Whatever wasn't replaced stays tracked where it is
+  if (!posted && old?.messageId) {
+    data.channelId = old.channelId;
+    data.messageId = old.messageId;
+  }
+  if (!data.archiveMessageId && oldArchive?.messageId) data.archiveMessageId = oldArchive.messageId;
+
   await cfg.saveConfig(guildId, data);
   const states = {
     ...(setupState.systemStates ?? DEFAULT_SYSTEM_STATES),
     [cfg.systemKey]: 'complete' as const,
   };
   await saveSetupState(setupState, states, { [cfg.systemKey]: data });
-  if (!data.messageId) {
-    const content = tl.panelNotPosted.replace('{channelId}', data.channelId);
-    await notify.followUp({ content, flags: [MessageFlags.Ephemeral] }).catch(() => null);
+
+  const notRemoved: string[] = [];
+  if (old?.messageId && old.messageId !== data.messageId) {
+    if (!(await cleanupOldMessage(guild, old.channelId, old.messageId))) notRemoved.push(`<#${old.channelId}>`);
+  }
+  // The archive config's messageId is the welcome thread's id (a forum post, so not cleanupOldMessage)
+  if (oldArchive?.messageId && oldArchive.messageId !== data.archiveMessageId) {
+    const thread = await guild.channels.fetch(oldArchive.messageId).catch(() => null);
+    if (thread?.isThread()) {
+      const result = await verifiedThreadDelete(thread, { guildId, label: 'old archive thread' });
+      if (!result.success) notRemoved.push(`<#${thread.id}>`);
+    }
+  }
+
+  const notes: string[] = [];
+  if (!posted) notes.push(tl.panelNotPosted.replace('{channelId}', postedIn));
+  if (notRemoved.length > 0) notes.push(tl.oldPanelNotRemoved.replace('{channels}', notRemoved.join(', ')));
+  if (notes.length > 0) {
+    await notify.followUp({ content: notes.join('\n'), flags: [MessageFlags.Ephemeral] }).catch(() => null);
   }
   return { updated: true, states };
 }
 
-/** Delete the panel and archive welcome thread a previous run posted, as /ticket-setup does for the panel. */
-async function removeOldPanel(guild: Guild, cfg: ForumSystemConfig): Promise<void> {
-  const [old, oldArchive] = await Promise.all([
-    AppDataSource.getRepository(cfg.configEntity).findOneBy({ guildId: guild.id }),
-    AppDataSource.getRepository(cfg.archiveEntity).findOneBy({ guildId: guild.id }),
-  ]);
-  if (old?.messageId) await cleanupOldMessage(guild, old.channelId, old.messageId);
-  // The archive config's messageId is the welcome thread's id (a forum post, so not cleanupOldMessage)
-  if (oldArchive?.messageId) {
-    const thread = await guild.channels.fetch(oldArchive.messageId).catch(() => null);
-    if (thread?.isThread()) await verifiedThreadDelete(thread, { guildId: guild.id, label: 'old archive thread' });
-  }
+/** Undo a failed auto-create, naming any channel that couldn't be deleted so the admin can remove it. */
+async function rollBackAutoCreate(guild: Guild, created: CreatedChannels, notify: ButtonInteraction): Promise<void> {
+  const left = await deleteCreatedChannels(guild, created);
+  if (left.length === 0) return;
+  const content = tl.autoCreateLeftovers.replace('{channels}', left.map(id => `<#${id}>`).join(', '));
+  await notify.followUp({ content, flags: [MessageFlags.Ephemeral] }).catch(() => null);
 }
 
 // ---------------------------------------------------------------------------
@@ -458,7 +488,6 @@ async function saveTicketConfig(guildId: string, data: ForumSystemData) {
     apply: config => {
       config.channelId = data.channelId;
       config.categoryId = data.categoryId;
-      // The previous panel was deleted before posting, so a failed post leaves no panel to point at
       config.messageId = data.messageId ?? '';
     },
   });
@@ -478,7 +507,6 @@ async function saveApplicationConfig(guildId: string, data: ForumSystemData) {
     apply: config => {
       config.channelId = data.channelId;
       config.categoryId = data.categoryId;
-      // The previous panel was deleted before posting, so a failed post leaves no panel to point at
       config.messageId = data.messageId ?? '';
     },
   });
@@ -657,25 +685,27 @@ async function runSimpleSystemFlow<TData, K extends SimpleSystemKey>(
     });
     const guild = interaction.guild!;
     const created = await autoCreateChannels(guild, guildId, cfg.channelType);
+    let finished = false;
+    try {
+      const data = cfg.fromAutoCreate(created, guild);
+      // A missing channel fails the step (the finally removes the partial set)
+      if (!data) return { updated: false, states: setupState.systemStates, failed: true };
 
-    const data = cfg.fromAutoCreate(created, guild);
-    if (!data) {
-      // Remove the partial set and report it; otherwise every retry adds another set
-      await deleteCreatedChannels(guild, created);
-      return { updated: false, states: setupState.systemStates, failed: true };
+      await cfg.apply(guildId, data, { guild, client });
+
+      const states = {
+        ...(setupState.systemStates ?? DEFAULT_SYSTEM_STATES),
+        [cfg.systemKey]: completeState,
+      };
+      await saveSetupState(setupState, states, {
+        [cfg.systemKey]: cfg.toPartialData(data),
+      });
+      finished = true;
+      await sendNextStep(choice.btnInteraction, cfg.toPartialData(data));
+      return { updated: true, states };
+    } finally {
+      if (!finished) await rollBackAutoCreate(guild, created, choice.btnInteraction);
     }
-
-    await cfg.apply(guildId, data, { guild, client });
-
-    const states = {
-      ...(setupState.systemStates ?? DEFAULT_SYSTEM_STATES),
-      [cfg.systemKey]: completeState,
-    };
-    await saveSetupState(setupState, states, {
-      [cfg.systemKey]: cfg.toPartialData(data),
-    });
-    await sendNextStep(choice.btnInteraction, cfg.toPartialData(data));
-    return { updated: true, states };
   }
 
   // Manual path
@@ -850,7 +880,7 @@ const baitConfig: SimpleSystemConfig<BaitData, 'baitchannel'> = {
     // in-Discord way back. This makes the dashboard the guaranteed re-enable path.
     config.enabled = true;
     // Same as /baitchannel setup: the pick replaces the primary and channels added with
-    // /baitchannel channels add stay. The banner lives in the legacy channelId column's channel.
+    // /baitchannel setup add-channel stay. The banner lives in the legacy channelId column's channel.
     const current = getBaitChannelIds(config);
     const bannerHome = config.channelId || current[0];
     setBaitChannels(config, [data.channelId, ...current.filter(id => id !== current[0])].slice(0, 3));
@@ -861,11 +891,10 @@ const baitConfig: SimpleSystemConfig<BaitData, 'baitchannel'> = {
     if (data.logChannelId) config.logChannelId = data.logChannelId;
 
     // Warning banner, on both paths (skipping it on the manual path was the v3.0.5 bug).
-    // A banner already in this channel is kept; one left in the old primary is removed.
-    if (config.channelMessageId && bannerHome !== data.channelId) {
-      await cleanupOldMessage(guild, bannerHome, config.channelMessageId);
-      config.channelMessageId = null;
-    }
+    // A banner already in this channel is kept; one left in the old primary is removed
+    // after the save below, so the messageDelete cleaner has nothing stale to write back.
+    const oldBanner = config.channelMessageId && bannerHome !== data.channelId ? config.channelMessageId : null;
+    if (oldBanner) config.channelMessageId = null;
     try {
       const baitChannel = (await guild.channels.fetch(data.channelId)) as TextChannel;
       const existing = config.channelMessageId
@@ -882,6 +911,7 @@ const baitConfig: SimpleSystemConfig<BaitData, 'baitchannel'> = {
     }
 
     await repo.save(config);
+    if (oldBanner) await cleanupOldMessage(guild, bannerHome, oldBanner);
 
     // Seed default keywords (also a v3.0.5 fix for both paths)
     try {

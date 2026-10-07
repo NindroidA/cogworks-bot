@@ -2,11 +2,14 @@
  * Setup auto-create permissions (NindroidA/cogworks-bot#41, audit 109 + 116).
  *
  * - Members' channels created inside a staff-only category get an explicit
- *   @everyone allow, so they don't sync to the category's deny.
+ *   @everyone allow, so they don't sync to the category's deny. Panel
+ *   channels are read-only for members (the honeypot lets them post).
  * - Staff-only categories and channels keep the bot and the global staff
  *   role in; the closed-ticket archive forums are staff-only.
  * - Announcement channels fall back to text outside Community servers.
- * - deleteCreatedChannels removes channels before their categories.
+ * - @everyone is never given the staff allow.
+ * - deleteCreatedChannels removes channels before their categories and
+ *   returns the ones it couldn't delete.
  */
 
 import { describe, expect, test } from 'bun:test';
@@ -15,7 +18,8 @@ import { createSystemChannels, deleteCreatedChannels } from '../../../../src/uti
 import type { ChannelFormat } from '../../../../src/utils/setup/channelFormatDetector';
 
 const FORMAT: ChannelFormat = { separator: '-', casing: 'lower', emojiPrefix: false, confidence: 0 };
-const { ViewChannel, SendMessages } = PermissionFlagsBits;
+const { ViewChannel, SendMessages, ReadMessageHistory, AddReactions, CreatePublicThreads, SendMessagesInThreads } =
+  PermissionFlagsBits;
 
 interface Overwrite {
   id: string;
@@ -31,7 +35,15 @@ interface CreateCall {
   permissionOverwrites?: Overwrite[];
 }
 
-function makeGuild(opts: { features?: string[]; roles?: string[]; failTypes?: ChannelType[] } = {}) {
+function makeGuild(
+  opts: {
+    features?: string[];
+    roles?: string[];
+    failTypes?: ChannelType[];
+    botLacks?: bigint[];
+    failDeleteTypes?: ChannelType[];
+  } = {},
+) {
   const calls: CreateCall[] = [];
   const deleted: string[] = [];
   const cache = new Collection<string, any>();
@@ -40,7 +52,7 @@ function makeGuild(opts: { features?: string[]; roles?: string[]; failTypes?: Ch
     id: 'guild-1',
     features: opts.features ?? [],
     roles: { cache: new Collection((opts.roles ?? []).map(id => [id, { id }])) },
-    members: { me: { id: 'bot-1' } },
+    members: { me: { id: 'bot-1', permissions: { has: (perm: bigint) => !opts.botLacks?.includes(perm) } } },
     client: { user: { id: 'bot-1' } },
     channels: {
       cache,
@@ -52,6 +64,7 @@ function makeGuild(opts: { features?: string[]; roles?: string[]; failTypes?: Ch
           type: options.type,
           rawPosition: seq,
           delete: async () => {
+            if (opts.failDeleteTypes?.includes(options.type)) throw new Error('50013: Missing Permissions');
             deleted.push(channel.id);
           },
         };
@@ -80,7 +93,35 @@ describe('createSystemChannels permissions (audit 109)', () => {
 
     const panel = byName(calls, 'tickets', ChannelType.GuildText);
     expect(panel?.parent).toBe(created.category);
-    expect(panel?.permissionOverwrites).toEqual([{ id: 'guild-1', type: OverwriteType.Role, allow: [ViewChannel] }]);
+    expect(overwriteFor(panel, 'guild-1')).toEqual({
+      id: 'guild-1',
+      type: OverwriteType.Role,
+      allow: [ViewChannel, ReadMessageHistory],
+      deny: [SendMessages, AddReactions, CreatePublicThreads, SendMessagesInThreads],
+    });
+    // @everyone can't send there, so the bot gets Send back to post the panel
+    expect(overwriteFor(panel, 'bot-1')?.allow).toContain(SendMessages);
+  });
+
+  test('the panel only denies what the bot holds (Discord refuses the rest)', async () => {
+    const { guild, calls } = makeGuild({ botLacks: [CreatePublicThreads] });
+    await createSystemChannels(guild, 'application', FORMAT);
+
+    expect(overwriteFor(byName(calls, 'applications', ChannelType.GuildText), 'guild-1')?.deny).toEqual([
+      SendMessages,
+      AddReactions,
+      SendMessagesInThreads,
+    ]);
+  });
+
+  test('@everyone is never given the staff allow', async () => {
+    const { guild, calls } = makeGuild({ roles: ['guild-1'] });
+    await createSystemChannels(guild, 'ticket', FORMAT, undefined, 'guild-1');
+
+    const everyone = byName(calls, 'tickets', ChannelType.GuildCategory)?.permissionOverwrites?.filter(
+      o => o.id === 'guild-1',
+    );
+    expect(everyone).toEqual([{ id: 'guild-1', type: OverwriteType.Role, deny: [ViewChannel] }]);
   });
 
   test('the archive forum is staff-only, with the staff role and the bot let in', async () => {
@@ -140,10 +181,20 @@ describe('deleteCreatedChannels (audit 116)', () => {
     const created = await createSystemChannels(guild, 'ticket', FORMAT);
     expect(created.archive).toBeUndefined();
 
-    await deleteCreatedChannels(guild, created);
+    const left = await deleteCreatedChannels(guild, created);
 
+    expect(left).toEqual([]);
     expect([...deleted].sort()).toEqual(Object.values(created).sort());
     expect(deleted[0]).toBe(created.button);
     expect(deleted.slice(1).sort()).toEqual([created.category, created.threadCategory].sort());
+  });
+
+  test('returns the channels it could not delete', async () => {
+    const { guild } = makeGuild({ failTypes: [ChannelType.GuildForum], failDeleteTypes: [ChannelType.GuildCategory] });
+    const created = await createSystemChannels(guild, 'ticket', FORMAT);
+
+    const left = await deleteCreatedChannels(guild, created);
+
+    expect(left.sort()).toEqual([created.category, created.threadCategory].sort());
   });
 });
