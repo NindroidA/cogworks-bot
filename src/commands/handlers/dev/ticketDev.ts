@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { ArchivedTicket } from '../../../typeorm/entities/ticket/ArchivedTicket';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
-import { enhancedLogger, guardFeatureAccess, handleInteractionError, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, fmt, guardFeatureAccess, handleInteractionError, LogCategory, lang } from '../../../utils';
 import { findManyByGuild } from '../../../utils/database/guildQueries';
 
 /**
@@ -57,9 +57,9 @@ export async function bulkCloseTicketsHandler(interaction: ChatInputCommandInter
 
     await interaction.editReply(
       `${lang.dev.bulkCloseTickets.complete}\n\n` +
-        `${lang.dev.bulkCloseTickets.totalTickets.replace('{count}', openTickets.length.toString())}\n` +
-        `${lang.dev.bulkCloseTickets.successfullyClosed.replace('{count}', closedCount.toString())}\n` +
-        `${lang.dev.bulkCloseTickets.failed.replace('{count}', errorCount.toString())}`,
+        `${fmt(lang.dev.bulkCloseTickets.totalTickets, { count: openTickets.length })}\n` +
+        `${fmt(lang.dev.bulkCloseTickets.successfullyClosed, { count: closedCount })}\n` +
+        `${fmt(lang.dev.bulkCloseTickets.failed, { count: errorCount })}`,
     );
   } catch (error) {
     await handleInteractionError(interaction, error, 'bulkCloseTicketsHandler');
@@ -85,7 +85,7 @@ export async function deleteArchivedTicketHandler(interaction: ChatInputCommandI
 
     if (!archivedTicket) {
       await interaction.reply({
-        content: lang.dev.deleteArchivedTicket.notFound.replace('{user}', user.tag),
+        content: fmt(lang.dev.deleteArchivedTicket.notFound, { user: user.tag }),
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -110,8 +110,8 @@ export async function deleteArchivedTicketHandler(interaction: ChatInputCommandI
 
     await interaction.reply({
       content: forumPostDeleted
-        ? lang.dev.deleteArchivedTicket.successWithPost.replace('{user}', user.tag)
-        : lang.dev.deleteArchivedTicket.successNoPost.replace('{user}', user.tag),
+        ? fmt(lang.dev.deleteArchivedTicket.successWithPost, { user: user.tag })
+        : fmt(lang.dev.deleteArchivedTicket.successNoPost, { user: user.tag }),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
@@ -165,9 +165,9 @@ export async function deleteAllArchivedTicketsHandler(interaction: ChatInputComm
     await interaction.editReply(
       `${lang.dev.deleteAllArchivedTickets.complete}\n\n` +
         `${lang.dev.deleteAllArchivedTickets.results}\n` +
-        `${lang.dev.deleteAllArchivedTickets.dbRecordsDeleted.replace('{count}', (result.affected || 0).toString())}\n` +
-        `${lang.dev.deleteAllArchivedTickets.forumPostsDeleted.replace('{count}', postsDeleted.toString())}\n` +
-        `${lang.dev.deleteAllArchivedTickets.forumPostsFailed.replace('{count}', postsFailed.toString())}`,
+        `${fmt(lang.dev.deleteAllArchivedTickets.dbRecordsDeleted, { count: result.affected || 0 })}\n` +
+        `${fmt(lang.dev.deleteAllArchivedTickets.forumPostsDeleted, { count: postsDeleted })}\n` +
+        `${fmt(lang.dev.deleteAllArchivedTickets.forumPostsFailed, { count: postsFailed })}`,
     );
   } catch (error) {
     await handleInteractionError(interaction, error, 'deleteAllArchivedTicketsHandler');

@@ -1,6 +1,6 @@
 {
   "setup": {
-    "success": "Starboard has been configured! Messages with {0}+ {1} reactions will appear in {2}.",
+    "success": "Starboard has been configured! Messages with {threshold}+ {emoji} reactions will appear in {channel}.",
     "disabled": "Starboard has been disabled.",
     "enabled": "Starboard has been enabled.",
     "notConfigured": "Starboard is not configured. Use `/starboard setup` first.",
@@ -8,8 +8,8 @@
     "configUpdated": "Starboard configuration updated."
   },
   "ignore": {
-    "added": "Channel {0} is now ignored by starboard.",
-    "removed": "Channel {0} is no longer ignored by starboard.",
+    "added": "Channel {channel} is now ignored by starboard.",
+    "removed": "Channel {channel} is no longer ignored by starboard.",
     "notIgnored": "That channel is not in the ignore list."
   },
   "stats": {

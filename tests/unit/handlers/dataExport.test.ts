@@ -112,7 +112,7 @@ describe('/data-export', () => {
     expect(calls.dms).toHaveLength(0);
     const last = calls.edits.at(-1);
     expect(last.files).toBeUndefined();
-    const [before, after] = lang.dataExport.tooLarge.split('{0}');
+    const [before, after] = lang.dataExport.tooLarge.split('{size}');
     expect(last.content).toStartWith(before);
     expect(last.content).toEndWith(after);
     const size = last.content.slice(before.length, last.content.length - after.length);

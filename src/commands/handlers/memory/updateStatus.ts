@@ -5,6 +5,7 @@ import {
   Colors,
   E,
   enhancedLogger,
+  fmt,
   guardFeatureRateLimit,
   healthMonitor,
   LogCategory,
@@ -110,7 +111,7 @@ export async function memoryUpdateStatusHandler(interaction: ChatInputCommandInt
       try {
         const closeEmbed = new EmbedBuilder()
           .setTitle(`${E.memory} ${tl.closeNotice.title}`)
-          .setDescription(tl.closeNotice.description.replace('{0}', `<@${interaction.user.id}>`))
+          .setDescription(fmt(tl.closeNotice.description, { user: `<@${interaction.user.id}>` }))
           .setColor(Colors.status.neutral);
 
         await thread.send({ embeds: [closeEmbed] });

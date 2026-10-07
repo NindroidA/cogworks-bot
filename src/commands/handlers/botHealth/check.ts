@@ -7,7 +7,7 @@
  * fails is given back so the admin can retry at once.
  */
 import { type CacheType, type ChatInputCommandInteraction, type Client, type Guild, MessageFlags } from 'discord.js';
-import { lang } from '../../../lang';
+import { fmt, lang } from '../../../lang';
 import { isValidSnowflake } from '../../../utils/api/helpers';
 import { TIMEOUTS } from '../../../utils/constants';
 import { runHealthCheck } from '../../../utils/health/runner';
@@ -18,14 +18,7 @@ import { replyEphemeralError } from '../../../utils/interactions/replyHelper';
 import { enhancedLogger, LogCategory, logHandlerError } from '../../../utils/monitoring/enhancedLogger';
 import { createRateLimitKey, RateLimits, rateLimiter } from '../../../utils/security/rateLimiter';
 import { requireBotOwner } from '../../../utils/validation/permissionValidator';
-import {
-  buildExportAttachment,
-  fillTemplate,
-  HEALTH_CID,
-  parseViewRequest,
-  type RenderOptions,
-  renderView,
-} from './render';
+import { buildExportAttachment, HEALTH_CID, parseViewRequest, type RenderOptions, renderView } from './render';
 
 const tl = lang.health.command;
 
@@ -51,9 +44,9 @@ async function resolveTargetGuild(
     }
     return guild;
   }
-  let error = fillTemplate(tl.errors.guildNotFound, { guildId: requested });
+  let error = fmt(tl.errors.guildNotFound, { guildId: requested });
   if (!isOwner) error = tl.errors.notOwner;
-  else if (!valid) error = fillTemplate(tl.errors.invalidGuildId, { guildId: requested });
+  else if (!valid) error = fmt(tl.errors.invalidGuildId, { guildId: requested });
   await replyEphemeralError(interaction, error);
   return null;
 }

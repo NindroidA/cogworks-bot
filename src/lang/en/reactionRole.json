@@ -99,7 +99,7 @@
   "validate": {
     "title": "Reaction Role Validation Report",
     "allValid": "All menus are healthy! No issues found.",
-    "issuesFound": "{0} issue(s) found across your reaction role menus.",
+    "issuesFound": "{count} issue(s) found across your reaction role menus.",
     "menuMissing": "Menu **{name}**: Message missing — the menu message was deleted from <#{channelId}>",
     "channelMissing": "Menu **{name}**: Channel missing — <#{channelId}> no longer exists",
     "roleMissing": "Menu **{name}**: Role deleted — {emoji} option references a role that no longer exists",

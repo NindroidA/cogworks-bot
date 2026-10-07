@@ -7,7 +7,7 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
-import { enhancedLogger, formatLang, LogCategory, lang, replyEphemeralError, toUnixSeconds } from '../../../utils';
+import { enhancedLogger, fmt, LogCategory, lang, replyEphemeralError, toUnixSeconds } from '../../../utils';
 import { importManager } from '../../../utils/import/importManager';
 
 const tl = lang.import.commands;
@@ -28,7 +28,7 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
   if (cooldownUntil) {
     const timestamp = toUnixSeconds(cooldownUntil);
     await interaction.reply({
-      content: formatLang(tl.importCooldown, `<t:${timestamp}:R>`),
+      content: fmt(tl.importCooldown, { time: `<t:${timestamp}:R>` }),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -44,7 +44,7 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
   );
 
   await interaction.editReply({
-    content: formatLang(tl.importStarted, 'MEE6'),
+    content: fmt(tl.importStarted, { source: 'MEE6' }),
   });
 
   const result = await importManager.startImport(guildId, 'mee6', 'xp', interaction.user.id, {
@@ -55,7 +55,9 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
   if (dryRun) {
     const embed = new EmbedBuilder()
       .setTitle(lang.import.results.mee6DryRunTitle)
-      .setDescription(formatLang(tl.dryRunComplete, result.imported, result.skipped, result.failed))
+      .setDescription(
+        fmt(tl.dryRunComplete, { imported: result.imported, skipped: result.skipped, failed: result.failed }),
+      )
       .setColor(0x3498db);
 
     if (result.errors.length > 0) {
@@ -72,7 +74,9 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
   if (result.success) {
     const embed = new EmbedBuilder()
       .setTitle(lang.import.results.mee6CompleteTitle)
-      .setDescription(formatLang(tl.importComplete, result.imported, result.skipped, result.failed))
+      .setDescription(
+        fmt(tl.importComplete, { imported: result.imported, skipped: result.skipped, failed: result.failed }),
+      )
       .setColor(0x2ecc71)
       .addFields({
         name: lang.import.results.durationField,
@@ -90,6 +94,6 @@ export async function mee6ImportHandler(interaction: ChatInputCommandInteraction
     await interaction.editReply({ content: '', embeds: [embed] });
   } else {
     const errorMsg = result.errors.length > 0 ? result.errors[0] : lang.import.results.unknownError;
-    await replyEphemeralError(interaction, formatLang(tl.importFailed, errorMsg));
+    await replyEphemeralError(interaction, fmt(tl.importFailed, { error: errorMsg }));
   }
 }

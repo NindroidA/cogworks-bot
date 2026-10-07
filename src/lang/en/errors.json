@@ -1,7 +1,7 @@
 {
   "unknownSubcommand": "Unknown subcommand.",
   "cancelled": "Operation cancelled.",
-  "rateLimit": "You're using this command too quickly. Please try again in {0} minutes.",
+  "rateLimit": "You're using this command too quickly. Please try again in {minutes} minutes.",
   "timeout": "Operation timed out. Please try again.",
   "notYourInteraction": "This is not your interaction.",
   "assignableRole": {

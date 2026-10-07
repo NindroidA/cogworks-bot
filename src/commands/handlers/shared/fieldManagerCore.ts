@@ -18,7 +18,7 @@ import type { CustomInputField } from '../../../typeorm/entities/shared/CustomIn
 import {
   CACHE_TTL,
   enhancedLogger,
-  formatLang,
+  fmt,
   handleInteractionError,
   INTERVALS,
   LogCategory,
@@ -399,7 +399,7 @@ async function showFieldSelectMenu<T extends FieldBearingEntity>(
 
   const selectMenu = new StringSelectMenuBuilder()
     .setCustomId(`${prefix}${action}_select_${entityId}`)
-    .setPlaceholder(formatLang(fm.selectFieldPlaceholder, action))
+    .setPlaceholder(fmt(fm.selectFieldPlaceholder, { action }))
     .addOptions(
       fields.map((field, index) =>
         new StringSelectMenuOptionBuilder()
@@ -435,7 +435,7 @@ async function showReorderInterface<T extends FieldBearingEntity>(
   const { prefix } = config;
 
   const embed = new EmbedBuilder()
-    .setTitle(`🔀 ${formatLang(fm.reorderTitle, config.getDisplayTitle(entity).replace(/^🔧\s*/, ''))}`)
+    .setTitle(`🔀 ${fmt(fm.reorderTitle, { title: config.getDisplayTitle(entity).replace(/^🔧\s*/, '') })}`)
     .setColor(config.getEmbedColor(entity))
     .setDescription(
       `**${fm.currentOrder}**\n` +
@@ -591,7 +591,7 @@ async function handleMoveField<T extends FieldBearingEntity>(
   const newIndex = direction === 'up' ? fieldIndex - 1 : fieldIndex + 1;
 
   if (newIndex < 0 || newIndex >= fields.length) {
-    await replyEphemeralError(interaction, formatLang(fm.cannotMoveField, direction));
+    await replyEphemeralError(interaction, fmt(fm.cannotMoveField, { direction }));
     return;
   }
 

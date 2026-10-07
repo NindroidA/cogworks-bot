@@ -9,7 +9,7 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
 import {
   enhancedLogger,
-  formatLang,
+  fmt,
   LogCategory,
   lang,
   logHandlerError,
@@ -43,7 +43,7 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
   if (cooldownUntil) {
     const timestamp = toUnixSeconds(cooldownUntil);
     await interaction.reply({
-      content: formatLang(tl.importCooldown, `<t:${timestamp}:R>`),
+      content: fmt(tl.importCooldown, { time: `<t:${timestamp}:R>` }),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -57,13 +57,13 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
   try {
     const response = await fetch(attachment.url);
     if (!response.ok) {
-      await replyEphemeralError(interaction, formatLang(tl.importFailed, 'Failed to download CSV file.'));
+      await replyEphemeralError(interaction, fmt(tl.importFailed, { error: 'Failed to download CSV file.' }));
       return;
     }
     csvContent = await response.text();
   } catch (error) {
     logHandlerError('CSV attachment download', error, { guildId });
-    await replyEphemeralError(interaction, formatLang(tl.importFailed, 'Failed to download CSV file.'));
+    await replyEphemeralError(interaction, fmt(tl.importFailed, { error: 'Failed to download CSV file.' }));
     return;
   }
 
@@ -78,7 +78,7 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
   );
 
   await interaction.editReply({
-    content: formatLang(tl.importStarted, 'CSV'),
+    content: fmt(tl.importStarted, { source: 'CSV' }),
   });
 
   // The content travels with this call: the importer is shared by every guild.
@@ -91,7 +91,9 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
   if (dryRun) {
     const embed = new EmbedBuilder()
       .setTitle(lang.import.results.csvDryRunTitle)
-      .setDescription(formatLang(tl.dryRunComplete, result.imported, result.skipped, result.failed))
+      .setDescription(
+        fmt(tl.dryRunComplete, { imported: result.imported, skipped: result.skipped, failed: result.failed }),
+      )
       .setColor(0x3498db);
 
     if (result.errors.length > 0) {
@@ -108,7 +110,9 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
   if (result.success) {
     const embed = new EmbedBuilder()
       .setTitle(lang.import.results.csvCompleteTitle)
-      .setDescription(formatLang(tl.importComplete, result.imported, result.skipped, result.failed))
+      .setDescription(
+        fmt(tl.importComplete, { imported: result.imported, skipped: result.skipped, failed: result.failed }),
+      )
       .setColor(0x2ecc71)
       .addFields({
         name: lang.import.results.durationField,
@@ -126,6 +130,6 @@ export async function csvImportHandler(interaction: ChatInputCommandInteraction)
     await interaction.editReply({ content: '', embeds: [embed] });
   } else {
     const errorMsg = result.errors.length > 0 ? result.errors[0] : lang.import.results.unknownError;
-    await replyEphemeralError(interaction, formatLang(tl.importFailed, errorMsg));
+    await replyEphemeralError(interaction, fmt(tl.importFailed, { error: errorMsg }));
   }
 }

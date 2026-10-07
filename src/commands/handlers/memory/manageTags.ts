@@ -12,6 +12,7 @@ import {
   awaitConfirmation,
   Colors,
   E,
+  fmt,
   guardFeatureRateLimit,
   healthMonitor,
   lang,
@@ -96,10 +97,7 @@ async function handleTagAdd(interaction: ChatInputCommandInteraction, guildId: s
     });
 
     if (existingCount >= typeLimit) {
-      await replyEphemeralError(
-        interaction,
-        tl.manageTags.add.limitReached.replace('{0}', String(typeLimit)).replace('{1}', tagType),
-      );
+      await replyEphemeralError(interaction, fmt(tl.manageTags.add.limitReached, { limit: typeLimit, type: tagType }));
       return;
     }
 
@@ -118,7 +116,7 @@ async function handleTagAdd(interaction: ChatInputCommandInteraction, guildId: s
     });
     const duplicate = existingTags.find(t => t.name.toLowerCase() === name.toLowerCase());
     if (duplicate) {
-      await replyEphemeralError(interaction, tl.manageTags.add.duplicate.replace('{0}', tagType).replace('{1}', name));
+      await replyEphemeralError(interaction, fmt(tl.manageTags.add.duplicate, { type: tagType, name }));
       return;
     }
 
@@ -158,7 +156,7 @@ async function handleTagAdd(interaction: ChatInputCommandInteraction, guildId: s
     await memoryTagRepo.save(newTag);
 
     await interaction.editReply({
-      content: `${E.success} ${tl.manageTags.add.success.replace('{0}', emoji ? `${emoji} ${name}` : name).replace('{1}', `<#${config.forumChannelId}>`)}`,
+      content: `${E.success} ${fmt(tl.manageTags.add.success, { tag: emoji ? `${emoji} ${name}` : name, channel: `<#${config.forumChannelId}>` })}`,
     });
   } catch (error) {
     logHandlerError('Memory tag-add', error, { guildId });
@@ -208,7 +206,7 @@ async function handleTagRemove(interaction: ChatInputCommandInteraction, guildId
     await memoryTagRepo.remove(tag);
 
     await interaction.editReply({
-      content: `${E.success} ${tl.manageTags.remove.success.replace('{0}', tag.emoji ? `${tag.emoji} ${tag.name}` : tag.name)}`,
+      content: `${E.success} ${fmt(tl.manageTags.remove.success, { tag: tag.emoji ? `${tag.emoji} ${tag.name}` : tag.name })}`,
     });
   } catch (error) {
     logHandlerError('Memory tag-remove', error, { guildId });
@@ -258,10 +256,7 @@ async function handleTagEdit(interaction: ChatInputCommandInteraction, guildId: 
       });
       const conflict = existingTags.find(t => t.id !== tag.id && t.name.toLowerCase() === newName.toLowerCase());
       if (conflict) {
-        await replyEphemeralError(
-          interaction,
-          tl.manageTags.add.duplicate.replace('{0}', tag.tagType).replace('{1}', newName),
-        );
+        await replyEphemeralError(interaction, fmt(tl.manageTags.add.duplicate, { type: tag.tagType, name: newName }));
         return;
       }
     }
@@ -289,7 +284,7 @@ async function handleTagEdit(interaction: ChatInputCommandInteraction, guildId: 
 
     const displayName = tag.emoji ? `${tag.emoji} ${tag.name}` : tag.name;
     await interaction.editReply({
-      content: `${E.success} ${tl.manageTags.edit.success.replace('{0}', displayName)}`,
+      content: `${E.success} ${fmt(tl.manageTags.edit.success, { tag: displayName })}`,
     });
   } catch (error) {
     logHandlerError('Memory tag-edit', error, { guildId });
@@ -348,11 +343,12 @@ async function handleTagList(interaction: ChatInputCommandInteraction, guildId: 
   }
 
   embed.setFooter({
-    text: tl.manageTags.list.footer
-      .replace('{0}', String(categoryTags.length))
-      .replace('{1}', String(MAX.MEMORY_CATEGORY_TAGS))
-      .replace('{2}', String(statusTags.length))
-      .replace('{3}', String(MAX.MEMORY_STATUS_TAGS)),
+    text: fmt(tl.manageTags.list.footer, {
+      categoryCount: categoryTags.length,
+      categoryMax: MAX.MEMORY_CATEGORY_TAGS,
+      statusCount: statusTags.length,
+      statusMax: MAX.MEMORY_STATUS_TAGS,
+    }),
   });
 
   await interaction.reply({
