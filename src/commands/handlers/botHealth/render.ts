@@ -1,7 +1,8 @@
 /**
  * Renders a `HealthReport` for `/bot-health check`: the summary embed, finding
- * pages that stay inside Discord's embed limits, and the JSON export. Pure
- * functions; the handler owns the collector.
+ * pages that stay inside Discord's embed limits, and the JSON export. Findings
+ * `/bot-health repair` can fix are marked. Pure functions; the handler owns
+ * the collector.
  */
 import {
   ActionRowBuilder,
@@ -16,6 +17,8 @@ import { fmt, lang } from '../../../lang';
 import { Colors } from '../../../utils/colors';
 import { POST_LOOKUPS } from '../../../utils/health/checks/memory';
 import { HEALTH_REST_BUDGET } from '../../../utils/health/context';
+import { findingKey } from '../../../utils/health/repair/keys';
+import type { RepairFix } from '../../../utils/health/repair/types';
 import type {
   HealthFinding,
   HealthReport,
@@ -26,6 +29,7 @@ import type {
 import { clampText } from '../../../utils/validation/inputSanitizer';
 
 const tl = lang.health.command;
+const tr = tl.repair;
 const findingStrings = lang.health.findings as Record<string, string>;
 const systemLabels = tl.systems as Record<string, string>;
 
@@ -44,11 +48,16 @@ export const HEALTH_CID = {
 
 export type HealthView = { kind: 'summary' } | { kind: 'details'; system: string; page: number };
 
+/** How `/bot-health repair` would fix each finding, by `findingKey`. A finding not in it is left for the admin. */
+export type FixableKeys = ReadonlyMap<string, RepairFix['repair']>;
+
 export interface RenderOptions {
   /** Set when the bot owner checks another server, so the title names it. */
   guildName?: string;
   /** Systems a check of all systems lists as not checked yet (they have no checks). */
   notCheckedYet?: readonly string[];
+  /** Findings the repair can fix (from a dry-run plan of the same rows). */
+  fixable?: FixableKeys;
 }
 
 const systemLabel = (system: string) => systemLabels[system] ?? system;
@@ -65,15 +74,17 @@ export function findingText(finding: HealthFinding): string {
   return fmt(findingStrings[finding.code] ?? finding.code, finding.params);
 }
 
+const FIX_MARK: Record<RepairFix['repair'], string> = { auto: tr.mark.auto, confirm: tr.mark.confirm };
+
 /**
  * One embed field per finding: the severity as the name, the explanation (lang
  * string with its params) plus the stable code as the value. The lang strings
  * show a missing object as its raw ID and an existing one as a mention, and end
- * with what to do (or say nothing needs doing). No repair command exists yet, so
- * the repair class only goes in the JSON export.
+ * with what to do (or say nothing needs doing). A finding the repair can fix
+ * (`fix`) says so above the code.
  */
-export function findingField(finding: HealthFinding): APIEmbedField {
-  const suffix = `\n\`${finding.code}\``;
+export function findingField(finding: HealthFinding, fix?: RepairFix['repair']): APIEmbedField {
+  const suffix = `${fix ? `\n${FIX_MARK[fix]}` : ''}\n\`${finding.code}\``;
   return {
     name: truncate(tl.severity[finding.severity], 256),
     value: truncate(findingText(finding), 1024 - suffix.length) + suffix,
@@ -81,12 +92,16 @@ export function findingField(finding: HealthFinding): APIEmbedField {
 }
 
 /** Pages of at most 10 fields whose combined length stays inside the embed budget. Worst first. */
-export function paginateFindings(findings: readonly HealthFinding[], budget = PAGE_FIELD_BUDGET): APIEmbedField[][] {
+export function paginateFindings(
+  findings: readonly HealthFinding[],
+  fixable?: FixableKeys,
+  budget = PAGE_FIELD_BUDGET,
+): APIEmbedField[][] {
   const sorted = [...findings].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
   const pages: APIEmbedField[][] = [];
   let page: APIEmbedField[] = [];
   let size = 0;
-  for (const field of sorted.map(findingField)) {
+  for (const field of sorted.map(f => findingField(f, fixable?.get(findingKey(f))))) {
     const length = field.name.length + field.value.length;
     if (page.length > 0 && (page.length >= FINDINGS_PER_PAGE || size + length > budget)) {
       pages.push(page);
@@ -153,6 +168,13 @@ export function buildSummaryEmbed(report: HealthReport, opts: RenderOptions = {}
     .setDescription(lines.join('\n'));
   const notChecked = report.notChecked.map(notCheckedText).join('\n');
   if (notChecked) embed.addFields({ name: tl.summary.notChecked, value: truncate(notChecked, 1024) });
+  // Each distinct finding once, as the repair plans them (one list holding an id twice is one fix).
+  const keys = new Set(systems.flatMap(([, r]) => r.findings.map(findingKey)));
+  if (keys.size > 0) {
+    const counts = { auto: 0, confirm: 0, manual: 0 };
+    for (const key of keys) counts[opts.fixable?.get(key) ?? 'manual']++;
+    embed.setFooter({ text: fmt(tr.footer, counts) });
+  }
   return embed;
 }
 
@@ -191,7 +213,7 @@ export function renderView(report: HealthReport, view: HealthView, opts: RenderO
     return { embeds: [buildSummaryEmbed(report, opts)], components: select ? [select, buttons] : [buttons] };
   }
 
-  const pages = paginateFindings(findings);
+  const pages = paginateFindings(findings, opts.fixable);
   const page = Math.min(Math.max(view.page, 0), pages.length - 1);
   const embed = new EmbedBuilder()
     .setTitle(truncate(fmt(tl.details.title, { system: systemLabel(view.system) }), 256))

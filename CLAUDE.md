@@ -365,7 +365,7 @@ src/
 │   │   ├── application/    # applicationSetup, applicationFields, applicationPosition
 │   │   ├── archive/        # cleanup (export + delete archived data)
 │   │   ├── baitChannel/    # setup, detection, keywords, stats, settings, etc.
-│   │   ├── botHealth/      # /bot-health check: guard, owner guild-id, renderer (summary, pages, JSON export)
+│   │   ├── botHealth/      # /bot-health check + repair: target (owner guild-id, rate-limit slots), render (summary, pages, fix marks, JSON export), repair + repairRender (preview, confirm menu, results)
 │   │   ├── botSetup/       # Unified setup dashboard (v3)
 │   │   │   ├── index.ts          # Dashboard controller
 │   │   │   ├── setupDashboard.ts # Embed builder + state detection
@@ -404,6 +404,7 @@ src/
 │   ├── cleanup/            # refCleaners (per-entity config cleanup for deleted channels/roles/messages/threads), refPatches (the pure per-entity patches they apply)
 │   ├── database/           # guildQueries, logCleanup, legacyMigration, lazyRepo, statusFlip, configCache
 │   ├── discord/            # verifiedDelete (deletion with verification + bug report)
+│   ├── health/             # /bot-health engine: checks/, runner, context (row loader, REST budget), repair/ (planner, applier, store, lock, verify, ref + field repair tables)
 │   ├── event/              # event template + reminder helpers
 │   ├── import/             # mee6 / bot-import helpers (some deferred)
 │   ├── interactions/       # guardHelper, confirmHelper, modalHelper (standardized patterns)
@@ -560,12 +561,13 @@ const triggeredBy = optionalString(body, 'triggeredBy');   // for audit logs
 - Bot setup: 5/hour per guild
 - Data export: 1/24h per guild
 - Health check: 1/min per guild, deep 1/10min (owner bypass)
+- Health repair: 5/hour per guild; deep also takes the deep check slot (owner bypass; a failed check refunds via `rateLimiter.refund`)
 - Global: 30 cmd/min per user
 
 ### Permission Levels
 | Level | Access |
 |-------|--------|
-| **Bot Owner** | Status commands, `/bot-health check` on any server (`BOT_OWNER_ID`) |
+| **Bot Owner** | Status commands, `/bot-health check` and `repair` on any server (`BOT_OWNER_ID`) |
 | **Admin** | All setup + management + data export |
 | **Staff** | Ticket replies, limited moderation |
 

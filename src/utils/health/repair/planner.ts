@@ -51,6 +51,47 @@ function loadedRows(ctx: CheckContext, entity: RepairEntityName): Row[] | null {
   return (ctx.rows[entity as HealthEntityName] as Row[] | null | undefined) ?? null;
 }
 
+/**
+ * The loaded rows by primary key, and child rows counted per parent, each
+ * indexed once per entity on first use: a scan per finding made planning
+ * quadratic (10,000 findings took seconds on the event loop).
+ */
+class RowIndex {
+  private readonly byKey = new Map<RepairEntityName, Map<string, Row> | null>();
+  private readonly byParent = new Map<string, Map<unknown, number> | null>();
+
+  constructor(private readonly ctx: CheckContext) {}
+
+  /** The row with this primary key: null when the entity's rows aren't loaded, undefined when it isn't among them. */
+  row(entity: RepairEntityName, id: string | number): Row | null | undefined {
+    if (!this.byKey.has(entity)) {
+      const rows = loadedRows(this.ctx, entity);
+      const index = new Map<string, Row>();
+      // The first row with a key wins, as a scan would find it.
+      for (const row of rows ?? []) {
+        const key = String(row[primaryKey(entity)]);
+        if (!index.has(key)) index.set(key, row);
+      }
+      this.byKey.set(entity, rows ? index : null);
+    }
+    const index = this.byKey.get(entity);
+    return index ? index.get(String(id)) : null;
+  }
+
+  /** How many `entity` rows hold `parentId` in `column`, or null when they aren't loaded. */
+  children(entity: RepairEntityName, column: string, parentId: unknown): number | null {
+    const name = `${entity}.${column}`;
+    if (!this.byParent.has(name)) {
+      const rows = loadedRows(this.ctx, entity);
+      const counts = new Map<unknown, number>();
+      for (const row of rows ?? []) counts.set(row[column], (counts.get(row[column]) ?? 0) + 1);
+      this.byParent.set(name, rows ? counts : null);
+    }
+    const counts = this.byParent.get(name);
+    return counts ? (counts.get(parentId) ?? 0) : null;
+  }
+}
+
 /** Copies of `row`'s values for `fields`. */
 function pick(row: Row, fields: Iterable<string>): Row {
   return Object.fromEntries([...fields].map(field => [field, copy(row[field])]));
@@ -70,12 +111,11 @@ function whereOf(guildId: string, entity: RepairEntityName, row: Row): RepairSte
 }
 
 /** One finding as a fix against its loaded row, or why it can't be one. */
-function planRow(f: HealthFinding, def: RowRepair, ctx: CheckContext, base: FixBase): Planned | UnsupportedReason {
+function planRow(f: HealthFinding, def: RowRepair, rows: RowIndex, base: FixBase): Planned | UnsupportedReason {
   // A repair the applier must re-prove needs the object's id.
   if (f.rowId === undefined || (def.proof && !f.refId)) return 'no_action';
-  const rows = loadedRows(ctx, def.entity);
-  if (!rows) return 'rows_unavailable';
-  const row = rows.find(r => String(r[primaryKey(def.entity)]) === String(f.rowId));
+  const row = rows.row(def.entity, f.rowId);
+  if (row === null) return 'rows_unavailable';
   if (!row) return 'row_gone';
   const patch = def.patch(row, f);
   if (!patch) return def.keeps?.(row) ? 'kept_outcome' : 'no_change';
@@ -88,9 +128,9 @@ function planRow(f: HealthFinding, def: RowRepair, ctx: CheckContext, base: FixB
     const cascade: Partial<Record<RepairEntityName, number>> = {};
     for (const child of patch.cascade ?? []) {
       // The preview must say what goes with the row ("deletes N saved memories"), so no count, no fix.
-      const children = loadedRows(ctx, child.entity);
-      if (!children) return 'rows_unavailable';
-      cascade[child.entity] = children.filter(c => c[child.column] === row.id).length;
+      const count = rows.children(child.entity, child.column, row.id);
+      if (count === null) return 'rows_unavailable';
+      cascade[child.entity] = count;
     }
     const counts = patch.cascade ? { cascade } : {};
     return { ...planned, fix: { ...fix, op: 'delete', changes: [], ...counts }, cascade: copy(patch.cascade) };
@@ -122,12 +162,12 @@ function planInsert(f: HealthFinding, def: InsertRepair, ctx: CheckContext, base
 }
 
 /** The fix for one finding: a command, an insert, or a write to the flagged row. */
-function planFix(f: HealthFinding, def: FieldRepair, ctx: CheckContext, base: FixBase) {
+function planFix(f: HealthFinding, def: FieldRepair, ctx: CheckContext, rows: RowIndex, base: FixBase) {
   if ('command' in def) {
     const fix: RepairFix = { ...base, entity: 'ApplicationCommand', op: 'command', changes: [] };
     return { fix, command: def.command };
   }
-  return 'insert' in def ? planInsert(f, def, ctx, base) : planRow(f, def, ctx, base);
+  return 'insert' in def ? planInsert(f, def, ctx, base) : planRow(f, def, rows, base);
 }
 
 function uniqueProofs(group: readonly Planned[]): RepairProof[] {
@@ -198,6 +238,7 @@ export function planRepairs(report: HealthReport, ctx: CheckContext, opts: PlanO
   const inserts: RepairStep[] = [];
   const commands = new Map<RepairCommand, string[]>();
   const seen = new Set<string>();
+  const rows = new RowIndex(ctx);
   for (const f of Object.values(report.systems).flatMap(system => system?.findings ?? [])) {
     const key = findingKey(f);
     // A list holding one id twice yields the same finding twice: one fix covers both.
@@ -207,7 +248,7 @@ export function planRepairs(report: HealthReport, ctx: CheckContext, opts: PlanO
     const repair = f.repair === 'confirm' || def?.confirm ? 'confirm' : 'auto';
     if ((keys && !keys.has(key)) || !classes.includes(repair)) continue;
     const base = { key, code: f.code, label: repairLabel(f.code), system: f.system, repair } as const;
-    const result = def ? planFix(f, def, ctx, base) : 'no_action';
+    const result = def ? planFix(f, def, ctx, rows, base) : 'no_action';
     if (typeof result === 'string') {
       plan.unsupported.push({ key, code: f.code, reason: result });
       continue;
