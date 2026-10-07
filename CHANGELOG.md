@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.47] - 2026-10-07
+
+Deletes `scripts/extractCommands.ts` and the two package scripts that ran it
+(NindroidA/cogworks-bot#41, step A8). It had been broken for a while and
+nothing used it. The bot itself doesn't change.
+
+### Removed
+
+- **`scripts/extractCommands.ts`**, and with it the `extract-commands` and
+  `docs:sync` package scripts.
+  - It read `src/lang/<file>.json`, but the strings live in `src/lang/en/`, so
+    every load failed. It then wrote a `dist/commands.json` holding only its
+    hardcoded `/migrate` entry.
+  - Even with the path fixed, it would list 11 of the bot's 38 commands, with
+    subcommands and permissions typed out by hand.
+  - CI, the docs and the dashboard never used it.
+  - `bun run build:contract` already covers what it was meant to do:
+    `contract/cogworks-contract.json` holds the real registered command JSON,
+    and `check:contract` fails CI when that file drifts.
+
+### Changed
+
+- CLAUDE.md's directory tree describes `src/lang/` as it is now: the
+  `en/*.json` strings, the derived `Language` type and `fmt()`.
+
 ## [3.16.46] - 2026-10-07
 
 The last numbered `{0}` placeholders become named `{name}` ones, and

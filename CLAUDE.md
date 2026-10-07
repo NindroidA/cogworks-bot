@@ -388,7 +388,7 @@ src/
 │   ├── threadDelete.ts     # Thin wrapper: cleanThreadRefs
 │   ├── guildDelete.ts      # GDPR: full data purge
 │   └── ...
-├── lang/                   # Translation JSON + TypeScript types
+├── lang/                   # en/*.json strings, derived Language type, fmt()
 ├── typeorm/
 │   ├── entities/           # Database models (see entity list above)
 │   ├── migrations/         # TypeORM migrations
