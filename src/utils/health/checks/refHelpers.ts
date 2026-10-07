@@ -7,6 +7,7 @@ import type { CheckContext, RestFetchOptions } from '../context';
 import {
   type ChannelKind,
   channelIsKind,
+  fetchGuildChannel,
   missingPermissions,
   type PermissionName,
   type RefStatus,
@@ -112,5 +113,5 @@ export async function threadStatus(
 ): Promise<RefStatus | 'skipped'> {
   const cached = resolveChannel(ctx.guild, id, { mayBeThread: true });
   if (cached.status === 'ok' || !ctx.deep) return cached.status;
-  return (await ctx.rest.fetch(label, () => ctx.guild.channels.fetch(id, { cache: false }), opts)).status;
+  return (await ctx.rest.fetch(label, () => fetchGuildChannel(ctx.guild, id), opts)).status;
 }

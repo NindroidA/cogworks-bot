@@ -13,9 +13,15 @@
  * Use it through dependency injection (or by patching
  * `AppDataSource.getRepository` in beforeAll and restoring it in afterAll).
  * Never `mock.module` the lazyRepo module: that races across files on bun.
+ *
+ * Criteria match by `===`, except `IsNull()`, which matches null and undefined
+ * (TypeORM 1.1.1 throws on a raw null, so conditional writes use it).
  */
 
+import { FindOperator } from 'typeorm';
+
 export type FakeRepoMethod =
+  | 'findOne'
   | 'findOneBy'
   | 'findBy'
   | 'find'
@@ -39,6 +45,8 @@ export interface FakeRepo {
   removeCalls: any[];
   qbCalls: any[];
   shouldThrowOn?: FakeRepoMethod;
+  /** Honors `where` only; `lock` and the other options are recorded in `calls.findOne`. */
+  findOne(opts: any): Promise<any>;
   findOneBy(where: any): Promise<any>;
   findBy(where: any): Promise<any[]>;
   find(opts?: any): Promise<any[]>;
@@ -54,14 +62,28 @@ export interface FakeRepo {
 function matches(row: any, where: any): boolean {
   if (where === undefined || where === null) return true;
   if (typeof where !== 'object') return String(row.id) === String(where);
-  return Object.entries(where).every(([k, v]) => row[k] === v);
+  return Object.entries(where).every(([k, v]) =>
+    v instanceof FindOperator && v.type === 'isNull' ? row[k] == null : row[k] === v,
+  );
 }
 
 export function makeFakeRepo(initialRows: any[] = []): FakeRepo {
   const calls = Object.fromEntries(
-    (['findOneBy', 'findBy', 'find', 'count', 'save', 'remove', 'insert', 'update', 'delete', 'getMany'] as const).map(
-      m => [m, [] as any[]],
-    ),
+    (
+      [
+        'findOne',
+        'findOneBy',
+        'findBy',
+        'find',
+        'count',
+        'save',
+        'remove',
+        'insert',
+        'update',
+        'delete',
+        'getMany',
+      ] as const
+    ).map(m => [m, [] as any[]]),
   ) as Record<FakeRepoMethod, any[]>;
 
   const repo: FakeRepo = {
@@ -74,6 +96,10 @@ export function makeFakeRepo(initialRows: any[] = []): FakeRepo {
     removeCalls: calls.remove,
     qbCalls: calls.getMany,
 
+    async findOne(opts) {
+      record('findOne', opts);
+      return [...repo.rows.values()].find(row => matches(row, opts?.where)) ?? null;
+    },
     async findOneBy(where) {
       record('findOneBy', where);
       return [...repo.rows.values()].find(row => matches(row, where)) ?? null;

@@ -153,4 +153,10 @@ describe('deep-mode lookups', () => {
     expect(await threadStatus(deep, 'test', THREAD)).toBe('ok');
     expect(fetched).toEqual([MSG, OLD]);
   });
+
+  test("threadStatus: a channel type discord.js can't construct (fetch resolves null) is unknown", async () => {
+    const deep = ctxFor({}, true);
+    (deep.guild.channels as unknown as Record<string, unknown>).fetch = async () => null;
+    expect(await threadStatus(deep, 'test', OLD)).toBe('unknown');
+  });
 });
