@@ -30,9 +30,9 @@ export class BaitChannelLog {
   @Column()
   messageId: string;
 
-  // 'banned', 'kicked', 'timed-out', 'softban', 'whitelisted', 'deleted-in-time',
-  // 'failed', 'ban-after-leave', 'demoted-after-leave', 'superseded-by-mod',
-  // 'raid-mode-entered', 'raid-mode-released', 'test-*'
+  // 'ban', 'kick', 'timeout', 'softban', 'logged', 'queued', 'failed',
+  // 'superseded', 'superseded-by-mod', 'whitelisted', 'deleted-in-time',
+  // 'demoted-after-leave', 'raid-mode-entered', 'raid-mode-released', 'test-*'
   @Column()
   actionTaken: string;
 

@@ -28,11 +28,13 @@ const configRepo = lazyRepo(BaitChannelConfig);
 const pendingActionRepo = lazyRepo(PendingAction);
 
 /**
- * Field map for `POST /bait-channel/config/update`. Numbers stay rangeless
- * except logRetentionDays (30-365). actionType is left as a free string for a
- * 1:1 port (the prior PATCH did no enum validation). Nullable strings accept
- * null/"" to clear; the appeal-link cross-field validation is handled
- * separately in the route after these are applied.
+ * Field map for `POST /bait-channel/config/update`. Int ranges follow Discord's
+ * limits (deleteMessageHours: 7 days of ban-time message deletion;
+ * timeoutDurationMinutes: 28 days) and otherwise the dashboard's zod schema or
+ * the slash command, so a value that would fail every bait action at action
+ * time is refused here. actionType is validated against its enum. Nullable
+ * strings accept null/"" to clear; integer, string-length, snowflake and
+ * appeal-link checks run in the route after these are applied.
  */
 export const BAIT_CONFIG_FIELDS: FieldDescriptor<BaitChannelConfig>[] = [
   { field: 'enabled', type: 'bool' },
@@ -46,23 +48,23 @@ export const BAIT_CONFIG_FIELDS: FieldDescriptor<BaitChannelConfig>[] = [
   { field: 'enableWeeklySummary', type: 'bool' },
   { field: 'enableRaidMode', type: 'bool' },
   { field: 'enableAppealLink', type: 'bool' },
-  { field: 'gracePeriodSeconds', type: 'int' },
-  { field: 'instantActionThreshold', type: 'int' },
-  { field: 'minAccountAgeDays', type: 'int' },
-  { field: 'minMembershipMinutes', type: 'int' },
-  { field: 'minMessageCount', type: 'int' },
-  { field: 'deleteMessageHours', type: 'int' },
-  { field: 'timeoutDurationMinutes', type: 'int' },
-  { field: 'escalationLogThreshold', type: 'int' },
-  { field: 'escalationTimeoutThreshold', type: 'int' },
-  { field: 'escalationKickThreshold', type: 'int' },
-  { field: 'escalationBanThreshold', type: 'int' },
-  { field: 'joinVelocityThreshold', type: 'int' },
-  { field: 'joinVelocityWindowMinutes', type: 'int' },
-  { field: 'raidModeThreshold', type: 'int' },
-  { field: 'raidModeWindowSeconds', type: 'int' },
-  { field: 'crossChannelBurstThreshold', type: 'int' },
-  { field: 'crossChannelBurstWindowSeconds', type: 'int' },
+  { field: 'gracePeriodSeconds', type: 'int', min: 0, max: 60 },
+  { field: 'instantActionThreshold', type: 'int', min: 0, max: 100 },
+  { field: 'minAccountAgeDays', type: 'int', min: 0, max: 365 },
+  { field: 'minMembershipMinutes', type: 'int', min: 0, max: 525600 },
+  { field: 'minMessageCount', type: 'int', min: 0, max: 10000 },
+  { field: 'deleteMessageHours', type: 'int', min: 0, max: 168 },
+  { field: 'timeoutDurationMinutes', type: 'int', min: 1, max: 40320 },
+  { field: 'escalationLogThreshold', type: 'int', min: 0, max: 100 },
+  { field: 'escalationTimeoutThreshold', type: 'int', min: 0, max: 100 },
+  { field: 'escalationKickThreshold', type: 'int', min: 0, max: 100 },
+  { field: 'escalationBanThreshold', type: 'int', min: 0, max: 100 },
+  { field: 'joinVelocityThreshold', type: 'int', min: 2, max: 100 },
+  { field: 'joinVelocityWindowMinutes', type: 'int', min: 1, max: 30 },
+  { field: 'raidModeThreshold', type: 'int', min: 1, max: 100 },
+  { field: 'raidModeWindowSeconds', type: 'int', min: 1, max: 3600 },
+  { field: 'crossChannelBurstThreshold', type: 'int', min: 2, max: 25 },
+  { field: 'crossChannelBurstWindowSeconds', type: 'int', min: 1, max: 3600 },
   { field: 'logRetentionDays', type: 'int', min: 30, max: 365 },
   { field: 'banReason', type: 'string' },
   { field: 'warningMessage', type: 'string' },
@@ -73,6 +75,42 @@ export const BAIT_CONFIG_FIELDS: FieldDescriptor<BaitChannelConfig>[] = [
   { field: 'raidModeAlertRoleId', type: 'nullableString' },
   { field: 'appealLinkBaseUrl', type: 'nullableString' },
 ];
+
+/**
+ * Length caps for the string fields: the dashboard's zod schema for banReason
+ * (500), warningMessage (1000) and appealInfo (500), and the column for
+ * appealLinkBaseUrl (varchar 500). Empty strings never get here: the string
+ * helpers treat "" as absent (banReason, warningMessage) or as null.
+ */
+const BAIT_STRING_MAX = { banReason: 500, warningMessage: 1000, appealInfo: 500, appealLinkBaseUrl: 500 } as const;
+
+/** The ID fields, which must be snowflakes (or null to clear). */
+const BAIT_ID_FIELDS = ['logChannelId', 'summaryChannelId', 'raidModeAlertRoleId'] as const;
+
+/**
+ * Checks applyFields doesn't do, on the fields this request patched. Throws
+ * `ApiError.badRequest` before anything is saved.
+ */
+function validatePatchedBaitConfig(config: BaitChannelConfig, patched: string[]): void {
+  for (const d of BAIT_CONFIG_FIELDS) {
+    // applyFields range-checks ints but lets decimals through; the columns are INT.
+    if (d.type === 'int' && patched.includes(d.field) && !Number.isInteger(config[d.field])) {
+      throw ApiError.badRequest(`${d.field} must be an integer`);
+    }
+  }
+  for (const [field, max] of Object.entries(BAIT_STRING_MAX) as [keyof typeof BAIT_STRING_MAX, number][]) {
+    const value = config[field];
+    if (patched.includes(field) && value !== null && value.length > max) {
+      throw ApiError.badRequest(`${field} must be at most ${max} characters`);
+    }
+  }
+  for (const field of BAIT_ID_FIELDS) {
+    const id = config[field];
+    if (patched.includes(field) && id !== null && !isValidSnowflake(id)) {
+      throw ApiError.badRequest(`${field} must be a valid Discord ID`);
+    }
+  }
+}
 
 export function registerBaitChannelHandlers(client: Client, routes: Map<string, RouteHandler>): void {
   // GET /internal/guilds/:guildId/bait-channel/keywords
@@ -310,18 +348,19 @@ export function registerBaitChannelHandlers(client: Client, routes: Map<string, 
   // Accepts any subset of writable fields. Validates types; rejects unknown
   // fields silently (forward-compat for webapp that may post stale shape).
   // (Was 'PATCH /bait-channel/config' — unreachable, since the internal API's
-  // method gate only allows GET/POST/DELETE. ninsys-api writes bait config via
-  // direct DB, so nothing called the old PATCH route.)
+  // method gate only allows GET/POST/DELETE.) The dashboard's bait settings
+  // save (ninsys-api PUT /bait-channel/config) sends every field but
+  // channelId here, so these checks gate every dashboard save.
   routes.set('POST /bait-channel/config/update', async (guildId, body) => {
     const config = await configRepo.findOne({ where: { guildId } });
     if (!config) throw ApiError.notFound('Bait channel is not configured for this guild');
 
     const triggeredBy = optionalString(body, 'triggeredBy');
-    // Per-field application is descriptor-driven (applyFields). Only the
-    // logRetentionDays 30-365 range is enforced here; the other int fields stay
-    // rangeless (1:1 with the prior behavior). String fields keep the
-    // non-nullable / nullable split (the latter accept null/"" to clear).
+    // Per-field application is descriptor-driven (applyFields), with the
+    // ranges above. String fields keep the non-nullable / nullable split (the
+    // latter accept null/"" to clear). Nothing is saved if a check throws.
     const patched = applyFields(config, body, BAIT_CONFIG_FIELDS);
+    validatePatchedBaitConfig(config, patched);
 
     // Appeal-link safety. Two gates:
     //   1. Refuse to enable if base URL is HTTP (or unset).

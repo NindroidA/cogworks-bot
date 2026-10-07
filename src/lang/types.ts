@@ -1189,6 +1189,7 @@ export interface LangBaitChannel {
     whitelist: string;
     whitelistRoles: string;
     whitelistUsers: string;
+    whitelistMore: string;
     yes: string;
     no: string;
   };
@@ -1327,6 +1328,7 @@ export interface LangBaitChannel {
     mustKeepOne: string;
     title: string;
     channelsLabel: string;
+    bannerDeleteFailed: string;
   };
   weeklySummary: {
     title: string;

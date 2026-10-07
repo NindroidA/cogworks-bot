@@ -3,6 +3,7 @@ import {
   type ChatInputCommandInteraction,
   type Client,
   EmbedBuilder,
+  type Guild,
   MessageFlags,
   TextChannel,
 } from 'discord.js';
@@ -19,8 +20,10 @@ import {
   replyEphemeralError,
   safeDbOperation,
   setBaitChannels,
+  verifiedMessageDeleteById,
 } from '../../../utils';
 import { Colors } from '../../../utils/colors';
+import { BAIT_CHANNEL_WARNING } from '../../../utils/setup/channelDefaults';
 
 const tl = lang.baitChannel;
 
@@ -103,12 +106,7 @@ export async function setupHandler(client: Client, interaction: ChatInputCommand
     // Send or update warning message in the BAIT CHANNEL (visible to everyone)
     if (channel instanceof TextChannel) {
       try {
-        const warningContent =
-          '# 🚨 **DO NOT POST HERE** 🚨\n\n' +
-          'Not for fun. Not to "test" it. Not even as a joke.\n\n' +
-          'This channel is monitored for bot detection.\n\n' +
-          'If you post anything in here, our system will assume you are a bot and you **WILL BE BANNED**. No ifs, ands, or buts.\n\n' +
-          'If you are a legitimate user, please do not post here. This is your only warning.';
+        const warningContent = BAIT_CHANNEL_WARNING;
 
         if (config.channelMessageId) {
           // Try to fetch and update existing message
@@ -264,11 +262,20 @@ export async function handleBaitChannelRemoveChannel(client: Client, interaction
       return;
     }
 
-    // Remove channel
+    // Remove channel. The warning banner lives in the legacy channelId
+    // column's channel (see channelList.ts), so removing that channel moves
+    // the banner to the new primary. The reference is cleared and saved
+    // BEFORE the old banner is deleted: messageDelete's cleanup then finds
+    // nothing to clear, instead of saving its stale copy over this change.
+    const bannerHome = config.channelId;
+    const oldBannerId = channel.id === bannerHome ? config.channelMessageId : null;
     const updatedChannels = currentChannels.filter(id => id !== channel.id);
     setBaitChannels(config, updatedChannels);
+    if (oldBannerId) config.channelMessageId = null;
 
     await safeDbOperation(() => configRepo.save(config), 'Save bait channel config');
+
+    const bannerLeft = oldBannerId ? !(await moveBanner(interaction.guild!, config, bannerHome, oldBannerId)) : false;
 
     // Clear cache
     const { baitChannelManager } = client as ExtendedClient;
@@ -280,7 +287,11 @@ export async function handleBaitChannelRemoveChannel(client: Client, interaction
     const embed = new EmbedBuilder()
       .setColor(Colors.status.success)
       .setTitle(tl.multiChannel.title)
-      .setDescription(formatLang(tl.multiChannel.removed, channel.id))
+      .setDescription(
+        bannerLeft
+          ? `${formatLang(tl.multiChannel.removed, channel.id)}\n\n${formatLang(tl.multiChannel.bannerDeleteFailed, channel.id)}`
+          : formatLang(tl.multiChannel.removed, channel.id),
+      )
       .addFields({
         name: tl.multiChannel.channelsLabel,
         value: channelList,
@@ -293,4 +304,39 @@ export async function handleBaitChannelRemoveChannel(client: Client, interaction
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.removeChannel);
   }
+}
+
+/**
+ * Move the warning banner out of a removed bait channel: delete it there,
+ * then post it in the new primary (`config.channelId`) and save its ID.
+ * Returns false when the old banner couldn't be deleted.
+ */
+async function moveBanner(
+  guild: Guild,
+  config: BaitChannelConfig,
+  oldChannelId: string,
+  oldMessageId: string,
+): Promise<boolean> {
+  const configRepo = AppDataSource.getRepository(BaitChannelConfig);
+  const oldChannel = await guild.channels.fetch(oldChannelId).catch(() => null);
+  const deleted = oldChannel?.isTextBased()
+    ? (await verifiedMessageDeleteById(oldChannel, oldMessageId, { guildId: guild.id, label: 'bait warning banner' }))
+        .success
+    : false;
+
+  try {
+    const newHome = await guild.channels.fetch(config.channelId);
+    if (newHome?.isTextBased()) {
+      const msg = await newHome.send({ content: BAIT_CHANNEL_WARNING });
+      config.channelMessageId = msg.id;
+      await configRepo.save(config);
+    }
+  } catch (error) {
+    enhancedLogger.warn('Failed to post the bait warning banner in the new primary', LogCategory.COMMAND_EXECUTION, {
+      guildId: guild.id,
+      channelId: config.channelId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return deleted;
 }

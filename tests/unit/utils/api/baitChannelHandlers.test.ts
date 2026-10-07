@@ -135,6 +135,104 @@ describe('bait internal API handlers', () => {
       state.config = { guildId: 'g1' };
       await expect(route('POST /bait-channel/config/update')('g1', { logRetentionDays: 9999 }, '')).rejects.toThrow();
     });
+
+    // #25: values that would make every bait action fail at action time.
+    test.each([
+      ['deleteMessageHours', 200], // Discord caps ban message deletion at 7 days
+      ['timeoutDurationMinutes', 50000], // Discord caps timeouts at 28 days
+      ['timeoutDurationMinutes', 0],
+      ['gracePeriodSeconds', -1],
+      ['instantActionThreshold', 101],
+      ['escalationBanThreshold', -5],
+      ['minMessageCount', 1.5], // INT column
+    ])('rejects %s = %p and saves nothing', async (field, value) => {
+      state.config = { guildId: 'g1', [field]: 10 };
+      await expect(route('POST /bait-channel/config/update')('g1', { [field]: value }, '')).rejects.toThrow();
+      expect(configRepo.save).not.toHaveBeenCalled();
+    });
+
+    test('rejects a channel or role ID that is not a snowflake', async () => {
+      state.config = { guildId: 'g1' };
+      for (const field of ['logChannelId', 'summaryChannelId', 'raidModeAlertRoleId']) {
+        await expect(route('POST /bait-channel/config/update')('g1', { [field]: 'general' }, '')).rejects.toThrow(
+          `${field} must be a valid Discord ID`,
+        );
+      }
+      expect(configRepo.save).not.toHaveBeenCalled();
+    });
+
+    test.each([
+      ['banReason', 501],
+      ['warningMessage', 1001],
+      ['appealInfo', 501],
+      ['appealLinkBaseUrl', 501],
+    ])('rejects %s longer than the dashboard allows (%p chars) and saves nothing', async (field, length) => {
+      state.config = { guildId: 'g1' };
+      await expect(
+        route('POST /bait-channel/config/update')('g1', { [field]: 'x'.repeat(length as number) }, ''),
+      ).rejects.toThrow(`${field} must be at most ${(length as number) - 1} characters`);
+      expect(configRepo.save).not.toHaveBeenCalled();
+    });
+
+    // What ninsys-api's PUT /bait-channel/config forwards (its zod schema,
+    // channelId and deleteMessageDays stripped), at each bound: none may fail.
+    const dashboardSave = (edge: 'min' | 'max') => {
+      const pick = (min: number, max: number) => (edge === 'min' ? min : max);
+      return {
+        enabled: true,
+        gracePeriodSeconds: pick(0, 60),
+        logChannelId: edge === 'min' ? null : '223456789012345678',
+        banReason: 'b'.repeat(pick(1, 500)),
+        warningMessage: 'w'.repeat(pick(1, 1000)),
+        enableSmartDetection: true,
+        instantActionThreshold: pick(0, 100),
+        minAccountAgeDays: pick(0, 365),
+        minMembershipMinutes: pick(0, 525600),
+        minMessageCount: pick(0, 10000),
+        requireVerification: false,
+        disableAdminWhitelist: false,
+        actionType: 'timeout',
+        deleteUserMessages: true,
+        deleteMessageHours: pick(0, 168),
+        testMode: false,
+        enableEscalation: true,
+        escalationLogThreshold: pick(0, 100),
+        escalationTimeoutThreshold: pick(0, 100),
+        escalationKickThreshold: pick(0, 100),
+        escalationBanThreshold: pick(0, 100),
+        timeoutDurationMinutes: pick(1, 40320),
+        dmBeforeAction: true,
+        appealInfo: edge === 'min' ? null : 'a'.repeat(500),
+        enableWeeklySummary: true,
+        summaryChannelId: edge === 'min' ? null : '323456789012345678',
+        triggeredBy: 'dashboard-user',
+      };
+    };
+
+    test.each(['min', 'max'] as const)('accepts a full dashboard save with every field at its %s', async edge => {
+      state.config = { guildId: 'g1' };
+      const res = await route('POST /bait-channel/config/update')('g1', dashboardSave(edge), '');
+      expect(res.success).toBe(true);
+      expect(configRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    test('accepts in-range values, a valid snowflake, and null to clear an ID', async () => {
+      state.config = { guildId: 'g1', summaryChannelId: '123456789012345678' };
+      const res = await route('POST /bait-channel/config/update')(
+        'g1',
+        {
+          deleteMessageHours: 168,
+          timeoutDurationMinutes: 40320,
+          logChannelId: '223456789012345678',
+          summaryChannelId: null,
+        },
+        '',
+      );
+      expect(res.success).toBe(true);
+      expect(state.config.logChannelId).toBe('223456789012345678');
+      expect(state.config.summaryChannelId).toBe(null);
+      expect(configRepo.save).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('GET /bait-channel/pending-actions', () => {

@@ -112,6 +112,7 @@
     "whitelist": "Whitelist",
     "whitelistRoles": "**Roles:** {0}",
     "whitelistUsers": "**Users:** {0}",
+    "whitelistMore": "+{0} more (full list: `/baitchannel detection whitelist action:list`)",
     "yes": "Yes",
     "no": "No"
   },
@@ -249,7 +250,8 @@
     "notInList": "<#{0}> is not configured as a bait channel.",
     "mustKeepOne": "Cannot remove the last bait channel. Use `/baitchannel toggle` to disable instead.",
     "title": "Bait Channel Updated",
-    "channelsLabel": "Configured Channels"
+    "channelsLabel": "Configured Channels",
+    "bannerDeleteFailed": "Couldn't delete the warning banner in <#{0}>. Delete it by hand: that channel is no longer monitored."
   },
   "weeklySummary": {
     "title": "Weekly Summary Settings",

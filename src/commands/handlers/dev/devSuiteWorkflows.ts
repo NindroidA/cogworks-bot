@@ -632,16 +632,7 @@ async function populateBaitChannel(
     'link_dropper_3',
     'promo_account',
   ];
-  const actionTypes: string[] = [
-    'banned',
-    'banned',
-    'kicked',
-    'banned',
-    'deleted-in-time',
-    'banned',
-    'kicked',
-    'banned',
-  ];
+  const actionTypes: string[] = ['ban', 'ban', 'kick', 'ban', 'deleted-in-time', 'ban', 'kick', 'ban'];
   const messageContents = [
     'Free Discord Nitro! Click here: http://totally-not-a-scam.com',
     'Get cheap server boosts at http://fake-boosts.xyz',

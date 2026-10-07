@@ -5,38 +5,45 @@
  * Used to:
  *
  * 1. **Attribute bot-self actions.** When the bot itself just executed a
- *    ban/kick/timeout via `banExecutor`, the matching audit entry's
- *    `executorId` will be our `client.user.id`. We find the recent
- *    BaitChannelLog row for `(guildId, userId)` and patch in
+ *    bait ban/kick/timeout via `banExecutor`, the matching audit entry's
+ *    `executorId` will be our `client.user.id` and its reason starts with
+ *    `cogworks:bait`. We find the BaitChannelLog enforcement row for it
+ *    (by the `msgId=` in the reason when there is one) and patch in
  *    `discordAuditLogId` + `actionConfirmedAt`. This closes the
  *    correlation gap: previously, an admin reading the bait log could
  *    see "we banned user X with suspicion=87" but had no link back to
  *    the actual Discord audit log entry.
  *
- * 2. **Detect mod-supersedes-us.** When a mod (or another bot) bans the
- *    same user a bait detection is pending on, the audit entry's
- *    `executorId !== client.user.id`. We:
- *    - Delete any matching `pending_actions` rows (so the retry queue
- *      doesn't try to re-execute over the mod's action).
- *    - Write an `idempotency_keys` row (so any in-flight
- *      `executeBanAction` call sees the dup and short-circuits).
- *    - Write a `BaitChannelLog` row with `actionTaken='superseded-by-mod'`
- *      and `executorId=mod.id` so the dashboard surfaces what happened.
+ * 2. **Detect mod-supersedes-us.** When a mod (or another bot) bans, kicks
+ *    or times out a user (`executorId !== client.user.id`), we:
+ *    - Write an `idempotency_keys` row with the bare action, dated when the
+ *      mod acted, in any guild with bait enabled (or with bait pending on
+ *      the user): an `executeBanAction` for a post made before it that
+ *      claims after this sees it as covering (banExecutor's COVERED_BY) and
+ *      skips. One that already claimed still runs.
+ *    - Only when bait is pending on the user (a `pending_actions` row, or a
+ *      recent bait log nothing has enforced yet): delete the retry rows the
+ *      mod's action covers, and mark the bait log
+ *      `actionTaken='superseded-by-mod'` with `executorId=mod.id` so the
+ *      dashboard surfaces what happened. Other moderation writes no logs.
  *
- * 3. **Track unbans.** `MEMBER_BAN_REMOVE` updates the most-recent
+ * 3. **Track unbans.** A mod's `MEMBER_BAN_REMOVE` updates the most-recent
  *    BaitChannelLog ban row for the user with `unbannedAt` + `unbannedBy`.
  *    Useful for false-positive analytics (an admin overriding a bait ban
- *    is a signal that the bait config may be too aggressive).
+ *    is a signal that the bait config may be too aggressive). The bot's own
+ *    unbans only finish a softban, so they are skipped.
  *
  * Required intent: `GuildModeration` (set in `src/index.ts` client config).
  */
 
 import { AuditLogEvent, type Client, Events, type GuildAuditLogsEntry } from 'discord.js';
-import { IsNull, MoreThanOrEqual } from 'typeorm';
+import { In, IsNull, LessThan, MoreThanOrEqual } from 'typeorm';
 import { AppDataSource } from '../typeorm';
+import { BaitChannelConfig } from '../typeorm/entities/bait/BaitChannelConfig';
 import { BaitChannelLog } from '../typeorm/entities/bait/BaitChannelLog';
 import { IdempotencyKey } from '../typeorm/entities/bait/IdempotencyKey';
-import { PendingAction } from '../typeorm/entities/bait/PendingAction';
+import { PendingAction, type PendingActionType } from '../typeorm/entities/bait/PendingAction';
+import type { ExtendedClient } from '../types/ExtendedClient';
 import { IDEMPOTENCY_TTL_MS } from '../utils/baitChannel/banExecutor';
 import { ErrorCategory, ErrorSeverity, logError } from '../utils/errorHandler';
 import { enhancedLogger, LogCategory } from '../utils/monitoring/enhancedLogger';
@@ -50,9 +57,32 @@ import { enhancedLogger, LogCategory } from '../utils/monitoring/enhancedLogger'
 const RECENT_LOG_WINDOW_MS = 5 * 60 * 1000;
 
 /**
- * Idempotency key TTL for mod-superseded rows. Matches the executor's
- * 24h TTL so duplicate detection windows align.
+ * The bot's audit entry usually lands before executeAction writes the log
+ * row (the row comes last, after the DM, purge and log-channel post), so a
+ * miss is looked up again after each of these delays.
  */
+const CONFIRM_RETRY_DELAYS_MS = [10_000, 60_000];
+
+/** A bait audit reason (auditReason.ts), bare or behind a prefix such as banExecutor's `Softban — `. */
+const BAIT_REASON_RE = /(?:^|— )cogworks:bait\b/;
+
+/** BaitChannelLog values for an action the bot enforced (or queued for retry). */
+const ENFORCEMENT_STATES = ['ban', 'kick', 'softban', 'timeout', 'queued'];
+
+/** BaitChannelLog values nothing has enforced yet, which a mod's action can settle. */
+const NON_FINAL_STATES = ['queued', 'failed', 'logged'];
+
+/**
+ * Queued bait actions a mod's action makes redundant. A ban covers them all,
+ * including the unban that finishes one of our softbans (it must not lift the
+ * mod's ban); a kick covers a kick or timeout but not a ban (a ban by user ID
+ * still works on a non-member); a timeout covers only a timeout.
+ */
+const MOD_ACTION_COVERS: Record<'ban' | 'kick' | 'timeout', readonly PendingActionType[]> = {
+  ban: ['ban', 'softban', 'kick', 'timeout', 'log-only', 'unban'],
+  kick: ['kick', 'timeout', 'log-only'],
+  timeout: ['timeout'],
+};
 
 function todayUtc(): Date {
   const now = new Date();
@@ -90,7 +120,11 @@ function isTimeoutSet(entry: GuildAuditLogsEntry): boolean {
   return entry.changes.some(c => c.key === 'communication_disabled_until' && c.new != null);
 }
 
-export function registerAuditLogEntryCreateHandler(client: Client): void {
+export function registerAuditLogEntryCreateHandler(
+  client: Client,
+  opts: { confirmRetryDelaysMs?: number[] } = {},
+): void {
+  const retryDelays = opts.confirmRetryDelaysMs ?? CONFIRM_RETRY_DELAYS_MS;
   client.on(Events.GuildAuditLogEntryCreate, async (entry, guild) => {
     try {
       // Filter to bait-relevant events. MemberUpdate is noisy — only handle
@@ -108,14 +142,15 @@ export function registerAuditLogEntryCreateHandler(client: Client): void {
       const isSelf = executorId === client.user?.id;
 
       if (action === 'unban') {
-        await handleUnban(guild.id, targetId, executorId, entry.id);
+        // The bot only unbans to finish a softban: that isn't a reversal.
+        if (!isSelf) await handleUnban(guild.id, targetId, executorId, entry.id);
         return;
       }
 
       if (isSelf) {
-        await confirmSelfAction(guild.id, targetId, entry.id);
+        await confirmSelfAction(guild.id, targetId, entry.id, entry.reason, retryDelays);
       } else {
-        await handleModSupersedes(guild.id, targetId, executorId, action, entry.id);
+        await handleModSupersedes(client, guild.id, targetId, executorId, action, entry.id, entry.createdTimestamp);
       }
     } catch (error) {
       logError({
@@ -136,12 +171,23 @@ export function registerAuditLogEntryCreateHandler(client: Client): void {
 }
 
 /**
- * Bot-self path: find the most-recent BaitChannelLog row for this
- * `(guildId, userId)` within the lookback window and patch in audit
- * correlation fields. No row to update is fine — could be a manual
- * `guild.bans.create()` outside the bait path.
+ * Bot-self path: find the BaitChannelLog enforcement row for this action and
+ * patch in audit correlation fields. Only bait actions count: the reason
+ * starts with `cogworks:bait`, or has it after a `— ` prefix (the ban half of
+ * a softban, how a bait kick usually runs, reads `Softban — cogworks:bait …`).
+ * The row is matched on the reason's `msgId=` when it has one, so an earlier
+ * whitelisted or deleted-in-time row is never stamped. A row that isn't
+ * written yet is looked up again after each delay in `retryDelaysMs`.
  */
-async function confirmSelfAction(guildId: string, userId: string, auditLogId: string): Promise<void> {
+async function confirmSelfAction(
+  guildId: string,
+  userId: string,
+  auditLogId: string,
+  reason: string | null,
+  retryDelaysMs: number[],
+): Promise<void> {
+  if (!reason || !BAIT_REASON_RE.test(reason)) return; // not a bait action
+  const messageId = /\bmsgId=(\d+)/.exec(reason)?.[1];
   const repo = AppDataSource.getRepository(BaitChannelLog);
   const since = new Date(Date.now() - RECENT_LOG_WINDOW_MS);
 
@@ -149,17 +195,37 @@ async function confirmSelfAction(guildId: string, userId: string, auditLogId: st
     where: {
       guildId,
       userId,
+      ...(messageId ? { messageId } : {}),
+      actionTaken: In(ENFORCEMENT_STATES),
       createdAt: MoreThanOrEqual(since),
     },
     order: { createdAt: 'DESC' },
   });
 
-  if (!log) return; // no matching bait log within window — bot action was non-bait
-  if (log.actionConfirmedAt) return; // already confirmed (idempotent)
-
-  log.discordAuditLogId = auditLogId;
-  log.actionConfirmedAt = new Date();
-  await repo.save(log);
+  if (!log) {
+    const [delay, ...rest] = retryDelaysMs;
+    if (delay === undefined) return; // never written (or outside the window): leave it
+    const timer = setTimeout(() => {
+      confirmSelfAction(guildId, userId, auditLogId, reason, rest).catch(error =>
+        logError({
+          category: ErrorCategory.DATABASE,
+          severity: ErrorSeverity.LOW,
+          message: 'Bait audit confirmation retry failed',
+          error,
+          context: { guildId, userId, auditLogId },
+        }),
+      );
+    }, delay);
+    timer.unref?.();
+    return;
+  }
+  // A conditional UPDATE, not save(): it is idempotent, and it can't
+  // re-insert a row that guildDelete removed after the lookup.
+  const result = await repo.update(
+    { id: log.id, guildId, actionConfirmedAt: IsNull() },
+    { discordAuditLogId: auditLogId, actionConfirmedAt: new Date() },
+  );
+  if (!result.affected) return; // already confirmed, or gone
 
   enhancedLogger.debug(`Bait log ${log.id} confirmed via audit entry ${auditLogId}`, LogCategory.SECURITY, {
     guildId,
@@ -168,78 +234,137 @@ async function confirmSelfAction(guildId: string, userId: string, auditLogId: st
   });
 }
 
+/** The guild's bait config, from the manager's cache when the bot is running. */
+async function loadBaitConfig(client: Client, guildId: string): Promise<BaitChannelConfig | null> {
+  const manager = (client as ExtendedClient).baitChannelManager as ExtendedClient['baitChannelManager'] | undefined;
+  if (manager) return manager.getCachedConfig(guildId);
+  return AppDataSource.getRepository(BaitChannelConfig).findOne({ where: { guildId } });
+}
+
 /**
- * Mod-supersedes-us path: a non-bot executor performed the action. Cancel
- * any pending bait action against this user (the mod has already handled
- * it) and write the idempotency key so any in-flight retry sees the dup.
+ * Write the mod's idempotency key: the bare action, dated when the mod acted
+ * (banExecutor reads `expiresAt - TTL` as when it was taken, and a key covers
+ * posts made before that). `actedAt` is the audit entry's own time, capped at
+ * now, so a late or replayed entry never covers posts made after the action.
+ *
+ * A second same-day action of the same kind hits UNIQUE(guildId, userId,
+ * action, dayBucket); the existing key is re-dated (forward only) and
+ * re-attributed instead, or posts made between the two actions would stay
+ * uncovered. Bait keys hold `<action>:<messageId>`, so a bare key is a mod's;
+ * the patch also clears `testMode`, in case it's a legacy dry-run key written
+ * before keys were per post (a test-mode key never covers a real action).
+ */
+async function claimModKey(
+  guildId: string,
+  userId: string,
+  action: 'ban' | 'kick' | 'timeout',
+  executorId: string,
+  actedAt: number,
+): Promise<void> {
+  const repo = AppDataSource.getRepository(IdempotencyKey);
+  const expiresAt = new Date(Math.min(Date.now(), actedAt) + IDEMPOTENCY_TTL_MS);
+  try {
+    await repo.save(
+      repo.create({ guildId, userId, action, dayBucket: todayUtc(), executorId, testMode: false, expiresAt }),
+    );
+  } catch {
+    try {
+      const result = await repo.update(
+        { guildId, userId, action, expiresAt: LessThan(expiresAt) },
+        { executorId, expiresAt, testMode: false },
+      );
+      if (!result.affected) {
+        enhancedLogger.warn(
+          `Mod ${action} key for ${userId} in ${guildId} not re-dated (a later one exists, or the insert failed)`,
+          LogCategory.SECURITY,
+          { guildId, userId, action, executorId },
+        );
+      }
+    } catch (error) {
+      logError({
+        category: ErrorCategory.DATABASE,
+        severity: ErrorSeverity.MEDIUM,
+        message: 'Failed to record a mod action as a bait idempotency key',
+        error,
+        context: { guildId, userId, action },
+      });
+    }
+  }
+}
+
+/**
+ * Mod-supersedes-us path: a non-bot executor performed the action. Its key is
+ * claimed whenever bait could act on the user; rows and logs are touched only
+ * when bait is pending on them.
  */
 async function handleModSupersedes(
+  client: Client,
   guildId: string,
   userId: string,
   executorId: string,
   action: 'ban' | 'kick' | 'timeout',
   auditLogId: string,
+  actedAt: number,
 ): Promise<void> {
   const pendingRepo = AppDataSource.getRepository(PendingAction);
-  const idempotencyRepo = AppDataSource.getRepository(IdempotencyKey);
   const logRepo = AppDataSource.getRepository(BaitChannelLog);
 
-  // Step 1: claim the idempotency key with the mod's executor ID. This
-  // prevents the retry queue / in-flight executor calls from re-executing.
-  // If the key already exists (bot already did this), skip to step 2 to
-  // verify but don't overwrite executor attribution.
-  const claim = idempotencyRepo.create({
-    guildId,
-    userId,
-    action,
-    dayBucket: todayUtc(),
-    executorId,
-    testMode: false,
-    expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
-  });
-  try {
-    await idempotencyRepo.save(claim);
-  } catch {
-    // Duplicate-key — bot already executed. Don't overwrite.
-  }
+  // Step 1: claim the mod's key first, in any guild with bait enabled. A
+  // bait action can be in flight with no pending row (instant action, or a
+  // grace timer that already removed its row); if it hasn't claimed its own
+  // key yet, this one makes it skip instead of undoing the mod's action (a
+  // softban's unban lifting the mod's ban). It narrows the window, it doesn't
+  // close it: an action that already claimed still runs. It covers posts made
+  // before the mod acted only.
+  const config = await loadBaitConfig(client, guildId);
+  if (config?.enabled) await claimModKey(guildId, userId, action, executorId, actedAt);
 
-  // Step 2: delete any pending actions targeting this user. The retry
-  // queue would otherwise try to re-execute on the now-banned user (which
-  // would 10026 "Unknown Ban" and dead-letter).
-  const cancelled = await pendingRepo.delete({ guildId, userId });
-
-  // Step 3: log the superseded event. Three cases:
-  //   (a) Existing log row in 'queued' / 'failed' / 'logged' state →
-  //       update it in place to 'superseded-by-mod'.
-  //   (b) Existing log row already actioned (e.g., we executed before
-  //       the mod's action wins the audit race) → leave it alone.
-  //   (c) No recent log row (typical grace-period scenario where we
-  //       haven't yet written the BaitChannelLog) → insert a new row
-  //       so the dashboard can see the mod-supersedes event. Better to
-  //       record minimal metadata than silently drop attribution.
+  // Is bait pending on this user? A live pending_actions row (grace or
+  // retry; dead-lettered rows stay for the dashboard review queue) or a
+  // recent log nothing has enforced yet. Otherwise it's ordinary
+  // moderation: no rows are deleted and no bait log is written.
+  const pending = await pendingRepo.find({ where: { guildId, userId, deadAt: IsNull() } });
   const since = new Date(Date.now() - RECENT_LOG_WINDOW_MS);
   const existingLog = await logRepo.findOne({
-    where: {
-      guildId,
-      userId,
-      createdAt: MoreThanOrEqual(since),
-    },
+    where: { guildId, userId, actionTaken: In(NON_FINAL_STATES), createdAt: MoreThanOrEqual(since) },
     order: { createdAt: 'DESC' },
   });
+  if (pending.length === 0 && !existingLog) return;
+  // Bait turned off since, but a row or log is still open: the retry queue
+  // still runs an unban (the rest of our softban) then, so the key is still
+  // needed.
+  if (!config?.enabled) await claimModKey(guildId, userId, action, executorId, actedAt);
 
-  const UPDATABLE_ACTION_STATES = new Set(['queued', 'failed', 'logged']);
-  if (existingLog && UPDATABLE_ACTION_STATES.has(existingLog.actionTaken)) {
+  // Step 2: delete the retry rows (attempts >= 1) the mod's action covers, so
+  // they end now with a superseded-by-mod log instead of spending a retry (a
+  // kicked user's timeout would otherwise run as a softban). A retry it
+  // doesn't cover (a ban after a mod's timeout) is still owed. Grace rows
+  // (attempts = 0) stay with the manager: its timer re-checks current state,
+  // sees a ban as a leave, and skips an action the key above covers.
+  const covers = MOD_ACTION_COVERS[action];
+  const retries = pending.filter(r => r.attempts > 0);
+  const covered = retries.filter(r => covers.includes(r.action));
+  if (covered.length > 0) await pendingRepo.delete({ guildId, id: In(covered.map(r => r.id)) });
+  const stillOwed = covered.length < retries.length;
+
+  // Step 3: log the superseded event.
+  //   (a) Recent non-final log row ('queued' / 'failed' / 'logged') and no
+  //       retry still owed → update it in place to 'superseded-by-mod'.
+  //   (b) No such row but a retry was cancelled (its 'queued' row is older
+  //       than the window) → insert a minimal-metadata row so the dashboard
+  //       can see the mod-supersedes event.
+  //   Otherwise leave it: a retry still owed will settle the row, and a
+  //   live grace entry logs its own outcome.
+  if (existingLog && !stillOwed) {
     // (a) update in place
     existingLog.actionTaken = 'superseded-by-mod';
     existingLog.executorId = executorId;
     existingLog.discordAuditLogId = auditLogId;
     existingLog.actionConfirmedAt = new Date();
     await logRepo.save(existingLog);
-  } else if (!existingLog) {
-    // (c) no row yet — insert a minimal-metadata row so this event isn't
-    // lost. Score/flags/content are unknown (the bot never got to write
-    // the row), but guildId+userId+executor+action+auditLog ID is enough
-    // for the dashboard to correlate.
+  } else if (!existingLog && covered.length > 0) {
+    // (b) Score/flags/content are unknown here, but guildId + userId +
+    // executor + action + audit log ID is enough for the dashboard to correlate.
     await logRepo.save(
       logRepo.create({
         guildId,
@@ -257,12 +382,9 @@ async function handleModSupersedes(
       }),
     );
   }
-  // case (b): already-executed row left as-is — duplicate attribution from
-  // a slightly delayed mod action would overwrite our own audit-confirmed
-  // log, which is incorrect.
 
   enhancedLogger.info(
-    `Mod ${executorId} superseded bait ${action} against ${userId} in ${guildId} (cancelled ${cancelled.affected ?? 0} pending row(s))`,
+    `Mod ${executorId} superseded bait ${action} against ${userId} in ${guildId} (cancelled ${covered.length} retry row(s))`,
     LogCategory.SECURITY,
     {
       guildId,
@@ -270,7 +392,7 @@ async function handleModSupersedes(
       executorId,
       action,
       auditLogId,
-      pendingCancelled: cancelled.affected ?? 0,
+      pendingCancelled: covered.length,
     },
   );
 }
