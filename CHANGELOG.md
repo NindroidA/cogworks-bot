@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.36] - 2026-10-06
+
+Bait-channel retries: a bait action that hit a Discord error was never
+actually retried, a second bait post on the same day was ignored, and a
+restart deleted queued retries and dead-lettered actions
+(NindroidA/cogworks-bot#41).
+
+### Fixed
+
+- **Queued bait actions are really retried.** The duplicate guard was claimed
+  before the Discord call and kept when the call failed, so every retry was
+  skipped as a "duplicate" and logged as "Bait retry succeeded" without
+  running. A claim whose action did not land (5xx, 429, network, or a
+  terminal error) is now released, so the retry queue and the leave-drain
+  run it for real. A retry runs one at a time with the member's grace periods
+  and other bait actions, from a fresh read of its pending row, so a copy read
+  earlier can't undo what happened meanwhile (it could delete the unban a
+  failed softban left, or run a second unban). A member busy with another
+  bait action waits for the next pass instead of holding up other retries.
+- **A softban whose unban step fails is finished, not left as a ban.** Only
+  the unban is retried (a new `unban` retry step), with more tries than other
+  retries (at about 5s, 35s, 5.5 min and 10.5 min). Before, the retry ran a
+  second ban-and-purge, and the leave the ban caused dropped the retry as
+  "already banned", leaving the user banned. The unban is never a dry run (it
+  undoes our own ban, even if test mode was turned on since) and is skipped
+  if the user has been banned since their bait post (by a mod or for a later
+  post). It lifts only a ban whose reason shows our softban placed it, so it
+  can never lift a mod's or another bot's ban, and a ban a mod already lifted
+  counts as done. If it gives up, the bait log channel (or, without one, the
+  server owner by DM) is told that the user is still banned. A softban retry
+  cut off between its ban and unban (a restart) is finished as an unban
+  instead of being dropped, also when test mode was turned on or the bait
+  channel turned off in the meantime.
+- **The bait log row of a retried action is settled.** It used to stay
+  `queued` forever; a retry now sets it to the action taken (`softban` for a
+  finished unban), `superseded` when something else already handled it, or
+  `failed` when the action is dead-lettered. The retry is queued only after
+  that row is written, so a fast first retry can't miss it.
+- **A second bait post on the same day is acted on.** The duplicate guard was
+  per user, action and UTC day, so a raid account that was softbanned and
+  rejoined, a user whose timeout had run out, a user a mod had timed out
+  earlier that day, or anyone caught by a test-mode dry run that day could post
+  again without consequence. The guard is now per bait post: an action taken
+  on the user after a post was made (ours for another post, or a mod's) still
+  covers that post, so a burst of posts gets one action, but a post made
+  afterwards is a new offense. An action counts from when it landed, so a post
+  made while a rate-limited ban was still going through is covered too. A
+  test-mode dry run never blocks a real action.
+- **A bait timeout never shortens a longer timeout already in place** (for
+  example one a mod set).
+- **Retries follow the current settings, including when a member leaves.**
+  The leave now hands its retries to the retry queue instead of running its
+  own copy of the logic. Every retry is a dry run in test mode, stands down
+  if the bait channel was turned off (an unban still runs), and uses the
+  configured message-delete window (the leave used a fixed 24 hours). A timeout
+  or kick for a member who left becomes a softban only when the ban list says
+  they aren't banned; when it can't be read, the retry is tried again later
+  instead of dropped. A retry queued while the leave itself is being settled
+  waits for its backoff instead of running again at once.
+- **A restart no longer deletes queued retries or dead-lettered actions.**
+  Startup deleted every pending action past its time, including retries that
+  were due and dead-lettered actions awaiting review on the dashboard. It now
+  only cleans up and restores grace periods; a retry that came due during the
+  downtime runs on the retry queue's first pass.
+
 ## [3.16.35] - 2026-10-06
 
 Database alignment (NindroidA/cogworks-bot#41). Prod has run on migrations

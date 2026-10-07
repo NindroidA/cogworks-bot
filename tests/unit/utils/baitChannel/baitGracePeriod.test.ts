@@ -7,7 +7,8 @@
  * stands for (not the column default 'ban'); a leave in one guild must never
  * touch another guild's timer; a leave that was a ban must never be softened
  * into a softban (its unban step would lift the ban); and a dashboard cancel
- * must stop the timer.
+ * must stop the timer. Boot only restores and cleans up grace rows: retry
+ * and dead-letter rows are left alone.
  *
  * Runs the real executeAction + REST executor against hand-rolled fakes, so
  * "no real action" is asserted at the Discord call (guild.bans.create /
@@ -121,6 +122,7 @@ function fakeRepo(): any {
     save: jest.fn(async (x: any) => x),
     delete: jest.fn(async () => ({ affected: 1 })),
     remove: jest.fn(async (x: any) => x),
+    update: jest.fn(async () => ({ affected: 1 })),
   };
 }
 
@@ -611,6 +613,28 @@ describe('cancelPendingAction (#22)', () => {
   });
 });
 
+describe('queued actions reach the retry queue after their log row (review #4)', () => {
+  test('the queued log row exists before the retry is enqueued, so the first tick can settle it', async () => {
+    const h = makeHarness();
+    initRetryQueue({ client: {} as any, pendingActionRepo: fakeRepo(), idempotencyRepo: fakeRepo() });
+    const loggedAtEnqueue: string[][] = [];
+    const enqueue = jest.spyOn(getRetryQueue()!, 'enqueue').mockImplementation(async () => {
+      loggedAtEnqueue.push(h.loggedActions());
+    });
+    try {
+      const g = await startGrace(h.manager, h.state.config);
+      g.guild.bans.create = jest.fn(async () => {
+        throw apiError(0, 503);
+      });
+      await g.expire();
+      expect(enqueue).toHaveBeenCalledTimes(1);
+      expect(loggedAtEnqueue).toEqual([['queued']]);
+    } finally {
+      stopRetryQueue();
+    }
+  });
+});
+
 describe('test mode never reaches the retry queue', () => {
   test('a queued dry run (idempotency DB down) is not enqueued for a real retry', async () => {
     const h = makeHarness({ testMode: true });
@@ -631,5 +655,36 @@ describe('test mode never reaches the retry queue', () => {
     } finally {
       stopRetryQueue();
     }
+  });
+});
+
+describe('boot (#29)', () => {
+  test('only grace rows are cleaned up and restored; retry and dead-letter rows are left alone', async () => {
+    const h = makeHarness();
+    const row = (overrides: Record<string, unknown>) => ({
+      guildId: GUILD,
+      userId: USER,
+      channelId: BAIT,
+      suspicionScore: 60,
+      warningMessageId: null,
+      deadAt: null,
+      createdAt: new Date(Date.now() - 60_000),
+      expiresAt: new Date(Date.now() + 3_600_000),
+      ...overrides,
+    });
+    const rows = [
+      row({ messageId: 'msg-grace', attempts: 0 }),
+      row({ messageId: 'msg-retry', attempts: 1, expiresAt: new Date(Date.now() - 1000) }),
+      row({ messageId: 'msg-dead', attempts: 3, deadAt: new Date(), expiresAt: new Date(Date.now() - 1000) }),
+    ];
+    const isGrace = (where: any) => (r: any) =>
+      r.attempts === where.attempts && (where.deadAt?.type !== 'isNull' || r.deadAt === null);
+    h.pendingActionRepo.find = jest.fn(async ({ where }: any) => rows.filter(isGrace(where)));
+    await h.manager.initialize();
+
+    const deleted = h.pendingActionRepo.delete.mock.calls[0][0];
+    expect(rows.filter(isGrace(deleted)).map(r => r.messageId)).toEqual(['msg-grace']);
+    expect([...pending(h.manager).keys()]).toEqual([`${GUILD}:${USER}:msg-grace`]);
+    expect(h.pendingActionRepo.remove).not.toHaveBeenCalled();
   });
 });

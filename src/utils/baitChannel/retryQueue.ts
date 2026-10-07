@@ -15,12 +15,15 @@
  *
  * Tick interval: every 15s the queue scans for rows where `deadAt IS NULL
  * AND attempts >= 1 AND expiresAt < NOW()`, locks them by updating expiresAt
- * forward (optimistic), and dispatches `executeBanAction` for each. Result:
- *   - `executed` → DELETE row
- *   - `duplicate` → DELETE row (already done by something else)
- *   - `queued` again → attempts++, set expiresAt to next backoff
- *   - `failed` (terminal) → set `deadAt = now()`, leave the row for mod
- *     review via the dashboard's pending-actions list (Phase 6 API)
+ * forward (optimistic), and dispatches `executeBanAction` for each with the
+ * row's messageId, so it reuses the post's idempotency key (the failed
+ * attempt released it). Result:
+ *   - `executed` → DELETE row, bait log row 'queued' → the action taken
+ *   - `duplicate` → DELETE row (already done by something else), log → 'superseded'
+ *   - `queued` again → attempts++, set expiresAt to next backoff (a softban
+ *     whose ban landed continues as `unban`)
+ *   - `failed` (terminal) → set `deadAt = now()`, log → 'failed', leave the
+ *     row for mod review via the dashboard's pending-actions list (Phase 6 API)
  *
  * Grace rows (attempts = 0) are never executed here. The manager's timer
  * settles them against current config, test mode, whitelist and whether the
@@ -30,12 +33,14 @@
 
 import type { Client, Guild } from 'discord.js';
 import { IsNull, LessThan, type Repository } from 'typeorm';
+import { lang } from '../../lang';
 import type { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelConfig';
+import type { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
 import type { IdempotencyKey } from '../../typeorm/entities/bait/IdempotencyKey';
 import type { PendingAction, PendingActionType } from '../../typeorm/entities/bait/PendingAction';
 import { ErrorCategory, ErrorSeverity, logError } from '../errorHandler';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
-import { executeBanAction } from './banExecutor';
+import { type BanExecutorResult, executeBanAction, fetchBan, isOwnSoftban } from './banExecutor';
 
 const TICK_INTERVAL_MS = 15_000;
 
@@ -55,6 +60,13 @@ export const ORPHAN_GRACE_MARGIN_MS = 60_000;
 const BACKOFF_MS = [5_000, 30_000, 5 * 60_000];
 const MAX_ATTEMPTS = BACKOFF_MS.length; // 3
 
+/**
+ * An unban finishes our own softban, and giving up leaves the user banned,
+ * so it keeps trying at the 5-minute step: retries at about 5s, 35s, 5.5min
+ * and 10.5min.
+ */
+const maxAttempts = (action: string): number => (action === 'unban' ? 5 : MAX_ATTEMPTS);
+
 export interface RetryQueueDeps {
   client: Client;
   pendingActionRepo: Repository<PendingAction>;
@@ -71,10 +83,16 @@ export interface RetryQueueDeps {
    * length). Defaults to the client-attached manager's cached lookup.
    */
   getConfig?: (guildId: string) => Promise<BaitChannelConfig | null>;
+  /** Bait log, to settle the row the first attempt left as 'queued'. Optional: without it the log is left as is. */
+  logRepo?: Repository<BaitChannelLog>;
 }
 
 type ClientWithBaitConfig = Client & {
-  baitChannelManager?: { getCachedConfig(guildId: string): Promise<BaitChannelConfig | null> };
+  baitChannelManager?: {
+    getCachedConfig(guildId: string): Promise<BaitChannelConfig | null>;
+    inMemberChain<T>(guildId: string, userId: string, task: () => Promise<T>): Promise<T>;
+    memberBusy(guildId: string, userId: string): boolean;
+  };
 };
 
 export class RetryQueue {
@@ -129,7 +147,7 @@ export class RetryQueue {
       existing.action = params.action;
       const backoffIdx = Math.min(existing.attempts - 1, BACKOFF_MS.length - 1);
       existing.expiresAt = new Date(Date.now() + BACKOFF_MS[backoffIdx]);
-      if (existing.attempts >= MAX_ATTEMPTS) {
+      if (existing.attempts >= maxAttempts(existing.action)) {
         existing.deadAt = new Date();
         await this.alertDeadLetter(existing);
       }
@@ -181,8 +199,11 @@ export class RetryQueue {
       const orphanCutoff = Date.now() - ORPHAN_GRACE_MARGIN_MS;
       const orphanedGrace = due.filter(r => (r.attempts ?? 0) === 0 && r.expiresAt.getTime() < orphanCutoff);
 
+      // A member busy with a grace resolution or another action waits for
+      // the next tick instead of holding up everyone else's retries.
+      const manager = (this.deps.client as ClientWithBaitConfig).baitChannelManager;
       for (const row of retryRows) {
-        await this.processRow(row);
+        if (!manager?.memberBusy(row.guildId, row.userId)) await this.runRow(row);
       }
 
       for (const row of orphanedGrace) {
@@ -201,6 +222,23 @@ export class RetryQueue {
     }
   }
 
+  /**
+   * Run one retry row in the manager's per-member chain (so it never overlaps
+   * a grace resolution or another action on that member), from a fresh read:
+   * a copy read earlier may have been settled, rewritten (softban → unban) or
+   * deleted since, and saving it would bring it back. Skipped if it is gone,
+   * dead-lettered or changed. The leave-drain runs its rows through here too.
+   */
+  async runRow(stale: PendingAction): Promise<void> {
+    const task = async () => {
+      const row = await this.deps.pendingActionRepo.findOne({ where: { id: stale.id, guildId: stale.guildId } });
+      if (!row || row.deadAt || row.attempts !== stale.attempts || row.action !== stale.action) return;
+      await this.processRow(row);
+    };
+    const manager = (this.deps.client as ClientWithBaitConfig).baitChannelManager;
+    await (manager ? manager.inMemberChain(stale.guildId, stale.userId, task) : task());
+  }
+
   private async processRow(row: PendingAction): Promise<void> {
     const guild = await this.deps.client.guilds.fetch(row.guildId).catch(() => null);
     if (!guild) {
@@ -211,10 +249,13 @@ export class RetryQueue {
       return;
     }
 
-    const result = await this.attemptAction(guild, row);
+    const { result, action, testMode } = await this.attemptAction(guild, row);
 
     if (result.status === 'executed' || result.status === 'duplicate') {
       await this.deps.pendingActionRepo.remove(row);
+      const done = action === 'log-only' ? 'logged' : action === 'unban' ? 'softban' : action;
+      const taken = result.status === 'duplicate' ? 'superseded' : testMode ? `test-${done}` : done;
+      await this.settleLog(row, taken, null, result.status === 'executed');
       enhancedLogger.info(
         `Bait retry succeeded: ${row.action} on ${row.userId} (attempts=${row.attempts})`,
         LogCategory.SECURITY,
@@ -231,10 +272,12 @@ export class RetryQueue {
     // Still failing — increment attempts, set next backoff, or dead-letter.
     row.attempts = (row.attempts ?? 0) + 1;
     row.lastError = result.failureReason ?? row.lastError;
+    if (result.retryAction) row.action = result.retryAction;
 
-    if (result.status === 'failed' || row.attempts >= MAX_ATTEMPTS) {
+    if (result.status === 'failed' || row.attempts >= maxAttempts(row.action)) {
       row.deadAt = new Date();
       await this.alertDeadLetter(row);
+      await this.settleLog(row, 'failed', row.lastError, false);
     } else {
       const backoffIdx = Math.min(row.attempts - 1, BACKOFF_MS.length - 1);
       row.expiresAt = new Date(Date.now() + BACKOFF_MS[backoffIdx]);
@@ -268,34 +311,83 @@ export class RetryQueue {
    * the user is owed). Test mode is the exception: a guild in test mode
    * gets a dry run, never a real action.
    */
-  private async attemptAction(guild: Guild, row: PendingAction): Promise<{ status: string; failureReason?: string }> {
+  private async attemptAction(
+    guild: Guild,
+    row: PendingAction,
+  ): Promise<{ result: BanExecutorResult; action: PendingActionType; testMode: boolean }> {
     const member = await guild.members.fetch(row.userId).catch(() => null);
     const config = await this.loadConfig(row.guildId);
 
-    // For timeout, we need a live member. If they're gone, demote to softban
-    // so the action still has effect (messages get purged, account barred for
-    // 0ms which is effectively a "delete + soft-eject").
     let action = row.action as PendingActionType;
-    if (action === 'timeout' && !member) {
-      action = 'softban';
+    // Bait channel turned off since: retries stand down, except an unban (it undoes our own ban).
+    const standDown = !!config && !config.enabled;
+    // A member who left can't be timed out or kicked, so those become a
+    // softban (by user ID). It runs only when the ban list says they aren't
+    // banned (its unban would lift a ban someone else placed), or when the
+    // ban is our own softban's, cut off before its unban: the executor
+    // finishes that one, and while standing down or in test mode it runs as
+    // the unban, so our ban is never left in place.
+    if (!member && (action === 'timeout' || action === 'kick' || action === 'softban')) {
+      const ban = await fetchBan(guild, row.userId);
+      if (ban === undefined || (ban && !isOwnSoftban(ban))) {
+        const result: BanExecutorResult = ban
+          ? { status: 'duplicate', action: 'softban' }
+          : { status: 'queued', action: 'softban', failureReason: 'ban list unreadable; softban not run' };
+        return { result, action: 'softban', testMode: false };
+      }
+      action = ban && (standDown || config?.testMode === true) ? 'unban' : 'softban';
+    }
+    if (standDown && action !== 'unban') {
+      return { result: { status: 'duplicate', action }, action, testMode: false };
     }
 
+    const testMode = config?.testMode === true && action !== 'unban'; // the executor never dry-runs an unban
     const exec = this.deps.executeBanAction ?? executeBanAction;
-    return exec(
+    const result = await exec(
       {
         guild,
         userId: row.userId,
         action,
+        eventId: row.messageId,
         reason: `cogworks:bait retry attempt=${row.attempts + 1} score=${row.suspicionScore}`,
         executorId: this.deps.client.user?.id ?? null,
         deleteMessageSeconds:
           action === 'ban' || action === 'softban' ? (config?.deleteMessageHours ?? 24) * 3600 : undefined,
         timeoutMs: action === 'timeout' ? (config?.timeoutDurationMinutes ?? 60) * 60 * 1000 : undefined,
         member: member ?? undefined,
-        testMode: config?.testMode === true,
+        testMode,
       },
       this.deps.idempotencyRepo,
     );
+    return { result, action, testMode };
+  }
+
+  /**
+   * Settle the bait log row the first attempt wrote as 'queued' for this
+   * post (guild-scoped; a mod's superseded-by-mod update already moved it
+   * off 'queued'). Best effort: the action itself already happened.
+   */
+  private async settleLog(
+    row: PendingAction,
+    actionTaken: string,
+    failureReason: string | null,
+    byBot: boolean,
+  ): Promise<void> {
+    if (!this.deps.logRepo) return;
+    try {
+      await this.deps.logRepo.update(
+        { guildId: row.guildId, userId: row.userId, messageId: row.messageId, actionTaken: 'queued' },
+        { actionTaken, failureReason, executorId: byBot ? (this.deps.client.user?.id ?? null) : null },
+      );
+    } catch (error) {
+      logError({
+        category: ErrorCategory.DATABASE,
+        severity: ErrorSeverity.LOW,
+        message: 'Bait retry queue could not update the bait log row',
+        error,
+        context: { guildId: row.guildId, userId: row.userId, messageId: row.messageId },
+      });
+    }
   }
 
   private async loadConfig(guildId: string): Promise<BaitChannelConfig | null> {
@@ -331,6 +423,34 @@ export class RetryQueue {
         lastError: row.lastError,
       },
     });
+    if (row.action === 'unban') await this.alertUnbanGaveUp(row);
+  }
+
+  /**
+   * Our softban's ban could not be lifted, so the user stays banned: tell the
+   * mods in the bait log channel, or DM the server owner when there is none
+   * (as the manager does for undeliverable bait logs).
+   */
+  private async alertUnbanGaveUp(row: PendingAction): Promise<void> {
+    try {
+      const config = await this.loadConfig(row.guildId);
+      const guild = await this.deps.client.guilds.fetch(row.guildId);
+      const text = lang.baitChannel.unbanGaveUp
+        .replace('{0}', `<@${row.userId}>`)
+        .replace('{1}', guild.name)
+        .replace('{2}', String(row.attempts));
+      const channel = config?.logChannelId ? await guild.channels.fetch(config.logChannelId).catch(() => null) : null;
+      if (channel?.isTextBased()) await channel.send(text);
+      else await (await guild.fetchOwner()).send(text);
+    } catch (error) {
+      logError({
+        category: ErrorCategory.DISCORD_API,
+        severity: ErrorSeverity.MEDIUM,
+        message: 'Failed to post the unban dead-letter alert',
+        error,
+        context: { guildId: row.guildId, userId: row.userId },
+      });
+    }
   }
 }
 

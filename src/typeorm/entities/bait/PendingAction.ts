@@ -1,6 +1,7 @@
 import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
-export type PendingActionType = 'ban' | 'softban' | 'kick' | 'timeout' | 'log-only';
+/** `unban` is a retry row finishing a softban whose unban step failed (varchar column, no migration). */
+export type PendingActionType = 'ban' | 'softban' | 'kick' | 'timeout' | 'log-only' | 'unban';
 
 @Entity({ name: 'pending_actions' })
 @Index(['guildId', 'expiresAt'])
