@@ -92,7 +92,8 @@ export async function onboardingHandler(client: Client, interaction: ChatInputCo
 }
 
 /**
- * Preview the onboarding flow by DM'ing the invoking admin.
+ * Preview the onboarding flow by DM'ing the invoking admin. Works while
+ * onboarding is disabled, and saves no progress and grants no roles.
  */
 const previewHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
@@ -110,10 +111,8 @@ const previewHandler = async (_client: Client, interaction: ChatInputCommandInte
     flags: [MessageFlags.Ephemeral],
   });
 
-  const member = interaction.guild?.members.cache.get(interaction.user.id);
-  if (!member) return;
-
-  const sent = await sendOnboardingFlow(member);
+  const member = await interaction.guild?.members.fetch(interaction.user.id).catch(() => null);
+  const sent = member ? await sendOnboardingFlow(member, { preview: true }) : false;
   if (sent) {
     await interaction.editReply({ content: tl.preview.sent });
   } else {
@@ -122,7 +121,8 @@ const previewHandler = async (_client: Client, interaction: ChatInputCommandInte
 };
 
 /**
- * Resend the onboarding flow to a specific user.
+ * Resend the onboarding flow to a specific user. It resumes at their first
+ * unfinished step, or starts over if they already finished.
  */
 const resendHandler = async (_client: Client, interaction: ChatInputCommandInteraction<CacheType>) => {
   const guildId = interaction.guildId!;
@@ -136,7 +136,7 @@ const resendHandler = async (_client: Client, interaction: ChatInputCommandInter
     return;
   }
 
-  const member = interaction.guild?.members.cache.get(targetUser.id);
+  const member = await interaction.guild?.members.fetch(targetUser.id).catch(() => null);
   if (!member) {
     await interaction.reply({
       content: formatLang(tl.resend.failed, targetUser.toString()),
@@ -147,7 +147,7 @@ const resendHandler = async (_client: Client, interaction: ChatInputCommandInter
 
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-  const sent = await sendOnboardingFlow(member);
+  const sent = await sendOnboardingFlow(member, { restart: true });
   if (sent) {
     await interaction.editReply({
       content: formatLang(tl.resend.success, targetUser.toString()),

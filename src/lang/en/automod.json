@@ -156,7 +156,9 @@
     "wouldExceedLimit": "Restoring would create {0} rule(s), but you only have {1} slot(s) available. Delete some rules first.",
     "confirmTitle": "Confirm AutoMod Restore",
     "confirmMessage": "This will create {0} new AutoMod rule(s). Existing rules will NOT be deleted. Continue?",
-    "confirmLabel": "Confirm Restore"
+    "confirmLabel": "Confirm Restore",
+    "failedList": "{0} rule(s) could not be restored:",
+    "alertChannelMissing": "its alert channel isn't in this server"
   },
   "keyword": {
     "add": {

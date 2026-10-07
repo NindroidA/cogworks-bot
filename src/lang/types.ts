@@ -1369,6 +1369,13 @@ export interface LangErrors {
   rateLimit: string;
   timeout: string;
   notYourInteraction: string;
+  assignableRole: {
+    everyone: string;
+    managed: string;
+    aboveBot: string;
+    aboveInvoker: string;
+    privileged: string;
+  };
 }
 
 export interface LangMemory {
@@ -1741,6 +1748,7 @@ export interface LangReactionRole {
     cannotUseEveryone: string;
     cannotUseManagedRole: string;
     invalidEmoji: string;
+    menuUpdateFailed: string;
   };
   remove: {
     success: string;
@@ -1757,6 +1765,7 @@ export interface LangReactionRole {
     error: string;
     confirmTitle: string;
     confirmMessage: string;
+    messageNotDeleted: string;
   };
   list: {
     title: string;
@@ -1775,6 +1784,7 @@ export interface LangReactionRole {
     modeUnique: string;
     modeLock: string;
     noOptions: string;
+    updateFailed: string;
   };
   reaction: {
     roleAssigned: string;

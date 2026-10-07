@@ -1,7 +1,14 @@
-import { type CacheType, type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
+import {
+  type AutocompleteInteraction,
+  type CacheType,
+  type ChatInputCommandInteraction,
+  type Client,
+  EmbedBuilder,
+  MessageFlags,
+} from 'discord.js';
 import { lang } from '../../../lang';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
-import { enhancedLogger, formatLang, replyEphemeralError } from '../../../utils';
+import { clampText, enhancedLogger, formatLang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import type { OnboardingStepDef, OnboardingStepType } from '../../../utils/onboarding/types';
 
@@ -88,7 +95,8 @@ export async function stepRemoveHandler(_client: Client, interaction: ChatInputC
     return;
   }
 
-  const index = config.steps.findIndex(s => s.id === stepId);
+  // The autocomplete sends the id; a typed title resolves to the id it was given
+  const index = config.steps.findIndex(s => s.id === stepId || s.id === generateStepId(stepId));
   if (index === -1) {
     await replyEphemeralError(interaction, tl.step.notFound);
     return;
@@ -140,7 +148,7 @@ export async function stepListHandler(_client: Client, interaction: ChatInputCom
     const reqLabel = step.required ? tl.step.list.requiredLabel : tl.step.list.optionalLabel;
     embed.addFields({
       name: `${i + 1}. ${step.title}`,
-      value: `**Type:** ${step.type} | **${reqLabel}**\n${step.description.slice(0, 200)}${step.description.length > 200 ? '...' : ''}`,
+      value: `**Type:** ${step.type} | **${reqLabel}** | ID: \`${step.id}\`\n${step.description.slice(0, 200)}${step.description.length > 200 ? '...' : ''}`,
     });
   }
 
@@ -148,4 +156,18 @@ export async function stepListHandler(_client: Client, interaction: ChatInputCom
     embeds: [embed],
     flags: [MessageFlags.Ephemeral],
   });
+}
+
+/**
+ * Autocomplete for /onboarding step-remove: the guild's steps by title,
+ * matched on title or id, valued by id (what the handler looks up).
+ */
+export async function onboardingStepAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const focused = interaction.options.getFocused().toLowerCase();
+  const config = await configRepo.findOneBy({ guildId: interaction.guildId ?? '' });
+  const choices = (config?.steps ?? [])
+    .filter(s => s.title.toLowerCase().includes(focused) || s.id.includes(focused))
+    .slice(0, 25)
+    .map(s => ({ name: clampText(s.title, 100), value: s.id }));
+  await interaction.respond(choices);
 }

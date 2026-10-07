@@ -89,7 +89,7 @@ async function handleKeywordAdd(interaction: ChatInputCommandInteraction): Promi
       return;
     }
 
-    if (existingKeywords.includes(keyword)) {
+    if (existingKeywords.some(k => k.toLowerCase() === keyword)) {
       await replyEphemeralError(interaction, formatLang(tl.keyword.add.alreadyExists, keyword));
       return;
     }
@@ -137,15 +137,16 @@ async function handleKeywordRemove(interaction: ChatInputCommandInteraction): Pr
       return;
     }
 
+    // Keywords added in Server Settings keep their case; match without it and remove the stored one
     const existingKeywords = rule.triggerMetadata.keywordFilter ?? [];
-    const index = existingKeywords.indexOf(keyword);
+    const index = existingKeywords.findIndex(k => k.toLowerCase() === keyword);
 
     if (index === -1) {
       await replyEphemeralError(interaction, formatLang(tl.keyword.remove.notFound, keyword));
       return;
     }
 
-    const updatedKeywords = existingKeywords.filter(k => k !== keyword);
+    const updatedKeywords = existingKeywords.filter((_, i) => i !== index);
 
     await rule.edit({
       triggerMetadata: {

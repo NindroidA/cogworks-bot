@@ -5,17 +5,16 @@
  * multipliers, level-up detection, and role reward assignment.
  */
 
-import type { GuildMember, Message, TextChannel } from 'discord.js';
-import { XPRoleReward } from '../typeorm/entities/xp/XPRoleReward';
+import type { Message, TextChannel } from 'discord.js';
 import { XPUser } from '../typeorm/entities/xp/XPUser';
 import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';
 import { lazyRepo } from '../utils/database/lazyRepo';
 import { getXPConfig } from '../utils/xp/configCache';
+import { handleLevelUp } from '../utils/xp/levelUp';
 import { calculateLevel, randomXp } from '../utils/xp/xpCalculator';
 
 const userRepo = lazyRepo(XPUser);
-const rewardRepo = lazyRepo(XPRoleReward);
 
 export default {
   name: 'xpMessage',
@@ -35,8 +34,9 @@ export default {
       const config = await getXPConfig(guildId);
       if (!config?.enabled) return;
 
-      // Check ignored channels
-      if (config.ignoredChannels?.includes(message.channelId)) return;
+      // Check ignored channels. A thread or forum post counts as its parent channel too.
+      const parentId = message.channel.isThread() ? message.channel.parentId : null;
+      if (config.ignoredChannels?.some(id => id === message.channelId || id === parentId)) return;
 
       // Check ignored roles
       const member = message.member;
@@ -79,7 +79,9 @@ export default {
       let xpAmount = randomXp(config.xpPerMessageMin, config.xpPerMessageMax);
 
       // Apply channel multiplier
-      const channelMultiplier = config.multiplierChannels?.[message.channelId];
+      const channelMultiplier =
+        config.multiplierChannels?.[message.channelId] ??
+        (parentId ? config.multiplierChannels?.[parentId] : undefined);
       if (channelMultiplier) {
         xpAmount = Math.floor(xpAmount * channelMultiplier);
       }
@@ -96,90 +98,11 @@ export default {
 
       // Check for level-up
       if (xpUser.level > oldLevel) {
-        await handleLevelUp(message, config, xpUser, member);
+        const channel = message.channel.isTextBased() ? (message.channel as TextChannel) : null;
+        await handleLevelUp(member, config, xpUser.level, channel);
       }
     } catch (error) {
       enhancedLogger.error('XP message handler failed', error as Error, LogCategory.ERROR);
     }
   },
 };
-
-/**
- * Handle a level-up event: send announcement and check role rewards.
- */
-async function handleLevelUp(
-  message: Message,
-  config: {
-    levelUpChannelId: string | null;
-    levelUpMessage: string;
-    guildId: string;
-  },
-  xpUser: XPUser,
-  member: GuildMember,
-) {
-  try {
-    // Send level-up announcement
-    const announcement = config.levelUpMessage
-      .replace('{user}', `<@${xpUser.userId}>`)
-      .replace('{level}', String(xpUser.level));
-
-    let targetChannel: TextChannel | null = null;
-    if (config.levelUpChannelId) {
-      const ch = message.guild?.channels.cache.get(config.levelUpChannelId);
-      if (ch?.isTextBased()) {
-        targetChannel = ch as TextChannel;
-      }
-    } else {
-      // Send in same channel
-      if (message.channel.isTextBased()) {
-        targetChannel = message.channel as TextChannel;
-      }
-    }
-
-    if (targetChannel) {
-      await targetChannel.send(announcement);
-    }
-
-    // Check role rewards
-    const rewards = await rewardRepo.find({
-      where: { guildId: config.guildId },
-      order: { level: 'ASC' },
-    });
-
-    for (const reward of rewards) {
-      if (xpUser.level >= reward.level) {
-        // Grant role if they don't have it
-        if (!member.roles.cache.has(reward.roleId)) {
-          try {
-            await member.roles.add(reward.roleId, `XP Level ${reward.level} reward`);
-            enhancedLogger.info(
-              `Granted role ${reward.roleId} to ${member.id} for reaching level ${reward.level} in guild ${config.guildId}`,
-              LogCategory.SYSTEM,
-            );
-          } catch (error) {
-            enhancedLogger.debug(`Failed to grant role reward ${reward.roleId} to ${member.id}`, LogCategory.SYSTEM, {
-              error: (error as Error).message,
-            });
-          }
-        }
-      } else if (reward.removeOnDelevel && member.roles.cache.has(reward.roleId)) {
-        // Remove role if below level and removeOnDelevel is set
-        try {
-          await member.roles.remove(reward.roleId, `Below XP Level ${reward.level}`);
-        } catch (error) {
-          enhancedLogger.debug(`Failed to remove role reward ${reward.roleId} from ${member.id}`, LogCategory.SYSTEM, {
-            error: (error as Error).message,
-          });
-        }
-      }
-    }
-  } catch (error) {
-    enhancedLogger.debug(
-      `Error handling level-up for ${xpUser.userId} in guild ${config.guildId}`,
-      LogCategory.SYSTEM,
-      {
-        error: (error as Error).message,
-      },
-    );
-  }
-}
