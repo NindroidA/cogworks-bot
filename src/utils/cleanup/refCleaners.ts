@@ -8,6 +8,11 @@
  *
  * Each cleaner fetches its repository with AppDataSource.getRepository on every
  * run (no module-scope lazyRepo), so tests can swap the repositories.
+ *
+ * Most cleaners decide what changes with the pure patch for their entity in
+ * refPatches.ts and keep only the query, the write, the cache flush and the
+ * log here. Bait, event, analytics, the rules role and ticket routing rules
+ * still change their rows inline.
  */
 
 import { roleMention } from 'discord.js';
@@ -35,12 +40,11 @@ import { XPConfig } from '../../typeorm/entities/xp/XPConfig';
 import { XPRoleReward } from '../../typeorm/entities/xp/XPRoleReward';
 import type { ExtendedClient } from '../../types/ExtendedClient';
 import { getBaitChannelIds, setBaitChannels } from '../baitChannel/channelList';
-import { MAX } from '../constants';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { invalidateGuildMenuCache, invalidateMenuCache } from '../reactionRole/menuCache';
 import { invalidateRulesCache } from '../rules/rulesCache';
 import { invalidateStarboardCache } from '../starboard/configCache';
-import { appendStatusHistory } from '../workflow/workflowHelpers';
+import { REF_PATCHES } from './refPatches';
 
 // ---------------------------------------------------------------------------
 // Channels (channelDelete)
@@ -63,25 +67,26 @@ interface ChannelRow {
   statusHistory: TicketStatusHistoryEntry[] | null;
 }
 
-/** Statuses that are already an outcome: closed, or an application decision that must not be lost. */
-const FINAL_STATUSES = new Set(['closed', 'accepted', 'rejected']);
-
 /**
  * Close the tickets/applications whose channel was deleted by hand, so they
  * stop counting as open (workload, SLA alerts, dashboard). The close flows set
- * 'closed' before deleting the channel, so their rows are skipped here.
+ * 'closed' before deleting the channel, so their rows get no patch.
  */
-function closeRowsInDeletedChannel(name: string, entity: EntityTarget<ChannelRow>, maxHistory: number) {
+function closeRowsInDeletedChannel(
+  name: string,
+  entity: EntityTarget<ChannelRow>,
+  patchFor: typeof REF_PATCHES.channel.Ticket,
+) {
   return async (guildId: string, channelId: string) => {
     const repo = AppDataSource.getRepository(entity);
-    const open = (await repo.find({ where: { guildId, channelId } })).filter(row => !FINAL_STATUSES.has(row.status));
-    for (const row of open) {
-      appendStatusHistory(row, 'closed', 'system', maxHistory, 'channel-deleted');
+    const rows = await repo.find({ where: { guildId, channelId } });
+    const open = rows.flatMap(row => {
+      const patch = patchFor(row, channelId);
+      return patch ? [{ row, patch }] : [];
+    });
+    for (const { row, patch } of open) {
       // Conditional on the status read above, so a close that lands in between wins
-      await repo.update(
-        { id: row.id, guildId, status: row.status },
-        { status: 'closed', statusHistory: row.statusHistory },
-      );
+      await repo.update({ id: row.id, guildId, status: row.status }, patch.set);
     }
     if (open.length > 0) {
       enhancedLogger.info(`Closed ${open.length} ${name}(s) whose channel was deleted`, LogCategory.SYSTEM, {
@@ -93,10 +98,10 @@ function closeRowsInDeletedChannel(name: string, entity: EntityTarget<ChannelRow
 }
 
 const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
-  { name: 'Ticket', clean: closeRowsInDeletedChannel('Ticket', Ticket, MAX.TICKET_STATUS_HISTORY) },
+  { name: 'Ticket', clean: closeRowsInDeletedChannel('Ticket', Ticket, REF_PATCHES.channel.Ticket) },
   {
     name: 'Application',
-    clean: closeRowsInDeletedChannel('Application', Application, MAX.APPLICATION_STATUS_HISTORY),
+    clean: closeRowsInDeletedChannel('Application', Application, REF_PATCHES.channel.Application),
   },
   {
     name: 'TicketConfig',
@@ -105,27 +110,14 @@ const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
       const config = await repo.findOneBy({ guildId });
       if (!config) return;
 
-      let changed = false;
-      if (config.channelId === channelId) {
-        config.channelId = '';
-        config.messageId = '';
-        changed = true;
-      }
-      if (config.categoryId === channelId) {
-        config.categoryId = null;
-        changed = true;
-      }
-      if (config.slaBreachChannelId === channelId) {
-        config.slaBreachChannelId = null;
-        changed = true;
-      }
-      if (changed) {
-        await repo.save(config);
-        enhancedLogger.info('Nullified TicketConfig references for deleted channel', LogCategory.SYSTEM, {
-          guildId,
-          channelId,
-        });
-      }
+      const patch = REF_PATCHES.channel.TicketConfig(config, channelId);
+      if (!patch) return;
+      Object.assign(config, patch.set);
+      await repo.save(config);
+      enhancedLogger.info('Nullified TicketConfig references for deleted channel', LogCategory.SYSTEM, {
+        guildId,
+        channelId,
+      });
     },
   },
   {
@@ -133,10 +125,10 @@ const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
     clean: async (guildId, channelId) => {
       const repo = AppDataSource.getRepository(ArchivedTicketConfig);
       const config = await repo.findOneBy({ guildId });
-      if (!config || config.channelId !== channelId) return;
+      const patch = config && REF_PATCHES.channel.ArchivedTicketConfig(config, channelId);
+      if (!config || !patch) return;
 
-      config.channelId = '';
-      config.messageId = '';
+      Object.assign(config, patch.set);
       await repo.save(config);
       enhancedLogger.info('Nullified ArchivedTicketConfig references for deleted channel', LogCategory.SYSTEM, {
         guildId,
@@ -151,23 +143,14 @@ const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
       const config = await repo.findOneBy({ guildId });
       if (!config) return;
 
-      let changed = false;
-      if (config.channelId === channelId) {
-        config.channelId = '';
-        config.messageId = '';
-        changed = true;
-      }
-      if (config.categoryId === channelId) {
-        config.categoryId = null;
-        changed = true;
-      }
-      if (changed) {
-        await repo.save(config);
-        enhancedLogger.info('Nullified ApplicationConfig references for deleted channel', LogCategory.SYSTEM, {
-          guildId,
-          channelId,
-        });
-      }
+      const patch = REF_PATCHES.channel.ApplicationConfig(config, channelId);
+      if (!patch) return;
+      Object.assign(config, patch.set);
+      await repo.save(config);
+      enhancedLogger.info('Nullified ApplicationConfig references for deleted channel', LogCategory.SYSTEM, {
+        guildId,
+        channelId,
+      });
     },
   },
   {
@@ -175,10 +158,10 @@ const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
     clean: async (guildId, channelId) => {
       const repo = AppDataSource.getRepository(ArchivedApplicationConfig);
       const config = await repo.findOneBy({ guildId });
-      if (!config || config.channelId !== channelId) return;
+      const patch = config && REF_PATCHES.channel.ArchivedApplicationConfig(config, channelId);
+      if (!config || !patch) return;
 
-      config.channelId = '';
-      config.messageId = '';
+      Object.assign(config, patch.set);
       await repo.save(config);
       enhancedLogger.info('Nullified ArchivedApplicationConfig references for deleted channel', LogCategory.SYSTEM, {
         guildId,
@@ -237,7 +220,7 @@ const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
     clean: async (guildId, channelId) => {
       const repo = AppDataSource.getRepository(RulesConfig);
       const config = await repo.findOneBy({ guildId, channelId });
-      if (!config) return;
+      if (!config || !REF_PATCHES.channel.RulesConfig(config, channelId)) return;
 
       await repo.remove(config);
       invalidateRulesCache(guildId);
@@ -248,7 +231,10 @@ const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
     name: 'ReactionRoleMenu',
     clean: async (guildId, channelId) => {
       const repo = AppDataSource.getRepository(ReactionRoleMenu);
-      const menus = await repo.find({ where: { guildId, channelId } });
+      // remove() takes each menu's options through the eager relation (the patch's cascade)
+      const menus = (await repo.find({ where: { guildId, channelId } })).filter(menu =>
+        REF_PATCHES.channel.ReactionRoleMenu(menu, channelId),
+      );
       if (menus.length === 0) return;
 
       await repo.remove(menus);
@@ -264,7 +250,7 @@ const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
     clean: async (guildId, channelId) => {
       const repo = AppDataSource.getRepository(MemoryConfig);
       const configs = await repo.find({ where: { guildId } });
-      const match = configs.find(c => c.forumChannelId === channelId);
+      const match = configs.find(c => REF_PATCHES.channel.MemoryConfig(c, channelId));
       if (!match) return;
 
       // The forum's posts went with it, so its item and tag rows go too (as /memory-setup remove-channel does)
@@ -282,9 +268,10 @@ const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
     clean: async (guildId, channelId) => {
       const repo = AppDataSource.getRepository(AnnouncementConfig);
       const config = await repo.findOneBy({ guildId });
-      if (!config || config.defaultChannelId !== channelId) return;
+      const patch = config && REF_PATCHES.channel.AnnouncementConfig(config, channelId);
+      if (!config || !patch) return;
 
-      config.defaultChannelId = '';
+      Object.assign(config, patch.set);
       await repo.save(config);
       enhancedLogger.info('Nullified AnnouncementConfig references for deleted channel', LogCategory.SYSTEM, {
         guildId,
@@ -299,24 +286,15 @@ const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
       const config = await repo.findOneBy({ guildId });
       if (!config) return;
 
-      let changed = false;
-      if (config.channelId === channelId) {
-        config.enabled = false;
-        config.channelId = '';
-        changed = true;
-      }
-      if (config.ignoredChannels?.includes(channelId)) {
-        config.ignoredChannels = config.ignoredChannels.filter(id => id !== channelId);
-        changed = true;
-      }
-      if (changed) {
-        await repo.save(config);
-        invalidateStarboardCache(guildId);
-        enhancedLogger.info('Updated StarboardConfig for deleted channel', LogCategory.SYSTEM, {
-          guildId,
-          channelId,
-        });
-      }
+      const patch = REF_PATCHES.channel.StarboardConfig(config, channelId);
+      if (!patch) return;
+      Object.assign(config, patch.set);
+      await repo.save(config);
+      invalidateStarboardCache(guildId);
+      enhancedLogger.info('Updated StarboardConfig for deleted channel', LogCategory.SYSTEM, {
+        guildId,
+        channelId,
+      });
     },
   },
   {
@@ -326,24 +304,11 @@ const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
       const config = await repo.findOneBy({ guildId });
       if (!config) return;
 
-      let changed = false;
-      if (config.levelUpChannelId === channelId) {
-        config.levelUpChannelId = null;
-        changed = true;
-      }
-      if (config.ignoredChannels?.includes(channelId)) {
-        config.ignoredChannels = config.ignoredChannels.filter(id => id !== channelId);
-        changed = true;
-      }
-      if (config.multiplierChannels?.[channelId] !== undefined) {
-        const { [channelId]: _, ...rest } = config.multiplierChannels;
-        config.multiplierChannels = Object.keys(rest).length > 0 ? rest : null;
-        changed = true;
-      }
-      if (changed) {
-        await repo.save(config);
-        enhancedLogger.info('Updated XPConfig for deleted channel', LogCategory.SYSTEM, { guildId, channelId });
-      }
+      const patch = REF_PATCHES.channel.XPConfig(config, channelId);
+      if (!patch) return;
+      Object.assign(config, patch.set);
+      await repo.save(config);
+      enhancedLogger.info('Updated XPConfig for deleted channel', LogCategory.SYSTEM, { guildId, channelId });
     },
   },
   {
@@ -418,10 +383,10 @@ const ROLE_REF_CLEANERS: RoleRefCleaner[] = [
       const repo = AppDataSource.getRepository(BotConfig);
       const config = await repo.findOneBy({ guildId });
       // Raw ID since v3 setup; pre-v3 rows hold `<@&id>`.
-      if (!config?.globalStaffRole || ![roleId, roleMention(roleId)].includes(config.globalStaffRole)) return;
+      const patch = config && REF_PATCHES.role.BotConfig(config, roleId);
+      if (!config || !patch) return;
 
-      config.globalStaffRole = null;
-      config.enableGlobalStaffRole = false;
+      Object.assign(config, patch.set);
       await repo.save(config);
       enhancedLogger.info('Cleared BotConfig globalStaffRole for deleted role', LogCategory.SYSTEM, {
         guildId,
@@ -445,12 +410,13 @@ const ROLE_REF_CLEANERS: RoleRefCleaner[] = [
     name: 'ReactionRoleOption',
     clean: async (guildId, roleId) => {
       const repo = AppDataSource.getRepository(ReactionRoleOption);
-      const options = await repo
+      const matched = await repo
         .createQueryBuilder('opt')
         .innerJoin('opt.menu', 'menu')
         .where('menu.guildId = :guildId', { guildId })
         .andWhere('opt.roleId = :roleId', { roleId })
         .getMany();
+      const options = matched.filter(opt => REF_PATCHES.role.ReactionRoleOption(opt, roleId));
       if (options.length === 0) return;
 
       await repo.remove(options);
@@ -466,9 +432,10 @@ const ROLE_REF_CLEANERS: RoleRefCleaner[] = [
     clean: async (guildId, roleId) => {
       const repo = AppDataSource.getRepository(AnnouncementConfig);
       const config = await repo.findOneBy({ guildId });
-      if (!config || config.defaultRoleId !== roleId) return;
+      const patch = config && REF_PATCHES.role.AnnouncementConfig(config, roleId);
+      if (!config || !patch) return;
 
-      config.defaultRoleId = null;
+      Object.assign(config, patch.set);
       await repo.save(config);
       enhancedLogger.info('Cleared AnnouncementConfig defaultRoleId for deleted role', LogCategory.SYSTEM, {
         guildId,
@@ -481,7 +448,9 @@ const ROLE_REF_CLEANERS: RoleRefCleaner[] = [
     clean: async (guildId, roleId) => {
       const repo = AppDataSource.getRepository(StaffRole);
       // Raw ID (dashboard, /role add since v3.16.11) or legacy `<@&id>` (older /role add rows).
-      const saved = await repo.find({ where: { guildId, role: In([roleId, roleMention(roleId)]) } });
+      const saved = (await repo.find({ where: { guildId, role: In([roleId, roleMention(roleId)]) } })).filter(row =>
+        REF_PATCHES.role.StaffRole(row, roleId),
+      );
       if (saved.length === 0) return;
 
       await repo.remove(saved);
@@ -496,9 +465,10 @@ const ROLE_REF_CLEANERS: RoleRefCleaner[] = [
     clean: async (guildId, roleId) => {
       const repo = AppDataSource.getRepository(XPConfig);
       const config = await repo.findOneBy({ guildId });
-      if (!config?.ignoredRoles?.includes(roleId)) return;
+      const patch = config && REF_PATCHES.role.XPConfig(config, roleId);
+      if (!config || !patch) return;
 
-      config.ignoredRoles = config.ignoredRoles.filter(id => id !== roleId);
+      Object.assign(config, patch.set);
       await repo.save(config);
       enhancedLogger.info('Removed deleted role from XPConfig ignoredRoles', LogCategory.SYSTEM, {
         guildId,
@@ -510,7 +480,9 @@ const ROLE_REF_CLEANERS: RoleRefCleaner[] = [
     name: 'XPRoleReward',
     clean: async (guildId, roleId) => {
       const repo = AppDataSource.getRepository(XPRoleReward);
-      const rewards = await repo.find({ where: { guildId, roleId } });
+      const rewards = (await repo.find({ where: { guildId, roleId } })).filter(reward =>
+        REF_PATCHES.role.XPRoleReward(reward, roleId),
+      );
       if (rewards.length === 0) return;
 
       await repo.remove(rewards);
@@ -527,13 +499,13 @@ const ROLE_REF_CLEANERS: RoleRefCleaner[] = [
       const config = await repo.findOneBy({ guildId });
       if (!config) return;
 
-      const clearCompletion = config.completionRoleId === roleId;
-      // Role-select steps would keep offering the deleted role to new members.
-      const stepsWithOption = (config.steps ?? []).filter(step => step.options?.some(opt => opt.roleId === roleId));
-      if (!clearCompletion && stepsWithOption.length === 0) return;
+      const patch = REF_PATCHES.role.OnboardingConfig(config, roleId);
+      if (!patch) return;
 
-      if (clearCompletion) config.completionRoleId = null;
-      for (const step of stepsWithOption) step.options = step.options?.filter(opt => opt.roleId !== roleId);
+      // Log fields, read before the patch lands
+      const clearCompletion = 'completionRoleId' in patch.set;
+      const stepsWithOption = (config.steps ?? []).filter(step => step.options?.some(opt => opt.roleId === roleId));
+      Object.assign(config, patch.set);
       await repo.save(config);
       enhancedLogger.info('Removed deleted role from OnboardingConfig', LogCategory.SYSTEM, {
         guildId,
@@ -618,9 +590,10 @@ const MESSAGE_REF_CLEANERS: MessageRefCleaner[] = [
     clean: async (guildId, messageId) => {
       const repo = AppDataSource.getRepository(TicketConfig);
       const config = await repo.findOneBy({ guildId, messageId });
-      if (!config) return;
+      const patch = config && REF_PATCHES.message.TicketConfig(config, messageId);
+      if (!config || !patch) return;
 
-      config.messageId = '';
+      Object.assign(config, patch.set);
       await repo.save(config);
       enhancedLogger.info('Cleared TicketConfig messageId for deleted message', LogCategory.SYSTEM, {
         guildId,
@@ -633,9 +606,10 @@ const MESSAGE_REF_CLEANERS: MessageRefCleaner[] = [
     clean: async (guildId, messageId) => {
       const repo = AppDataSource.getRepository(ArchivedTicketConfig);
       const config = await repo.findOneBy({ guildId, messageId });
-      if (!config) return;
+      const patch = config && REF_PATCHES.message.ArchivedTicketConfig(config, messageId);
+      if (!config || !patch) return;
 
-      config.messageId = '';
+      Object.assign(config, patch.set);
       await repo.save(config);
       enhancedLogger.info('Cleared ArchivedTicketConfig messageId for deleted message', LogCategory.SYSTEM, {
         guildId,
@@ -648,9 +622,10 @@ const MESSAGE_REF_CLEANERS: MessageRefCleaner[] = [
     clean: async (guildId, messageId) => {
       const repo = AppDataSource.getRepository(ApplicationConfig);
       const config = await repo.findOneBy({ guildId, messageId });
-      if (!config) return;
+      const patch = config && REF_PATCHES.message.ApplicationConfig(config, messageId);
+      if (!config || !patch) return;
 
-      config.messageId = '';
+      Object.assign(config, patch.set);
       await repo.save(config);
       enhancedLogger.info('Cleared ApplicationConfig messageId for deleted message', LogCategory.SYSTEM, {
         guildId,
@@ -663,9 +638,10 @@ const MESSAGE_REF_CLEANERS: MessageRefCleaner[] = [
     clean: async (guildId, messageId) => {
       const repo = AppDataSource.getRepository(ArchivedApplicationConfig);
       const config = await repo.findOneBy({ guildId, messageId });
-      if (!config) return;
+      const patch = config && REF_PATCHES.message.ArchivedApplicationConfig(config, messageId);
+      if (!config || !patch) return;
 
-      config.messageId = '';
+      Object.assign(config, patch.set);
       await repo.save(config);
       enhancedLogger.info('Cleared ArchivedApplicationConfig messageId for deleted message', LogCategory.SYSTEM, {
         guildId,
@@ -703,7 +679,7 @@ const MESSAGE_REF_CLEANERS: MessageRefCleaner[] = [
     clean: async (guildId, messageId) => {
       const repo = AppDataSource.getRepository(RulesConfig);
       const config = await repo.findOneBy({ guildId, messageId });
-      if (!config) return;
+      if (!config || !REF_PATCHES.message.RulesConfig(config, messageId)) return;
 
       await repo.remove(config);
       invalidateRulesCache(guildId);
@@ -715,7 +691,8 @@ const MESSAGE_REF_CLEANERS: MessageRefCleaner[] = [
     clean: async (guildId, messageId) => {
       const repo = AppDataSource.getRepository(ReactionRoleMenu);
       const menu = await repo.findOneBy({ guildId, messageId });
-      if (!menu) return;
+      // remove() takes the menu's options through the eager relation (the patch's cascade)
+      if (!menu || !REF_PATCHES.message.ReactionRoleMenu(menu, messageId)) return;
 
       invalidateMenuCache(messageId);
       await repo.remove(menu);
@@ -727,10 +704,10 @@ const MESSAGE_REF_CLEANERS: MessageRefCleaner[] = [
     clean: async (guildId, messageId) => {
       const repo = AppDataSource.getRepository(MemoryConfig);
       const configs = await repo.find({ where: { guildId } });
-      const match = configs.find(c => c.messageId === messageId);
+      const match = configs.find(c => REF_PATCHES.message.MemoryConfig(c, messageId));
       if (!match) return;
 
-      match.messageId = null;
+      Object.assign(match, REF_PATCHES.message.MemoryConfig(match, messageId)?.set);
       await repo.save(match);
       enhancedLogger.info('Cleared MemoryConfig messageId for deleted message', LogCategory.SYSTEM, {
         guildId,
@@ -782,7 +759,7 @@ const THREAD_REF_CLEANERS: ThreadRefCleaner[] = [
     clean: async (guildId, threadId) => {
       const repo = AppDataSource.getRepository(MemoryItem);
       const item = await repo.findOneBy({ guildId, threadId });
-      if (!item) return;
+      if (!item || !REF_PATCHES.thread.MemoryItem(item, threadId)) return;
 
       await repo.remove(item);
       enhancedLogger.info('Deleted MemoryItem for deleted thread', LogCategory.SYSTEM, {

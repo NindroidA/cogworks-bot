@@ -178,7 +178,7 @@ graph LR
     MRA --> RRHandler
 ```
 
-The four cleanup handlers live in `src/utils/cleanup/refCleaners.ts` (`cleanChannelRefs`, `cleanMessageRefs`, `cleanRoleRefs`, `cleanThreadRefs`), one table of per-entity cleaners per reference kind. The delete events only call them.
+The four cleanup handlers live in `src/utils/cleanup/refCleaners.ts` (`cleanChannelRefs`, `cleanMessageRefs`, `cleanRoleRefs`, `cleanThreadRefs`), one table of per-entity cleaners per reference kind. The delete events only call them. Most cleaners compute their change with the pure per-entity patch in `src/utils/cleanup/refPatches.ts`, which the `/bot-health` repair work reuses.
 
 ## Ticket Close Workflow
 

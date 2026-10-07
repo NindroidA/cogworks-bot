@@ -399,7 +399,7 @@ src/
 │   ├── archive/            # archiveExporter (export + delete archived data)
 │   ├── automod/            # automod rules + feature setup
 │   ├── baitChannel/        # BaitChannelManager + whitelist + keyword helpers
-│   ├── cleanup/            # refCleaners (per-entity config cleanup for deleted channels/roles/messages/threads)
+│   ├── cleanup/            # refCleaners (per-entity config cleanup for deleted channels/roles/messages/threads), refPatches (the pure per-entity patches they apply)
 │   ├── database/           # guildQueries, logCleanup, legacyMigration, lazyRepo, statusFlip, configCache
 │   ├── discord/            # verifiedDelete (deletion with verification + bug report)
 │   ├── event/              # event template + reminder helpers
@@ -450,7 +450,7 @@ Automatic config cleanup when Discord objects are deleted. The per-entity cleane
 - `roleDelete` → `cleanRoleRefs` — clears role references in 10 entities (BotConfig, RulesConfig, ReactionRoleOption, StaffRole, TicketConfig, etc.)
 - `threadDelete` → `cleanThreadRefs` — deletes orphaned MemoryItems
 
-Each runner uses `Promise.allSettled` and logs a failure under the cleaner's name. Cleaners call `AppDataSource.getRepository` on every run (no module-scope `lazyRepo`), which is the seam the event suites patch.
+Most cleaners get their change from the pure patch for their entity in `src/utils/cleanup/refPatches.ts` (`REF_PATCHES[kind][entity](row, id)` → `null`, `{ set }` or `{ remove: true, cascade? }`; it never mutates the row) and keep only the query, write, cache flush and log; bait, event, analytics, the rules role and ticket routing rules still mutate inline. Keep `refPatches.ts` free of repositories, caches and the logger. Each runner uses `Promise.allSettled` and logs a failure under the cleaner's name. Cleaners call `AppDataSource.getRepository` on every run (no module-scope `lazyRepo`), which is the seam the event suites patch.
 
 ### Bait Channel Subsystem (v3.2.0)
 Honeypot moderation engine. Per-message flow:
