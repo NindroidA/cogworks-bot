@@ -378,10 +378,10 @@ src/
 │   ├── commands.ts         # Central routing hub
 │   └── commandList.ts      # Command registration list
 ├── events/                 # Discord event handlers
-│   ├── channelDelete.ts    # Config cleanup for 13 entities
-│   ├── messageDelete.ts    # Config cleanup for 8 entities
-│   ├── roleDelete.ts       # Config cleanup for 10 entities
-│   ├── threadDelete.ts     # MemoryItem cleanup
+│   ├── channelDelete.ts    # Thin wrapper: cleanChannelRefs + command refresh
+│   ├── messageDelete.ts    # Thin wrapper: bait handleMessageDelete + cleanMessageRefs
+│   ├── roleDelete.ts       # Thin wrapper: cleanRoleRefs
+│   ├── threadDelete.ts     # Thin wrapper: cleanThreadRefs
 │   ├── guildDelete.ts      # GDPR: full data purge
 │   └── ...
 ├── lang/                   # Translation JSON + TypeScript types
@@ -397,6 +397,7 @@ src/
 │   ├── archive/            # archiveExporter (export + delete archived data)
 │   ├── automod/            # automod rules + feature setup
 │   ├── baitChannel/        # BaitChannelManager + whitelist + keyword helpers
+│   ├── cleanup/            # refCleaners (per-entity config cleanup for deleted channels/roles/messages/threads)
 │   ├── database/           # guildQueries, logCleanup, legacyMigration, lazyRepo, statusFlip, configCache
 │   ├── discord/            # verifiedDelete (deletion with verification + bug report)
 │   ├── event/              # event template + reminder helpers
@@ -441,11 +442,13 @@ When users choose "Create Channels For Me" in bot-setup, channels are auto-creat
 - **System flows**: `src/commands/handlers/botSetup/systemFlows.ts` — full setup (channels + embeds + tags)
 
 ### Delete Event Handlers
-Automatic config cleanup when Discord objects are deleted:
-- `channelDelete` — clears references in 13 entities (TicketConfig, BaitChannelConfig, StarboardConfig, XPConfig, etc.)
-- `messageDelete` — clears tracked messageIds in 8 entities
-- `roleDelete` — clears role references in 10 entities (BotConfig, RulesConfig, ReactionRoleOption, StaffRole, TicketConfig, etc.)
-- `threadDelete` — deletes orphaned MemoryItems
+Automatic config cleanup when Discord objects are deleted. The per-entity cleaner tables live in `src/utils/cleanup/refCleaners.ts`; the event files are thin wrappers:
+- `channelDelete` → `cleanChannelRefs` — 15 cleaners: clears references in 13 config entities (TicketConfig, BaitChannelConfig, StarboardConfig, XPConfig, etc.) and closes open Tickets/Applications in the channel; the event then calls `requestGuildCommandRefresh`
+- `messageDelete` and `messageDeleteBulk` → `cleanMessageRefs` — clears tracked messageIds in 8 entities (each cleaner capped at 10 s)
+- `roleDelete` → `cleanRoleRefs` — clears role references in 10 entities (BotConfig, RulesConfig, ReactionRoleOption, StaffRole, TicketConfig, etc.)
+- `threadDelete` → `cleanThreadRefs` — deletes orphaned MemoryItems
+
+Each runner uses `Promise.allSettled` and logs a failure under the cleaner's name. Cleaners call `AppDataSource.getRepository` on every run (no module-scope `lazyRepo`), which is the seam the event suites patch.
 
 ### Bait Channel Subsystem (v3.2.0)
 Honeypot moderation engine. Per-message flow:

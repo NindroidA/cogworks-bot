@@ -1,6 +1,6 @@
 import type { Message, PartialMessage, ReadonlyCollection, Snowflake } from 'discord.js';
 import type { ExtendedClient } from '../types/ExtendedClient';
-import { cleanMessageRefs } from './messageDelete';
+import { cleanMessageRefs } from '../utils/cleanup/refCleaners';
 
 /**
  * A purge or bulk delete arrives as one messageDeleteBulk event and never as
