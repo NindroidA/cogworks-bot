@@ -18,10 +18,13 @@
  *
  * @example
  * ```typescript
- * import { lang, getGuildLang } from './lang';
+ * import { fmt, lang, getGuildLang } from './lang';
  *
  * // Synchronous English access (unchanged)
  * console.log(lang.general.cmdGuildNotFound);
+ *
+ * // `{name}` placeholders
+ * fmt(lang.starboard.ignore.added, { channel: `<#${channelId}>` });
  *
  * // Locale-aware access for a specific guild
  * const glang = await getGuildLang(guildId);
@@ -233,6 +236,8 @@ export async function getGuildLang(guildId: string): Promise<Language> {
 // Re-exports
 // ---------------------------------------------------------------------------
 
+export type { FmtParams } from './fmt';
+export { fmt } from './fmt';
 export type { Language } from './types';
 
 export default lang;

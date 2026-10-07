@@ -12,6 +12,7 @@ import {
   Colors,
   cleanupOldMessage,
   enhancedLogger,
+  fmt,
   guardFeatureAccess,
   guardFeatureRateLimit,
   LogCategory,
@@ -94,8 +95,7 @@ async function handleSetup(_client: Client, interaction: ChatInputCommandInterac
 
   try {
     // Build the rules message
-    const messageText =
-      customMessage || tl.setup.defaultMessage.replace('{emoji}', emoji).replace('{roleName}', role.name);
+    const messageText = customMessage || fmt(tl.setup.defaultMessage, { emoji, roleName: role.name });
 
     const existingConfig = await rulesConfigRepo.findOneBy({ guildId });
     const [oldChannelId, oldMessageId] = [existingConfig?.channelId, existingConfig?.messageId];

@@ -13,7 +13,7 @@ import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import {
   createToggleHandler,
   enhancedLogger,
-  formatLang,
+  fmt,
   guardFeatureAccess,
   LogCategory,
   lang,
@@ -103,13 +103,13 @@ export async function routingRuleAddHandler(interaction: ChatInputCommandInterac
 
   // Check for duplicate type
   if (rules.some(r => r.ticketTypeId === ticketTypeId)) {
-    await replyEphemeralError(interaction, formatLang(tl.ruleDuplicate, ticketTypeId));
+    await replyEphemeralError(interaction, fmt(tl.ruleDuplicate, { typeId: ticketTypeId }));
     return;
   }
 
   // Check max rules
   if (rules.length >= MAX_ROUTING_RULES) {
-    await replyEphemeralError(interaction, formatLang(tl.maxRules, MAX_ROUTING_RULES));
+    await replyEphemeralError(interaction, fmt(tl.maxRules, { max: MAX_ROUTING_RULES }));
     return;
   }
 
@@ -125,7 +125,7 @@ export async function routingRuleAddHandler(interaction: ChatInputCommandInterac
 
   const maxOpenText = maxOpen != null ? ` (max ${maxOpen} open per staff)` : '';
   await interaction.reply({
-    content: formatLang(tl.ruleAdded, ticketTypeId, role.name) + maxOpenText,
+    content: fmt(tl.ruleAdded, { typeId: ticketTypeId, role: role.name }) + maxOpenText,
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -163,7 +163,7 @@ export async function routingRuleRemoveHandler(interaction: ChatInputCommandInte
 
   const ruleIndex = rules.findIndex(r => r.ticketTypeId === ticketTypeId);
   if (ruleIndex === -1) {
-    await replyEphemeralError(interaction, formatLang(tl.ruleNotFound, ticketTypeId));
+    await replyEphemeralError(interaction, fmt(tl.ruleNotFound, { typeId: ticketTypeId }));
     return;
   }
 
@@ -172,7 +172,7 @@ export async function routingRuleRemoveHandler(interaction: ChatInputCommandInte
   await ticketConfigRepo.save(config);
 
   await interaction.reply({
-    content: formatLang(tl.ruleRemoved, ticketTypeId),
+    content: fmt(tl.ruleRemoved, { typeId: ticketTypeId }),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -206,7 +206,7 @@ export async function routingStrategyHandler(interaction: ChatInputCommandIntera
   const strategy = interaction.options.getString('strategy', true) as RoutingStrategy;
 
   if (!VALID_STRATEGIES.includes(strategy)) {
-    await replyEphemeralError(interaction, formatLang(tl.invalidStrategy, VALID_STRATEGIES.join(', ')));
+    await replyEphemeralError(interaction, fmt(tl.invalidStrategy, { options: VALID_STRATEGIES.join(', ') }));
     return;
   }
 
@@ -219,7 +219,7 @@ export async function routingStrategyHandler(interaction: ChatInputCommandIntera
   await ticketConfigRepo.save(config);
 
   await interaction.reply({
-    content: formatLang(tl.strategySet, strategy),
+    content: fmt(tl.strategySet, { strategy }),
     flags: [MessageFlags.Ephemeral],
   });
 

@@ -1,7 +1,7 @@
 import type { CacheType, ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import { StarboardConfig } from '../../../typeorm/entities/starboard';
-import { formatLang, guardFeatureAccess, handleInteractionError, lang, replyEphemeralError } from '../../../utils';
+import { fmt, guardFeatureAccess, handleInteractionError, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { invalidateStarboardCache } from '../../../utils/starboard/configCache';
 
@@ -35,7 +35,7 @@ export async function starboardIgnoreHandler(interaction: ChatInputCommandIntera
     }
 
     await interaction.reply({
-      content: formatLang(tl.ignore.added, `<#${channel.id}>`),
+      content: fmt(tl.ignore.added, { channel: `<#${channel.id}>` }),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
@@ -74,7 +74,7 @@ export async function starboardUnignoreHandler(interaction: ChatInputCommandInte
     invalidateStarboardCache(guildId);
 
     await interaction.reply({
-      content: formatLang(tl.ignore.removed, `<#${channel.id}>`),
+      content: fmt(tl.ignore.removed, { channel: `<#${channel.id}>` }),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {

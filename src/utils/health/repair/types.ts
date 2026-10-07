@@ -31,6 +31,8 @@ export interface RepairFix {
   /** `findingKey` of the finding. */
   key: string;
   code: string;
+  /** What the repair does, in English (`health.repair.actions`). */
+  label: string;
   system: HealthSystem;
   /** The finding's class, or `confirm` where repair asks first even though the check rates it auto. */
   repair: 'auto' | 'confirm';
@@ -75,7 +77,9 @@ export type UnsupportedReason =
   /** The row the finding names isn't among the loaded rows. */
   | 'row_gone'
   /** The row no longer holds the reference, so there is nothing to change. */
-  | 'no_change';
+  | 'no_change'
+  /** The row is in a final state the repair keeps (an accepted or rejected application whose channel is gone). */
+  | 'kept_outcome';
 
 export interface UnsupportedFix {
   key: string;

@@ -8,7 +8,7 @@ import { AppDataSource } from '../../../typeorm';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
 import {
   enhancedLogger,
-  formatLang,
+  fmt,
   guardFeatureRateLimit,
   handleInteractionError,
   lang,
@@ -139,7 +139,7 @@ const resendHandler = async (_client: Client, interaction: ChatInputCommandInter
   const member = await interaction.guild?.members.fetch(targetUser.id).catch(() => null);
   if (!member) {
     await interaction.reply({
-      content: formatLang(tl.resend.failed, targetUser.toString()),
+      content: fmt(tl.resend.failed, { user: targetUser.toString() }),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -150,11 +150,11 @@ const resendHandler = async (_client: Client, interaction: ChatInputCommandInter
   const sent = await sendOnboardingFlow(member, { restart: true });
   if (sent) {
     await interaction.editReply({
-      content: formatLang(tl.resend.success, targetUser.toString()),
+      content: fmt(tl.resend.success, { user: targetUser.toString() }),
     });
   } else {
     await interaction.editReply({
-      content: formatLang(tl.resend.failed, targetUser.toString()),
+      content: fmt(tl.resend.failed, { user: targetUser.toString() }),
     });
   }
 

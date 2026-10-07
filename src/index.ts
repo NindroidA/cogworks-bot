@@ -54,7 +54,6 @@ import {
   INTERVALS,
   LegacyMigrationRunner,
   LogCategory,
-  lang,
   memoryWatchdog,
   rateLimiter,
 } from './utils';
@@ -99,7 +98,9 @@ errorReporter.configure({
 // gracefulShutdown is hoisted — safe to reference before its textual position
 setupGlobalErrorHandlers(gracefulShutdown);
 
-const tl = lang.main;
+// Startup console output is operator-facing, so its text stays in code rather
+// than in src/lang.
+const ENV_SEPARATOR = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
 
 // validate RELEASE env variable
 const RELEASE = (process.env.RELEASE || 'prod').toLowerCase().trim();
@@ -107,7 +108,9 @@ const IS_DEV = RELEASE === 'dev';
 
 // validate RELEASE value
 if (RELEASE !== 'prod' && RELEASE !== 'dev') {
-  console.error(tl.invalidRelease.replace('{0}', process.env.RELEASE || ''));
+  console.error(
+    `Invalid RELEASE value: "${process.env.RELEASE || ''}". Must be "prod" or "dev". Defaulting to "prod".`,
+  );
 }
 
 let TOKEN = process.env.BOT_TOKEN!; // default production bot token
@@ -117,23 +120,23 @@ let CLIENT = process.env.CLIENT_ID!; // default production bot client
 if (IS_DEV) {
   // make sure dev credentials exist
   if (!process.env.DEV_BOT_TOKEN || !process.env.DEV_CLIENT_ID) {
-    console.error(tl.missingDevCreds);
-    console.error(tl.addToEnv);
+    console.error('DEV_BOT_TOKEN and DEV_CLIENT_ID must be set when RELEASE=dev');
+    console.error('Please add these to your .env file');
     process.exit(1);
   }
 
   TOKEN = process.env.DEV_BOT_TOKEN!;
   CLIENT = process.env.DEV_CLIENT_ID!;
   // log that we're using the development bot
-  console.log(`${E.dev} ${lang.main.usingDev}`);
+  console.log(`${E.dev} Using the Dev Bot!`);
 } else {
   // validate production credentials exist
   if (!process.env.BOT_TOKEN || !process.env.CLIENT_ID) {
-    console.error(`${E.error} ${tl.missingProdCreds}`);
-    console.error(`${E.warn} ${tl.addToEnv}`);
+    console.error(`${E.error} BOT_TOKEN and CLIENT_ID must be set when RELEASE=prod`);
+    console.error(`${E.warn} Please add these to your .env file`);
     process.exit(1);
   }
-  console.log(`${E.prod} ${tl.usingProd}`);
+  console.log(`${E.prod} Using Production Bot`);
 }
 
 // create new discord client
@@ -281,7 +284,7 @@ client.once('clientReady', async () => {
   healthServer.start(HEALTH_PORT);
 
   // log that we logged in
-  console.log(`${E.ready} ${tl.ready}${client.user?.tag}`);
+  console.log(`${E.ready} Logged in as: ${client.user?.tag}`);
   enhancedLogger.info(`Bot started successfully: ${client.user?.tag}`, LogCategory.SYSTEM, {
     environment: IS_DEV ? 'development' : 'production',
     guilds: client.guilds.cache.size,
@@ -290,11 +293,11 @@ client.once('clientReady', async () => {
   });
 
   // log environment info
-  console.log(tl.envSeparator);
-  console.log(`${E.list} ${tl.envLabel}${IS_DEV ? `${E.wrench} ${tl.envDev}` : `${E.prod} ${tl.envProd}`}`);
-  console.log(`${E.bot} ${tl.botLabel}${client.user?.tag}`);
-  console.log(`${E.id} ${tl.clientIdLabel}${CLIENT}`);
-  console.log(tl.envSeparator);
+  console.log(ENV_SEPARATOR);
+  console.log(`${E.list} Environment: ${IS_DEV ? `${E.wrench} DEVELOPMENT` : `${E.prod} PRODUCTION`}`);
+  console.log(`${E.bot} Bot: ${client.user?.tag}`);
+  console.log(`${E.id} Client ID: ${CLIENT}`);
+  console.log(ENV_SEPARATOR);
 
   // Each step below is isolated: a failure is logged and the rest still run,
   // so one DB hiccup can't leave the internal API, timers or watchdog off.
@@ -323,7 +326,7 @@ client.once('clientReady', async () => {
 
     extClient.baitChannelManager = baitChannelManager;
     extClient.joinVelocityTracker = joinVelocityTracker;
-    console.log(`${E.target} ${tl.baitChannelInit}`);
+    console.log(`${E.target} Bait Channel Manager initialized`);
     enhancedLogger.info('Bait channel manager initialized', LogCategory.SYSTEM);
   });
 
@@ -421,15 +424,15 @@ client.once('clientReady', async () => {
   // was already warned about at boot). Not awaited: registration keeps
   // retrying in the background until ninsys-api answers.
   if (IS_DEV) {
-    console.log(`${E.wrench} ${tl.apiSkipDev}`);
-    enhancedLogger.info(tl.apiSkipDev, LogCategory.SYSTEM);
+    console.log(`${E.wrench} Skipping API connection in development mode`);
+    enhancedLogger.info('Skipping API connection in development mode', LogCategory.SYSTEM);
   } else if (process.env.API_URL) {
     void apiConnector.connect(client).then(connected => {
       if (connected) {
-        console.log(`${E.ok} ${tl.apiConnected}`);
+        console.log(`${E.ok} Successfully connected to API`);
         enhancedLogger.info('Connected to API server successfully', LogCategory.API);
       } else {
-        console.warn(`${E.warn} ${tl.apiContinueWarning}`);
+        console.warn(`${E.warn} Bot will continue running, but API features may be unavailable`);
         enhancedLogger.warn('API registration failed, continuing and retrying in the background', LogCategory.API);
       }
     });
@@ -459,7 +462,7 @@ client.once('clientReady', async () => {
   });
 
   // just a lil line for the console
-  console.log(tl.line);
+  console.log('------------------------------\n');
 });
 
 // Graceful shutdown handler
@@ -467,7 +470,7 @@ let isShuttingDown = false;
 async function gracefulShutdown(signal: string) {
   if (isShuttingDown) return;
   isShuttingDown = true;
-  console.log(`${E.shutdown} ${tl.shuttingDown}`);
+  console.log(`${E.shutdown} Shutting down bot...`);
   enhancedLogger.info(`Received ${signal}, shutting down gracefully`, LogCategory.SYSTEM);
 
   // stop cleanup intervals
@@ -608,9 +611,9 @@ async function main() {
     // log all startup info together before enhanced logging
     if (botConfigs.length > 0) {
       // nosemgrep: javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring
-      console.log(tl.foundConfigs + botConfigs.length);
+      console.log(`Found Configs: ${botConfigs.length}`);
     } else {
-      console.warn(tl.noFoundConfigs);
+      console.warn('No bot configs found!');
     }
 
     // register commands for each guild in the database (in parallel),
@@ -619,7 +622,7 @@ async function main() {
       botConfigs.map(config =>
         registerGuildCommands(config.guildId).then(() => {
           // nosemgrep: javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring
-          console.log(tl.regCmdsSuccess + config.guildId);
+          console.log(`Registered commands for guild: ${config.guildId}`);
         }),
       ),
     );
@@ -627,7 +630,7 @@ async function main() {
       const result = registrationResults[i];
       if (result.status === 'rejected') {
         // nosemgrep: javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring
-        console.error(`${tl.regCmdsFail}${botConfigs[i].guildId}:`, result.reason);
+        console.error(`Failed to register commands for guild ${botConfigs[i].guildId}:`, result.reason);
       }
     }
 
@@ -653,7 +656,7 @@ async function main() {
     enhancedLogger.info('Bot logged in successfully', LogCategory.SYSTEM);
   } catch (error) {
     // if there's an error on startup, log it, and exit
-    console.error(tl.error, error);
+    console.error('Startup Error: ', error);
     enhancedLogger.critical('Fatal error during bot startup', error as Error, LogCategory.ERROR);
     process.exit(1);
   }

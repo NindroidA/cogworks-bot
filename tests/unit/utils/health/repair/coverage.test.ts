@@ -6,7 +6,7 @@
 import { describe, expect, test } from 'bun:test';
 import { lang } from '../../../../../src/lang';
 import { getChecks } from '../../../../../src/utils/health/registry';
-import { REF_REPAIRS } from '../../../../../src/utils/health/repair/refRepairs';
+import { REF_REPAIRS, repairLabel } from '../../../../../src/utils/health/repair/refRepairs';
 
 const checkCodes = new Set(getChecks().flatMap(check => check.codes));
 const actions = Object.keys(REF_REPAIRS);
@@ -102,6 +102,11 @@ describe('repair coverage', () => {
   test('every action has a label, and every label an action', () => {
     expect(actions.filter(code => typeof labels[code] !== 'string' || labels[code].length === 0)).toEqual([]);
     expect(Object.keys(labels).filter(code => !actions.includes(code))).toEqual([]);
+  });
+
+  test('repairLabel reads the label, and falls back to the code', () => {
+    for (const code of actions) expect({ code, label: repairLabel(code) }).toEqual({ code, label: labels[code] });
+    expect(repairLabel('core.locale.unsupported')).toBe('core.locale.unsupported');
   });
 
   test('every action runs a delete-event patch on the columns of its finding', () => {

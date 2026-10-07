@@ -3,7 +3,7 @@ import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import {
   enhancedLogger,
-  formatLang,
+  fmt,
   guardFeatureAccess,
   handleInteractionError,
   LogCategory,
@@ -69,7 +69,7 @@ export async function typeDefaultHandler(interaction: ChatInputCommandInteractio
     });
 
     await interaction.reply({
-      content: formatLang(tl.success, type.displayName),
+      content: fmt(tl.success, { type: type.displayName }),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {

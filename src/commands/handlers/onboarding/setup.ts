@@ -1,13 +1,7 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import { lang } from '../../../lang';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
-import {
-  createToggleHandler,
-  enhancedLogger,
-  formatLang,
-  replyEphemeralError,
-  validateAssignableRole,
-} from '../../../utils';
+import { createToggleHandler, enhancedLogger, fmt, replyEphemeralError, validateAssignableRole } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 // Locale-aware (Proxy fallback) — was a direct en JSON import that bypassed i18n.
@@ -97,7 +91,7 @@ export async function completionRoleHandler(_client: Client, interaction: ChatIn
 
   if (role) {
     await interaction.reply({
-      content: formatLang(tl.config.completionRole.success, role.toString()),
+      content: fmt(tl.config.completionRole.success, { role: role.toString() }),
       flags: [MessageFlags.Ephemeral],
     });
   } else {

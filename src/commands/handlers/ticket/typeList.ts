@@ -16,7 +16,7 @@ import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketT
 import {
   clampText,
   enhancedLogger,
-  formatLang,
+  fmt,
   guardFeatureAccess,
   handleInteractionError,
   LogCategory,
@@ -313,7 +313,7 @@ export function buildSummaryEmbed(types: CustomTicketType[]): EmbedBuilder {
     total += name.length + value.length;
     shown++;
   }
-  if (shown < types.length) embed.setFooter({ text: formatLang(tl.moreTypes, String(types.length - shown)) });
+  if (shown < types.length) embed.setFooter({ text: fmt(tl.moreTypes, { count: types.length - shown }) });
   return embed;
 }
 

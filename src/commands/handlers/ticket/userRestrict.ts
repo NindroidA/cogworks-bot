@@ -14,6 +14,7 @@ import {
   awaitConfirmation,
   clampText,
   enhancedLogger,
+  fmt,
   guardFeatureAccess,
   handleInteractionError,
   LogCategory,
@@ -114,8 +115,8 @@ async function handleSingleTypeToggle(
 
   const isCurrentlyRestricted = !!existingRestriction;
   const confirmMessage = isCurrentlyRestricted
-    ? tl.confirmAllow.replace('{user}', targetUser.toString()).replace('{type}', ticketType.displayName)
-    : tl.confirmRestrict.replace('{user}', targetUser.toString()).replace('{type}', ticketType.displayName);
+    ? fmt(tl.confirmAllow, { user: targetUser.toString(), type: ticketType.displayName })
+    : fmt(tl.confirmRestrict, { user: targetUser.toString(), type: ticketType.displayName });
 
   // awaitConfirmation collects from this one reply. The old channel-wide
   // collector also saw other members' clicks (the ticket panel included) and
@@ -132,7 +133,7 @@ async function handleSingleTypeToggle(
     if (isCurrentlyRestricted) {
       await restrictionRepo.remove(existingRestriction);
       await result.interaction.editReply({
-        content: tl.successAllow.replace('{user}', targetUser.toString()).replace('{type}', ticketType.displayName),
+        content: fmt(tl.successAllow, { user: targetUser.toString(), type: ticketType.displayName }),
         components: [],
       });
 
@@ -156,7 +157,7 @@ async function handleSingleTypeToggle(
       await restrictionRepo.save(newRestriction);
 
       await result.interaction.editReply({
-        content: tl.successRestrict.replace('{user}', targetUser.toString()).replace('{type}', ticketType.displayName),
+        content: fmt(tl.successRestrict, { user: targetUser.toString(), type: ticketType.displayName }),
         components: [],
       });
 
@@ -312,7 +313,7 @@ async function showRestrictionsModal(
 
   const embed = new EmbedBuilder()
     .setTitle(tl.title)
-    .setDescription(`${tl.description.replace('{user}', targetUser.toString())}\n\n${typeStatusLines.join('\n')}`)
+    .setDescription(`${fmt(tl.description, { user: targetUser.toString() })}\n\n${typeStatusLines.join('\n')}`)
     .setColor(0x5865f2)
     .setFooter({ text: tl.saved });
 

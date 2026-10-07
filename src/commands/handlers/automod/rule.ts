@@ -21,7 +21,7 @@ import {
 import {
   awaitConfirmation,
   enhancedLogger,
-  formatLang,
+  fmt,
   handleInteractionError,
   LogCategory,
   lang,
@@ -122,7 +122,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction): Promise<v
     const embed = new EmbedBuilder()
       .setColor('#00FF00')
       .setTitle(tl.rule.create.title)
-      .setDescription(formatLang(tl.rule.create.success, name))
+      .setDescription(fmt(tl.rule.create.success, { rule: name }))
       .addFields(
         { name: 'Type', value: getTriggerTypeLabel(triggerType), inline: true },
         { name: 'Status', value: 'Enabled', inline: true },
@@ -182,7 +182,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction): Promise<voi
     const embed = new EmbedBuilder()
       .setColor('#00FF00')
       .setTitle(tl.rule.edit.title)
-      .setDescription(formatLang(tl.rule.edit.success, newName));
+      .setDescription(fmt(tl.rule.edit.success, { rule: newName }));
 
     await modalSubmit.reply({
       embeds: [embed],
@@ -210,7 +210,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
 
     // Confirmation
     const result = await awaitConfirmation(interaction, {
-      message: formatLang(tl.rule.delete.confirmMessage, rule.name),
+      message: fmt(tl.rule.delete.confirmMessage, { rule: rule.name }),
       confirmLabel: 'Confirm Delete',
       confirmStyle: ButtonStyle.Danger,
     });
@@ -227,7 +227,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction): Promise<v
     const embed = new EmbedBuilder()
       .setColor('#FF0000')
       .setTitle(tl.rule.delete.title)
-      .setDescription(formatLang(tl.rule.delete.success, rule.name));
+      .setDescription(fmt(tl.rule.delete.success, { rule: rule.name }));
 
     await result.interaction.editReply({
       embeds: [embed],
@@ -253,7 +253,7 @@ async function handleList(interaction: ChatInputCommandInteraction): Promise<voi
     const embed = new EmbedBuilder()
       .setColor('#0099FF')
       .setTitle(tl.rule.list.title)
-      .setFooter({ text: formatLang(tl.rule.list.footer, rules.size) });
+      .setFooter({ text: fmt(tl.rule.list.footer, { count: rules.size }) });
 
     for (const rule of rules.values()) {
       const lines: string[] = [];
@@ -261,27 +261,27 @@ async function handleList(interaction: ChatInputCommandInteraction): Promise<voi
       lines.push(`**Status:** ${rule.enabled ? tl.rule.list.enabled : tl.rule.list.disabled}`);
 
       if (rule.triggerType === AutoModerationRuleTriggerType.Keyword && rule.triggerMetadata.keywordFilter) {
-        lines.push(formatLang(tl.rule.list.keywords, rule.triggerMetadata.keywordFilter.length));
+        lines.push(fmt(tl.rule.list.keywords, { count: rule.triggerMetadata.keywordFilter.length }));
       }
 
       if (rule.triggerType === AutoModerationRuleTriggerType.Keyword && rule.triggerMetadata.regexPatterns) {
-        lines.push(formatLang(tl.rule.list.regexPatterns, rule.triggerMetadata.regexPatterns.length));
+        lines.push(fmt(tl.rule.list.regexPatterns, { count: rule.triggerMetadata.regexPatterns.length }));
       }
 
       if (rule.triggerType === AutoModerationRuleTriggerType.MentionSpam && rule.triggerMetadata.mentionTotalLimit) {
-        lines.push(formatLang(tl.rule.list.mentionLimit, rule.triggerMetadata.mentionTotalLimit));
+        lines.push(fmt(tl.rule.list.mentionLimit, { limit: rule.triggerMetadata.mentionTotalLimit }));
       }
 
       if (rule.exemptRoles.size > 0) {
-        lines.push(formatLang(tl.rule.list.exemptRoles, rule.exemptRoles.size));
+        lines.push(fmt(tl.rule.list.exemptRoles, { count: rule.exemptRoles.size }));
       }
 
       if (rule.exemptChannels.size > 0) {
-        lines.push(formatLang(tl.rule.list.exemptChannels, rule.exemptChannels.size));
+        lines.push(fmt(tl.rule.list.exemptChannels, { count: rule.exemptChannels.size }));
       }
 
       const actionLabels = rule.actions.map(a => getActionTypeLabel(a.type)).join(', ');
-      lines.push(formatLang(tl.rule.list.actions, actionLabels));
+      lines.push(fmt(tl.rule.list.actions, { actions: actionLabels }));
 
       embed.addFields({ name: rule.name, value: lines.join('\n') });
     }

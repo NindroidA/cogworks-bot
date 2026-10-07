@@ -9,7 +9,7 @@ import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import {
   createToggleHandler,
   enhancedLogger,
-  formatLang,
+  fmt,
   guardFeatureRateLimit,
   LogCategory,
   lang,
@@ -72,7 +72,7 @@ export async function eventSetupHandler(_client: Client, interaction: ChatInputC
         config.reminderChannelId = channel.id;
         await eventConfigRepo.save(config);
         await interaction.reply({
-          content: formatLang(tl.reminderChannelSet, `<#${channel.id}>`),
+          content: fmt(tl.reminderChannelSet, { channel: `<#${channel.id}>` }),
           flags: [MessageFlags.Ephemeral],
         });
         enhancedLogger.command('Event reminder channel set', interaction.user.id, guildId);
@@ -89,7 +89,7 @@ export async function eventSetupHandler(_client: Client, interaction: ChatInputC
         config.postEventSummary = true;
         await eventConfigRepo.save(config);
         await interaction.reply({
-          content: formatLang(tl.summaryChannelSet, `<#${channel.id}>`),
+          content: fmt(tl.summaryChannelSet, { channel: `<#${channel.id}>` }),
           flags: [MessageFlags.Ephemeral],
         });
         enhancedLogger.command('Event summary channel set', interaction.user.id, guildId);
@@ -105,7 +105,7 @@ export async function eventSetupHandler(_client: Client, interaction: ChatInputC
         config.defaultReminderMinutes = minutes;
         await eventConfigRepo.save(config);
         await interaction.reply({
-          content: formatLang(tl.defaultReminderSet, minutes.toString()),
+          content: fmt(tl.defaultReminderSet, { minutes }),
           flags: [MessageFlags.Ephemeral],
         });
         enhancedLogger.command('Event default reminder set', interaction.user.id, guildId);

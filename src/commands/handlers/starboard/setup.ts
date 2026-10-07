@@ -1,7 +1,7 @@
 import type { CacheType, ChatInputCommandInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import { StarboardConfig } from '../../../typeorm/entities/starboard';
-import { formatLang, guardFeatureAccess, handleInteractionError, lang, replyEphemeralError } from '../../../utils';
+import { fmt, guardFeatureAccess, handleInteractionError, lang, replyEphemeralError } from '../../../utils';
 import { upsertGuildEntity } from '../../../utils/database/guildQueries';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { invalidateStarboardCache } from '../../../utils/starboard/configCache';
@@ -33,7 +33,7 @@ export async function starboardSetupHandler(interaction: ChatInputCommandInterac
     invalidateStarboardCache(guildId);
 
     await interaction.reply({
-      content: formatLang(tl.setup.success, threshold.toString(), emoji, `<#${channel.id}>`),
+      content: fmt(tl.setup.success, { threshold, emoji, channel: `<#${channel.id}>` }),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {

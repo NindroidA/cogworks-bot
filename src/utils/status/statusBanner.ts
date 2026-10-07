@@ -1,4 +1,4 @@
-import { lang } from '../../lang';
+import { fmt, lang } from '../../lang';
 import { AppDataSource } from '../../typeorm';
 import { BotStatus } from '../../typeorm/entities/status';
 
@@ -54,7 +54,7 @@ function buildBanner(level: string, message: string | null): string | null {
   }
 
   const levelLabel = tl.levels[level as keyof typeof tl.levels] || level;
-  let banner = tl.banner.warning.replace('{level}', levelLabel);
+  let banner = fmt(tl.banner.warning, { level: levelLabel });
 
   if (message) {
     banner += `\n> ${message}`;

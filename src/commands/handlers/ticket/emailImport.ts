@@ -25,7 +25,7 @@ import {
   createPrivateChannelPermissions,
   enhancedLogger,
   extractIdFromMention,
-  formatLang,
+  fmt,
   guardFeatureRateLimit,
   handleInteractionError,
   LogCategory,
@@ -130,19 +130,19 @@ async function parseAttachmentUrls(
     .filter(u => u);
 
   if (urls.length > 10) {
-    await replyEphemeralError(interaction, formatLang(tl.tooManyUrls, '10'));
+    await replyEphemeralError(interaction, fmt(tl.tooManyUrls, { max: '10' }));
     return null;
   }
 
   for (const url of urls) {
     if (url.length > 500) {
-      await replyEphemeralError(interaction, formatLang(tl.urlTooLong, '500'));
+      await replyEphemeralError(interaction, fmt(tl.urlTooLong, { max: '500' }));
       return null;
     }
 
     const urlCheck = validateSafeUrl(url);
     if (!urlCheck.valid) {
-      await replyEphemeralError(interaction, formatLang(tl.invalidUrl, url));
+      await replyEphemeralError(interaction, fmt(tl.invalidUrl, { url }));
       return null;
     }
   }
@@ -325,7 +325,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
     }
 
     if (body.length > 4000) {
-      await replyEphemeralError(interaction, formatLang(tl.bodyTooLong, '4000'));
+      await replyEphemeralError(interaction, fmt(tl.bodyTooLong, { max: '4000' }));
       return;
     }
 
@@ -440,7 +440,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
       );
 
       await interaction.reply({
-        content: formatLang(tl.success, ticketChannel.toString()),
+        content: fmt(tl.success, { channel: ticketChannel.toString() }),
         flags: [MessageFlags.Ephemeral],
       });
     } catch (error) {
@@ -464,7 +464,7 @@ export async function emailImportModalHandler(interaction: ModalSubmitInteractio
           guildId,
           errorCode: error.code,
         });
-        await replyEphemeralError(interaction, formatLang(tl.apiError, error.message));
+        await replyEphemeralError(interaction, fmt(tl.apiError, { error: error.message }));
         return;
       }
       throw error;

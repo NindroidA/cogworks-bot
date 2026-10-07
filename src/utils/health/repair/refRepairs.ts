@@ -4,7 +4,14 @@
  * a repair fixes a reference exactly as the event would have, limited to the
  * columns of the finding.
  */
-import { REF_PATCHES, type RefEntityName, type RefKind, type RefPatchFn } from '../../cleanup/refPatches';
+import { lang } from '../../../lang';
+import {
+  FINAL_STATUSES,
+  REF_PATCHES,
+  type RefEntityName,
+  type RefKind,
+  type RefPatchFn,
+} from '../../cleanup/refPatches';
 import type { RepairProof } from './types';
 
 export interface RefRepair {
@@ -16,6 +23,8 @@ export interface RefRepair {
   proof: RepairProof['kind'];
   /** Ask first even when the check rates the finding auto. */
   confirm?: true;
+  /** True for a row the patch leaves alone on purpose, though it still holds the reference. */
+  keeps?: (row: Record<string, unknown>) => boolean;
 }
 
 type PatchedBy<K extends RefKind> = keyof (typeof REF_PATCHES)[K] & RefEntityName;
@@ -24,11 +33,14 @@ function ref<K extends RefKind>(
   kind: K,
   entity: PatchedBy<K>,
   fields: readonly string[],
-  extra: Partial<Pick<RefRepair, 'proof' | 'confirm'>> = {},
+  extra: Partial<Pick<RefRepair, 'proof' | 'confirm' | 'keeps'>> = {},
 ): RefRepair {
   const patch = (REF_PATCHES[kind] as Partial<Record<RefEntityName, RefPatchFn>>)[entity] as RefPatchFn;
   return { entity, patch, fields, proof: kind, ...extra };
 }
+
+/** An application already accepted or rejected keeps that outcome: the close patch skips it. */
+const keepsOutcome = (row: Record<string, unknown>) => FINAL_STATUSES.has(String(row.status));
 
 // The posted panel goes with its channel, so the message id is cleared too.
 const panel = (system: string, config: PatchedBy<'channel'>, archive: PatchedBy<'channel'>) => ({
@@ -47,8 +59,10 @@ export const REF_REPAIRS: Readonly<Record<string, RefRepair>> = {
   ...panel('ticket', 'TicketConfig', 'ArchivedTicketConfig'),
   ...panel('application', 'ApplicationConfig', 'ArchivedApplicationConfig'),
   // Closes with a `channel-deleted` note; already-final statuses get no patch.
-  'ticket.open.channel_missing': ref('channel', 'Ticket', ['status', 'statusHistory']),
-  'application.open.channel_missing': ref('channel', 'Application', ['status', 'statusHistory']),
+  'ticket.open.channel_missing': ref('channel', 'Ticket', ['status', 'statusHistory'], { keeps: keepsOutcome }),
+  'application.open.channel_missing': ref('channel', 'Application', ['status', 'statusHistory'], {
+    keeps: keepsOutcome,
+  }),
   // The check proves this one with a REST lookup (the id may be a thread), so the applier does too.
   'announcement.config.channel_missing': ref('channel', 'AnnouncementConfig', ['defaultChannelId'], {
     proof: 'thread',
@@ -73,3 +87,8 @@ export const REF_REPAIRS: Readonly<Record<string, RefRepair>> = {
   'rules.config.channel_missing': ref('channel', 'RulesConfig', ['channelId']),
   'rules.config.message_missing': ref('message', 'RulesConfig', ['messageId']),
 };
+
+/** The repair's label (`health.repair.actions`), for the preview; the code itself when it has none. */
+export function repairLabel(code: string): string {
+  return (lang.health.repair.actions as Record<string, string>)[code] ?? code;
+}

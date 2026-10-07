@@ -8,7 +8,7 @@ import {
 } from 'discord.js';
 import { lang } from '../../../lang';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
-import { clampText, enhancedLogger, formatLang, replyEphemeralError } from '../../../utils';
+import { clampText, enhancedLogger, fmt, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import type { OnboardingStepDef, OnboardingStepType } from '../../../utils/onboarding/types';
 
@@ -75,7 +75,7 @@ export async function stepAddHandler(_client: Client, interaction: ChatInputComm
   await configRepo.save(config);
 
   await interaction.reply({
-    content: formatLang(tl.step.added, title, steps.length.toString()),
+    content: fmt(tl.step.added, { title, position: steps.length }),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -112,7 +112,7 @@ export async function stepRemoveHandler(_client: Client, interaction: ChatInputC
   }
 
   await interaction.reply({
-    content: formatLang(tl.step.removed, removedStep.title),
+    content: fmt(tl.step.removed, { title: removedStep.title }),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -140,7 +140,7 @@ export async function stepListHandler(_client: Client, interaction: ChatInputCom
     .setColor('#5865F2')
     .setTitle(tl.step.list.title)
     .setFooter({
-      text: formatLang(tl.step.list.footer, steps.length.toString()),
+      text: fmt(tl.step.list.footer, { count: steps.length }),
     });
 
   for (let i = 0; i < steps.length; i++) {

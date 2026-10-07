@@ -22,10 +22,13 @@
  *   2. a key nothing reads, unless `deadKeys.allowlist.json` lists it (the dead
  *      keys when this test landed, deleted or wired up in later steps); an entry
  *      that is read again or no longer exists fails too, so the list only shrinks;
- *   3. placeholder mismatches: `formatLang(key, ...args)` where the template's
- *      `{0}`..`{n}` don't match the arguments or it has a named `{x}` (formatLang
- *      fills only numbered ones), and a `key.replace('{x}', ...)` chain that
- *      replaces a placeholder the template doesn't have or leaves one in place.
+ *   3. placeholder mismatches: `fmt(key, { ... })` whose object keys aren't
+ *      exactly the template's `{name}` placeholders, or whose template has a
+ *      numbered `{0}` (fmt fills only named ones; for `fmt(cond ? a : b, ...)`
+ *      both strings are checked, and an object with a spread or computed key is
+ *      skipped), and any `key.replace('{x}', ...)` on a lang string, which
+ *      should be an fmt call;
+ *   4. a string in `src/lang/en` with a numbered `{0}`, which nothing fills.
  */
 
 import { describe, expect, test } from 'bun:test';
@@ -41,7 +44,7 @@ type Binding = { path: Path } | { expr: ts.Expression; props: string[] } | { typ
 type Wrapper = ts.ParenthesizedExpression | ts.AsExpression | ts.NonNullExpression | ts.SatisfiesExpression;
 
 /** Keys whose `{user}`-style text documents an admin template's syntax and is shown as written. */
-const LITERAL_PLACEHOLDERS = new Set(['xp.config.currentLevelUpMessage']);
+const LITERAL_PLACEHOLDERS = new Map([['xp.config.currentLevelUpMessage', ['{user}', '{level}']]]);
 
 const ROOT = process.cwd();
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -59,6 +62,7 @@ const where = (node: ts.Node) => {
 const used = new Set<string>();
 const missing: string[] = [];
 const placeholderErrors: string[] = [];
+let fmtCallsChecked = 0;
 const markAll = (path: Path) => {
   for (const key of leafKeys(get(path), path)) used.add(key);
 };
@@ -160,48 +164,53 @@ function isReference(node: ts.Node): boolean {
 }
 
 const placeholdersOf = (path: Path, template: string): string[] =>
-  template.match(LITERAL_PLACEHOLDERS.has(path.join('.')) ? /\{\d+\}/g : /\{\w+\}/g) ?? [];
+  (template.match(/\{\w+\}/g) ?? []).filter(p => !LITERAL_PLACEHOLDERS.get(path.join('.'))?.includes(p));
+/** The strings an expression can be: both branches of `cond ? a : b`, else itself. */
+const branches = (node: ts.Expression): ts.Expression[] => {
+  while (isWrapper(node)) node = node.expression;
+  return ts.isConditionalExpression(node) ? [...branches(node.whenTrue), ...branches(node.whenFalse)] : [node];
+};
+/** The keys of an object literal, or null when a spread or computed key hides some. */
+function literalKeys(node: ts.Expression | undefined): string[] | null {
+  if (!node || !ts.isObjectLiteralExpression(node)) return null;
+  const keys: string[] = [];
+  for (const prop of node.properties) {
+    const name = ts.isShorthandPropertyAssignment(prop) || ts.isPropertyAssignment(prop) ? prop.name : undefined;
+    if (!name || !(ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name))) return null;
+    keys.push(name.text);
+  }
+  return keys;
+}
 const isReplace = (n: ts.Node): n is ts.CallExpression & { expression: ts.PropertyAccessExpression } =>
   ts.isCallExpression(n) &&
   ts.isPropertyAccessExpression(n.expression) &&
   /^replace(All)?$/.test(n.expression.name.text);
-/** A `.replace()` search value: whether the template contains it, and which placeholders it replaces. */
-function searchValue(arg: ts.Expression | undefined, template: string) {
-  if (arg && ts.isStringLiteralLike(arg))
-    return { present: template.includes(arg.text), hits: (p: string) => arg.text.includes(p) };
-  const re = arg && ts.isRegularExpressionLiteral(arg) && /^\/(.*)\/(\w*)$/s.exec(arg.text);
-  const test = re ? (s: string) => new RegExp(re[1], re[2].replace(/[gy]/g, '')).test(s) : undefined;
-  return test && { present: test(template), hits: test };
-}
 
 function checkPlaceholders(call: ts.CallExpression): void {
-  if (ts.isIdentifier(call.expression) && call.expression.text === 'formatLang') {
-    const [first, ...args] = call.arguments;
-    const path = first ? resolve(first) : null;
-    const template = path && get(path);
-    if (typeof template !== 'string' || args.some(ts.isSpreadElement)) return;
-    const found = [...new Set(placeholdersOf(path, template))];
-    const numbered = found.filter(p => /^\{\d+\}$/.test(p)).map(p => Number(p.slice(1, -1)));
-    if (numbered.length !== found.length || numbered.length !== args.length || numbered.some(i => i >= args.length))
-      placeholderErrors.push(
-        `${where(call)} formatLang(${path.join('.')}) gets ${args.length} arg(s), template has ${found}`,
-      );
-  } else if (isReplace(call) && !(ts.isPropertyAccessExpression(call.parent) && isReplace(call.parent.parent))) {
-    const args: (ts.Expression | undefined)[] = [];
-    let receiver: ts.Expression = call;
-    for (; isReplace(receiver); receiver = receiver.expression.expression) args.push(receiver.arguments[0]);
-    const path = resolve(receiver);
-    const template = path && get(path);
-    if (typeof template !== 'string') return;
-    const values = args.map(arg => searchValue(arg, template));
-    args.forEach((arg, i) => {
-      if (arg?.getText().includes('{') && !values[i]?.present)
-        placeholderErrors.push(`${where(arg)} replaces ${arg.getText()}, which ${path.join('.')} doesn't have`);
-    });
-    if (values.every(Boolean))
-      for (const p of new Set(placeholdersOf(path, template)))
-        if (!values.some(v => v?.hits(p)))
-          placeholderErrors.push(`${where(call)} leaves ${p} of ${path.join('.')} in place`);
+  if (ts.isIdentifier(call.expression) && call.expression.text === 'fmt') {
+    const [first, params] = call.arguments;
+    const keys = literalKeys(params);
+    if (!first || !keys) return;
+    for (const branch of branches(first)) {
+      const path = resolve(branch);
+      const template = path && get(path);
+      if (typeof template !== 'string') continue;
+      fmtCallsChecked++;
+      const found = [...new Set(placeholdersOf(path, template))].map(p => p.slice(1, -1)).sort();
+      const given = [...keys].sort();
+      const numbered = found.filter(name => /^\d+$/.test(name));
+      if (numbered.length > 0)
+        placeholderErrors.push(`${where(call)} fmt(${path.join('.')}) can't fill numbered {${numbered}}: name them`);
+      else if (found.join() !== given.join())
+        placeholderErrors.push(`${where(call)} fmt(${path.join('.')}) gets {${given}}, template has {${found}}`);
+    }
+  } else if (isReplace(call) && call.arguments[0]?.getText().includes('{')) {
+    // A `.replace('{x}', v)` on a lang string (directly or after other replaces) fills a placeholder by hand.
+    let base: ts.Expression = call.expression.expression;
+    while (isReplace(base)) base = base.expression.expression;
+    const path = resolve(base);
+    if (path && typeof get(path) === 'string')
+      placeholderErrors.push(`${where(call)} fills ${path.join('.')} with .${call.expression.name.text}(): use fmt()`);
   }
 }
 
@@ -234,6 +243,7 @@ describe('language keys read in src/', () => {
   test('the scan finds the lang reads', () => {
     expect(files.length).toBeGreaterThan(100);
     expect(used.size).toBeGreaterThan(allKeys.length / 2);
+    expect(fmtCallsChecked).toBeGreaterThan(50);
   });
 
   test('every key the code reads exists in src/lang/en', () => {
@@ -251,7 +261,11 @@ describe('language keys read in src/', () => {
     }).toEqual({ deadNotAllowlisted: [], allowlistedButLiveOrGone: [] });
   });
 
-  test('formatLang arguments and .replace() chains match the placeholders', () => {
+  test('fmt params match the placeholders, and no .replace() fills one', () => {
     expect(placeholderErrors).toEqual([]);
+  });
+
+  test('no string uses a numbered {0} placeholder', () => {
+    expect(allKeys.filter(key => /\{\d+\}/.test(String(get(key.split('.')))))).toEqual([]);
   });
 });

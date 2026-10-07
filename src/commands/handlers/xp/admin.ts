@@ -1,5 +1,5 @@
 import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import { lang } from '../../../lang';
+import { fmt, lang } from '../../../lang';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
 import { enhancedLogger, handleInteractionError, LogCategory, replyEphemeralError, TIMEOUTS } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -60,10 +60,11 @@ async function handleSet(interaction: ChatInputCommandInteraction, guildId: stri
   );
 
   await interaction.reply({
-    content: xpLang.admin.xpSet
-      .replace('{0}', targetUser.displayName)
-      .replace('{1}', xpAmount.toLocaleString())
-      .replace('{2}', String(xpUser.level)),
+    content: fmt(xpLang.admin.xpSet, {
+      user: targetUser.displayName,
+      xp: xpAmount.toLocaleString(),
+      level: xpUser.level,
+    }),
     flags: [MessageFlags.Ephemeral],
   });
 }
@@ -76,7 +77,7 @@ async function handleReset(interaction: ChatInputCommandInteraction, guildId: st
   });
 
   if (!xpUser) {
-    await replyEphemeralError(interaction, xpLang.admin.noXpData.replace('{0}', targetUser.displayName));
+    await replyEphemeralError(interaction, fmt(xpLang.admin.noXpData, { user: targetUser.displayName }));
     return;
   }
 
@@ -94,7 +95,7 @@ async function handleReset(interaction: ChatInputCommandInteraction, guildId: st
   );
 
   await interaction.reply({
-    content: xpLang.admin.xpReset.replace('{0}', targetUser.displayName),
+    content: fmt(xpLang.admin.xpReset, { user: targetUser.displayName }),
     flags: [MessageFlags.Ephemeral],
   });
 }

@@ -139,7 +139,7 @@ interface StatusRow {
 }
 
 /** Statuses that are already an outcome: closed, or an application decision that must not be lost. */
-const FINAL_STATUSES: ReadonlySet<string> = new Set(['closed', 'accepted', 'rejected']);
+export const FINAL_STATUSES: ReadonlySet<string> = new Set(['closed', 'accepted', 'rejected']);
 
 /**
  * Close a ticket or application whose channel was deleted by hand, so it stops

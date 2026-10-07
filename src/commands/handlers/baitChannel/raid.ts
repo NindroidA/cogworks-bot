@@ -7,7 +7,7 @@
  */
 
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
-import { formatLang, guardFeatureAccess, handleInteractionError, lang, toUnixSeconds } from '../../../utils';
+import { fmt, guardFeatureAccess, handleInteractionError, lang, toUnixSeconds } from '../../../utils';
 import { getRaidModeManager, RaidModeGuildUnavailableError } from '../../../utils/baitChannel/raidModeManager';
 import { Colors } from '../../../utils/colors';
 
@@ -43,7 +43,7 @@ export async function raidHandler(_client: Client, interaction: ChatInputCommand
           .addFields(
             {
               name: tl.recentTriggers,
-              value: formatLang(tl.withinWindow, status.triggerCount),
+              value: fmt(tl.withinWindow, { count: status.triggerCount }),
               inline: true,
             },
             {
@@ -82,7 +82,7 @@ export async function raidHandler(_client: Client, interaction: ChatInputCommand
           return;
         }
         await mgr.enterRaidMode(interaction.guild, config);
-        await interaction.editReply(formatLang(tl.activated, reason));
+        await interaction.editReply(fmt(tl.activated, { reason }));
         return;
       }
 

@@ -15,6 +15,7 @@ import {
   Colors,
   E,
   enhancedLogger,
+  fmt,
   guardFeatureRateLimit,
   LogCategory,
   lang,
@@ -126,7 +127,7 @@ async function handleCompletedStatus(threadChannel: ThreadChannel, userId: strin
   try {
     const closeEmbed = new EmbedBuilder()
       .setTitle(`${E.memory} ${tl.closeNotice.title}`)
-      .setDescription(tl.closeNotice.description.replace('{0}', `<@${userId}>`))
+      .setDescription(fmt(tl.closeNotice.description, { user: `<@${userId}>` }))
       .setColor(Colors.status.neutral);
     await threadChannel.send({ embeds: [closeEmbed] });
   } catch {

@@ -9,7 +9,6 @@ import {
   buildExportAttachment,
   buildSummaryEmbed,
   exportParams,
-  fillTemplate,
   findingField,
   HEALTH_CID,
   paginateFindings,
@@ -72,16 +71,6 @@ function bigReport(): HealthReport {
     counts: { auto: 137, confirm: 0, manual: 0 },
   });
 }
-
-describe('fillTemplate', () => {
-  test('fills named params and leaves unknown ones as written', () => {
-    expect(fillTemplate('{a} and {b} and {missing}', { a: 'x', b: 2 })).toBe('x and 2 and {missing}');
-  });
-
-  test('inherited object keys never fill a placeholder', () => {
-    expect(fillTemplate('{constructor} {toString}', {})).toBe('{constructor} {toString}');
-  });
-});
 
 describe('findingField', () => {
   test('a missing object is shown as its raw ID, an existing one as a mention', () => {

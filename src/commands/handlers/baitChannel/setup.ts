@@ -12,7 +12,7 @@ import { type BaitActionType, BaitChannelConfig } from '../../../typeorm/entitie
 import type { ExtendedClient } from '../../../types/ExtendedClient';
 import {
   enhancedLogger,
-  formatLang,
+  fmt,
   getBaitChannelIds,
   handleInteractionError,
   LogCategory,
@@ -198,7 +198,7 @@ export async function handleBaitChannelAddChannel(client: Client, interaction: C
 
     // Check for duplicate
     if (currentChannels.includes(channel.id)) {
-      await replyEphemeralError(interaction, formatLang(tl.multiChannel.alreadyAdded, channel.id));
+      await replyEphemeralError(interaction, fmt(tl.multiChannel.alreadyAdded, { channelId: channel.id }));
       return;
     }
 
@@ -218,7 +218,7 @@ export async function handleBaitChannelAddChannel(client: Client, interaction: C
     const embed = new EmbedBuilder()
       .setColor(Colors.status.success)
       .setTitle(tl.multiChannel.title)
-      .setDescription(formatLang(tl.multiChannel.added, channel.id))
+      .setDescription(fmt(tl.multiChannel.added, { channelId: channel.id }))
       .addFields({
         name: tl.multiChannel.channelsLabel,
         value: channelList,
@@ -258,7 +258,7 @@ export async function handleBaitChannelRemoveChannel(client: Client, interaction
 
     // Check channel is in the list
     if (!currentChannels.includes(channel.id)) {
-      await replyEphemeralError(interaction, formatLang(tl.multiChannel.notInList, channel.id));
+      await replyEphemeralError(interaction, fmt(tl.multiChannel.notInList, { channelId: channel.id }));
       return;
     }
 
@@ -289,8 +289,8 @@ export async function handleBaitChannelRemoveChannel(client: Client, interaction
       .setTitle(tl.multiChannel.title)
       .setDescription(
         bannerLeft
-          ? `${formatLang(tl.multiChannel.removed, channel.id)}\n\n${formatLang(tl.multiChannel.bannerDeleteFailed, channel.id)}`
-          : formatLang(tl.multiChannel.removed, channel.id),
+          ? `${fmt(tl.multiChannel.removed, { channelId: channel.id })}\n\n${fmt(tl.multiChannel.bannerDeleteFailed, { channelId: channel.id })}`
+          : fmt(tl.multiChannel.removed, { channelId: channel.id }),
       )
       .addFields({
         name: tl.multiChannel.channelsLabel,

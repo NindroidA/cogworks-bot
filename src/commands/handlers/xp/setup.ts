@@ -5,7 +5,7 @@ import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
 import {
   createToggleHandler,
   enhancedLogger,
-  formatLang,
+  fmt,
   handleInteractionError,
   LogCategory,
   replyEphemeralError,
@@ -106,7 +106,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     case 'xp-rate': {
       if (!value) {
         await interaction.reply({
-          content: formatLang(tlConfig.currentRate, config.xpPerMessageMin, config.xpPerMessageMax),
+          content: fmt(tlConfig.currentRate, { min: config.xpPerMessageMin, max: config.xpPerMessageMax }),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -128,7 +128,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     case 'cooldown': {
       if (!value) {
         await interaction.reply({
-          content: formatLang(tlConfig.currentCooldown, config.xpCooldownSeconds),
+          content: fmt(tlConfig.currentCooldown, { seconds: config.xpCooldownSeconds }),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -144,7 +144,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     case 'voice-xp': {
       if (!value) {
         await interaction.reply({
-          content: formatLang(tlConfig.currentVoiceXp, config.xpPerVoiceMinute),
+          content: fmt(tlConfig.currentVoiceXp, { xp: config.xpPerVoiceMinute }),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -164,10 +164,9 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
         config.levelUpChannelId = null;
       } else {
         await interaction.reply({
-          content: formatLang(
-            tlConfig.currentLevelUpChannel,
-            config.levelUpChannelId ? `<#${config.levelUpChannelId}>` : tlConfig.sameChannel,
-          ),
+          content: fmt(tlConfig.currentLevelUpChannel, {
+            channel: config.levelUpChannelId ? `<#${config.levelUpChannelId}>` : tlConfig.sameChannel,
+          }),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -177,7 +176,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     case 'level-up-message': {
       if (!value) {
         await interaction.reply({
-          content: formatLang(tlConfig.currentLevelUpMessage, config.levelUpMessage),
+          content: fmt(tlConfig.currentLevelUpMessage, { message: config.levelUpMessage }),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -188,10 +187,9 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     case 'voice-xp-enabled': {
       if (!value) {
         await interaction.reply({
-          content: formatLang(
-            tlConfig.currentVoiceXpEnabled,
-            config.voiceXpEnabled ? tlConfig.enabled : tlConfig.disabled,
-          ),
+          content: fmt(tlConfig.currentVoiceXpEnabled, {
+            state: config.voiceXpEnabled ? tlConfig.enabled : tlConfig.disabled,
+          }),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -202,10 +200,9 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     case 'stack-multipliers': {
       if (!value) {
         await interaction.reply({
-          content: formatLang(
-            tlConfig.currentStackMultipliers,
-            config.stackMultipliers ? tlConfig.enabled : tlConfig.disabled,
-          ),
+          content: fmt(tlConfig.currentStackMultipliers, {
+            state: config.stackMultipliers ? tlConfig.enabled : tlConfig.disabled,
+          }),
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -253,7 +250,7 @@ async function handleRoleRewardAdd(interaction: ChatInputCommandInteraction, gui
   const existing = await rewardRepo.findOne({ where: { guildId, level } });
   if (existing) {
     await interaction.reply({
-      content: xpLang.setup.roleRewardExists.replace('{0}', String(level)),
+      content: fmt(xpLang.setup.roleRewardExists, { level }),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -273,7 +270,7 @@ async function handleRoleRewardAdd(interaction: ChatInputCommandInteraction, gui
   );
 
   await interaction.reply({
-    content: xpLang.setup.roleRewardAdded.replace('{0}', String(level)).replace('{1}', role.id),
+    content: fmt(xpLang.setup.roleRewardAdded, { level, roleId: role.id }),
     flags: [MessageFlags.Ephemeral],
   });
 }
@@ -284,7 +281,7 @@ async function handleRoleRewardRemove(interaction: ChatInputCommandInteraction, 
 
   if (!reward) {
     await interaction.reply({
-      content: xpLang.setup.roleRewardNotFound.replace('{0}', String(level)),
+      content: fmt(xpLang.setup.roleRewardNotFound, { level }),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -292,7 +289,7 @@ async function handleRoleRewardRemove(interaction: ChatInputCommandInteraction, 
 
   await rewardRepo.remove(reward);
   await interaction.reply({
-    content: xpLang.setup.roleRewardRemoved.replace('{0}', String(level)),
+    content: fmt(xpLang.setup.roleRewardRemoved, { level }),
     flags: [MessageFlags.Ephemeral],
   });
 }
@@ -330,7 +327,7 @@ async function handleIgnoreChannelAdd(interaction: ChatInputCommandInteraction, 
   const ignored = config.ignoredChannels || [];
   if (ignored.includes(channel.id)) {
     await interaction.reply({
-      content: xpLang.setup.channelAlreadyIgnored.replace('{0}', `<#${channel.id}>`),
+      content: fmt(xpLang.setup.channelAlreadyIgnored, { channel: `<#${channel.id}>` }),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -342,7 +339,7 @@ async function handleIgnoreChannelAdd(interaction: ChatInputCommandInteraction, 
   invalidateXPConfigCache(guildId);
 
   await interaction.reply({
-    content: xpLang.setup.channelIgnored.replace('{0}', `<#${channel.id}>`),
+    content: fmt(xpLang.setup.channelIgnored, { channel: `<#${channel.id}>` }),
     flags: [MessageFlags.Ephemeral],
   });
 }
@@ -355,7 +352,7 @@ async function handleIgnoreChannelRemove(interaction: ChatInputCommandInteractio
   const index = ignored.indexOf(channel.id);
   if (index === -1) {
     await interaction.reply({
-      content: xpLang.setup.channelNotIgnored.replace('{0}', `<#${channel.id}>`),
+      content: fmt(xpLang.setup.channelNotIgnored, { channel: `<#${channel.id}>` }),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -367,7 +364,7 @@ async function handleIgnoreChannelRemove(interaction: ChatInputCommandInteractio
   invalidateXPConfigCache(guildId);
 
   await interaction.reply({
-    content: xpLang.setup.channelUnignored.replace('{0}', `<#${channel.id}>`),
+    content: fmt(xpLang.setup.channelUnignored, { channel: `<#${channel.id}>` }),
     flags: [MessageFlags.Ephemeral],
   });
 }
@@ -384,7 +381,7 @@ async function handleMultiplierSet(interaction: ChatInputCommandInteraction, gui
   invalidateXPConfigCache(guildId);
 
   await interaction.reply({
-    content: xpLang.setup.multiplierSet.replace('{0}', `<#${channel.id}>`).replace('{1}', String(multiplier)),
+    content: fmt(xpLang.setup.multiplierSet, { channel: `<#${channel.id}>`, multiplier }),
     flags: [MessageFlags.Ephemeral],
   });
 }
@@ -396,7 +393,7 @@ async function handleMultiplierRemove(interaction: ChatInputCommandInteraction, 
   const multipliers = config.multiplierChannels || {};
   if (!(channel.id in multipliers)) {
     await interaction.reply({
-      content: xpLang.setup.multiplierNotFound.replace('{0}', `<#${channel.id}>`),
+      content: fmt(xpLang.setup.multiplierNotFound, { channel: `<#${channel.id}>` }),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -408,7 +405,7 @@ async function handleMultiplierRemove(interaction: ChatInputCommandInteraction, 
   invalidateXPConfigCache(guildId);
 
   await interaction.reply({
-    content: xpLang.setup.multiplierRemoved.replace('{0}', `<#${channel.id}>`),
+    content: fmt(xpLang.setup.multiplierRemoved, { channel: `<#${channel.id}>` }),
     flags: [MessageFlags.Ephemeral],
   });
 }
