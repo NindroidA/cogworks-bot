@@ -2763,6 +2763,7 @@
               "channel_types": [
                 0,
                 2,
+                13,
                 15
               ],
               "name": "channel",
@@ -2781,6 +2782,7 @@
               "channel_types": [
                 0,
                 2,
+                13,
                 15
               ],
               "name": "channel",
@@ -2799,6 +2801,7 @@
               "channel_types": [
                 0,
                 2,
+                13,
                 15
               ],
               "name": "channel",
@@ -2825,6 +2828,7 @@
               "channel_types": [
                 0,
                 2,
+                13,
                 15
               ],
               "name": "channel",

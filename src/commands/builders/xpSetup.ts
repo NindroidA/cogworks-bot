@@ -1,6 +1,14 @@
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
 import { createTextChannelOption } from './factories';
 
+/** Channels that earn XP: text, voice and stage (voice XP), and forums (their posts count as the forum). */
+const XP_CHANNEL_TYPES = [
+  ChannelType.GuildText,
+  ChannelType.GuildVoice,
+  ChannelType.GuildStageVoice,
+  ChannelType.GuildForum,
+] as const;
+
 /**
  * /xp-setup — Configure the XP & leveling system
  *
@@ -89,7 +97,7 @@ export const xpSetup = new SlashCommandBuilder()
         option
           .setName('channel')
           .setDescription('The channel to ignore')
-          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice, ChannelType.GuildForum)
+          .addChannelTypes(...XP_CHANNEL_TYPES)
           .setRequired(true),
       ),
   )
@@ -101,7 +109,7 @@ export const xpSetup = new SlashCommandBuilder()
         option
           .setName('channel')
           .setDescription('The channel to unignore')
-          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice, ChannelType.GuildForum)
+          .addChannelTypes(...XP_CHANNEL_TYPES)
           .setRequired(true),
       ),
   )
@@ -114,7 +122,7 @@ export const xpSetup = new SlashCommandBuilder()
         option
           .setName('channel')
           .setDescription('The channel to set a multiplier for')
-          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice, ChannelType.GuildForum)
+          .addChannelTypes(...XP_CHANNEL_TYPES)
           .setRequired(true),
       )
       .addNumberOption(option =>
@@ -134,7 +142,7 @@ export const xpSetup = new SlashCommandBuilder()
         option
           .setName('channel')
           .setDescription('The channel to remove the multiplier from')
-          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice, ChannelType.GuildForum)
+          .addChannelTypes(...XP_CHANNEL_TYPES)
           .setRequired(true),
       ),
   )

@@ -1080,7 +1080,7 @@ Automatically assign roles when users reach certain levels:
 /xp-setup role-reward-add level:25 role:@Veteran remove-on-delevel:true
 ```
 - `remove-on-delevel` — If true, the role is removed if the user drops below this level
-- The role must be below the bot's highest role and your own (the server owner is exempt from the second). Roles with moderation or admin permissions (Administrator, Manage Server, Manage Roles, Manage Channels, Manage Webhooks, Ban/Kick/Timeout Members) can only be set up by a server admin. The same rule applies to reaction-role options and the onboarding completion role.
+- The role must be below the bot's highest role and your own (the server owner is exempt from the second). Roles with moderation or admin permissions (Administrator, Manage Server, Manage Roles, Manage Channels, Manage Webhooks, Manage Messages, Manage Threads, Manage Expressions, Mention @everyone, Ban/Kick/Timeout/Move/Mute/Deafen Members) can only be set up by a server admin. The same rule applies to reaction-role options (slash command and dashboard) and the onboarding completion role.
 
 **Remove a role reward:**
 ```
@@ -1117,7 +1117,7 @@ Prevent XP from being earned in specific channels:
 /xp-setup ignore-channel-remove channel:#bot-commands
 ```
 
-Works for text, voice and forum channels. Threads and forum posts count as their parent channel, for ignores and multipliers alike.
+Works for text, voice, stage and forum channels. Threads and forum posts count as their parent channel, for ignores and multipliers alike.
 
 Voice XP is earned in segments: nothing counts in the server's AFK channel, in an ignored channel, or while deafened, and each segment uses its own channel's multiplier. Voice level-ups grant role rewards and are announced only in the level-up channel (if one is set).
 

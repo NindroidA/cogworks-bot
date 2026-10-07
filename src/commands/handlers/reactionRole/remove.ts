@@ -65,13 +65,10 @@ export async function reactionRoleRemoveHandler(interaction: ChatInputCommandInt
       where: { id: menu.id, guildId },
       relations: { options: true },
     });
-    if (updatedMenu) {
-      await updateMenuMessage(updatedMenu, guild, { remove: [option.emoji] });
-    }
+    const updated = !updatedMenu || (await updateMenuMessage(updatedMenu, guild, { remove: [option.emoji] }));
 
-    await interaction.editReply({
-      content: tl.remove.success.replace('{emoji}', emoji).replace('{menu}', menu.name),
-    });
+    const success = tl.remove.success.replace('{emoji}', emoji).replace('{menu}', menu.name);
+    await interaction.editReply({ content: updated ? success : `${success}\n\n${tl.menu.updateFailed}` });
 
     enhancedLogger.info('Reaction role option removed', LogCategory.COMMAND_EXECUTION, {
       guildId,

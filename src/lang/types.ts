@@ -1748,6 +1748,7 @@ export interface LangReactionRole {
     cannotUseEveryone: string;
     cannotUseManagedRole: string;
     invalidEmoji: string;
+    menuUpdateFailed: string;
   };
   remove: {
     success: string;
@@ -1783,6 +1784,7 @@ export interface LangReactionRole {
     modeUnique: string;
     modeLock: string;
     noOptions: string;
+    updateFailed: string;
   };
   reaction: {
     roleAssigned: string;

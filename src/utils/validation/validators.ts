@@ -86,9 +86,12 @@ export function validateMember(member: GuildMember | null | undefined): Validati
   return { valid: true };
 }
 
-/** One RGI emoji: keycaps, flags, skin tones and ZWJ sequences included. */
+/**
+ * One RGI emoji (keycaps, flags, skin tones and ZWJ sequences included) or one
+ * lone regional indicator letter, which Discord also takes as a reaction.
+ */
 // biome-ignore lint/complexity/useRegexLiterals: a `v`-flag literal needs an es2024 target (tsconfig is es2020)
-const RGI_EMOJI = new RegExp('^\\p{RGI_Emoji}$', 'v');
+const RGI_EMOJI = new RegExp('^[\\p{RGI_Emoji}\\p{Regional_Indicator}]$', 'v');
 
 /**
  * Validates that a string is a valid emoji for Discord reactions.
@@ -102,7 +105,7 @@ export function validateEmoji(emoji: string): ValidationResult {
     return { valid: true };
   }
 
-  // One unicode emoji, including keycaps, flags, skin tones and ZWJ sequences
+  // One unicode emoji, including keycaps, flags, skin tones, ZWJ sequences and lone regional indicators
   if (RGI_EMOJI.test(emoji)) {
     return { valid: true };
   }
@@ -120,9 +123,16 @@ const PRIVILEGED_ROLE_PERMISSIONS = [
   PermissionFlagsBits.ManageRoles,
   PermissionFlagsBits.ManageChannels,
   PermissionFlagsBits.ManageWebhooks,
+  PermissionFlagsBits.ManageMessages,
+  PermissionFlagsBits.ManageThreads,
+  PermissionFlagsBits.ManageGuildExpressions,
+  PermissionFlagsBits.MentionEveryone,
   PermissionFlagsBits.BanMembers,
   PermissionFlagsBits.KickMembers,
   PermissionFlagsBits.ModerateMembers,
+  PermissionFlagsBits.MoveMembers,
+  PermissionFlagsBits.MuteMembers,
+  PermissionFlagsBits.DeafenMembers,
 ];
 
 /** A role option as `getRole()` returns it (a cached Role or the raw API role). */
@@ -131,6 +141,12 @@ export interface AssignableRoleInput {
   managed: boolean;
   position: number;
   permissions: Readonly<PermissionsBitField> | string;
+}
+
+/** Whether a role carries moderation or admin permissions (only a server admin may hand those out). */
+export function hasPrivilegedPermissions(role: Pick<AssignableRoleInput, 'permissions'>): boolean {
+  const perms = typeof role.permissions === 'string' ? BigInt(role.permissions) : role.permissions;
+  return new PermissionsBitField(perms).any(PRIVILEGED_ROLE_PERMISSIONS);
 }
 
 /**
@@ -159,10 +175,7 @@ export async function validateAssignableRole(
   if (role.position >= invoker.roles.highest.position) return { valid: false, error: tl.aboveInvoker };
 
   const isAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ?? false;
-  const perms = typeof role.permissions === 'string' ? BigInt(role.permissions) : role.permissions;
-  if (!isAdmin && new PermissionsBitField(perms).any(PRIVILEGED_ROLE_PERMISSIONS)) {
-    return { valid: false, error: tl.privileged };
-  }
+  if (!isAdmin && hasPrivilegedPermissions(role)) return { valid: false, error: tl.privileged };
   return { valid: true };
 }
 

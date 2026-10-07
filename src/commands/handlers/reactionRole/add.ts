@@ -107,8 +107,13 @@ export async function reactionRoleAddHandler(interaction: ChatInputCommandIntera
       where: { id: menu.id, guildId },
       relations: { options: true },
     });
-    if (updatedMenu) {
-      await updateMenuMessage(updatedMenu, guild, { add: [emoji] });
+    if (updatedMenu && !(await updateMenuMessage(updatedMenu, guild, { add: [emoji] }))) {
+      // No reaction backs the option (bot can't see the channel or use the emoji): undo it
+      await optionRepo.remove(option);
+      invalidateMenuCache(menu.messageId);
+      await updateMenuMessage(menu, guild, {});
+      await replyEphemeralError(interaction, tl.add.menuUpdateFailed);
+      return;
     }
 
     await interaction.editReply({

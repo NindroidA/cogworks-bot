@@ -239,7 +239,10 @@ describe('/reactionrole remove', () => {
 // Dashboard create (POST /reaction-roles)
 // ---------------------------------------------------------------------------
 
-function dashboardCreate(roles: Array<{ id: string; managed: boolean; position: number }> = []) {
+function dashboardCreate(
+  roles: Array<{ id: string; managed: boolean; position: number; permissions?: string }> = [],
+  members: Record<string, { highest: number; admin?: boolean }> = {},
+) {
   const send = jest.fn(async () => ({ id: '300000000000000009', react: jest.fn(), delete: jest.fn() }));
   const channel = { isTextBased: () => true, send };
   const roleCache = new Map<string, unknown>([[ROLE_A, { id: ROLE_A, managed: false, position: 1 }]]);
@@ -252,7 +255,15 @@ function dashboardCreate(roles: Array<{ id: string; managed: boolean; position: 
           {
             id: guildId,
             channels: { fetch: async () => channel },
-            members: { fetchMe: async () => ({ roles: { highest: { position: 10 } } }) },
+            members: {
+              fetchMe: async () => ({ roles: { highest: { position: 10 } } }),
+              fetch: async (id: string) => {
+                const m = members[id];
+                if (!m) throw Object.assign(new Error('Unknown Member'), { code: 10007 });
+                const bits = m.admin ? PermissionFlagsBits.Administrator : PermissionFlagsBits.ManageGuild;
+                return { id, permissions: new PermissionsBitField(bits), roles: { highest: { position: m.highest } } };
+              },
+            },
             roles: { cache: roleCache },
           },
         ],
@@ -261,8 +272,8 @@ function dashboardCreate(roles: Array<{ id: string; managed: boolean; position: 
   } as any;
   const routes = new Map<string, any>();
   registerApi(client, routes);
-  const create = (options: Array<{ emoji: string; roleId: string }>) =>
-    routes.get('POST /reaction-roles')(guildId, { channelId: '200000000000000001', title: 'Colors', options });
+  const create = (options: Array<{ emoji: string; roleId: string }>, triggeredBy?: string) =>
+    routes.get('POST /reaction-roles')(guildId, { channelId: '200000000000000001', title: 'Colors', options, triggeredBy });
   return { create, send };
 }
 
@@ -545,5 +556,97 @@ describe('/reactionrole validate', () => {
     expect(embed).toBeDefined();
     expect(embed.description.length).toBeLessThanOrEqual(4096);
     expect(embed.description.startsWith('80 issue(s)')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Dashboard create: the dashboard user is the actor
+// ---------------------------------------------------------------------------
+
+describe('dashboard menu create judges roles by the dashboard user', () => {
+  const ADMIN_ROLE = { id: ROLE_B, managed: false, position: 3, permissions: String(PermissionFlagsBits.Administrator) };
+  const MANAGER = '500000000000000002';
+  const ADMIN = '500000000000000003';
+
+  test('a Manage Server user cannot create a menu that hands out Administrator', async () => {
+    const { create, send } = dashboardCreate([ADMIN_ROLE], { [MANAGER]: { highest: 5 } });
+    const error = await create([{ emoji: '✅', roleId: ROLE_B }], MANAGER).catch((e: unknown) => e);
+    expect(error).toMatchObject({ statusCode: 400 });
+    expect(String((error as Error).message)).toContain(lang.errors.assignableRole.privileged);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  test('a role above the dashboard user is refused', async () => {
+    const { create, send } = dashboardCreate([{ id: ROLE_B, managed: false, position: 6 }], { [ADMIN]: { highest: 5, admin: true } });
+    const error = await create([{ emoji: '✅', roleId: ROLE_B }], ADMIN).catch((e: unknown) => e);
+    expect(String((error as Error).message)).toContain(lang.errors.assignableRole.aboveInvoker);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  test('an admin dashboard user can hand out a privileged role below them', async () => {
+    const { create, send } = dashboardCreate([ADMIN_ROLE], { [ADMIN]: { highest: 5, admin: true } });
+    await create([{ emoji: '✅', roleId: ROLE_B }], ADMIN).catch(() => undefined);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([
+    ['who left the server', '500000000000000004'],
+    ['not given', undefined],
+  ])('a privileged role is refused when the dashboard user is %s', async (_label, triggeredBy) => {
+    const { create, send } = dashboardCreate([ADMIN_ROLE]);
+    const error = await create([{ emoji: '✅', roleId: ROLE_B }], triggeredBy).catch((e: unknown) => e);
+    expect(String((error as Error).message)).toContain(lang.errors.assignableRole.privileged);
+    expect(send).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// add / remove / edit when the menu message can't be updated
+// ---------------------------------------------------------------------------
+
+describe('/reactionrole when the menu message cannot be updated', () => {
+  test('add takes the option out again when the reaction fails', async () => {
+    state.menu = menuWith([{ id: 1, emoji: '🔴', roleId: ROLE_A }]);
+    state.reloadMenu = menuWith([
+      { id: 1, emoji: '🔴', roleId: ROLE_A },
+      { id: 2, emoji: '<:gone:700000000000000003>', roleId: ROLE_B },
+    ]);
+    const { guild, message } = menuGuild();
+    message.react.mockImplementation(async () => {
+      throw Object.assign(new Error('Unknown Emoji'), { code: 10014 });
+    });
+    const interaction = makeInteraction({ menu: '1', emoji: '<:gone:700000000000000003>' }, ROLE_B, guild);
+
+    await addHandler(interaction);
+
+    expect(state.saved).toHaveLength(1);
+    expect(state.removed).toEqual(state.saved);
+    // The embed is put back to the menu without the option
+    expect(message.edit).toHaveBeenCalledTimes(2);
+    expect(replyText(interaction)).toContain(tl.add.menuUpdateFailed);
+  });
+
+  test('remove and edit save, then warn that the message is stale', async () => {
+    const failingGuild = () => {
+      const { guild } = menuGuild();
+      guild.channels.fetch = jest.fn(async () => {
+        throw Object.assign(new Error('Missing Access'), { code: 50001 });
+      });
+      return guild;
+    };
+
+    setMenu([{ id: 1, emoji: '🔴', roleId: ROLE_A }]);
+    state.reloadMenu = menuWith([]);
+    const removeInteraction = makeInteraction({ menu: '1', emoji: '🔴' }, ROLE_B, failingGuild());
+    await removeHandler(removeInteraction);
+    expect(state.removed).toHaveLength(1);
+    expect(replyText(removeInteraction)).toContain(tl.menu.updateFailed);
+
+    fakeMenuRepo.findOneCalls = 0;
+    state.menu = menuWith([{ id: 1, emoji: '🔴', roleId: ROLE_A }]);
+    const editInteraction = makeInteraction({ menu: '1', name: 'Colours' }, ROLE_B, failingGuild());
+    await editHandler(editInteraction);
+    expect(replyText(editInteraction)).toContain('Colours');
+    expect(replyText(editInteraction)).toContain(tl.menu.updateFailed);
   });
 });

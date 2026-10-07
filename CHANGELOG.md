@@ -19,10 +19,17 @@ stops paying for the AFK channel, and AutoMod backups restore what they saved.
   `/xp-setup role-reward-add` and `/onboarding completion-role` refuse
   @everyone, managed roles, roles at or above the bot, and roles at or above
   the invoker's own highest role (the server owner is exempt, as in Discord).
-  Roles with Administrator, Manage Server, Manage Roles, Manage Channels,
-  Manage Webhooks, Ban, Kick or Timeout Members need a server admin. The bot
-  grants these roles with its own Manage Roles, so with feature commands now
-  visible a delegated manager could otherwise give themselves Administrator.
+  Roles with moderation or admin permissions need a server admin:
+  Administrator, Manage Server, Manage Roles, Manage Channels, Manage
+  Webhooks, Manage Messages, Manage Threads, Manage Expressions, Mention
+  @everyone, Ban, Kick, Timeout, Move, Mute or Deafen Members. The bot grants
+  these roles with its own Manage Roles, so with feature commands now visible
+  a delegated manager could otherwise give themselves Administrator.
+- **Dashboard reaction-role menus check the dashboard user too.** The
+  dashboard only requires Manage Server, so a menu created there is now judged
+  by the same rules with the dashboard user (`triggeredBy`) as the actor; when
+  that member can't be found, roles with moderation or admin permissions are
+  refused.
 - **Level-up messages ping only the member.** The announcement is sent with
   `allowedMentions` for that user, so a level-up template containing
   `@everyone` or a role mention no longer pings anyone else.
@@ -30,12 +37,16 @@ stops paying for the AFK channel, and AutoMod backups restore what they saved.
 ### Fixed
 
 - **Keycap, flag, skin-tone and ZWJ emoji are accepted** by `/reactionrole add`,
-  `/rules-setup` and the dashboard (`validateEmoji` now matches one RGI emoji).
+  `/rules-setup` and the dashboard (`validateEmoji` now matches one RGI emoji
+  or one lone regional indicator letter, which Discord also reacts with).
 - **`/reactionrole add`, `remove` and `edit` reply in time.** They defer first,
   and change only the reactions that changed: add reacts with the new emoji,
   remove takes the bot's reaction off the removed option (it used to stay on
   the menu), edit leaves reactions alone. Before, every option was re-reacted
-  before replying, so menus with many options hit the 3-second deadline.
+  before replying, so menus with many options hit the 3-second deadline. When
+  the menu message can't be updated, add takes the new option out again (for
+  example a custom emoji the bot can't use) and remove and edit say the
+  message is stale.
 - **`/reactionrole delete` deletes Discord first.** When the menu message
   can't be deleted (missing access, Discord error), the menu is kept and the
   reply says so. Only a message or channel that is already gone lets the row go.
@@ -50,7 +61,7 @@ stops paying for the AFK channel, and AutoMod backups restore what they saved.
   level-up channel when one is set.
 - **Threads and forum posts count as their parent channel** for XP ignores and
   multipliers, and `/xp-setup ignore-channel-*` and `multiplier-*` accept forum
-  channels.
+  and stage channels.
 - **`/onboarding preview` and `resend` reply in time.** The flow now resolves
   once the welcome DM is delivered and runs the steps in the background (each
   step waits up to 24 hours, past the 15-minute interaction token). A preview

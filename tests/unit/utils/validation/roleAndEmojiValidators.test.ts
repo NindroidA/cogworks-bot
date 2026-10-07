@@ -27,6 +27,7 @@ describe('validateEmoji', () => {
     ['a keycap digit', '1️⃣'],
     ['the # keycap', '#️⃣'],
     ['a tag-sequence flag', '🏴󠁧󠁢󠁳󠁣󠁴󠁿'],
+    ['a lone regional indicator (Discord reacts with these)', '🇦'],
     ['a custom emoji', '<:blob:700000000000000001>'],
     ['an animated custom emoji', '<a:blob:700000000000000001>'],
   ])('accepts %s', (_label, emoji) => {
@@ -37,7 +38,7 @@ describe('validateEmoji', () => {
     ['text', 'a'],
     ['two emoji', '👍👍'],
     ['a digit with a variation selector but no keycap', '1️'],
-    ['a lone regional indicator', '🇺'],
+    ['a flag followed by a letter', '🇺🇸🇦'],
     ['a broken custom emoji', '<:blob:123>'],
   ])('rejects %s', (_label, emoji) => {
     expect(validateEmoji(emoji).valid).toBe(false);
@@ -116,6 +117,13 @@ describe('validateAssignableRole', () => {
     ['Manage Roles', PermissionFlagsBits.ManageRoles],
     ['Ban Members', PermissionFlagsBits.BanMembers],
     ['Timeout Members', PermissionFlagsBits.ModerateMembers],
+    ['Manage Messages', PermissionFlagsBits.ManageMessages],
+    ['Mention @everyone', PermissionFlagsBits.MentionEveryone],
+    ['Manage Threads', PermissionFlagsBits.ManageThreads],
+    ['Manage Expressions', PermissionFlagsBits.ManageGuildExpressions],
+    ['Move Members', PermissionFlagsBits.MoveMembers],
+    ['Mute Members', PermissionFlagsBits.MuteMembers],
+    ['Deafen Members', PermissionFlagsBits.DeafenMembers],
   ])('a non-admin feature manager cannot hand out a role with %s', async (_label, bit) => {
     const { interaction } = makeCtx();
     const result = await validateAssignableRole(interaction, role({ permissions: new PermissionsBitField(bit) }));

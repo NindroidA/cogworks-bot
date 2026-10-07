@@ -53,7 +53,8 @@
     "roleTooHigh": "Cannot use this role — it is higher than or equal to the bot's highest role.",
     "cannotUseEveryone": "Cannot use the @everyone role.",
     "cannotUseManagedRole": "Cannot use a managed (bot/integration) role.",
-    "invalidEmoji": "Invalid emoji. Use a standard emoji or a custom Discord emoji (<:name:id>)."
+    "invalidEmoji": "Invalid emoji. Use a standard emoji or a custom Discord emoji (<:name:id>).",
+    "menuUpdateFailed": "Couldn't update the menu message, so the option wasn't added. Check that the bot can still see the menu's channel and can use that emoji (custom emoji must be from a server the bot is in)."
   },
   "remove": {
     "success": "Removed {emoji} option from **{menu}**.",
@@ -88,7 +89,8 @@
     "modeNormal": "Normal (select multiple)",
     "modeUnique": "Unique (one at a time)",
     "modeLock": "Lock (cannot remove)",
-    "noOptions": "No role options configured yet. Use `/reactionrole add` to add options."
+    "noOptions": "No role options configured yet. Use `/reactionrole add` to add options.",
+    "updateFailed": "⚠️ Saved, but the menu message couldn't be updated. Check that the bot can still see the menu's channel and that the message still exists (`/reactionrole validate`)."
   },
   "reaction": {
     "roleAssigned": "Reaction role assigned",

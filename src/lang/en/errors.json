@@ -12,6 +12,6 @@
     "managed": "That role is managed by a bot or integration, so it can't be handed out.",
     "aboveBot": "That role is at or above the bot's highest role, so the bot can't grant it. Move the bot's role higher first.",
     "aboveInvoker": "That role is at or above your highest role, so you can't set it up to be handed out.",
-    "privileged": "That role has moderation or admin permissions (such as Administrator, Manage Server, Manage Roles or Ban Members). Only a server admin can set it up to be handed out."
+    "privileged": "That role has moderation or admin permissions (such as Administrator, Manage Server, Manage Roles, Manage Messages, Mention @everyone, Ban Members or Mute Members). Only a server admin can set it up to be handed out."
   }
 }

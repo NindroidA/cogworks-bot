@@ -64,9 +64,10 @@ export async function reactionRoleEditHandler(interaction: ChatInputCommandInter
     invalidateMenuCache(menu.messageId);
 
     // Update the Discord message (name, description and mode don't change the reactions)
-    await updateMenuMessage(menu, guild, {});
+    const updated = await updateMenuMessage(menu, guild, {});
 
-    await interaction.editReply({ content: tl.edit.success.replace('{name}', menu.name) });
+    const success = tl.edit.success.replace('{name}', menu.name);
+    await interaction.editReply({ content: updated ? success : `${success}\n\n${tl.menu.updateFailed}` });
 
     enhancedLogger.info('Reaction role menu edited', LogCategory.COMMAND_EXECUTION, {
       guildId,
