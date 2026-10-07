@@ -1,5 +1,5 @@
 import type { Client, GuildTextBasedChannel } from 'discord.js';
-import { lang } from '../../../lang';
+import { fmt, lang } from '../../../lang';
 import { RulesConfig } from '../../../typeorm/entities/rules/RulesConfig';
 import { lazyRepo } from '../../database/lazyRepo';
 import { verifiedMessageDelete } from '../../discord/verifiedDelete';
@@ -58,7 +58,7 @@ export function registerRulesHandlers(client: Client, routes: Map<string, RouteH
     const botMember = await guild.members.fetchMe();
     if (role.position >= botMember.roles.highest.position) throw ApiError.badRequest(tl.roleTooHigh);
 
-    const messageText = customMessage || tl.defaultMessage.replace('{emoji}', emoji).replace('{roleName}', role.name);
+    const messageText = customMessage || fmt(tl.defaultMessage, { emoji, roleName: role.name });
     if (messageText.length > MESSAGE_MAX) {
       throw ApiError.badRequest(`Rules message must be at most ${MESSAGE_MAX} characters`);
     }

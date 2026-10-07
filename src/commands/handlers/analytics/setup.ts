@@ -1,6 +1,6 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AnalyticsConfig } from '../../../typeorm/entities/analytics/AnalyticsConfig';
-import { formatLang, lang } from '../../../utils';
+import { fmt, lang } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { guardFeatureAccess } from '../../../utils/interactions/guardHelper';
@@ -84,7 +84,7 @@ async function handleChannelAction(
     config.digestChannelId = channel.id;
     await configRepo.save(config);
     await interaction.reply({
-      content: formatLang(lang.analytics.setup.channelSet, `<#${channel.id}>`),
+      content: fmt(lang.analytics.setup.channelSet, { channel: `<#${channel.id}>` }),
       flags: [MessageFlags.Ephemeral],
     });
   } else {
@@ -154,7 +154,7 @@ async function handleFrequencyAction(
   const dayLabel = formatDayLabel(frequency, config.digestDay);
 
   await interaction.reply({
-    content: formatLang(lang.analytics.setup.frequencySet, frequency, dayLabel),
+    content: fmt(lang.analytics.setup.frequencySet, { frequency, day: dayLabel }),
     flags: [MessageFlags.Ephemeral],
   });
 

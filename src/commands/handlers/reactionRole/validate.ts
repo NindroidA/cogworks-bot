@@ -5,7 +5,7 @@ import {
   Colors,
   clampText,
   enhancedLogger,
-  formatLang,
+  fmt,
   guardFeatureRateLimit,
   LogCategory,
   lang,
@@ -67,7 +67,7 @@ export async function reactionRoleValidateHandler(interaction: ChatInputCommandI
       if (!channel) {
         issues.push({
           menu: menu.name,
-          issue: tl.validate.channelMissing.replace('{name}', menu.name).replace('{channelId}', menu.channelId),
+          issue: fmt(tl.validate.channelMissing, { name: menu.name, channelId: menu.channelId }),
         });
         menuHasIssue = true;
       } else {
@@ -77,7 +77,7 @@ export async function reactionRoleValidateHandler(interaction: ChatInputCommandI
         } catch {
           issues.push({
             menu: menu.name,
-            issue: tl.validate.menuMissing.replace('{name}', menu.name).replace('{channelId}', menu.channelId),
+            issue: fmt(tl.validate.menuMissing, { name: menu.name, channelId: menu.channelId }),
           });
           menuHasIssue = true;
         }
@@ -90,7 +90,7 @@ export async function reactionRoleValidateHandler(interaction: ChatInputCommandI
         if (role === null) {
           issues.push({
             menu: menu.name,
-            issue: tl.validate.roleMissing.replace('{name}', menu.name).replace('{emoji}', option.emoji),
+            issue: fmt(tl.validate.roleMissing, { name: menu.name, emoji: option.emoji }),
           });
           menuHasIssue = true;
         }
@@ -112,7 +112,7 @@ export async function reactionRoleValidateHandler(interaction: ChatInputCommandI
       // The description holds 4096 characters; a field only 1024
       const issueText = issues.map(i => `- ${i.issue}`).join('\n');
       embed.setDescription(
-        clampText(`${formatLang(tl.validate.issuesFound, issues.length.toString())}\n\n${issueText}`, 4096),
+        clampText(`${fmt(tl.validate.issuesFound, { count: issues.length })}\n\n${issueText}`, 4096),
       );
     }
 

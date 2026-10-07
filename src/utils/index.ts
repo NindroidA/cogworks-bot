@@ -2,6 +2,7 @@ export type { Language, Locale } from '../lang';
 /** Re-export lang module with type safety */
 export {
   DEFAULT_LOCALE,
+  fmt,
   getGuildLang,
   getGuildLocale,
   getLangForLocale,
@@ -72,6 +73,8 @@ export function formatBytes(bytes: number): string {
 
 /**
  * Formats a language template string with arguments
+ * @deprecated Use `fmt(template, { name })` with `{name}` placeholders
+ * (`src/lang/fmt.ts`). This goes once #41 has renamed the last `{0}` strings.
  * @param template - Template string with {0}, {1}, etc. placeholders
  * @param args - Arguments to replace placeholders with
  * @returns Formatted string

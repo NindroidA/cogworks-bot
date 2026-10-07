@@ -44,7 +44,7 @@
       "title": "Need Help?",
       "value": "Join our [Support Server](https://discord.gg/cogworks) for:\n- Setup assistance\n- Feature requests\n- Bug reports\n- General questions"
     },
-    "footer": "Serving {0} servers"
+    "footer": "Serving {count} servers"
   },
   "buttons": {
     "cancel": "Cancel",
@@ -74,13 +74,13 @@
     "fieldPlaceholderPlaceholder": "Optional hint text...",
     "selectFieldToDelete": "Select a field to delete:",
     "selectFieldToEdit": "Select a field to edit:",
-    "selectFieldPlaceholder": "Select a field to {0}",
-    "reorderTitle": "Reorder Fields: {0}",
+    "selectFieldPlaceholder": "Select a field to {action}",
+    "reorderTitle": "Reorder Fields: {title}",
     "currentOrder": "Current Order:",
     "reorderHint": "Use the buttons below to move fields up or down.",
     "noFieldsToPreview": "No fields to preview! Add at least one field first.",
     "invalidFieldIndex": "Invalid field index!",
-    "cannotMoveField": "Cannot move field {0}!",
+    "cannotMoveField": "Cannot move field {direction}!",
     "selectionError": "An error occurred processing your selection"
   },
   "ping": {

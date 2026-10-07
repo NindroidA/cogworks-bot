@@ -2,6 +2,7 @@ import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from '
 import { ReactionRoleMenu, ReactionRoleOption } from '../../../typeorm/entities/reactionRole';
 import {
   enhancedLogger,
+  fmt,
   guardFeatureRateLimit,
   invalidateMenuCache,
   LogCategory,
@@ -117,10 +118,7 @@ export async function reactionRoleAddHandler(interaction: ChatInputCommandIntera
     }
 
     await interaction.editReply({
-      content: tl.add.success
-        .replace('{emoji}', emoji)
-        .replace('{role}', `<@&${role.id}>`)
-        .replace('{menu}', menu.name),
+      content: fmt(tl.add.success, { emoji, role: `<@&${role.id}>`, menu: menu.name }),
     });
 
     enhancedLogger.info('Reaction role option added', LogCategory.COMMAND_EXECUTION, {

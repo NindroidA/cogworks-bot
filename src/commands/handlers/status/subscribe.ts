@@ -1,7 +1,7 @@
 import { type CacheType, ChannelType, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BotStatus } from '../../../typeorm/entities/status';
-import { enhancedLogger, guardOwner, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, fmt, guardOwner, LogCategory, lang } from '../../../utils';
 import type { StatusManager } from '../../../utils/status/statusManager';
 
 const tl = lang.status;
@@ -38,7 +38,7 @@ export async function statusSubscribeHandler(
     process.env.STATUS_CHANNEL_ID = channel.id;
 
     await interaction.reply({
-      content: tl.subscribe.success.replace('{channel}', `<#${channel.id}>`),
+      content: fmt(tl.subscribe.success, { channel: `<#${channel.id}>` }),
       flags: [MessageFlags.Ephemeral],
     });
 
@@ -121,7 +121,7 @@ export async function statusMonitorSetHandler(
     await statusRepo.save(status);
 
     await interaction.reply({
-      content: tl.monitor.set.replace('{url}', url),
+      content: fmt(tl.monitor.set, { url }),
       flags: [MessageFlags.Ephemeral],
     });
 

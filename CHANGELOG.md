@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.44] - 2026-10-06
+
+Language strings start moving from numbered `{0}` placeholders to named
+`{name}` ones (NindroidA/cogworks-bot#41, step A6a). A new `fmt()` helper fills
+them, and 13 feature areas now use it. Messages read the same as before.
+
+### Added
+
+- **`fmt(template, params)`** in `src/lang/fmt.ts`, exported from `lang` and
+  `utils`. It fills each `{name}` that `params` has a value for and leaves any
+  other `{x}` as written. Values go in as written: a `$` in one is never read as
+  a replacement pattern, and a value isn't filled a second time. This is the
+  `/bot-health` renderer's `fillTemplate` moved to `src/lang`, and the old copy
+  is gone.
+- **The key-check test covers `fmt` calls.** The keys of the params object
+  must match the string's `{name}` placeholders exactly, and a string passed to
+  `fmt` can't contain a numbered `{0}`. For `fmt(a ? x : y, …)` both strings
+  are checked.
+- **`tests/unit/lang/fmt.test.ts`** covers what `fmt` does. It also fills 10
+  renamed strings both ways (main's string with the old call, the new string
+  with `fmt`) and requires the same text.
+
+### Changed
+
+- **36 strings renamed from `{0}` to `{name}`** in `analytics`, `dataExport`,
+  `errors`, `general`, `import`, `memory`, `onboarding`, `reactionRole` and
+  `starboard`. Only the placeholder names changed; the text around them didn't.
+  Their 37 `formatLang` calls and 10 `.replace('{0}', …)` chains now call
+  `fmt`.
+- **36 `.replace('{x}', …)` chains on strings that already had names** now
+  call `fmt` too (`botSetup`, `dev`, `reactionRole`, `rules`, `status`), and so
+  do the 11 `fillTemplate` calls in `/bot-health`.
+- `formatLang` is marked deprecated. The ticket, bait-channel, automod, XP,
+  application and event strings still use it until the next A6 steps convert
+  them.
+- CLAUDE.md and `src/lang/TRANSLATING.md` describe the `{name}` + `fmt`
+  convention.
+
+### Fixed
+
+- A `.replace()` chain read `$&`, `` $` ``, `$'` and `$$` in a value as
+  patterns, so a role, menu or user name containing them came out garbled. A
+  value containing a later placeholder, such as a menu named `{channel}`, also
+  got filled again. `fmt` inserts each value once, exactly as given.
+
 ## [3.16.43] - 2026-10-06
 
 The English language files lose every key nothing reads

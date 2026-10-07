@@ -3,6 +3,7 @@ import { ReactionRoleMenu, type ReactionRoleMode } from '../../../typeorm/entiti
 import {
   buildMenuEmbed,
   enhancedLogger,
+  fmt,
   guardFeatureRateLimit,
   LogCategory,
   lang,
@@ -60,7 +61,7 @@ export async function reactionRoleCreateHandler(interaction: ChatInputCommandInt
     await menuRepo.save(menu);
 
     await interaction.reply({
-      content: tl.create.success.replace('{name}', name).replace('{channel}', `<#${channel.id}>`),
+      content: fmt(tl.create.success, { name, channel: `<#${channel.id}>` }),
       flags: [MessageFlags.Ephemeral],
     });
 

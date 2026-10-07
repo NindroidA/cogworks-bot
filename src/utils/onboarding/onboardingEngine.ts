@@ -28,7 +28,7 @@ import { lang } from '../../lang';
 import { AppDataSource } from '../../typeorm';
 import { OnboardingCompletion } from '../../typeorm/entities/onboarding/OnboardingCompletion';
 import { OnboardingConfig } from '../../typeorm/entities/onboarding/OnboardingConfig';
-import { formatLang } from '../../utils';
+import { fmt } from '../../utils';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import type { OnboardingStepDef } from './types';
 
@@ -382,7 +382,10 @@ async function waitForStepInteraction(message: Message, member: GuildMember, pre
           if (interaction.isStringSelectMenu() && customId.startsWith('onboarding_roleselect_')) {
             selectedRoles = interaction.values;
             await interaction.reply({
-              content: formatLang(tlEngine.rolesSelectedHint, selectedRoles.length, tlEngine.confirmSelectionL),
+              content: fmt(tlEngine.rolesSelectedHint, {
+                count: selectedRoles.length,
+                button: tlEngine.confirmSelectionL,
+              }),
               flags: [MessageFlags.Ephemeral],
             });
             return;

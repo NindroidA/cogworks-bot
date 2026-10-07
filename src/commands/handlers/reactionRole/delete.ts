@@ -5,6 +5,7 @@ import {
   buildErrorMessage,
   type DeleteResult,
   enhancedLogger,
+  fmt,
   guardFeatureAccess,
   handleInteractionError,
   invalidateMenuCache,
@@ -37,7 +38,7 @@ export async function reactionRoleDeleteHandler(interaction: ChatInputCommandInt
     }
 
     const result = await awaitConfirmation(interaction, {
-      message: tl.delete.confirmMessage.replace('{name}', menu.name),
+      message: fmt(tl.delete.confirmMessage, { name: menu.name }),
       confirmStyle: ButtonStyle.Danger,
       idPrefix: 'rr-delete',
     });
@@ -60,7 +61,7 @@ export async function reactionRoleDeleteHandler(interaction: ChatInputCommandInt
     }
     if (!deleted.success) {
       await result.interaction.editReply({
-        content: buildErrorMessage(tl.delete.messageNotDeleted.replace('{name}', menu.name)),
+        content: buildErrorMessage(fmt(tl.delete.messageNotDeleted, { name: menu.name })),
       });
       return;
     }
@@ -69,7 +70,7 @@ export async function reactionRoleDeleteHandler(interaction: ChatInputCommandInt
     invalidateMenuCache(menu.messageId);
     await menuRepo.remove(menu);
 
-    await result.interaction.editReply({ content: tl.delete.success.replace('{name}', menu.name) });
+    await result.interaction.editReply({ content: fmt(tl.delete.success, { name: menu.name }) });
 
     enhancedLogger.info('Reaction role menu deleted', LogCategory.COMMAND_EXECUTION, {
       guildId,
