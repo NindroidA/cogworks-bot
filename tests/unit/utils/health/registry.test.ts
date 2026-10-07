@@ -2,8 +2,10 @@
  * Health check registry and lang coverage: every finding code a registered
  * check can emit (plus its `<id>.error`) has an English string, the strings
  * file has nothing a check can't emit, and `/bot-health` shows only steps an
- * admin can take: a slash command a string names exists as written, and no
- * string promises a repair command that doesn't exist yet.
+ * admin can take: a slash command a string names exists as written, and only
+ * the repair's own strings (`command.repair`) mention `/bot-health repair`: a
+ * finding is marked fixable by the renderer, from the repair plan, never by its
+ * own text.
  */
 import { describe, expect, test } from 'bun:test';
 import { ApplicationCommandOptionType } from 'discord.js';
@@ -146,13 +148,17 @@ describe('lang.health.findings', () => {
     expect(wrong).toEqual([]);
   });
 
-  test('no string promises a repair command or a fix that nothing performs yet', () => {
+  test('outside the repair strings, nothing promises a repair or a fix that nothing performs', () => {
     const promise =
       /bot-health repair|automatic|coming soon|\bcan be (?:removed|marked|posted|added|converted|cleared)\b/i;
-    // `command.repair` holds the repair preview's own strings, which only the repair renders.
-    const command = Object.entries(flatten(lang.health.command)).filter(([key]) => !key.startsWith('repair.'));
+    const command = Object.entries(flatten(lang.health.command)).filter(
+      ([key]) => !key.startsWith('repair.') && !key.startsWith('builder.repair.'),
+    );
     const all = { ...strings, ...Object.fromEntries(command) };
     expect(Object.entries(all).filter(([, text]) => promise.test(text))).toEqual([]);
+    // The repair's strings are still checked: they exist, and the fix marks name the real command.
+    expect(flatten(lang.health.command.repair).footer).toStartWith('/bot-health repair:');
+    expect(commandPaths().has('bot-health repair')).toBe(true);
   });
 
   test('every finding ends with a full sentence, and every <check>.error says to try again', () => {

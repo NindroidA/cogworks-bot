@@ -105,10 +105,83 @@
               "min_length": 17
             }
           ]
+        },
+        {
+          "type": 1,
+          "name": "repair",
+          "description": "Fix what the health check finds, after showing you each change",
+          "options": [
+            {
+              "type": 3,
+              "choices": [
+                {
+                  "name": "All systems",
+                  "value": "all"
+                },
+                {
+                  "name": "Core (settings, staff roles, permissions, commands)",
+                  "value": "core"
+                },
+                {
+                  "name": "Tickets",
+                  "value": "ticket"
+                },
+                {
+                  "name": "Applications",
+                  "value": "application"
+                },
+                {
+                  "name": "Announcements",
+                  "value": "announcement"
+                },
+                {
+                  "name": "Memory",
+                  "value": "memory"
+                },
+                {
+                  "name": "Rules",
+                  "value": "rules"
+                },
+                {
+                  "name": "Reaction roles",
+                  "value": "reactionRole"
+                },
+                {
+                  "name": "XP",
+                  "value": "xp"
+                },
+                {
+                  "name": "Starboard",
+                  "value": "starboard"
+                },
+                {
+                  "name": "Onboarding",
+                  "value": "onboarding"
+                }
+              ],
+              "name": "system",
+              "description": "Only repair one system (default: all)",
+              "required": false
+            },
+            {
+              "name": "deep",
+              "description": "Also look up messages and threads through Discord (slower; shares the deep check's 10-minute limit)",
+              "required": false,
+              "type": 5
+            },
+            {
+              "type": 3,
+              "name": "guild-id",
+              "description": "Bot owner only: repair another server by its ID",
+              "required": false,
+              "max_length": 20,
+              "min_length": 17
+            }
+          ]
         }
       ],
       "name": "bot-health",
-      "description": "Check this server's Cogworks setup for problems",
+      "description": "Check this server's Cogworks setup for problems and fix them",
       "default_member_permissions": "8",
       "dm_permission": false,
       "type": 1

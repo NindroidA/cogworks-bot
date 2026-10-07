@@ -534,6 +534,51 @@ describe('planRepairs: merging', () => {
     expect(plan.unsupported.map(u => u.key)).toEqual(findings.map(findingKey));
     expect(plan).toMatchObject({ fixes: [], steps: [] });
   });
+
+  test('large plans: each entity is indexed once, and every finding still plans against its own row', () => {
+    const n = 3_000;
+    const channelOf = (i: number) => `3${String(i).padStart(17, '0')}`;
+    const tickets = Array.from({ length: n }, (_, i) => ({ ...openTicket, id: i + 1, channelId: channelOf(i) }));
+    const findings = [
+      ...tickets.map(t => finding('ticket.open.channel_missing', 'Ticket', t.id, t.channelId, 'confirm')),
+      finding('ticket.open.channel_missing', 'Ticket', n + 1, channelOf(n), 'confirm'),
+      // Two memory channels: each delete counts its own saved memories.
+      finding('memory.forum.missing', 'MemoryConfig', 3, GONE, 'confirm'),
+      finding('memory.forum.missing', 'MemoryConfig', 4, GONE_2, 'confirm'),
+    ];
+    const items = [item(10, THREAD), item(11, THREAD), { ...item(12, THREAD), memoryConfigId: 4 }];
+    const reads: Record<string, number> = {};
+    const counted = (entity: string, value: unknown[]) => ({
+      enumerable: true,
+      get: () => {
+        reads[entity] = (reads[entity] ?? 0) + 1;
+        return value;
+      },
+    });
+    const rows = Object.defineProperties({} as LoadedRows, {
+      Ticket: counted('Ticket', tickets),
+      MemoryConfig: counted('MemoryConfig', [
+        memoryConfig({ forumChannelId: GONE }),
+        memoryConfig({ id: 4, forumChannelId: GONE_2 }),
+      ]),
+      MemoryItem: counted('MemoryItem', items),
+      MemoryTag: counted('MemoryTag', []),
+    });
+    const plan = planRepairs(reportOf(findings), makeCheckContext({ rows }));
+
+    // A lookup per finding read the rows once per finding (quadratic); the index reads each entity once.
+    expect(reads).toEqual({ Ticket: 1, MemoryConfig: 1, MemoryItem: 1, MemoryTag: 1 });
+    expect(plan.fixes.filter(f => f.entity === 'Ticket').map(f => f.rowId)).toEqual(tickets.map(t => t.id));
+    expect(plan.steps.filter(s => s.entity === 'Ticket').map(s => s.where.id)).toEqual(tickets.map(t => t.id));
+    expect(plan.steps.find(s => s.where.id === 1234)?.proofs).toEqual([channel(channelOf(1233))]);
+    expect(plan.fixes.filter(f => f.entity === 'MemoryConfig').map(f => f.cascade)).toEqual([
+      { MemoryItem: 2, MemoryTag: 0 },
+      { MemoryItem: 1, MemoryTag: 0 },
+    ]);
+    expect(plan.unsupported).toEqual([
+      { key: findingKey(findings[n]), code: 'ticket.open.channel_missing', reason: 'row_gone' },
+    ]);
+  });
 });
 
 describe('planRepairs: selection and safety', () => {

@@ -18,11 +18,19 @@ const G = '100000000000000001';
 describe('/bot-health builder', () => {
   const json = botHealth as any;
 
-  test('admin by default, guild only, one `check` subcommand', () => {
+  test('admin by default, guild only, `check` and `repair` subcommands', () => {
     expect(json.name).toBe('bot-health');
     expect(json.default_member_permissions).toBe(String(PermissionsBitField.Flags.Administrator));
     expect(json.dm_permission).toBe(false);
-    expect(json.options.map((o: { name: string }) => o.name)).toEqual(['check']);
+    expect(json.options.map((o: { name: string }) => o.name)).toEqual(['check', 'repair']);
+  });
+
+  test('repair takes the same options as check, with its own descriptions', () => {
+    const [check, repair] = json.options;
+    const shape = (sub: any) => sub.options.map(({ description: _d, ...rest }: { description: string }) => rest);
+    expect(shape(repair)).toEqual(shape(check));
+    expect(repair.description).not.toBe(check.description);
+    for (const option of repair.options) expect(option.description.length).toBeLessThanOrEqual(100);
   });
 
   test('check options: system (all, core, the /bot-setup systems with checks, XP, starboard, onboarding), deep, owner-only guild-id', () => {
@@ -73,7 +81,7 @@ describe('dispatch without a BotConfig', () => {
     (AppDataSource as unknown as { getRepository: unknown }).getRepository = originalGetRepository;
   });
 
-  function interaction(commandName: string) {
+  function interaction(commandName: string, subcommand = 'check') {
     const replies: { content?: string }[] = [];
     const guild = makeFakeGuild({ id: G });
     return {
@@ -88,7 +96,7 @@ describe('dispatch without a BotConfig', () => {
         deferred: false,
         replied: false,
         isRepliable: () => true,
-        options: { getSubcommand: () => 'check', getString: () => null, getBoolean: () => null },
+        options: { getSubcommand: () => subcommand, getString: () => null, getBoolean: () => null },
         async reply(payload: { content?: string }) {
           replies.push(payload);
         },
@@ -96,8 +104,11 @@ describe('dispatch without a BotConfig', () => {
     };
   }
 
-  test('/bot-health reaches its own handler instead of the "not set up" stop', async () => {
-    const { value, replies } = interaction('bot-health');
+  test.each([
+    'check',
+    'repair',
+  ])('/bot-health %s reaches its own handler instead of the "not set up" stop', async sub => {
+    const { value, replies } = interaction('bot-health', sub);
     botConfigLookups.length = 0;
     await handleSlashCommand({} as never, value as never);
     expect(botConfigLookups).toEqual([]);
