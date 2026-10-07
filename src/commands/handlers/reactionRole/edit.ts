@@ -40,6 +40,9 @@ export async function reactionRoleEditHandler(interaction: ChatInputCommandInter
     return;
   }
 
+  // Updating the menu message can outlast the 3s reply deadline
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
   try {
     const menu = await menuRepo.findOne({
       where: { id: menuId, guildId },
@@ -60,13 +63,11 @@ export async function reactionRoleEditHandler(interaction: ChatInputCommandInter
     // Invalidate cache
     invalidateMenuCache(menu.messageId);
 
-    // Update the Discord message
-    await updateMenuMessage(menu, guild);
+    // Update the Discord message (name, description and mode don't change the reactions)
+    const updated = await updateMenuMessage(menu, guild, {});
 
-    await interaction.reply({
-      content: tl.edit.success.replace('{name}', menu.name),
-      flags: [MessageFlags.Ephemeral],
-    });
+    const success = tl.edit.success.replace('{name}', menu.name);
+    await interaction.editReply({ content: updated ? success : `${success}\n\n${tl.menu.updateFailed}` });
 
     enhancedLogger.info('Reaction role menu edited', LogCategory.COMMAND_EXECUTION, {
       guildId,

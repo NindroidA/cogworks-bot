@@ -17,6 +17,7 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { ComponentType } from 'discord.js';
 
 type Row = Record<string, any>;
 type Table = 'MemoryConfig' | 'MemoryTag' | 'MemoryItem';
@@ -352,5 +353,67 @@ describe('re-running the /bot-setup memory flow (audit 117)', () => {
     expect(db.MemoryTag.find(r => r.name === 'Docs')?.discordTagId).toMatch(/^f-new-new-/);
     expect(db.MemoryTag).toHaveLength(10);
     expect(newForum.threadsCreated).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// audit 135 — /memory-setup setup picks its forum after the dispatcher's refresh
+// ---------------------------------------------------------------------------
+
+describe('/memory-setup setup from the channel picker (audit 135)', () => {
+  test('requests a command refresh once the config is saved', async () => {
+    const guildId = 'g-135';
+    const forum = makeForum('f-135', []);
+    let onCollect: ((i: unknown) => Promise<void>) | undefined;
+    const collector = {
+      on: (event: string, fn: (i: unknown) => Promise<void>) => {
+        if (event === 'collect') onCollect = fn;
+      },
+      stop: () => {},
+    };
+    const user = { id: `user-${++userSeq}` };
+    const slash: any = {
+      guildId,
+      guild: { id: guildId },
+      user,
+      member: { permissions: { has: () => true } },
+      replied: false,
+      deferred: false,
+      isRepliable: () => true,
+      options: { getSubcommand: () => 'setup', getChannel: () => null, getString: () => null },
+      reply: async () => {
+        slash.replied = true;
+        return { createMessageComponentCollector: () => collector };
+      },
+      editReply: async () => {},
+      followUp: async () => {},
+    };
+    await memorySetupHandler({} as any, slash);
+    expect(onCollect).toBeDefined();
+
+    // The refresh is a debounced setTimeout; record the timers the pick schedules
+    const realSetTimeout = globalThis.setTimeout;
+    const delays: number[] = [];
+    globalThis.setTimeout = ((fn: () => void, ms?: number) => {
+      delays.push(ms ?? 0);
+      return realSetTimeout(fn, ms);
+    }) as typeof setTimeout;
+    try {
+      await onCollect!({
+        user,
+        customId: 'memory_setup_channel',
+        componentType: ComponentType.ChannelSelect,
+        channels: { first: () => forum },
+        update: async () => {},
+        editReply: async () => {},
+      });
+    } finally {
+      globalThis.setTimeout = realSetTimeout;
+      const { clearGuildCommandSignature } = await import('../../../../src/utils/setup/commandGating');
+      clearGuildCommandSignature(guildId);
+    }
+
+    expect(db.MemoryConfig.filter(r => r.guildId === guildId)).toHaveLength(1);
+    expect(delays).toContain(3_000); // commandGating's REFRESH_DEBOUNCE_MS
   });
 });

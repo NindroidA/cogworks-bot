@@ -3,6 +3,7 @@ import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import {
   awaitConfirmation,
   buildErrorMessage,
+  type DeleteResult,
   enhancedLogger,
   guardFeatureAccess,
   handleInteractionError,
@@ -10,7 +11,7 @@ import {
   LogCategory,
   lang,
   replyEphemeralError,
-  verifiedMessageDelete,
+  verifiedMessageDeleteById,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
@@ -42,35 +43,33 @@ export async function reactionRoleDeleteHandler(interaction: ChatInputCommandInt
     });
     if (!result) return;
 
-    // Delete the Discord message first (verified)
-    let msgDeleteFailed = false;
+    // Delete the Discord message first (verified). Only "already gone" lets the row go:
+    // on any other failure the message stays up, so the row that backs it stays too.
+    let deleted: DeleteResult = { success: true, alreadyGone: true };
     try {
       const channel = await guild.channels.fetch(menu.channelId);
       if (channel?.isTextBased()) {
-        const msg = await (channel as TextChannel).messages.fetch(menu.messageId);
-        const delResult = await verifiedMessageDelete(msg, {
+        deleted = await verifiedMessageDeleteById(channel as TextChannel, menu.messageId, {
           guildId,
           label: 'reaction role menu message',
         });
-        if (!delResult.success) {
-          msgDeleteFailed = true;
-        }
       }
-    } catch {
-      // Channel or message not found — already gone, proceed with DB cleanup
+    } catch (error) {
+      // 10003 Unknown Channel: the menu went with its channel
+      if ((error as { code?: number }).code !== 10003) deleted = { success: false, alreadyGone: false };
+    }
+    if (!deleted.success) {
+      await result.interaction.editReply({
+        content: buildErrorMessage(tl.delete.messageNotDeleted.replace('{name}', menu.name)),
+      });
+      return;
     }
 
     // Invalidate cache and delete from DB (CASCADE will remove options)
     invalidateMenuCache(menu.messageId);
     await menuRepo.remove(menu);
 
-    await result.interaction.editReply({
-      content: msgDeleteFailed
-        ? buildErrorMessage(
-            `${tl.delete.success.replace('{name}', menu.name)}\n\n⚠️ The Discord message could not be deleted — you may need to remove it manually.`,
-          )
-        : tl.delete.success.replace('{name}', menu.name),
-    });
+    await result.interaction.editReply({ content: tl.delete.success.replace('{name}', menu.name) });
 
     enhancedLogger.info('Reaction role menu deleted', LogCategory.COMMAND_EXECUTION, {
       guildId,

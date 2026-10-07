@@ -157,6 +157,22 @@ function withTimeout<T>(promise: Promise<T>): Promise<T> {
   ]);
 }
 
+/** Clear every config reference to one deleted message. messageDeleteBulk calls this directly. */
+export async function cleanMessageRefs(guildId: string, messageId: string): Promise<void> {
+  const results = await Promise.allSettled(MESSAGE_REF_CLEANERS.map(c => withTimeout(c.clean(guildId, messageId))));
+
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') {
+      enhancedLogger.error(
+        `Failed to clean up ${MESSAGE_REF_CLEANERS[i].name} for deleted message`,
+        r.reason as Error,
+        LogCategory.DATABASE,
+        { guildId, messageId },
+      );
+    }
+  });
+}
+
 export default {
   name: 'messageDelete',
   async execute(message: Message | PartialMessage, client: ExtendedClient) {
@@ -175,17 +191,6 @@ export default {
       await baitChannelManager.handleMessageDelete(messageId, guildId);
     }
 
-    const results = await Promise.allSettled(MESSAGE_REF_CLEANERS.map(c => withTimeout(c.clean(guildId, messageId))));
-
-    results.forEach((r, i) => {
-      if (r.status === 'rejected') {
-        enhancedLogger.error(
-          `Failed to clean up ${MESSAGE_REF_CLEANERS[i].name} for deleted message`,
-          r.reason as Error,
-          LogCategory.DATABASE,
-          { guildId, messageId },
-        );
-      }
-    });
+    await cleanMessageRefs(guildId, messageId);
   },
 };

@@ -1,7 +1,13 @@
 import { type CacheType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 import { lang } from '../../../lang';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
-import { createToggleHandler, enhancedLogger, formatLang } from '../../../utils';
+import {
+  createToggleHandler,
+  enhancedLogger,
+  formatLang,
+  replyEphemeralError,
+  validateAssignableRole,
+} from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 // Locale-aware (Proxy fallback) — was a direct en JSON import that bypassed i18n.
@@ -68,6 +74,18 @@ export async function welcomeMessageHandler(_client: Client, interaction: ChatIn
 export async function completionRoleHandler(_client: Client, interaction: ChatInputCommandInteraction<CacheType>) {
   const guildId = interaction.guildId!;
   const role = interaction.options.getRole('role', false);
+
+  // The bot grants the completion role, so check what the invoker may hand out (not just the bot)
+  if (role && interaction.guild) {
+    const roleCheck = await validateAssignableRole(
+      { guild: interaction.guild, user: interaction.user, memberPermissions: interaction.memberPermissions },
+      role,
+    );
+    if (!roleCheck.valid) {
+      await replyEphemeralError(interaction, roleCheck.error!);
+      return;
+    }
+  }
 
   let config = await configRepo.findOneBy({ guildId });
   if (!config) {

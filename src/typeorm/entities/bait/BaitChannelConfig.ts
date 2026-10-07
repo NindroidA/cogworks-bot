@@ -34,10 +34,11 @@ export class BaitChannelConfig {
   @Column({ type: 'varchar', nullable: true })
   logChannelMessageId: string | null;
 
-  @Column({ default: 'Posted in bait channel - Potential bot/scammer' })
+  @Column({ length: 512, default: 'Posted in bait channel - Potential bot/scammer' })
   banReason: string;
 
   @Column({
+    length: 1024,
     default: '⚠️ You have posted in a restricted channel. This channel is monitored for unauthorized access.',
   })
   warningMessage: string;

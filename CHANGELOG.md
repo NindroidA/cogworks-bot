@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.16.32] - 2026-10-06
+## [3.16.38] - 2026-10-06
 
 Bait channel fixes (NindroidA/cogworks-bot#41): a mod's manual ban, kick or
 timeout no longer shows up as a bait trigger or cancels unrelated bait actions,
@@ -77,6 +77,308 @@ reasons or whitelists no longer break the warning, the log embed or
   Discord IDs (or null to clear). The limits match the dashboard's own
   validation for every field it sends, so no dashboard save is refused.
   Nothing is saved when a value is refused.
+
+## [3.16.36] - 2026-10-06
+
+Bait-channel retries: a bait action that hit a Discord error was never
+actually retried, a second bait post on the same day was ignored, and a
+restart deleted queued retries and dead-lettered actions
+(NindroidA/cogworks-bot#41).
+
+### Fixed
+
+- **Queued bait actions are really retried.** The duplicate guard was claimed
+  before the Discord call and kept when the call failed, so every retry was
+  skipped as a "duplicate" and logged as "Bait retry succeeded" without
+  running. A claim whose action did not land (5xx, 429, network, or a
+  terminal error) is now released, so the retry queue and the leave-drain
+  run it for real. A retry runs one at a time with the member's grace periods
+  and other bait actions, from a fresh read of its pending row, so a copy read
+  earlier can't undo what happened meanwhile (it could delete the unban a
+  failed softban left, or run a second unban). A member busy with another
+  bait action waits for the next pass instead of holding up other retries.
+- **A softban whose unban step fails is finished, not left as a ban.** Only
+  the unban is retried (a new `unban` retry step), with more tries than other
+  retries (at about 5s, 35s, 5.5 min and 10.5 min). Before, the retry ran a
+  second ban-and-purge, and the leave the ban caused dropped the retry as
+  "already banned", leaving the user banned. The unban is never a dry run (it
+  undoes our own ban, even if test mode was turned on since) and is skipped
+  if the user has been banned since their bait post (by a mod or for a later
+  post). It lifts only a ban whose reason shows our softban placed it, so it
+  can never lift a mod's or another bot's ban, and a ban a mod already lifted
+  counts as done. If it gives up, the bait log channel (or, without one, the
+  server owner by DM) is told that the user is still banned. A softban retry
+  cut off between its ban and unban (a restart) is finished as an unban
+  instead of being dropped, also when test mode was turned on or the bait
+  channel turned off in the meantime.
+- **The bait log row of a retried action is settled.** It used to stay
+  `queued` forever; a retry now sets it to the action taken (`softban` for a
+  finished unban), `superseded` when something else already handled it, or
+  `failed` when the action is dead-lettered. The retry is queued only after
+  that row is written, so a fast first retry can't miss it.
+- **A second bait post on the same day is acted on.** The duplicate guard was
+  per user, action and UTC day, so a raid account that was softbanned and
+  rejoined, a user whose timeout had run out, a user a mod had timed out
+  earlier that day, or anyone caught by a test-mode dry run that day could post
+  again without consequence. The guard is now per bait post: an action taken
+  on the user after a post was made (ours for another post, or a mod's) still
+  covers that post, so a burst of posts gets one action, but a post made
+  afterwards is a new offense. An action counts from when it landed, so a post
+  made while a rate-limited ban was still going through is covered too. A
+  test-mode dry run never blocks a real action.
+- **A bait timeout never shortens a longer timeout already in place** (for
+  example one a mod set).
+- **Retries follow the current settings, including when a member leaves.**
+  The leave now hands its retries to the retry queue instead of running its
+  own copy of the logic. Every retry is a dry run in test mode, stands down
+  if the bait channel was turned off (an unban still runs), and uses the
+  configured message-delete window (the leave used a fixed 24 hours). A timeout
+  or kick for a member who left becomes a softban only when the ban list says
+  they aren't banned; when it can't be read, the retry is tried again later
+  instead of dropped. A retry queued while the leave itself is being settled
+  waits for its backoff instead of running again at once.
+- **A restart no longer deletes queued retries or dead-lettered actions.**
+  Startup deleted every pending action past its time, including retries that
+  were due and dead-lettered actions awaiting review on the dashboard. It now
+  only cleans up and restores grace periods; a retry that came due during the
+  downtime runs on the retry queue's first pass.
+
+## [3.16.35] - 2026-10-06
+
+Database alignment (NindroidA/cogworks-bot#41). Prod has run on migrations
+only since v2.12.10, so several column widths, defaults and indexes the
+entities declare (and dev's `synchronize` already has) never reached it. One
+new migration, `1774000014000-AlignSchemaWithEntities`, closes those gaps. It
+runs at boot, reads `information_schema` before each change, skips anything
+already in place, and never deletes rows. A change blocked by a table lock
+gives up after 60 seconds, so the start fails (and the container retries)
+instead of hanging. Still open: an empty database can't be built from
+migrations alone, because the pre-v3 tables only ever came from the old
+`synchronize` baseline, so restoring prod needs a full dump.
+
+### Fixed
+
+- **Images with long filenames never stayed on the starboard.** Their signed
+  Discord CDN URL is over 255 characters, so saving the entry failed after the
+  post, and the post was taken back down on every star.
+  `starboard_entries.attachmentUrl` is now `varchar(2048)`.
+- **Bait channel ban reason and warning message** were capped at 255
+  characters in the database while the dashboard accepts 500 and 1000.
+  `banReason` is now `varchar(512)` and `warningMessage` `varchar(1024)`;
+  charset, collation and defaults are kept.
+- **Voice and stage event templates left marked recurring** by a failed
+  `/event recurring` are reset to not recurring, so a one-off event from that
+  template can't start a repeating chain. Only templates last saved before
+  the v3.16.32 deploy are touched: until then a voice or stage template had no
+  channel and could never create an event.
+
+### Changed
+
+- **Entity-only defaults now exist in prod**: `messageId` / `channelId` on the
+  ticket, application and both archived panel config tables,
+  `announcement_config.defaultChannelId` (`''`) and
+  `bot_configs.enableGlobalStaffRole` (`0`). An insert that leaves them out
+  now behaves the same in prod as in dev.
+- **Indexes the entities declare**: `tickets (guildId, channelId)` and
+  `announcement_log (guildId)`.
+- **`announcement_config.guildId` is unique** in prod too. If any guild
+  already has two rows, the migration logs a warning and skips this step
+  instead of failing the boot; nothing is deleted.
+
+## [3.16.34] - 2026-10-06
+
+`/bot-setup` fixes: channels it creates are visible to the right people,
+re-running a step keeps your existing setup, and failures are reported. Plus
+cleanup gaps in the delete events and the server welcome message
+(NindroidA/cogworks-bot#41).
+
+### Fixed
+
+- **Auto-created channels hidden from members**: "Create Channels For Me" put
+  the ticket and application panels and the bait honeypot inside a staff-only
+  category, so they took on its "hide from @everyone" rule. Members couldn't
+  see the panels and spam accounts never saw the honeypot. Those channels now
+  open themselves to members: the panel channels are read-only (no messages,
+  reactions or threads), and the honeypot lets them post. The staff-only
+  categories, the bait log and the archive forums now let the global staff role
+  and the bot in, and the archive forums are staff-only.
+- **Half-finished auto-create**: when the bot could make some channels but not
+  others, it kept the partial set and said nothing, so each retry added
+  another set. It now deletes what it made (also when a later step fails) and
+  shows an error, naming any channel it couldn't delete. Announcement
+  channels fall back to a text channel on servers without Community, which was
+  the most common cause. If the ticket or application panel can't be posted,
+  the step says so.
+- **Re-running Bait Channel cut the bait list to one channel** and posted a
+  second warning banner. It now works like `/baitchannel setup`: the channel
+  you pick replaces the main one, the extra bait channels stay, and the banner
+  is kept (or moved if the channel changed).
+- **Re-running Ticket or Application setup left the old panel** and archive
+  welcome thread next to the new ones. The old ones are now deleted once the
+  new ones are posted and saved. If the new panel can't be posted, the old one
+  stays up and in use; if the old one can't be deleted, the step says so.
+- **Unchecking "Enable Staff Role"** did nothing. It now turns the global staff
+  role off. Picking no role with the box checked tells you what to do.
+- **Rules step**: it saves the channel and role but the rules message comes from
+  `/rules-setup`, and nothing said so. The step now tells you to run
+  `/rules-setup setup` next.
+- **`/memory` stayed hidden after `/memory-setup setup`** when the forum was
+  picked from the menu. The command list now refreshes once the forum is saved.
+- **Deleted channels**: a ticket or application whose channel was deleted by
+  hand is now closed (with a "channel-deleted" history note) instead of
+  counting as open forever. Accepted and rejected applications keep their
+  decision. Deleting a memory forum also removes its saved items and tags.
+- **Purged messages**: bulk deletes (purge commands, mod bots) never ran the
+  cleanup that single deletes do, so a purged panel or menu message stayed
+  referenced. They now do. A purge doesn't cancel pending bait bans.
+- **Server welcome**: the welcome went to the system channel without checking
+  the bot could post there, with no fallback, and a failed post also skipped
+  the join notice to the dashboard. The bot now picks a channel it can post
+  in, tries the next one if a post fails, and always sends the join notice.
+
+## [3.16.33] - 2026-10-06
+
+Community feature fixes (NindroidA/cogworks-bot#41): reaction-role, XP and
+onboarding configs can no longer be used to hand out roles the invoker
+couldn't assign themselves, keycap, flag and skin-tone emoji work in
+reaction-role menus, `/reactionrole` and `/onboarding` reply in time, voice XP
+stops paying for the AFK channel, and AutoMod backups restore what they saved.
+
+### Security
+
+- **Role-granting configs check the invoker.** `/reactionrole add`,
+  `/xp-setup role-reward-add` and `/onboarding completion-role` refuse
+  @everyone, managed roles, roles at or above the bot, and roles at or above
+  the invoker's own highest role (the server owner is exempt, as in Discord).
+  Roles with moderation or admin permissions need a server admin:
+  Administrator, Manage Server, Manage Roles, Manage Channels, Manage
+  Webhooks, Manage Messages, Manage Threads, Manage Expressions, Mention
+  @everyone, Ban, Kick, Timeout, Move, Mute or Deafen Members. The bot grants
+  these roles with its own Manage Roles, so with feature commands now visible
+  a delegated manager could otherwise give themselves Administrator.
+- **Dashboard reaction-role menus check the dashboard user too.** The
+  dashboard only requires Manage Server, so a menu created there is now judged
+  by the same rules with the dashboard user (`triggeredBy`) as the actor; when
+  that member can't be found, roles with moderation or admin permissions are
+  refused.
+- **Level-up messages ping only the member.** The announcement is sent with
+  `allowedMentions` for that user, so a level-up template containing
+  `@everyone` or a role mention no longer pings anyone else.
+
+### Fixed
+
+- **Keycap, flag, skin-tone and ZWJ emoji are accepted** by `/reactionrole add`,
+  `/rules-setup` and the dashboard (`validateEmoji` now matches one RGI emoji
+  or one lone regional indicator letter, which Discord also reacts with).
+- **`/reactionrole add`, `remove` and `edit` reply in time.** They defer first,
+  and change only the reactions that changed: add reacts with the new emoji,
+  remove takes the bot's reaction off the removed option (it used to stay on
+  the menu), edit leaves reactions alone. Before, every option was re-reacted
+  before replying, so menus with many options hit the 3-second deadline. When
+  the menu message can't be updated, add takes the new option out again (for
+  example a custom emoji the bot can't use) and remove and edit say the
+  message is stale.
+- **`/reactionrole delete` deletes Discord first.** When the menu message
+  can't be deleted (missing access, Discord error), the menu is kept and the
+  reply says so. Only a message or channel that is already gone lets the row go.
+- **`/reactionrole validate` reports deleted roles** (`roles.fetch` returns
+  null, it never threw) and no longer fails with many issues: the report lives
+  in the embed description, clamped to 4096 characters. The issue count shows
+  the number instead of a literal `{count}`.
+- **Voice XP is earned in segments.** Nothing counts in the server's AFK
+  channel, in an XP-ignored channel or while deafened; a segment closes when
+  the member stops earning or switches channels and pays at that channel's
+  multiplier. Voice level-ups now grant role rewards and are announced in the
+  level-up channel when one is set.
+- **Threads and forum posts count as their parent channel** for XP ignores and
+  multipliers, and `/xp-setup ignore-channel-*` and `multiplier-*` accept forum
+  and stage channels.
+- **`/onboarding preview` and `resend` reply in time.** The flow now resolves
+  once the welcome DM is delivered and runs the steps in the background (each
+  step waits up to 24 hours, past the 15-minute interaction token). A preview
+  works while onboarding is disabled, shows every step, and saves no progress
+  and grants no roles. A resend resumes at the member's next step, or starts
+  over if they already finished.
+- **`/onboarding step-remove` autocomplete works** (the option was flagged but
+  never routed), a typed step title also matches, and `/onboarding step-list`
+  shows each step's ID. Onboarding hints name `/onboarding step-add` and
+  `step-list` (they said `step add`).
+- **AutoMod restore keeps the alert channel, exemptions, allow list and keyword
+  presets.** Alert rules used to fail because the channel was dropped. Backups
+  now include presets; exemptions that don't exist in this server are skipped,
+  a rule whose alert channel is missing isn't sent, and the result lists each
+  rule that wasn't restored with the reason.
+- **`/automod keyword remove` ignores case,** so keywords added with capitals in
+  Server Settings can be removed; `keyword add` treats a different-case copy as
+  a duplicate.
+
+## [3.16.32] - 2026-10-06
+
+Applications, events and announcements hit fewer Discord limits
+(NindroidA/cogworks-bot#41). A long application answer no longer leaves a
+channel nobody can close, two default announcement templates can be sent
+again, voice and stage event templates work, and rescheduling an event keeps
+its custom reminders.
+
+### Fixed
+
+- **Long application answers.** An answer near 2000 characters (built-in
+  templates allow 2000, custom paragraph fields 4000) made the post fail after
+  the channel existed, so the application row never got its channel: Close and
+  `/application status`, `note` and `claim` said it didn't exist and the rest
+  of the answers were lost. Long answers are now split across messages, and the
+  channel is saved right after it's created, before anything is posted in it.
+  If the channel itself can't be created, the empty application row is removed
+  and a first attempt doesn't count against the daily limit.
+- **`/announcement send` for the default "Scheduled Maintenance" and "Scheduled
+  Update" templates** (and any template using `{time_relative}`) failed before
+  the form opened, because one field label was 47 characters (Discord allows
+  45). The label is shorter, labels and the form title are capped at 45, and a
+  template that uses both `{time}` and `{time_relative}` asks for the time once
+  (both are filled from it).
+- **`/application info` stopped working** in a channel once a recent internal
+  note was about 980+ characters (an embed field holds 1024). The notes list
+  shows the first 150 characters of each note.
+- **The application panel stopped updating** when a position's emoji wasn't a
+  real emoji (e.g. `staff`), more than 25 positions were active, or the text
+  went past 2000 characters, while every command still said it worked. An
+  invalid emoji now shows as 📝, only the first 25 active positions are listed
+  (Discord allows 25 buttons), and long descriptions are shortened to fit.
+  `/application position refresh` reports a failure, and add, remove, toggle
+  and reindex add a warning when the panel couldn't be updated or some
+  positions didn't fit.
+- **Voice and stage event templates never created an event.** `/event
+  from-template` and `/event recurring` have a new optional `channel` option
+  (voice or stage); the channel's type decides which kind of event it is, and
+  the next occurrence of a recurring event uses the same channel. Without a
+  channel they say so instead of failing. `/event recurring` only marks the
+  template recurring once its first event exists, and if saving fails after
+  that it warns instead of saying it failed (running it again would start a
+  second series).
+- **Rescheduling an event dropped its `/event remind` reminders.** Moving the
+  start time now moves every pending reminder by the same amount (ones that
+  would be in the past are dropped) and adds the default reminder only if the
+  event had none at that minute.
+- **A recurring chain could start from an event made by hand** in Discord with
+  the same title as a recurring template. Only events the bot created continue
+  a chain.
+- **Archived applications never got their position tag** when the title was
+  over 20 characters (Discord's tag-name limit), which covers 3 of the 5
+  built-in templates. Tag names are cut to 20 characters, dropping a trailing
+  " Application" first ("Developer Application" tags as "Developer"). Ticket
+  types with long names get their archive tag the same way, and the health
+  check matches tags by the same name.
+- **A custom workflow status named `closed`** (or `created`, `opened`,
+  `error`) made an application vanish from every lookup, so it couldn't be
+  closed or archived. `/application workflow-add-status` refuses those IDs and
+  `/application status` won't set them.
+
+### Security
+
+- Application answers are posted with mentions turned off, so an applicant
+  can't ping `@everyone`, `@here` or roles through the bot.
+- The application rate limit (2 a day) is counted per server instead of across
+  every server the bot is in.
 
 ## [3.16.31] - 2026-10-06
 

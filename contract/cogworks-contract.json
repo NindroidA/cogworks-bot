@@ -1,6 +1,6 @@
 {
   "contractVersion": "1",
-  "botVersion": "3.16.32",
+  "botVersion": "3.16.38",
   "features": {
     "keys": [
       "tickets",
@@ -2762,7 +2762,9 @@
             {
               "channel_types": [
                 0,
-                2
+                2,
+                13,
+                15
               ],
               "name": "channel",
               "description": "The channel to ignore",
@@ -2779,7 +2781,9 @@
             {
               "channel_types": [
                 0,
-                2
+                2,
+                13,
+                15
               ],
               "name": "channel",
               "description": "The channel to unignore",
@@ -2796,7 +2800,9 @@
             {
               "channel_types": [
                 0,
-                2
+                2,
+                13,
+                15
               ],
               "name": "channel",
               "description": "The channel to set a multiplier for",
@@ -2821,7 +2827,9 @@
             {
               "channel_types": [
                 0,
-                2
+                2,
+                13,
+                15
               ],
               "name": "channel",
               "description": "The channel to remove the multiplier from",
@@ -3522,6 +3530,16 @@
               "required": true,
               "max_length": 22,
               "min_length": 10
+            },
+            {
+              "channel_types": [
+                2,
+                13
+              ],
+              "name": "channel",
+              "description": "Voice or stage channel (needed for voice and stage templates)",
+              "required": false,
+              "type": 7
             }
           ]
         },
@@ -3604,6 +3622,16 @@
               "name": "pattern",
               "description": "Recurrence pattern",
               "required": true
+            },
+            {
+              "channel_types": [
+                2,
+                13
+              ],
+              "name": "channel",
+              "description": "Voice or stage channel (needed for voice and stage templates)",
+              "required": false,
+              "type": 7
             }
           ]
         }

@@ -15,6 +15,7 @@ import guildMemberRemoveEvent from './events/guildMemberRemove';
 import { routeInteraction } from './events/interactionRouter';
 import messageCreateEvent from './events/messageCreate';
 import messageDeleteEvent from './events/messageDelete';
+import messageDeleteBulkEvent from './events/messageDeleteBulk';
 import onboardingJoinEvent from './events/onboardingJoin';
 import {
   handleReactionRoleAdd,
@@ -231,6 +232,7 @@ client.on('messageReactionRemove', (reaction, user) => handleStarboardReactionRe
 const extClient = client as ExtendedClient;
 client.on(messageCreateEvent.name, message => messageCreateEvent.execute(message, extClient));
 client.on(messageDeleteEvent.name, message => messageDeleteEvent.execute(message, extClient));
+client.on('messageDeleteBulk', messages => messageDeleteBulkEvent.execute(messages, extClient));
 
 // register guild lifecycle events
 client.on(guildCreateEvent.name, guild => guildCreateEvent.execute(guild, client));
@@ -333,6 +335,7 @@ client.once('clientReady', async () => {
       client,
       pendingActionRepo: AppDataSource.getRepository(PendingAction),
       idempotencyRepo: AppDataSource.getRepository(IdempotencyKey),
+      logRepo: AppDataSource.getRepository(BaitChannelLog),
     }).start(),
   );
 

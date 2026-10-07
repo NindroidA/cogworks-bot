@@ -2,6 +2,7 @@
   "notConfigured": "Bait channel not configured. Use `/baitchannel setup`",
   "setupFirst": "Please run `/baitchannel setup` first!",
   "specifyRoleOrUser": "Please specify a role or user!",
+  "unbanGaveUp": "⚠️ Could not lift the softban ban on {0} in **{1}** after {2} attempts, so they are still banned. Unban them by hand (Server Settings → Bans).",
   "builder": {
     "cmdDescrp": "Configure the bait channel anti-bot system",
     "setup": {

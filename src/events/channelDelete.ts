@@ -1,24 +1,28 @@
 import type { DMChannel, GuildChannel } from 'discord.js';
+import type { EntityTarget } from 'typeorm';
 import { AppDataSource } from '../typeorm';
 import { AnalyticsConfig } from '../typeorm/entities/analytics/AnalyticsConfig';
 import { AnnouncementConfig } from '../typeorm/entities/announcement/AnnouncementConfig';
+import { Application } from '../typeorm/entities/application/Application';
 import { ApplicationConfig } from '../typeorm/entities/application/ApplicationConfig';
 import { ArchivedApplicationConfig } from '../typeorm/entities/application/ArchivedApplicationConfig';
 import { BaitChannelConfig } from '../typeorm/entities/bait/BaitChannelConfig';
 import { EventConfig } from '../typeorm/entities/event/EventConfig';
-import { MemoryConfig } from '../typeorm/entities/memory';
+import { MemoryConfig, MemoryItem, MemoryTag } from '../typeorm/entities/memory';
 import { ReactionRoleMenu } from '../typeorm/entities/reactionRole';
 import { RulesConfig } from '../typeorm/entities/rules';
 import { StarboardConfig } from '../typeorm/entities/starboard';
 import { ArchivedTicketConfig } from '../typeorm/entities/ticket/ArchivedTicketConfig';
+import { Ticket, type TicketStatusHistoryEntry } from '../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../typeorm/entities/ticket/TicketConfig';
 import { XPConfig } from '../typeorm/entities/xp/XPConfig';
 import type { ExtendedClient } from '../types/ExtendedClient';
-import { enhancedLogger, LogCategory } from '../utils';
+import { enhancedLogger, LogCategory, MAX } from '../utils';
 import { getBaitChannelIds, setBaitChannels } from '../utils/baitChannel/channelList';
 import { invalidateGuildMenuCache } from '../utils/reactionRole/menuCache';
 import { invalidateRulesCache } from '../utils/rules/rulesCache';
 import { requestGuildCommandRefresh } from '../utils/setup/commandGating';
+import { appendStatusHistory } from '../utils/workflow/workflowHelpers';
 import { invalidateStarboardCache } from './starboardReaction';
 
 interface ChannelRefCleaner {
@@ -29,7 +33,50 @@ interface ChannelRefCleaner {
   clean: (guildId: string, channelId: string, client: ExtendedClient) => Promise<void>;
 }
 
+/** The columns closeRowsInDeletedChannel reads and writes on a Ticket or Application. */
+interface ChannelRow {
+  id: number;
+  guildId: string;
+  channelId: string | null;
+  status: string;
+  statusHistory: TicketStatusHistoryEntry[] | null;
+}
+
+/** Statuses that are already an outcome: closed, or an application decision that must not be lost. */
+const FINAL_STATUSES = new Set(['closed', 'accepted', 'rejected']);
+
+/**
+ * Close the tickets/applications whose channel was deleted by hand, so they
+ * stop counting as open (workload, SLA alerts, dashboard). The close flows set
+ * 'closed' before deleting the channel, so their rows are skipped here.
+ */
+function closeRowsInDeletedChannel(name: string, entity: EntityTarget<ChannelRow>, maxHistory: number) {
+  return async (guildId: string, channelId: string) => {
+    const repo = AppDataSource.getRepository(entity);
+    const open = (await repo.find({ where: { guildId, channelId } })).filter(row => !FINAL_STATUSES.has(row.status));
+    for (const row of open) {
+      appendStatusHistory(row, 'closed', 'system', maxHistory, 'channel-deleted');
+      // Conditional on the status read above, so a close that lands in between wins
+      await repo.update(
+        { id: row.id, guildId, status: row.status },
+        { status: 'closed', statusHistory: row.statusHistory },
+      );
+    }
+    if (open.length > 0) {
+      enhancedLogger.info(`Closed ${open.length} ${name}(s) whose channel was deleted`, LogCategory.SYSTEM, {
+        guildId,
+        channelId,
+      });
+    }
+  };
+}
+
 const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
+  { name: 'Ticket', clean: closeRowsInDeletedChannel('Ticket', Ticket, MAX.TICKET_STATUS_HISTORY) },
+  {
+    name: 'Application',
+    clean: closeRowsInDeletedChannel('Application', Application, MAX.APPLICATION_STATUS_HISTORY),
+  },
   {
     name: 'TicketConfig',
     clean: async (guildId, channelId) => {
@@ -199,6 +246,9 @@ const CHANNEL_REF_CLEANERS: ChannelRefCleaner[] = [
       const match = configs.find(c => c.forumChannelId === channelId);
       if (!match) return;
 
+      // The forum's posts went with it, so its item and tag rows go too (as /memory-setup remove-channel does)
+      await AppDataSource.getRepository(MemoryItem).delete({ guildId, memoryConfigId: match.id });
+      await AppDataSource.getRepository(MemoryTag).delete({ guildId, memoryConfigId: match.id });
       await repo.remove(match);
       enhancedLogger.info('Deleted MemoryConfig for deleted forum channel', LogCategory.SYSTEM, {
         guildId,

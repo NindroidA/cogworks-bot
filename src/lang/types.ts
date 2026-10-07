@@ -401,6 +401,13 @@ export interface LangBotSetup {
     title: string;
     message: string;
   };
+  flows: {
+    panelNotPosted: string;
+    oldPanelNotRemoved: string;
+    autoCreateLeftovers: string;
+    staffRoleMissing: string;
+    rulesNextStep: string;
+  };
   logs: {
     couldNotPin: string;
     baitChannelSaved: string;
@@ -846,6 +853,8 @@ export interface LangApplication {
     failRefresh: string;
     failUpdate: string;
     successRefresh: string;
+    panelUpdateFailed: string;
+    panelTooMany: string;
     reindex: string;
     failReindex: string;
     sessionExpired: string;
@@ -903,6 +912,7 @@ export interface LangApplication {
     statusExists: string;
     maxStatuses: string;
     invalidStatusId: string;
+    reservedStatusId: string;
     checkNoApplication: string;
     checkTitle: string;
     checkPosition: string;
@@ -1069,6 +1079,7 @@ export interface LangBaitChannel {
   notConfigured: string;
   setupFirst: string;
   specifyRoleOrUser: string;
+  unbanGaveUp: string;
   builder: {
     cmdDescrp: string;
     setup: {
@@ -1368,6 +1379,13 @@ export interface LangErrors {
   rateLimit: string;
   timeout: string;
   notYourInteraction: string;
+  assignableRole: {
+    everyone: string;
+    managed: string;
+    aboveBot: string;
+    aboveInvoker: string;
+    privileged: string;
+  };
 }
 
 export interface LangMemory {
@@ -1740,6 +1758,7 @@ export interface LangReactionRole {
     cannotUseEveryone: string;
     cannotUseManagedRole: string;
     invalidEmoji: string;
+    menuUpdateFailed: string;
   };
   remove: {
     success: string;
@@ -1756,6 +1775,7 @@ export interface LangReactionRole {
     error: string;
     confirmTitle: string;
     confirmMessage: string;
+    messageNotDeleted: string;
   };
   list: {
     title: string;
@@ -1774,6 +1794,7 @@ export interface LangReactionRole {
     modeUnique: string;
     modeLock: string;
     noOptions: string;
+    updateFailed: string;
   };
   reaction: {
     roleAssigned: string;

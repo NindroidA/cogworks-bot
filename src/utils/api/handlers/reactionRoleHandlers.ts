@@ -7,7 +7,7 @@ import { lazyRepo } from '../../database/lazyRepo';
 import { buildMenuEmbed, updateMenuMessage, validateRoleForMenu } from '../../reactionRole/menuBuilder';
 import { invalidateGuildMenuCache } from '../../reactionRole/menuCache';
 import { optionEmojiKey } from '../../reactionRole/optionEmoji';
-import { validateEmoji } from '../../validation/validators';
+import { hasPrivilegedPermissions, validateAssignableRole, validateEmoji } from '../../validation/validators';
 import { ApiError } from '../apiError';
 import { getAndValidateEntity, isValidSnowflake, optionalEnum, optionalString, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
@@ -79,6 +79,18 @@ export function registerReactionRoleHandlers(client: Client, routes: Map<string,
       return optionRepo.create({ emoji, roleId, description: label, sortOrder: idx });
     });
     menu.options = options;
+
+    // The BFF only checks Manage Server, so judge each role by the dashboard user
+    // (triggeredBy) as the slash command does; without one, refuse privileged roles
+    const actorId = optionalString(body, 'triggeredBy');
+    const actor = actorId && isValidSnowflake(actorId) ? await guild.members.fetch(actorId).catch(() => null) : null;
+    for (const [idx, opt] of options.entries()) {
+      const role = guild.roles.cache.get(opt.roleId)!;
+      const check = actor
+        ? await validateAssignableRole({ guild, user: { id: actor.id }, memberPermissions: actor.permissions }, role)
+        : { valid: !hasPrivilegedPermissions(role), error: lang.errors.assignableRole.privileged };
+      if (!check.valid) throw ApiError.badRequest(`options[${idx}]: ${check.error}`);
+    }
 
     // Build and send embed
     const embed = buildMenuEmbed(menu);
