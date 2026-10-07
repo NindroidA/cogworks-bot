@@ -189,6 +189,38 @@ describe('renderPreview', () => {
   });
 });
 
+describe('emoji at a cut', () => {
+  /** A UTF-16 high surrogate with no low surrogate after it: Discord rejects the whole payload. */
+  const loneSurrogate = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+
+  test('a memory title with an emoji where the option description is cut keeps the emoji whole', () => {
+    // "The post for the memory \"" is 25 characters, so the emoji straddles the 100-character limit.
+    const title = `${'a'.repeat(73)}🐛 crash on startup`;
+    const f = finding('memory.item.thread_missing', 1, {
+      system: 'memory',
+      repair: 'confirm',
+      entity: 'MemoryItem',
+      params: { title },
+    });
+    const view = renderPreview(state([f], [fixOf(f, 'confirm', { entity: 'MemoryItem' })]));
+    const [option] = componentsOf(view)[0][0].options;
+    expect(option.description.length).toBeLessThanOrEqual(100);
+    expect(option.description).toEndWith('…');
+    expect(loneSurrogate.test(option.description)).toBe(false);
+    expect(loneSurrogate.test(JSON.stringify(view.embeds[0].toJSON()))).toBe(false);
+  });
+
+  test('labels and lines cut on an emoji keep it whole too', () => {
+    const label = `${'b'.repeat(98)}🐛 and more`;
+    const f = finding('core.staff_role.missing', 1, { repair: 'confirm' });
+    const view = renderPreview(state([f], [fixOf(f, 'confirm', { label })]));
+    const [option] = componentsOf(view)[0][0].options;
+    expect(option.label.length).toBeLessThanOrEqual(100);
+    expect(loneSurrogate.test(option.label)).toBe(false);
+    expect(loneSurrogate.test(view.embeds[0].toJSON().description ?? '')).toBe(false);
+  });
+});
+
 describe('fitLines and parsePage', () => {
   test('lines that fit, then "…and N more", never over the limit', () => {
     const lines = Array.from({ length: 50 }, (_, i) => `line ${i} ${'z'.repeat(40)}`);
