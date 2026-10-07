@@ -30,7 +30,7 @@ import type { HealthReport } from '../../../utils/health/types';
 import { guardAdmin } from '../../../utils/interactions/guardHelper';
 import { replyEphemeralError } from '../../../utils/interactions/replyHelper';
 import { enhancedLogger, LogCategory, logHandlerError } from '../../../utils/monitoring/enhancedLogger';
-import { createRateLimitKey, RateLimits, rateLimiter } from '../../../utils/security/rateLimiter';
+import { BOT_HEALTH_ACTIONS, createRateLimitKey, RateLimits, rateLimiter } from '../../../utils/security/rateLimiter';
 import { requireBotOwner } from '../../../utils/validation/permissionValidator';
 import {
   autoKeys,
@@ -86,8 +86,8 @@ export async function botHealthRepairHandler(
   if (!guild) return;
 
   const deep = interaction.options.getBoolean('deep') ?? false;
-  const limits: GuildLimit[] = [{ action: 'bot-health-repair', limit: RateLimits.BOT_HEALTH_REPAIR }];
-  if (deep) limits.push({ action: 'bot-health-deep', limit: RateLimits.BOT_HEALTH_DEEP });
+  const limits: GuildLimit[] = [{ action: BOT_HEALTH_ACTIONS.repair, limit: RateLimits.BOT_HEALTH_REPAIR }];
+  if (deep) limits.push({ action: BOT_HEALTH_ACTIONS.deep, limit: RateLimits.BOT_HEALTH_DEEP });
   const slots = isOwner ? [] : await takeGuildSlots(interaction, guild.id, limits);
   if (!slots) return;
 
@@ -117,7 +117,7 @@ export async function botHealthRepairHandler(
   });
   const show = (view: ReturnType<typeof renderPreview>) =>
     interaction.editReply(ended ? { ...view, components: [] } : view);
-  const deepKey = createRateLimitKey.guild(guild.id, 'bot-health-deep');
+  const deepKey = createRateLimitKey.guild(guild.id, BOT_HEALTH_ACTIONS.deep);
 
   /** Re-plans `keys` on the preview's rows, applies them, checks again, and shows the results. */
   const apply = async (i: Click, keys: string[], classes: RepairFix['repair'][]) => {

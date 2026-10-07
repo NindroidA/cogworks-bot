@@ -12,7 +12,7 @@ import type { RepairCommand, RepairFix, RepairOp, RepairPlan, RepairStep, Unsupp
 
 export interface SerializedFinding extends HealthFinding {
   key: string;
-  /** The explanation: the finding's lang string with its params, or the code when it has none. */
+  /** The explanation, as Discord markdown: the finding's lang string with its params, or the code when it has none. */
   text: string;
   /** The plan has a fix for it. */
   fixable: boolean;
@@ -24,7 +24,13 @@ export interface SerializedReport extends Omit<HealthReport, 'systems'> {
   systems: Record<string, Omit<SystemReport, 'findings'> & { findings: SerializedFinding[] }>;
 }
 
-/** The plan as a preview lists it: no writes. */
+/**
+ * The plan as a preview lists it, without its writes. A change value longer
+ * than 200 characters as JSON (a long list) arrives as a cut-off JSON string
+ * ending in `…`: every fix on a row carries the whole list, so full copies
+ * would grow with the square of the findings. A dry run's steps have the
+ * full values.
+ */
 export interface SerializedPlan {
   fixes: RepairFix[];
   unsupported: UnsupportedFix[];
@@ -51,6 +57,13 @@ export interface SerializedStepResult extends SerializedStep {
 }
 
 const findingStrings = lang.health.findings as Record<string, string>;
+const MAX_CHANGE_VALUE = 200;
+
+/** A value whose JSON is longer than the cap, as its JSON cut off with `…` (as the applier's audit row does). */
+function clip(value: unknown): unknown {
+  const text = typeof value === 'string' ? value : (JSON.stringify(value) ?? '');
+  return text.length > MAX_CHANGE_VALUE ? `${text.slice(0, MAX_CHANGE_VALUE - 1)}…` : value;
+}
 
 export function serializeReport(report: HealthReport, plan: RepairPlan): SerializedReport {
   const fixes = new Map(plan.fixes.map(fix => [fix.key, fix]));
@@ -69,7 +82,11 @@ export function serializeReport(report: HealthReport, plan: RepairPlan): Seriali
 }
 
 export function serializePlan(plan: RepairPlan): SerializedPlan {
-  return { fixes: plan.fixes, unsupported: plan.unsupported };
+  const fixes = plan.fixes.map(fix => ({
+    ...fix,
+    changes: fix.changes.map(({ field, before, after }) => ({ field, before: clip(before), after: clip(after) })),
+  }));
+  return { fixes, unsupported: plan.unsupported };
 }
 
 export function serializeStep(step: RepairStep): SerializedStep {

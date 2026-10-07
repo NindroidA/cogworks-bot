@@ -5,13 +5,13 @@
  *   GET  /internal/guilds/:guildId/bot-health/report?system=&deep=0|1
  *   POST /internal/guilds/:guildId/bot-health/repair
  *
- * The report is cached for 60 s per (server, system, deep). A deep check that
- * isn't cached takes the server's deep slot, the one `/bot-health check
- * deep:true` takes. A repair always checks afresh, re-plans the requested
- * fixes on that check's rows and, unless it's a dry run, applies them as the
- * dashboard user, taking one of the server's `/bot-health repair` slots. A
- * slot is given back when what it paid for didn't run. The server comes only
- * from the path.
+ * The report is cached for 60 s per (server, system, deep). A repair always
+ * checks afresh, re-plans the requested fixes on that check's rows and, unless
+ * it's a dry run, applies them as the dashboard user. Every fresh check is
+ * metered by a slot `/bot-health` shares (`BOT_HEALTH_ACTIONS`): a dry run
+ * takes the check slot, a repair one of the repair slots, a deep one also the
+ * deep slot, and a slot is given back when what it paid for didn't run. The
+ * server comes only from the path.
  */
 import type { Client, Guild } from 'discord.js';
 import { applyRepairPlan, type RepairActor, type RepairResult } from '../../health/repair/applier';
@@ -30,23 +30,32 @@ import { runHealthCheckWithContext } from '../../health/runner';
 import { HEALTH_SYSTEM_CHOICES } from '../../health/systems';
 import type { HealthSystem } from '../../health/types';
 import { enhancedLogger, LogCategory } from '../../monitoring/enhancedLogger';
-import { createRateLimitKey, type RateLimitConfig, RateLimits, rateLimiter } from '../../security/rateLimiter';
+import {
+  BOT_HEALTH_ACTIONS,
+  createRateLimitKey,
+  type RateLimitConfig,
+  RateLimits,
+  rateLimiter,
+} from '../../security/rateLimiter';
 import { ApiError } from '../apiError';
 import { isValidSnowflake, optionalBoolean, optionalEnum, requireString } from '../helpers';
 import type { RouteHandler } from '../router';
 
 /** How long a report is served from the cache. */
 export const REPORT_TTL_MS = 60_000;
+/** The most reports the cache holds; past it the oldest goes first. */
+export const MAX_CACHED_REPORTS = 200;
 /** At most this many finding keys per repair request. */
 export const MAX_REPAIR_KEYS = 1_000;
 const KEY_RE = /^[0-9a-f]{16}$/;
 
-/** The slots `/bot-health check` and `/bot-health repair` take, so the dashboard and the command share each limit. */
-const SLOTS = {
-  deep: { action: 'bot-health-deep', limit: RateLimits.BOT_HEALTH_DEEP },
-  repair: { action: 'bot-health-repair', limit: RateLimits.BOT_HEALTH_REPAIR },
-} as const;
 type Slot = { action: string; limit: RateLimitConfig };
+const SLOTS = {
+  check: { action: BOT_HEALTH_ACTIONS.check, limit: RateLimits.BOT_HEALTH_CHECK },
+  deep: { action: BOT_HEALTH_ACTIONS.deep, limit: RateLimits.BOT_HEALTH_DEEP },
+  repair: { action: BOT_HEALTH_ACTIONS.repair, limit: RateLimits.BOT_HEALTH_REPAIR },
+} as const satisfies Record<string, Slot>;
+
 /** The counts of a request that had nothing to write. */
 const NOTHING_APPLIED: RepairResult['counts'] = {
   applied: 0,
@@ -139,13 +148,18 @@ function refund(keys: readonly string[]): void {
   for (const key of keys) rateLimiter.refund(key);
 }
 
+/** Registers the routes. Returns the cache's size, for tests. */
 export function registerBotHealthHandlers(
   client: Client,
   routes: Map<string, RouteHandler>,
   overrides: Partial<BotHealthApiDeps> = {},
-): void {
+): { cacheSize(): number } {
   const deps: BotHealthApiDeps = { runHealthCheckWithContext, applyRepairPlan, now: Date.now, ...overrides };
   const cache = new Map<string, { at: number; view: ReportView }>();
+  /** Bumped by every repair, so a check that started before one never caches what it read. */
+  const generations = new Map<string, number>();
+  /** When the API last took each server's deep slot. */
+  const deepCharges = new Map<string, number>();
   const cacheKey = (guildId: string, system: HealthSystem | undefined, deep: boolean) =>
     `${guildId}|${system ?? 'all'}|${deep ? 1 : 0}`;
 
@@ -160,20 +174,70 @@ export function registerBotHealthHandlers(
     return entry && deps.now() - entry.at < REPORT_TTL_MS ? entry.view : null;
   };
 
-  /** Drops the server's reports, after a repair changed what they say. */
+  const store = (key: string, view: ReportView) => {
+    const now = deps.now();
+    for (const [k, entry] of cache) if (now - entry.at >= REPORT_TTL_MS) cache.delete(k);
+    for (const [g, at] of deepCharges) if (now - at >= SLOTS.deep.limit.windowMs) deepCharges.delete(g);
+    cache.delete(key); // re-added last: the newest
+    while (cache.size >= MAX_CACHED_REPORTS) cache.delete(cache.keys().next().value as string);
+    cache.set(key, { at: now, view });
+  };
+
+  /** Drops the server's reports after a repair changed what they say. */
   const invalidate = (guildId: string) => {
+    generations.set(guildId, (generations.get(guildId) ?? 0) + 1);
     for (const key of cache.keys()) if (key.startsWith(`${guildId}|`)) cache.delete(key);
+  };
+
+  /** Records that the API took the server's deep slot; the returned function undoes it with a refund. */
+  const chargedDeep = (guildId: string) => {
+    const before = deepCharges.get(guildId);
+    deepCharges.set(guildId, deps.now());
+    return () => (before === undefined ? deepCharges.delete(guildId) : deepCharges.set(guildId, before));
+  };
+
+  /**
+   * A deep preview or repair needs no deep slot of its own while the API's
+   * last deep charge for the server is within the slot's window, so a deep
+   * report can be followed by a deep dry run and a deep repair.
+   */
+  const deepCovered = (guildId: string) => {
+    const at = deepCharges.get(guildId);
+    return at !== undefined && deps.now() - at < SLOTS.deep.limit.windowMs;
   };
 
   /** Runs the check, plans every fix, and caches what GET would return for these options. */
   const freshCheck = async (guild: Guild, system: HealthSystem | undefined, deep: boolean) => {
+    const generation = generations.get(guild.id) ?? 0;
     const { report, ctx } = await deps.runHealthCheckWithContext(guild, { system, deep });
     const plan = planRepairs(report, ctx);
     const view: ReportView = { report: serializeReport(report, plan), plan: serializePlan(plan) };
-    const now = deps.now();
-    for (const [key, entry] of cache) if (now - entry.at >= REPORT_TTL_MS) cache.delete(key);
-    cache.set(cacheKey(guild.id, system, deep), { at: now, view });
+    if ((generations.get(guild.id) ?? 0) === generation) store(cacheKey(guild.id, system, deep), view);
     return { report, ctx, plan, view };
+  };
+
+  /**
+   * The check after a repair takes no repair slot. It runs deep only while
+   * the deep slot is free, as `/bot-health repair` does, so a repair never
+   * runs deep more often than the limit. Null when it fails.
+   */
+  const recheck = async (guild: Guild, system: HealthSystem | undefined, deep: boolean) => {
+    const deepKey = createRateLimitKey.guild(guild.id, SLOTS.deep.action);
+    const runDeep = deep && rateLimiter.check(deepKey, SLOTS.deep.limit).allowed;
+    const undo = runDeep ? chargedDeep(guild.id) : null;
+    try {
+      return (await freshCheck(guild, system, runDeep)).view;
+    } catch (error) {
+      if (undo) {
+        rateLimiter.refund(deepKey);
+        undo();
+      }
+      enhancedLogger.warn('bot-health API: re-check after repair failed', LogCategory.API, {
+        guildId: guild.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
   };
 
   // GET /internal/guilds/:guildId/bot-health/report?system=&deep=0|1
@@ -183,10 +247,12 @@ export function registerBotHealthHandlers(
     const hit = cached(cacheKey(guildId, system, deep));
     if (hit) return { ...hit };
     const slots = deep ? takeSlots(guildId, [SLOTS.deep]) : [];
+    const undo = deep ? chargedDeep(guildId) : null;
     try {
       return { ...(await freshCheck(guild, system, deep)).view };
     } catch (error) {
       refund(slots);
+      undo?.();
       throw error;
     }
   });
@@ -197,50 +263,44 @@ export function registerBotHealthHandlers(
     const request = parseRepairBody(body);
     const { system, deep } = request;
     const guild = guildOf(guildId);
-    // In the command's order: the repair slot, then the deep one. A dry run writes nothing, so it takes no repair slot.
-    const slots = takeSlots(guildId, [...(request.dryRun ? [] : [SLOTS.repair]), ...(deep ? [SLOTS.deep] : [])]);
-    const repairSlot = request.dryRun ? [] : slots.slice(0, 1);
+    // The repair slot is first, as in the command, so slots[0] is always the one this request is metered by.
+    const chargeDeep = deep && !deepCovered(guildId);
+    const first = request.dryRun ? SLOTS.check : SLOTS.repair;
+    const slots = takeSlots(guildId, chargeDeep ? [first, SLOTS.deep] : [first]);
+    const undo = chargeDeep ? chargedDeep(guildId) : null;
 
     let check: Awaited<ReturnType<typeof freshCheck>>;
     try {
       check = await freshCheck(guild, system, deep);
     } catch (error) {
       refund(slots);
+      undo?.();
       throw error;
     }
+    // `auto` means every automatic fix this check found, which may differ from an earlier preview's.
     const autoKeys = request.auto ? check.plan.fixes.filter(fix => fix.repair === 'auto').map(fix => fix.key) : [];
     const plan = planRepairs(check.report, check.ctx, { keys: [...autoKeys, ...request.keys] });
     const fixed = new Set(check.plan.fixes.map(fix => fix.key));
     const keysNotFound = request.keys.filter(key => !fixed.has(key));
 
     if (request.dryRun) return { dryRun: true, ...check.view, steps: plan.steps.map(serializeStep), keysNotFound };
-    if (plan.steps.length === 0) {
-      // Nothing to write: no repair ran, so no audit row and the slot goes back.
-      refund(repairSlot);
+    // Nothing to write: no repair runs and no audit row is written. The slot paid for the check, so it's kept.
+    if (plan.steps.length === 0)
       return { dryRun: false, results: [], counts: NOTHING_APPLIED, ...check.view, keysNotFound };
-    }
 
     const actor: RepairActor = { userId: request.triggeredBy, source: 'dashboard', checkedAt: check.report.checkedAt };
     let result: RepairResult;
     try {
       result = await deps.applyRepairPlan(guild, plan, actor);
     } catch (error) {
-      refund(repairSlot);
+      // No repair ran; the check did, so only the repair slot goes back.
+      refund(slots.slice(0, 1));
       if (error instanceof RepairBusyError) throw ApiError.conflict('A repair is already running for this server');
       throw error;
     }
 
-    // What the server's reports said may have changed: drop them, then check again (no slot, as the command does).
     invalidate(guildId);
-    let after: ReportView | null = null;
-    try {
-      after = (await freshCheck(guild, system, deep)).view;
-    } catch (error) {
-      enhancedLogger.warn('bot-health API: re-check after repair failed', LogCategory.API, {
-        guildId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    const after = await recheck(guild, system, deep);
     const results = serializeResults(result);
     return {
       dryRun: false,
@@ -251,4 +311,6 @@ export function registerBotHealthHandlers(
       keysNotFound,
     };
   });
+
+  return { cacheSize: () => cache.size };
 }

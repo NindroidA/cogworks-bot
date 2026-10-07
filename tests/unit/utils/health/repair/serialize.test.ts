@@ -5,10 +5,17 @@
  */
 import { describe, expect, test } from 'bun:test';
 import { findingKey } from '../../../../../src/utils/health/repair/keys';
-import { serializeReport, serializeResults, serializeStep } from '../../../../../src/utils/health/repair/serialize';
+import { planRepairs } from '../../../../../src/utils/health/repair/planner';
+import {
+  serializePlan,
+  serializeReport,
+  serializeResults,
+  serializeStep,
+} from '../../../../../src/utils/health/repair/serialize';
 import type { RepairStep } from '../../../../../src/utils/health/repair/types';
 import { buildReport } from '../../../../../src/utils/health/runner';
 import type { HealthFinding } from '../../../../../src/utils/health/types';
+import { makeCheckContext } from '../../../../helpers/healthContext';
 
 const G = '100000000000000001';
 const FORUM = '300000000000000666';
@@ -76,5 +83,53 @@ describe('serializeReport', () => {
       { ...finding, key: findingKey(finding), text: 'xp.config.not_a_code', fixable: false, label: null },
     ]);
     expect(out.systems.xp.status).toBe('warn');
+  });
+});
+
+describe('serializePlan', () => {
+  test('a long list in a change arrives cut off, so 1000 findings on one list stay small', () => {
+    const ids = Array.from({ length: 1000 }, (_, i) => String(300000000000000000n + BigInt(i)));
+    const findings: HealthFinding[] = ids.map(id => ({
+      code: 'xp.config.ignored_channel_missing',
+      system: 'xp',
+      severity: 'cosmetic',
+      repair: 'auto',
+      entity: 'XPConfig',
+      rowId: 5,
+      field: 'ignoredChannels',
+      refId: id,
+      params: { channelId: id },
+    }));
+    const xp = { id: 5, levelUpChannelId: null, ignoredChannels: ids, ignoredRoles: [], multiplierChannels: null };
+    const results = [{ checkId: 'xp.config', system: 'xp' as const, configured: true, findings }];
+    const report = buildReport(results, { guildId: G, botVersion: 'test', checkedAt: '', deep: false, notChecked: [] });
+    const plan = planRepairs(report, makeCheckContext({ rows: { XPConfig: [xp] } }));
+    expect(plan.fixes).toHaveLength(1000);
+
+    const view = serializePlan(plan);
+    const [change] = view.fixes[0].changes;
+    expect(change.field).toBe('ignoredChannels');
+    expect(typeof change.before).toBe('string');
+    expect((change.before as string).length).toBe(200);
+    expect((change.before as string).endsWith('…')).toBe(true);
+    const size = JSON.stringify({ report: serializeReport(report, plan), plan: view }).length;
+    // Full copies of the list in every fix came to over 40 MB.
+    expect(size).toBeLessThan(1_500_000);
+    // The plan itself still holds the full lists, which a dry run's merged step shows once.
+    expect((plan.fixes[0].changes[0].before as string[]).length).toBe(1000);
+  });
+
+  test('short values pass through as they are', () => {
+    const fix = {
+      key: 'aaaaaaaaaaaaaaaa',
+      code: 'core.locale.unsupported',
+      label: 'x',
+      system: 'core' as const,
+      repair: 'auto' as const,
+      entity: 'BotConfig' as const,
+      op: 'set' as const,
+      changes: [{ field: 'locale', before: 'jp', after: 'en' }],
+    };
+    expect(serializePlan({ fixes: [fix], steps: [], unsupported: [] }).fixes).toEqual([fix]);
   });
 });
