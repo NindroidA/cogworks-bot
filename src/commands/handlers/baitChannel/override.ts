@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelLog } from '../../../typeorm/entities/bait/BaitChannelLog';
-import { handleInteractionError, lang, replyEphemeralError, safeDbOperation, toUnixSeconds } from '../../../utils';
+import { fmt, handleInteractionError, lang, replyEphemeralError, safeDbOperation, toUnixSeconds } from '../../../utils';
 
 const tl = lang.baitChannel;
 
@@ -50,7 +50,7 @@ export async function overrideHandler(_client: Client, interaction: ChatInputCom
     const embed = new EmbedBuilder()
       .setColor('#00FF00')
       .setTitle(tl.override.title)
-      .setDescription(tl.override.success.replace('{0}', targetUser.tag))
+      .setDescription(fmt(tl.override.success, { user: targetUser.tag }))
       .addFields(
         {
           name: tl.override.user,

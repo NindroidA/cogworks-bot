@@ -15,7 +15,7 @@ import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketT
 import {
   E,
   enhancedLogger,
-  formatLang,
+  fmt,
   guardFeatureAccess,
   handleInteractionError,
   LogCategory,
@@ -151,7 +151,7 @@ export async function typeAddModalHandler(interaction: ModalSubmitInteraction): 
 
     if (existing) {
       enhancedLogger.warn(`User ${user} type-add failed: duplicate typeId '${typeId}'`, LogCategory.COMMAND_EXECUTION);
-      await replyEphemeralError(interaction, formatLang(tl.duplicate, typeId));
+      await replyEphemeralError(interaction, fmt(tl.duplicate, { typeId }));
       return;
     }
 
@@ -234,9 +234,9 @@ export function buildTypeConfirmationEmbed(type: CustomTicketType, mode: TypeEmb
   const tl = lang.ticket.customTypes;
   const title =
     mode === 'created'
-      ? `${E.ok} ${formatLang(tl.typeAdd.success, type.displayName).replace('!', '')}`
+      ? `${E.ok} ${fmt(tl.typeAdd.success, { type: type.displayName }).replace('!', '')}`
       : mode === 'updated'
-        ? `${E.ok} ${formatLang(tl.typeEdit.success, type.displayName).replace('!', '')}`
+        ? `${E.ok} ${fmt(tl.typeEdit.success, { type: type.displayName }).replace('!', '')}`
         : `${type.emoji ? `${type.emoji} ` : ''}${type.displayName}`;
 
   const embed = new EmbedBuilder().setTitle(title).setColor(parseInt(type.embedColor.replace('#', ''), 16));

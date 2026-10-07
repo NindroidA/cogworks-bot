@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.45] - 2026-10-07
+
+The ticket and bait-channel strings move to named `{name}` placeholders filled
+by `fmt()` (NindroidA/cogworks-bot#41, step A6b). Messages read the same as
+before.
+
+### Changed
+
+- **73 strings renamed from `{0}` to `{name}`:** 47 in `ticket` and 26 in
+  `baitChannel`. Only the placeholder names changed; the text around them
+  didn't.
+- **Their 61 `formatLang` calls and 19 `.replace('{0}', …)` chains now call
+  `fmt`.** So do 12 `.replace('{x}', …)` chains on strings that already had
+  names (the bait-channel keyword replies and the ticket user-restriction
+  prompts).
+- **The bait-channel whitelist reply is now checked.** It filled
+  `whitelist.added`/`removed` through a local variable the key-check couldn't
+  follow; it now passes both strings to `fmt` directly, so the test checks
+  them.
+- `utils/ticket/autoClose.ts` and `slaChecker.ts` import `fmt` from `lang`
+  instead of the `utils` barrel.
+- `tests/unit/lang/fmt.test.ts` fills 9 more renamed strings both ways (main's
+  string with the old call, the new string with `fmt`) and checks 2 more named
+  strings that came off `.replace()` chains.
+
+### Fixed
+
+- A ticket type, role, keyword or user name containing `$&`, `` $` ``, `$'` or
+  `$$` no longer comes out garbled in the replies that used `.replace()`
+  chains, because `fmt` inserts values exactly as given.
+
 ## [3.16.44] - 2026-10-06
 
 Language strings start moving from numbered `{0}` placeholders to named
