@@ -27,8 +27,8 @@ export const REACTION_CRITICAL: readonly PermissionName[] = ['ViewChannel', 'Rea
 
 /**
  * Emoji code points only, with at least one pictograph, flag letter or keycap, so a bare digit,
- * `#` or `*` (emoji components on their own) is text. Looser than `validateEmoji` (flags and
- * skin tones work in Discord), so it only flags text.
+ * `#` or `*` (emoji components on their own) is text. Looser than `validateEmoji` (it accepts
+ * any run of emoji code points, not just one RGI emoji), so it only flags text.
  */
 export const UNICODE_EMOJI =
   /^(?=.*[\p{Extended_Pictographic}\p{Regional_Indicator}\u20E3])[\p{Extended_Pictographic}\p{Emoji_Component}]+$/u;

@@ -9,6 +9,7 @@ import {
   handleInteractionError,
   LogCategory,
   replyEphemeralError,
+  validateAssignableRole,
 } from '../../../utils';
 import { Colors } from '../../../utils/colors';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -229,6 +230,17 @@ async function handleRoleRewardAdd(interaction: ChatInputCommandInteraction, gui
   const level = interaction.options.getInteger('level', true);
   const role = interaction.options.getRole('role', true);
   const removeOnDelevel = interaction.options.getBoolean('remove-on-delevel') ?? false;
+
+  // The bot grants rewards, so check what the invoker may hand out (not just the bot)
+  if (!interaction.guild) return;
+  const roleCheck = await validateAssignableRole(
+    { guild: interaction.guild, user: interaction.user, memberPermissions: interaction.memberPermissions },
+    role,
+  );
+  if (!roleCheck.valid) {
+    await replyEphemeralError(interaction, roleCheck.error!);
+    return;
+  }
 
   // Check max rewards (25)
   const count = await rewardRepo.count({ where: { guildId } });

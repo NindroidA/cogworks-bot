@@ -9,6 +9,7 @@
  *   - type: Discord channel type (GuildText, GuildForum, GuildCategory, GuildAnnouncement)
  *   - defaultEmoji: Emoji prefix (used if the guild's format includes emoji prefixes)
  *   - staffOnly: Whether the channel/category should be hidden from non-staff
+ *   - memberAccess: A members' channel inside a staff-only category ('view' or 'post')
  */
 
 import { ChannelType } from 'discord.js';
@@ -18,6 +19,8 @@ export interface ChannelTemplate {
   type: ChannelType.GuildText | ChannelType.GuildForum | ChannelType.GuildCategory | ChannelType.GuildAnnouncement;
   defaultEmoji?: string;
   staffOnly?: boolean;
+  /** Opens a members' channel that sits in a staff-only category: 'view' to see it, 'post' to also send. */
+  memberAccess?: 'view' | 'post';
 }
 
 export type SystemType = 'ticket' | 'application' | 'memory' | 'bait' | 'announcement' | 'rules';
@@ -43,11 +46,13 @@ export const SYSTEM_CHANNELS: Record<SystemType, Record<string, ChannelTemplate>
       baseName: 'tickets',
       type: ChannelType.GuildText,
       defaultEmoji: '🎫',
+      memberAccess: 'view',
     },
     archive: {
       baseName: 'ticket archive',
       type: ChannelType.GuildForum,
       defaultEmoji: '📁',
+      staffOnly: true,
     },
     threadCategory: {
       baseName: 'Open Tickets',
@@ -69,11 +74,13 @@ export const SYSTEM_CHANNELS: Record<SystemType, Record<string, ChannelTemplate>
       baseName: 'applications',
       type: ChannelType.GuildText,
       defaultEmoji: '📋',
+      memberAccess: 'view',
     },
     archive: {
       baseName: 'application archive',
       type: ChannelType.GuildForum,
       defaultEmoji: '📁',
+      staffOnly: true,
     },
     threadCategory: {
       baseName: 'Open Applications',
@@ -109,6 +116,7 @@ export const SYSTEM_CHANNELS: Record<SystemType, Record<string, ChannelTemplate>
       baseName: 'honeypot',
       type: ChannelType.GuildText,
       defaultEmoji: '⚠️',
+      memberAccess: 'post',
     },
     log: {
       baseName: 'bait logs',

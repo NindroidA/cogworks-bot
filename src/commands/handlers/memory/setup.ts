@@ -28,6 +28,7 @@ import {
   TIMEOUTS,
 } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
+import { requestGuildCommandRefresh } from '../../../utils/setup/commandGating';
 
 const tl = lang.memory;
 const memoryConfigRepo = lazyRepo(MemoryConfig);
@@ -466,6 +467,8 @@ async function setupWithChannel(
       sortOrder: 0,
     });
     await memoryConfigRepo.save(config);
+    // Saved from a collector after the dispatcher's refresh already ran, so /memory needs its own
+    requestGuildCommandRefresh(guildId);
 
     await seedMemoryTags(guildId, config.id, channel);
 
@@ -512,6 +515,7 @@ async function createMemoryForum(
       sortOrder: 0,
     });
     await memoryConfigRepo.save(config);
+    requestGuildCommandRefresh(guildId);
 
     await seedMemoryTags(guildId, config.id, forum);
 

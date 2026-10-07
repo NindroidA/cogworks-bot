@@ -60,11 +60,16 @@ export async function createAutoModRule(guild: Guild, config: AutoModRuleConfig)
           if (a.metadata.customMessage !== undefined) {
             meta.customMessage = a.metadata.customMessage;
           }
+          if (a.metadata.channelId !== undefined) {
+            meta.channel = a.metadata.channelId;
+          }
           action.metadata = meta;
         }
         return action;
       }),
       enabled: config.enabled,
+      exemptRoles: config.exemptRoles,
+      exemptChannels: config.exemptChannels,
     };
 
     return await guild.autoModerationRules.create(options);
@@ -103,6 +108,8 @@ export interface SerializedAutoModRule {
     mentionTotalLimit?: number;
     mentionRaidProtectionEnabled?: boolean;
     allowList?: string[];
+    /** Keyword preset ids; absent in backups made before v3.16.33 */
+    presets?: number[];
   };
   actions: {
     type: number;
@@ -139,6 +146,7 @@ export function serializeRules(rules: Collection<string, AutoModerationRule>, gu
       mentionTotalLimit: rule.triggerMetadata.mentionTotalLimit ?? undefined,
       mentionRaidProtectionEnabled: rule.triggerMetadata.mentionRaidProtectionEnabled ?? undefined,
       allowList: [...(rule.triggerMetadata.allowList ?? [])],
+      presets: [...(rule.triggerMetadata.presets ?? [])],
     },
     actions: rule.actions.map(a => ({
       type: a.type,

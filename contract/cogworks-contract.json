@@ -2762,7 +2762,9 @@
             {
               "channel_types": [
                 0,
-                2
+                2,
+                13,
+                15
               ],
               "name": "channel",
               "description": "The channel to ignore",
@@ -2779,7 +2781,9 @@
             {
               "channel_types": [
                 0,
-                2
+                2,
+                13,
+                15
               ],
               "name": "channel",
               "description": "The channel to unignore",
@@ -2796,7 +2800,9 @@
             {
               "channel_types": [
                 0,
-                2
+                2,
+                13,
+                15
               ],
               "name": "channel",
               "description": "The channel to set a multiplier for",
@@ -2821,7 +2827,9 @@
             {
               "channel_types": [
                 0,
-                2
+                2,
+                13,
+                15
               ],
               "name": "channel",
               "description": "The channel to remove the multiplier from",

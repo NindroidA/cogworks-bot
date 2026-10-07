@@ -47,6 +47,133 @@ migrations alone, because the pre-v3 tables only ever came from the old
   already has two rows, the migration logs a warning and skips this step
   instead of failing the boot; nothing is deleted.
 
+## [3.16.34] - 2026-10-06
+
+`/bot-setup` fixes: channels it creates are visible to the right people,
+re-running a step keeps your existing setup, and failures are reported. Plus
+cleanup gaps in the delete events and the server welcome message
+(NindroidA/cogworks-bot#41).
+
+### Fixed
+
+- **Auto-created channels hidden from members**: "Create Channels For Me" put
+  the ticket and application panels and the bait honeypot inside a staff-only
+  category, so they took on its "hide from @everyone" rule. Members couldn't
+  see the panels and spam accounts never saw the honeypot. Those channels now
+  open themselves to members: the panel channels are read-only (no messages,
+  reactions or threads), and the honeypot lets them post. The staff-only
+  categories, the bait log and the archive forums now let the global staff role
+  and the bot in, and the archive forums are staff-only.
+- **Half-finished auto-create**: when the bot could make some channels but not
+  others, it kept the partial set and said nothing, so each retry added
+  another set. It now deletes what it made (also when a later step fails) and
+  shows an error, naming any channel it couldn't delete. Announcement
+  channels fall back to a text channel on servers without Community, which was
+  the most common cause. If the ticket or application panel can't be posted,
+  the step says so.
+- **Re-running Bait Channel cut the bait list to one channel** and posted a
+  second warning banner. It now works like `/baitchannel setup`: the channel
+  you pick replaces the main one, the extra bait channels stay, and the banner
+  is kept (or moved if the channel changed).
+- **Re-running Ticket or Application setup left the old panel** and archive
+  welcome thread next to the new ones. The old ones are now deleted once the
+  new ones are posted and saved. If the new panel can't be posted, the old one
+  stays up and in use; if the old one can't be deleted, the step says so.
+- **Unchecking "Enable Staff Role"** did nothing. It now turns the global staff
+  role off. Picking no role with the box checked tells you what to do.
+- **Rules step**: it saves the channel and role but the rules message comes from
+  `/rules-setup`, and nothing said so. The step now tells you to run
+  `/rules-setup setup` next.
+- **`/memory` stayed hidden after `/memory-setup setup`** when the forum was
+  picked from the menu. The command list now refreshes once the forum is saved.
+- **Deleted channels**: a ticket or application whose channel was deleted by
+  hand is now closed (with a "channel-deleted" history note) instead of
+  counting as open forever. Accepted and rejected applications keep their
+  decision. Deleting a memory forum also removes its saved items and tags.
+- **Purged messages**: bulk deletes (purge commands, mod bots) never ran the
+  cleanup that single deletes do, so a purged panel or menu message stayed
+  referenced. They now do. A purge doesn't cancel pending bait bans.
+- **Server welcome**: the welcome went to the system channel without checking
+  the bot could post there, with no fallback, and a failed post also skipped
+  the join notice to the dashboard. The bot now picks a channel it can post
+  in, tries the next one if a post fails, and always sends the join notice.
+
+## [3.16.33] - 2026-10-06
+
+Community feature fixes (NindroidA/cogworks-bot#41): reaction-role, XP and
+onboarding configs can no longer be used to hand out roles the invoker
+couldn't assign themselves, keycap, flag and skin-tone emoji work in
+reaction-role menus, `/reactionrole` and `/onboarding` reply in time, voice XP
+stops paying for the AFK channel, and AutoMod backups restore what they saved.
+
+### Security
+
+- **Role-granting configs check the invoker.** `/reactionrole add`,
+  `/xp-setup role-reward-add` and `/onboarding completion-role` refuse
+  @everyone, managed roles, roles at or above the bot, and roles at or above
+  the invoker's own highest role (the server owner is exempt, as in Discord).
+  Roles with moderation or admin permissions need a server admin:
+  Administrator, Manage Server, Manage Roles, Manage Channels, Manage
+  Webhooks, Manage Messages, Manage Threads, Manage Expressions, Mention
+  @everyone, Ban, Kick, Timeout, Move, Mute or Deafen Members. The bot grants
+  these roles with its own Manage Roles, so with feature commands now visible
+  a delegated manager could otherwise give themselves Administrator.
+- **Dashboard reaction-role menus check the dashboard user too.** The
+  dashboard only requires Manage Server, so a menu created there is now judged
+  by the same rules with the dashboard user (`triggeredBy`) as the actor; when
+  that member can't be found, roles with moderation or admin permissions are
+  refused.
+- **Level-up messages ping only the member.** The announcement is sent with
+  `allowedMentions` for that user, so a level-up template containing
+  `@everyone` or a role mention no longer pings anyone else.
+
+### Fixed
+
+- **Keycap, flag, skin-tone and ZWJ emoji are accepted** by `/reactionrole add`,
+  `/rules-setup` and the dashboard (`validateEmoji` now matches one RGI emoji
+  or one lone regional indicator letter, which Discord also reacts with).
+- **`/reactionrole add`, `remove` and `edit` reply in time.** They defer first,
+  and change only the reactions that changed: add reacts with the new emoji,
+  remove takes the bot's reaction off the removed option (it used to stay on
+  the menu), edit leaves reactions alone. Before, every option was re-reacted
+  before replying, so menus with many options hit the 3-second deadline. When
+  the menu message can't be updated, add takes the new option out again (for
+  example a custom emoji the bot can't use) and remove and edit say the
+  message is stale.
+- **`/reactionrole delete` deletes Discord first.** When the menu message
+  can't be deleted (missing access, Discord error), the menu is kept and the
+  reply says so. Only a message or channel that is already gone lets the row go.
+- **`/reactionrole validate` reports deleted roles** (`roles.fetch` returns
+  null, it never threw) and no longer fails with many issues: the report lives
+  in the embed description, clamped to 4096 characters. The issue count shows
+  the number instead of a literal `{count}`.
+- **Voice XP is earned in segments.** Nothing counts in the server's AFK
+  channel, in an XP-ignored channel or while deafened; a segment closes when
+  the member stops earning or switches channels and pays at that channel's
+  multiplier. Voice level-ups now grant role rewards and are announced in the
+  level-up channel when one is set.
+- **Threads and forum posts count as their parent channel** for XP ignores and
+  multipliers, and `/xp-setup ignore-channel-*` and `multiplier-*` accept forum
+  and stage channels.
+- **`/onboarding preview` and `resend` reply in time.** The flow now resolves
+  once the welcome DM is delivered and runs the steps in the background (each
+  step waits up to 24 hours, past the 15-minute interaction token). A preview
+  works while onboarding is disabled, shows every step, and saves no progress
+  and grants no roles. A resend resumes at the member's next step, or starts
+  over if they already finished.
+- **`/onboarding step-remove` autocomplete works** (the option was flagged but
+  never routed), a typed step title also matches, and `/onboarding step-list`
+  shows each step's ID. Onboarding hints name `/onboarding step-add` and
+  `step-list` (they said `step add`).
+- **AutoMod restore keeps the alert channel, exemptions, allow list and keyword
+  presets.** Alert rules used to fail because the channel was dropped. Backups
+  now include presets; exemptions that don't exist in this server are skipped,
+  a rule whose alert channel is missing isn't sent, and the result lists each
+  rule that wasn't restored with the reason.
+- **`/automod keyword remove` ignores case,** so keywords added with capitals in
+  Server Settings can be removed; `keyword add` treats a different-case copy as
+  a duplicate.
+
 ## [3.16.32] - 2026-10-06
 
 Applications, events and announcements hit fewer Discord limits

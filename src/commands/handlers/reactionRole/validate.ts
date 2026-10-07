@@ -3,6 +3,7 @@ import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { ReactionRoleMenu } from '../../../typeorm/entities/reactionRole';
 import {
   Colors,
+  clampText,
   enhancedLogger,
   formatLang,
   guardFeatureRateLimit,
@@ -84,9 +85,9 @@ export async function reactionRoleValidateHandler(interaction: ChatInputCommandI
 
       // Check each option's role exists
       for (const option of menu.options || []) {
-        try {
-          await guild.roles.fetch(option.roleId);
-        } catch {
+        // fetch() returns null for a deleted role; a thrown error (rate limit, 5xx) only means "couldn't check"
+        const role = await guild.roles.fetch(option.roleId).catch(() => undefined);
+        if (role === null) {
           issues.push({
             menu: menu.name,
             issue: tl.validate.roleMissing.replace('{name}', menu.name).replace('{emoji}', option.emoji),
@@ -108,23 +109,17 @@ export async function reactionRoleValidateHandler(interaction: ChatInputCommandI
       embed.setDescription(tl.validate.allValid);
     } else {
       embed.setColor(Colors.status.warning);
-      embed.setDescription(formatLang(tl.validate.issuesFound, issues.length.toString()));
-
-      // Group issues (truncate if too many)
-      const issueText = issues
-        .map(i => `- ${i.issue}`)
-        .join('\n')
-        .slice(0, 4000);
-      embed.addFields({ name: 'Issues', value: issueText });
+      // The description holds 4096 characters; a field only 1024
+      const issueText = issues.map(i => `- ${i.issue}`).join('\n');
+      embed.setDescription(
+        clampText(`${formatLang(tl.validate.issuesFound, issues.length.toString())}\n\n${issueText}`, 4096),
+      );
     }
 
     if (validMenus.length > 0) {
       embed.addFields({
         name: 'Healthy Menus',
-        value: validMenus
-          .map(n => `- **${n}**: All checks passed`)
-          .join('\n')
-          .slice(0, 1024),
+        value: clampText(validMenus.map(n => `- **${n}**: All checks passed`).join('\n'), 1024),
       });
     }
 

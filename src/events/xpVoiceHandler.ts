@@ -1,25 +1,38 @@
 /**
  * XP Voice Handler
  *
- * Tracks voice channel join/leave events and awards XP based on time spent
- * in voice channels. XP is awarded on disconnect based on session duration.
+ * Awards XP for time in voice, in segments: a segment opens when a member
+ * starts earning (in a counted channel, not deafened) and closes, awarding XP
+ * at that channel's multiplier, when they stop earning or switch channels.
+ * The AFK channel, XP-ignored channels and deafened members don't earn.
  */
 
-import type { VoiceState } from 'discord.js';
+import type { GuildMember, VoiceState } from 'discord.js';
+import type { XPConfig } from '../typeorm/entities/xp/XPConfig';
 import { XPUser } from '../typeorm/entities/xp/XPUser';
 import type { ExtendedClient } from '../types/ExtendedClient';
 import { enhancedLogger, LogCategory } from '../utils';
 import { lazyRepo } from '../utils/database/lazyRepo';
 import { getXPConfig } from '../utils/xp/configCache';
+import { handleLevelUp } from '../utils/xp/levelUp';
 import { calculateLevel } from '../utils/xp/xpCalculator';
 
 const userRepo = lazyRepo(XPUser);
+
+/** Whether a voice state earns XP: a counted channel, not deafened, no XP-ignored role. */
+export function earnsVoiceXp(state: VoiceState, config: Pick<XPConfig, 'ignoredChannels' | 'ignoredRoles'>): boolean {
+  const channelId = state.channelId;
+  if (!channelId || channelId === state.guild.afkChannelId) return false;
+  if (config.ignoredChannels?.includes(channelId)) return false;
+  if (state.deaf) return false; // self- or server-deafened
+  return !state.member?.roles.cache.some(r => config.ignoredRoles?.includes(r.id));
+}
 
 export default {
   name: 'xpVoice',
 
   /**
-   * Called from voiceStateUpdate event. Handles voice join/leave tracking.
+   * Called from voiceStateUpdate event. Opens and closes voice XP segments.
    *
    * @param oldState - Previous voice state
    * @param newState - New voice state
@@ -42,22 +55,20 @@ export default {
       const config = await getXPConfig(guildId);
       if (!config?.enabled || !config.voiceXpEnabled) return;
 
-      const wasInVoice = !!oldState.channelId;
-      const isInVoice = !!newState.channelId;
+      const wasEarning = earnsVoiceXp(oldState, config);
+      const isEarning = earnsVoiceXp(newState, config);
+      const switched = oldState.channelId !== newState.channelId;
 
-      // User joined a voice channel
-      if (!wasInVoice && isInVoice) {
+      // Stopped earning (left, deafened, moved to AFK or an ignored channel) or switched channels
+      if (wasEarning && (!isEarning || switched)) {
+        const member = newState.member ?? oldState.member ?? (await guild.members.fetch(userId).catch(() => null));
+        const multiplier = config.multiplierChannels?.[oldState.channelId ?? ''] ?? 1;
+        await handleVoiceLeave(guildId, userId, config, multiplier, member);
+      }
+      // Started earning, or switched into another counted channel
+      if (isEarning && (!wasEarning || switched)) {
         await handleVoiceJoin(guildId, userId);
-        return;
       }
-
-      // User left a voice channel
-      if (wasInVoice && !isInVoice) {
-        await handleVoiceLeave(guildId, userId, config.xpPerVoiceMinute);
-        return;
-      }
-
-      // User switched channels — no XP change needed, session continues
     } catch (error) {
       enhancedLogger.error('XP voice handler failed', error as Error, LogCategory.ERROR);
     }
@@ -84,9 +95,15 @@ async function handleVoiceJoin(guildId: string, userId: string) {
 }
 
 /**
- * Award voice XP based on session duration and clear the join timestamp.
+ * Award voice XP for the open segment and clear its start timestamp.
  */
-async function handleVoiceLeave(guildId: string, userId: string, xpPerVoiceMinute: number) {
+async function handleVoiceLeave(
+  guildId: string,
+  userId: string,
+  config: XPConfig,
+  multiplier: number,
+  member: GuildMember | null,
+) {
   try {
     const xpUser = await userRepo.findOne({ where: { guildId, userId } });
     if (!xpUser?.lastVoiceJoinedAt) return;
@@ -106,7 +123,7 @@ async function handleVoiceLeave(guildId: string, userId: string, xpPerVoiceMinut
 
     // Cap at 24 hours (1440 minutes) to prevent abuse from stale sessions
     const cappedMinutes = Math.min(sessionMinutes, 1440);
-    const xpToAward = cappedMinutes * xpPerVoiceMinute;
+    const xpToAward = Math.floor(cappedMinutes * config.xpPerVoiceMinute * multiplier);
 
     const oldLevel = xpUser.level;
     xpUser.xp += xpToAward;
@@ -115,14 +132,9 @@ async function handleVoiceLeave(guildId: string, userId: string, xpPerVoiceMinut
 
     await userRepo.save(xpUser);
 
-    if (xpUser.level > oldLevel) {
-      enhancedLogger.debug(
-        `User ${userId} leveled up to ${xpUser.level} via voice XP in guild ${guildId}`,
-        LogCategory.SYSTEM,
-      );
-      // Note: Voice level-up announcements could be added here in the future.
-      // Currently, level-up messages are only sent for message-based XP gains
-      // because voice disconnects don't have a natural message channel context.
+    // Voice has no message channel: announce only in the level-up channel, and grant role rewards
+    if (xpUser.level > oldLevel && member) {
+      await handleLevelUp(member, config, xpUser.level, null);
     }
   } catch (error) {
     enhancedLogger.debug(`Failed to award voice XP for ${userId} in guild ${guildId}`, LogCategory.SYSTEM, {

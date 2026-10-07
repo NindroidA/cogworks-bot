@@ -53,7 +53,8 @@
     "roleTooHigh": "Cannot use this role — it is higher than or equal to the bot's highest role.",
     "cannotUseEveryone": "Cannot use the @everyone role.",
     "cannotUseManagedRole": "Cannot use a managed (bot/integration) role.",
-    "invalidEmoji": "Invalid emoji. Use a standard emoji or a custom Discord emoji (<:name:id>)."
+    "invalidEmoji": "Invalid emoji. Use a standard emoji or a custom Discord emoji (<:name:id>).",
+    "menuUpdateFailed": "Couldn't update the menu message, so the option wasn't added. Check that the bot can still see the menu's channel and can use that emoji (custom emoji must be from a server the bot is in)."
   },
   "remove": {
     "success": "Removed {emoji} option from **{menu}**.",
@@ -69,7 +70,8 @@
     "success": "Reaction role menu **{name}** deleted.",
     "error": "Failed to delete menu.",
     "confirmTitle": "Delete Reaction Role Menu",
-    "confirmMessage": "Are you sure you want to delete **{name}**? This will remove the menu message and all role options."
+    "confirmMessage": "Are you sure you want to delete **{name}**? This will remove the menu message and all role options.",
+    "messageNotDeleted": "Couldn't delete the menu message for **{name}**, so the menu was kept. Check that the bot can still see that channel, then try again."
   },
   "list": {
     "title": "Reaction Role Menus",
@@ -87,7 +89,8 @@
     "modeNormal": "Normal (select multiple)",
     "modeUnique": "Unique (one at a time)",
     "modeLock": "Lock (cannot remove)",
-    "noOptions": "No role options configured yet. Use `/reactionrole add` to add options."
+    "noOptions": "No role options configured yet. Use `/reactionrole add` to add options.",
+    "updateFailed": "⚠️ Saved, but the menu message couldn't be updated. Check that the bot can still see the menu's channel and that the message still exists (`/reactionrole validate`)."
   },
   "reaction": {
     "roleAssigned": "Reaction role assigned",
@@ -107,7 +110,7 @@
     "title": "Reaction Role Validation Report",
     "checking": "Validating reaction role menus...",
     "allValid": "All menus are healthy! No issues found.",
-    "issuesFound": "{count} issue(s) found across your reaction role menus.",
+    "issuesFound": "{0} issue(s) found across your reaction role menus.",
     "menuValid": "Menu **{name}**: All checks passed",
     "menuMissing": "Menu **{name}**: Message missing — the menu message was deleted from <#{channelId}>",
     "channelMissing": "Menu **{name}**: Channel missing — <#{channelId}> no longer exists",
