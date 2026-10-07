@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.37] - 2026-10-06
+
+Bait grace periods survive a restart (NindroidA/cogworks-bot#41).
+
+### Fixed
+
+- **A restart no longer lets a bait poster off.** Startup gave each restored
+  grace period a timer that only deleted its row, so someone who posted in
+  the bait channel just before a restart (every deploy) faced no action. A
+  restored grace period now settles when its window closes, right away if it
+  closed during the downtime, with the same checks as a live one (current
+  settings, test mode, whitelist, post still there). It ends without action
+  if the post was deleted, the member left, or the member is timed out (a mod
+  may have acted while the bot was down). A post made in test mode stays a dry
+  run.
+
 ## [3.16.36] - 2026-10-06
 
 Bait-channel retries: a bait action that hit a Discord error was never

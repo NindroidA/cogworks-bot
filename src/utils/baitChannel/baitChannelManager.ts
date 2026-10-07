@@ -11,7 +11,7 @@ import {
   PermissionFlagsBits,
   type TextChannel,
 } from 'discord.js';
-import { Between, IsNull, LessThan, type Repository } from 'typeorm';
+import { Between, IsNull, type Repository } from 'typeorm';
 import { AppDataSource } from '../../typeorm';
 import type { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelConfig';
 import type { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
@@ -86,7 +86,7 @@ interface PendingBan {
   warningMessageId?: string; // ID of the bot's warning reply
   /**
    * Live detection state. Entries restored from the DB after a restart have
-   * none, and they never act (their timer only drops the row).
+   * none until their timer fires and fetches it (resolveRestored).
    */
   context?: {
     message: Message;
@@ -171,35 +171,35 @@ export class BaitChannelManager {
   }
 
   /**
-   * Initialize: restore unexpired pending bans from DB and clean up expired ones.
-   * Call after construction once the bot is ready.
+   * Restore grace periods after a restart. Only grace rows (attempts = 0,
+   * not dead-lettered) belong to this manager: retry rows are the retry
+   * queue's (one that came due during the downtime runs on its first tick)
+   * and dead-lettered rows stay for mod review, so neither is touched here.
+   * A restored entry settles when its window closes, right away if it closed
+   * during the downtime (see resolveRestored).
    */
   async initialize(): Promise<void> {
     if (!this.pendingActionRepo) return;
 
     try {
-      // Only grace rows (attempts = 0, not dead-lettered) are this manager's:
-      // retry rows belong to the retry queue and dead-lettered rows stay for
-      // mod review, so neither is deleted or timed here.
-      const grace = { attempts: 0, deadAt: IsNull() };
-
-      // Clean up expired entries
-      await this.pendingActionRepo.delete({ ...grace, expiresAt: LessThan(new Date()) });
-
-      // Load unexpired pending bans and re-create timeouts
-      const activeBans = await this.pendingActionRepo.find({ where: grace });
+      const activeBans = await this.pendingActionRepo.find({ where: { attempts: 0, deadAt: IsNull() } });
       for (const ban of activeBans) {
-        const remainingMs = ban.expiresAt.getTime() - Date.now();
-        if (remainingMs <= 0) {
-          await this.pendingActionRepo.remove(ban);
-          continue;
-        }
-
         const key = graceKey(ban.guildId, ban.userId, ban.messageId);
-        const timeoutId = setTimeout(async () => {
-          this.pendingBans.delete(key);
-          await this.removePendingBanFromDb(ban.userId, ban.messageId, ban.guildId);
-        }, remainingMs);
+        // Nothing in this callback may throw (see initiateGracePeriod).
+        const timeoutId = setTimeout(
+          () => {
+            this.inMemberChain(ban.guildId, ban.userId, () => this.resolveRestored(key, ban.action)).catch(error =>
+              logError({
+                category: ErrorCategory.UNKNOWN,
+                severity: ErrorSeverity.HIGH,
+                message: 'Restored bait grace timer failed',
+                error,
+                context: { guildId: ban.guildId, userId: ban.userId, messageId: ban.messageId },
+              }),
+            );
+          },
+          Math.max(0, ban.expiresAt.getTime() - Date.now()),
+        );
 
         this.pendingBans.set(key, {
           guildId: ban.guildId,
@@ -225,6 +225,55 @@ export class BaitChannelManager {
         context: {},
       });
     }
+  }
+
+  /**
+   * A restored grace entry's window closed. Fetch what a live entry holds
+   * (the post, the member, the warning reply) and settle it through
+   * resolveGrace like any other. Only the score was saved, so the analysis
+   * has no flags or reasons. If the post is gone (deleted by the user, or
+   * purged), the member left or is timed out, or the guild or channel can't
+   * be read, the entry ends without action.
+   */
+  private async resolveRestored(key: string, rowAction: string): Promise<void> {
+    const pending = this.pendingBans.get(key);
+    if (!pending || pending.context) return;
+    const guild = await this.client.guilds.fetch(pending.guildId).catch(() => null);
+    const channel = await guild?.channels.fetch(pending.channelId).catch(() => null);
+    const messages = channel?.isTextBased() ? channel.messages : null;
+    const message = await messages?.fetch(pending.messageId).catch(() => null);
+    const member = message ? await guild?.members.fetch(pending.userId).catch(() => null) : null;
+    const config = await this.getConfig(pending.guildId);
+    if (this.pendingBans.get(key) !== pending) return; // cancelled, deleted or left meanwhile
+
+    // Timed out now: a mod may have acted during the downtime, unseen.
+    const timedOut = (member?.communicationDisabledUntilTimestamp ?? 0) > Date.now();
+    if (!guild || !message || !member || timedOut) {
+      clearTimeout(pending.timeoutId);
+      this.pendingBans.delete(key);
+      await this.removePendingBanFromDb(pending.userId, pending.messageId, pending.guildId);
+      await this.deleteGraceWarning(pending);
+      enhancedLogger.info(
+        `Restored bait grace for ${pending.userId} ended without action (${!message ? 'message gone' : timedOut ? 'timed out' : 'member left'})`,
+        LogCategory.SECURITY,
+        { guildId: pending.guildId, userId: pending.userId, messageId: pending.messageId },
+      );
+      return;
+    }
+
+    // Test mode saves the row as log-only. If the current config would act
+    // for real, the post was made in test mode and stays a dry run.
+    const wouldDo = config ? this.toApiAction(this.determineAction(pending.suspicionScore, config), guild) : 'log-only';
+    pending.context = {
+      message,
+      member,
+      analysis: { score: pending.suspicionScore, flags: {} as SuspicionAnalysis['flags'], reasons: [] },
+      warningMessage: pending.warningMessageId
+        ? ((await messages?.fetch(pending.warningMessageId).catch(() => null)) ?? null)
+        : null,
+      postedInTestMode: rowAction === 'log-only' && wouldDo !== 'log-only',
+    };
+    await this.resolveGrace(key, 'Grace period expired');
   }
 
   // `action` is what the row would do if run: the resolved executor action,
@@ -291,8 +340,9 @@ export class BaitChannelManager {
    * without action. Otherwise a live entry resolves now, through the same
    * checks as an expired timer (fresh config, test mode, whitelist, message
    * still there), with timeout and kick becoming a softban since the member
-   * is gone. A restored entry only loses its timer: restored entries never
-   * act, and the retry queue's orphan sweep drops the row.
+   * is gone. A restored entry whose timer hasn't fired has no live state
+   * to check, so it only loses its timer; the retry queue's orphan sweep
+   * drops the row.
    */
   resolveGraceOnLeave(guildId: string, userId: string): Promise<void> {
     return this.inMemberChain(guildId, userId, async () => {

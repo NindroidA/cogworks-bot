@@ -28,7 +28,8 @@
  * Grace rows (attempts = 0) are never executed here. The manager's timer
  * settles them against current config, test mode, whitelist and whether the
  * user deleted their message; this queue knows none of that. A grace row
- * still present well past its window lost its timer, so it is dropped.
+ * still present well past its window lost its timer (a restored entry the
+ * user left before it fired, or a failed delete), so it is dropped.
  */
 
 import type { Client, Guild } from 'discord.js';
@@ -286,10 +287,10 @@ export class RetryQueue {
   }
 
   /**
-   * A grace row whose timer is gone (lost across a restart, or its delete
-   * failed). Drop it without acting: nothing here can tell whether the user
-   * deleted their message, got whitelisted, or the guild switched to test
-   * mode, and boot-time restore never acts on grace rows either.
+   * A grace row whose timer is gone (a restored entry dropped on leave, or
+   * its delete failed). Drop it without acting: nothing here can tell
+   * whether the user deleted their message, got whitelisted, or the guild
+   * switched to test mode.
    */
   private async dropOrphanedGrace(row: PendingAction): Promise<void> {
     await this.deps.pendingActionRepo.remove(row);
