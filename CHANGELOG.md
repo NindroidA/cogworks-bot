@@ -41,7 +41,8 @@ run the same repairs as `/bot-health repair`. Nothing changes in Discord.
 
 Groundwork for `/bot-health repair` (NindroidA/cogworks-bot#41): the screens
 it will show, and helpers `/bot-health check` now shares with it. Nothing
-shows the new screens yet, so the bot behaves as before.
+shows the new screens yet. The only change you could see is a fix in
+`/bot-health check` (below).
 
 ### Added
 
@@ -67,6 +68,13 @@ shows the new screens yet, so the bot behaves as before.
   `src/commands/handlers/botHealth/target.ts`, for both subcommands to share.
   A failed check now gives its slot back with `refund`; with a limit of 1 per
   window that works exactly as before.
+
+### Fixed
+
+- `/bot-health check` cut long text (a finding, a system label, a title) at a
+  fixed length, which could split an emoji in half. Discord rejects a message
+  with half an emoji, so the whole report failed to show. Text is now cut on
+  whole characters.
 
 ## [3.16.50] - 2026-10-07
 

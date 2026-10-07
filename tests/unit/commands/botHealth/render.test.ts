@@ -14,6 +14,7 @@ import {
   paginateFindings,
   parseViewRequest,
   renderView,
+  truncate,
 } from '../../../../src/commands/handlers/botHealth/render';
 import type { HealthFinding, HealthReport } from '../../../../src/utils/health/types';
 
@@ -100,6 +101,13 @@ describe('findingField', () => {
 
   test('a code without a string falls back to the code itself', () => {
     expect(findingField(finding({ code: 'test.unknown' })).value).toStartWith('test.unknown');
+  });
+
+  test('truncate cuts on code points: an emoji at the limit is dropped whole, never split', () => {
+    const cut = truncate(`${'a'.repeat(98)}🐛tail`, 100);
+    expect(cut).toBe(`${'a'.repeat(98)}…`);
+    expect(truncate('short', 100)).toBe('short');
+    expect(truncate('x'.repeat(101), 100)).toBe(`${'x'.repeat(99)}…`);
   });
 
   test('an oversized value is cut to 1024 and still shows the code', () => {
