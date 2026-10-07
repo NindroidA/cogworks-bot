@@ -154,8 +154,7 @@
     "action": "Original Action",
     "score": "Suspicion Score",
     "overriddenBy": "Overridden By",
-    "detectedAt": "Detected At",
-    "error": "Failed to override detection"
+    "detectedAt": "Detected At"
   },
   "whitelist": {
     "added": "Added {0} to whitelist",
@@ -180,18 +179,7 @@
     "days": "{0} days",
     "minutes": "{0} min",
     "yes": "Yes",
-    "no": "No",
-    "reasons": {
-      "defaultAvatar": "Default avatar (no custom avatar set)",
-      "emptyProfile": "Empty profile (no banner, no avatar)",
-      "suspiciousUsername": "Suspicious username patterns detected",
-      "noRoles": "No server roles assigned",
-      "discordInvite": "Contains Discord invite link(s)",
-      "phishingUrl": "Contains suspected phishing URL(s)",
-      "attachmentOnly": "Attachment-only message (no text)",
-      "joinBurst": "Join burst detected",
-      "coordinatedRaid": "Possible Coordinated Raid"
-    }
+    "no": "No"
   },
   "escalation": {
     "enabled": "Escalation mode enabled",
@@ -206,9 +194,7 @@
     "disabled": "DM notification before action is now **disabled**.",
     "appealSet": "Appeal Information Configured",
     "appealCleared": "Appeal information has been cleared.",
-    "appealTooLong": "Appeal text must be 500 characters or fewer.",
-    "dmTitle": "Action Taken in {guildName}",
-    "dmDescription": "Your message in a monitored channel triggered automatic detection."
+    "appealTooLong": "Appeal text must be 500 characters or fewer."
   },
   "keywords": {
     "add": {
@@ -231,16 +217,13 @@
     },
     "reset": {
       "confirm": "Are you sure you want to reset all keywords to defaults? This will delete all custom keywords.",
-      "success": "Keywords reset to defaults. {count} keywords seeded.",
-      "cancelled": "Keyword reset cancelled."
+      "success": "Keywords reset to defaults. {count} keywords seeded."
     }
   },
   "testMode": {
     "enabled": "Test mode **enabled** — detections will be logged but no ban/kick/timeout actions will be taken.",
     "disabled": "Test mode **disabled** — detections will now execute real actions.",
-    "title": "Test Mode Updated",
-    "logPrefix": "[TEST MODE] ",
-    "gracePeriodNote": "\n\n**Test Mode Active** — No real action will be taken."
+    "title": "Test Mode Updated"
   },
   "multiChannel": {
     "added": "Added <#{0}> as a bait channel",

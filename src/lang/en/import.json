@@ -9,8 +9,6 @@
     "noImportRunning": "No import is currently running.",
     "dryRunComplete": "Dry run complete. Would import: {0}, Skip: {1}, Fail: {2}",
     "csvRequired": "Please attach a CSV file.",
-    "csvInvalidFormat": "Invalid CSV format. Expected: userId,xp,level,messages",
-    "mee6LeaderboardNotPublic": "MEE6 leaderboard must be public for this server.",
     "statusTitle": "Import Status",
     "historyTitle": "Import History",
     "noHistory": "No imports found for this server.",

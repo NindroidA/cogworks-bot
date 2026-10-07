@@ -14,7 +14,6 @@ import automodEn from './automod.json';
 import baitChannelEn from './baitChannel.json';
 import botConfigEn from './botConfig.json';
 import botSetupEn from './botSetup.json';
-import consoleEn from './console.json';
 import dataExportEn from './dataExport.json';
 import devEn from './dev.json';
 import errorsEn from './errors.json';
@@ -22,7 +21,6 @@ import eventEn from './event.json';
 import generalEn from './general.json';
 import healthEn from './health.json';
 import importEn from './import.json';
-import mainEn from './main.json';
 import memoryEn from './memory.json';
 import onboardingEn from './onboarding.json';
 import reactionRoleEn from './reactionRole.json';
@@ -41,7 +39,6 @@ export const englishModules = {
   baitChannel: baitChannelEn,
   botConfig: botConfigEn,
   botSetup: botSetupEn,
-  console: consoleEn,
   dataExport: dataExportEn,
   dev: devEn,
   errors: errorsEn,
@@ -49,7 +46,6 @@ export const englishModules = {
   general: generalEn,
   health: healthEn,
   import: importEn,
-  main: mainEn,
   memory: memoryEn,
   onboarding: onboardingEn,
   reactionRole: reactionRoleEn,
