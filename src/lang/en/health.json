@@ -264,5 +264,38 @@
     "onboarding.config.step_role_unassignable": "Onboarding step {step} (`{stepId}`) offers <@&{roleId}>, which is managed by an integration or is @everyone, so no bot can grant it. Remove it from the step where it was set up (the dashboard).",
     "onboarding.config.step_role_above_bot": "Onboarding step {step} (`{stepId}`) offers <@&{roleId}>, which is at or above the bot's highest role, so picking it does nothing. Drag the bot's role above it in Server Settings → Roles.",
     "onboarding.config.error": "Couldn't check the onboarding settings. Try again later."
+  },
+  "repair": {
+    "actions": {
+      "core.global_staff_role.missing": "Clear the deleted global staff role and turn the global staff role off",
+      "core.staff_role.missing": "Remove the saved staff role that was deleted",
+      "ticket.panel.channel_missing": "Clear the deleted ticket panel channel",
+      "ticket.panel.category_missing": "Clear the deleted ticket category",
+      "ticket.archive.channel_missing": "Clear the deleted ticket archive forum",
+      "ticket.open.channel_missing": "Close the ticket whose channel was deleted",
+      "application.panel.channel_missing": "Clear the deleted application panel channel",
+      "application.panel.category_missing": "Clear the deleted application category",
+      "application.archive.channel_missing": "Clear the deleted application archive forum",
+      "application.open.channel_missing": "Close the application whose channel was deleted",
+      "announcement.config.channel_missing": "Clear the deleted default announcement channel",
+      "announcement.config.role_missing": "Clear the deleted announcement ping role",
+      "memory.forum.missing": "Remove the deleted memory channel's settings, saved memories and tags",
+      "memory.forum.welcome_missing": "Forget the deleted memory welcome post",
+      "memory.item.thread_missing": "Delete the saved memory whose post was deleted",
+      "reactionRole.option.role_missing": "Remove the reaction-role option whose role was deleted",
+      "reactionRole.menu.channel_missing": "Delete the reaction-role menu whose channel was deleted, with its options",
+      "reactionRole.menu.message_missing": "Delete the reaction-role menu whose message was deleted, with its options",
+      "xp.config.level_up_channel_missing": "Post level-ups in the member's own channel instead of the deleted one",
+      "xp.config.ignored_channel_missing": "Remove the deleted channel from the XP ignored channels",
+      "xp.config.ignored_role_missing": "Remove the deleted role from the XP ignored roles",
+      "xp.config.multiplier_channel_missing": "Remove the deleted channel's XP multiplier",
+      "xp.role_reward.role_missing": "Remove the XP role reward whose role was deleted",
+      "starboard.config.channel_missing": "Turn the starboard off and clear its deleted channel",
+      "starboard.config.ignored_channel_missing": "Remove the deleted channel from the starboard ignored channels",
+      "onboarding.config.completion_role_missing": "Clear the deleted onboarding completion role",
+      "onboarding.config.step_role_missing": "Remove the deleted role from the onboarding role choices",
+      "rules.config.channel_missing": "Delete the rules setup whose channel was deleted, custom message included",
+      "rules.config.message_missing": "Delete the rules setup whose message was deleted, custom message included"
+    }
   }
 }

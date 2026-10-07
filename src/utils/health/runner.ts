@@ -1,6 +1,7 @@
 /**
  * Health check runner. Read-only: it loads rows with `find` and reads Discord
- * caches, and never writes to the database or Discord. Repairs come later.
+ * caches, and never writes to the database or Discord. The repair planner
+ * (`repair/planner.ts`) plans from the rows a run loaded.
  */
 import type { Guild } from 'discord.js';
 import { version } from '../../../package.json';
@@ -25,6 +26,15 @@ export async function runHealthCheck(
   options: HealthRunOptions = {},
   deps: HealthRunDeps = {},
 ): Promise<HealthReport> {
+  return (await runHealthCheckWithContext(guild, options, deps)).report;
+}
+
+/** Runs the checks and also returns the context they read, so a repair can be planned from the same rows. */
+export async function runHealthCheckWithContext(
+  guild: Guild,
+  options: HealthRunOptions = {},
+  deps: HealthRunDeps = {},
+): Promise<{ report: HealthReport; ctx: CheckContext }> {
   const checks = (deps.checks ?? getChecks()).filter(check => !options.system || check.system === options.system);
   const entities = checks.flatMap(check => check.entities);
   const ctx: CheckContext = {
@@ -52,7 +62,7 @@ export async function runHealthCheck(
   for (const label of ctx.rest.skipped) notChecked.push(`rest:${label}`);
 
   const meta = { guildId: guild.id, botVersion: version, checkedAt: new Date().toISOString(), deep: ctx.deep };
-  return buildReport(results, { ...meta, notChecked });
+  return { report: buildReport(results, { ...meta, notChecked }), ctx };
 }
 
 /** Runs one check against only the entities it declared. A throw becomes a single `<id>.error` finding. */
