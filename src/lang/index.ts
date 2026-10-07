@@ -30,66 +30,12 @@
  */
 
 import { createTtlCache } from '../utils/database/configCache';
-// --- English (reference) ---
-import analyticsEn from './en/analytics.json';
-import announcementEn from './en/announcement.json';
-import applicationEn from './en/application.json';
-import automodEn from './en/automod.json';
-import baitChannelEn from './en/baitChannel.json';
-import botConfigEn from './en/botConfig.json';
-import botSetupEn from './en/botSetup.json';
-import consoleEn from './en/console.json';
-import dataExportEn from './en/dataExport.json';
-import devEn from './en/dev.json';
-import errorsEn from './en/errors.json';
-import eventEn from './en/event.json';
-import generalEn from './en/general.json';
-import healthEn from './en/health.json';
-import importEn from './en/import.json';
-import mainEn from './en/main.json';
-import memoryEn from './en/memory.json';
-import onboardingEn from './en/onboarding.json';
-import reactionRoleEn from './en/reactionRole.json';
-import rolesEn from './en/roles.json';
-import rulesEn from './en/rules.json';
-import starboardEn from './en/starboard.json';
-import statusEn from './en/status.json';
-import ticketEn from './en/ticket.json';
-import xpEn from './en/xp.json';
+import { englishModules } from './en';
 import type { Language } from './types';
 
 // ---------------------------------------------------------------------------
 // Locale registry
 // ---------------------------------------------------------------------------
-
-/** English, the complete reference: one module per JSON file in `src/lang/en/`. */
-const englishModules = {
-  analytics: analyticsEn,
-  announcement: announcementEn,
-  application: applicationEn,
-  automod: automodEn,
-  baitChannel: baitChannelEn,
-  botConfig: botConfigEn,
-  botSetup: botSetupEn,
-  console: consoleEn,
-  dataExport: dataExportEn,
-  dev: devEn,
-  errors: errorsEn,
-  event: eventEn,
-  general: generalEn,
-  health: healthEn,
-  import: importEn,
-  main: mainEn,
-  memory: memoryEn,
-  onboarding: onboardingEn,
-  reactionRole: reactionRoleEn,
-  roles: rolesEn,
-  rules: rulesEn,
-  starboard: starboardEn,
-  status: statusEn,
-  ticket: ticketEn,
-  xp: xpEn,
-};
 
 /**
  * A locale's JSON modules. Every file is optional and typed as `unknown`: a
@@ -138,53 +84,10 @@ export function getLocaleLabel(locale: Locale): string {
 }
 
 // ---------------------------------------------------------------------------
-// Building a Language object from a set of JSON modules
-// ---------------------------------------------------------------------------
-
-function assembleLanguage(m: LocaleModules): Language {
-  // Modules are `unknown` (a translation may diverge from or omit any file), so
-  // each is cast to its English shape. Missing or divergent keys are filled in
-  // by `withFallback` below; `?? {}` keeps a partial locale without ticket.json
-  // or roles.json from throwing on the derived keys.
-  const ticket = (m.ticket ?? {}) as typeof ticketEn;
-  const roles = (m.roles ?? {}) as typeof rolesEn;
-  return {
-    general: m.general as typeof generalEn,
-    main: m.main as typeof mainEn,
-    console: m.console as typeof consoleEn,
-    botConfig: m.botConfig as typeof botConfigEn,
-    botSetup: m.botSetup as typeof botSetupEn,
-    ticket,
-    ticketSetup: ticket.setup,
-    application: m.application as typeof applicationEn,
-    addRole: roles.addRole,
-    removeRole: roles.removeRole,
-    getRoles: roles.getRoles,
-    announcement: m.announcement as typeof announcementEn,
-    baitChannel: m.baitChannel as typeof baitChannelEn,
-    dataExport: m.dataExport as typeof dataExportEn,
-    errors: m.errors as typeof errorsEn,
-    dev: m.dev as typeof devEn,
-    memory: m.memory as typeof memoryEn,
-    rules: m.rules as typeof rulesEn,
-    reactionRole: m.reactionRole as typeof reactionRoleEn,
-    starboard: m.starboard as typeof starboardEn,
-    status: m.status as typeof statusEn,
-    import: m.import as typeof importEn,
-    xp: m.xp as typeof xpEn,
-    onboarding: m.onboarding as typeof onboardingEn,
-    automod: m.automod as typeof automodEn,
-    event: m.event as typeof eventEn,
-    analytics: m.analytics as typeof analyticsEn,
-    health: m.health as typeof healthEn,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // English — the base/fallback locale, synchronously available
 // ---------------------------------------------------------------------------
 
-const englishLang: Language = assembleLanguage(englishModules);
+const englishLang: Language = englishModules;
 
 /**
  * Complete English language object with type safety.
@@ -245,7 +148,9 @@ function withFallback<T extends object>(target: Partial<T>, fallback: T): T {
  * keys win, every missing file or key reads English. Exported for tests.
  */
 export function buildLocaleLang(modules: LocaleModules): Language {
-  return withFallback(assembleLanguage(modules), englishLang);
+  // Modules are `unknown` (a translation may omit any file or key); the Proxy
+  // reads English for everything missing.
+  return withFallback(modules as Partial<Language>, englishLang);
 }
 
 // Seeded with English so `en` resolves to the plain `lang` object, not a Proxy.
@@ -328,6 +233,6 @@ export async function getGuildLang(guildId: string): Promise<Language> {
 // Re-exports
 // ---------------------------------------------------------------------------
 
-export type { LangApplication, LangConsole, LangGeneral, LangMain, LangTicket, Language } from './types';
+export type { Language } from './types';
 
 export default lang;

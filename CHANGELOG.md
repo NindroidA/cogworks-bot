@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.39] - 2026-10-06
+
+Language types come from the English JSON (NindroidA/cogworks-bot#41). The
+2,100-line hand-written copy of the JSON shape in `src/lang/types.ts` is gone:
+`Language` is now `typeof` the English modules, so a new string is one JSON
+edit. Internal only; every string the bot shows is unchanged.
+
+### Changed
+
+- **`Language` is derived from `src/lang/en/*.json`.** A new barrel,
+  `src/lang/en/index.ts`, statically imports every English file (so `tsc`
+  still copies them into `dist/`), and `types.ts` is `typeof` that object.
+  Checked with the TypeScript compiler: the old and new types have the same
+  2,275 string paths with the same types, none missing and none extra.
+- **Removed the `lang.ticketSetup`, `lang.addRole`, `lang.removeRole` and
+  `lang.getRoles` aliases.** Code reads `lang.ticket.setup` and
+  `lang.roles.addRole` / `removeRole` / `getRoles`, the paths that match the
+  JSON files (10 call sites).
+- A partial translation is wrapped in the English fallback directly, without
+  first being copied into a fixed object.
+- A unit test fails if a JSON file in `src/lang/en/` is not registered in the
+  barrel.
+
 ## [3.16.38] - 2026-10-06
 
 Bait channel fixes (NindroidA/cogworks-bot#41): a mod's manual ban, kick or
