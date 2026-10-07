@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.40] - 2026-10-06
+
+Internal refactor ahead of `/bot-health repair` (NindroidA/cogworks-bot#41).
+No behavior change: deleting a channel, role, message or thread cleans up the
+same settings as before.
+
+### Changed
+
+- **Each delete-event cleaner gets its change from a pure patch.** The new
+  `src/utils/cleanup/refPatches.ts` holds one function per entity and kind
+  (`REF_PATCHES.channel.TicketConfig(row, channelId)` and so on). It returns
+  `null` when the row doesn't reference the deleted object, the columns to set,
+  or a removal, and for a removal also the child rows a plain delete must take
+  first (memory items and tags for a memory forum, options for a reaction-role
+  menu). Patches copy lists, maps and status history instead of changing the
+  row. The cleaners in `refCleaners.ts` keep their queries, writes, cache
+  flushes and log lines, and apply the patch where they used to edit the row by
+  hand. The repair planner will reuse the same patches, so a health-check
+  repair and the delete events fix a reference the same way. Bait, event and
+  analytics settings, the rules role and ticket routing rules stay inline:
+  they have no health check yet.
+
 ## [3.16.39] - 2026-10-06
 
 Internal refactor ahead of `/bot-health repair` (NindroidA/cogworks-bot#41).
