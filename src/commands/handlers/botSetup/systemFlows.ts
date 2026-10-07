@@ -535,7 +535,7 @@ async function sendTicketButton(guild: Guild, channelId: string, _guildId: strin
         .setStyle(ButtonStyle.Primary),
     );
     const msg = await buttonChannel.send({
-      content: lang.ticketSetup.createTicket,
+      content: lang.ticket.setup.createTicket,
       components: [ticketButton],
     });
     return msg.id;
@@ -575,7 +575,7 @@ async function configureTicket(
     systemLabel: 'Ticket System',
     loadingMessage: 'Creating ticket channels...',
     archiveThreadName: 'Ticket Archive',
-    archiveInitialMsg: lang.ticketSetup.archiveInitialMsg,
+    archiveInitialMsg: lang.ticket.setup.archiveInitialMsg,
     modalId: 'setup_ticket',
     modalTitle: 'Ticket System Setup',
     channelLabel: 'Ticket Channel',

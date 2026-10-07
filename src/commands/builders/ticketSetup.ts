@@ -2,7 +2,7 @@ import { ChannelType, SlashCommandBuilder } from 'discord.js';
 import { lang } from '../../utils';
 import { createForumChannelOption, createTextChannelOption } from './factories';
 
-const tl = lang.ticketSetup;
+const tl = lang.ticket.setup;
 
 /* main slash command — all options are optional so admins can update individual settings */
 export const ticketSetup = new SlashCommandBuilder()
