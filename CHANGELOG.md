@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The rest of the repair plan for `/bot-health repair`
 (NindroidA/cogworks-bot#41): fixes for findings about a row's own values,
 the missing built-in announcement templates, and the server's slash commands.
-Nothing calls the repair yet, so the bot behaves exactly as before.
+Nothing calls the repair yet. The only change you could see is a small fix in
+`/bot-health check` (below).
 
 ### Added
 
@@ -43,6 +44,14 @@ Nothing calls the repair yet, so the bot behaves exactly as before.
   global staff role, or the ticket getting its channel, leaves the row alone.
   Only the permission grant for a deleted role re-checks Discord first.
 - Labels for the new repairs under `health.repair.actions`.
+
+### Fixed
+
+- **`/bot-health check` no longer reports a live XP role reward as the
+  duplicate of one whose role was deleted.** A reward with a deleted role is
+  now only reported as such, and never counts as the reward a level keeps
+  (`src/utils/health/checks/xp.ts`). Before, removing the "duplicate" and then
+  the dead reward would have left that level with no reward at all.
 
 ## [3.16.49] - 2026-10-07
 

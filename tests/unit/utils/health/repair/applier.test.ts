@@ -188,7 +188,7 @@ describe('applyRepairPlan: inserts and commands', () => {
       inserted.push(values);
       return 'applied';
     };
-    const { deps, registered } = makeDeps(store);
+    const { deps, registered, audits } = makeDeps(store);
     const steps = [command(), insert({ name: 'welcome', guildId: OTHER }), step('delete', []), step('set', [])];
     const result = await applyRepairPlan(guildOf(), plan(steps), ACTOR, deps);
     expect(result.results.map(r => [r.step.op, r.outcome])).toEqual([
@@ -204,6 +204,8 @@ describe('applyRepairPlan: inserts and commands', () => {
     ]);
     expect(inserted).toEqual([{ name: 'welcome', guildId: G }]);
     expect(registered).toEqual([G]);
+    // The audit row shows the row as written.
+    expect((audits[0][3] as any).steps[2]).toMatchObject({ op: 'insert', values: { name: 'welcome', guildId: G } });
   });
 
   test('an insert on a taken key is exists and flushes nothing; a failing command fails only its step', async () => {

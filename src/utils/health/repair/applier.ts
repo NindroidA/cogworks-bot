@@ -110,6 +110,9 @@ async function withDefaults(deps: Partial<ApplyDeps>): Promise<ApplyDeps> {
   return { rest: createRestFetcher(), ...defaults, ...given };
 }
 
+/** An insert's row as written: the guild's id last, so the values can't name another guild. */
+const insertedRow = (step: RepairStep, guildId: string) => ({ ...step.values, guildId });
+
 /** The table a row step writes. Only a command step names `ApplicationCommand`. */
 function tableOf(step: RepairStep): RepairEntityName {
   if (step.entity === 'ApplicationCommand') throw new Error(`A ${step.op} step can't write ${step.entity}`);
@@ -124,8 +127,7 @@ async function write(guild: Guild, step: RepairStep, deps: ApplyDeps): Promise<S
     case 'delete':
       return store.delete(tableOf(step), step.where, step.guard, step.cascade);
     case 'insert':
-      // The guild's id last, so the values can't name another guild.
-      return store.insert(tableOf(step), { ...step.values, guildId: guild.id });
+      return store.insert(tableOf(step), insertedRow(step, guild.id));
     case 'command':
       if (step.command !== 'registerGuildCommands') throw new Error(`Unknown repair command ${step.command}`);
       await deps.registerGuildCommands(guild.id);
@@ -181,7 +183,7 @@ function clip(values: Record<string, unknown>): Record<string, unknown> {
   );
 }
 
-function auditDetails(plan: RepairPlan, result: RepairResult, checkedAt: string): Record<string, unknown> {
+function auditDetails(plan: RepairPlan, result: RepairResult, guildId: string, checkedAt: string) {
   const codeOf = new Map(plan.fixes.map(fix => [fix.key, fix.code]));
   const steps = result.results.slice(0, AUDIT_MAX_STEPS).map(({ step, outcome }) => ({
     entity: step.entity,
@@ -191,7 +193,7 @@ function auditDetails(plan: RepairPlan, result: RepairResult, checkedAt: string)
     codes: [...new Set(step.keys.map(key => codeOf.get(key) ?? key))],
     guard: clip(step.guard),
     ...(step.set ? { set: clip(step.set) } : {}),
-    ...(step.values ? { values: clip(step.values) } : {}),
+    ...(step.values ? { values: clip(insertedRow(step, guildId)) } : {}),
   }));
   const omitted = result.results.length - steps.length;
   return { checkedAt, counts: result.counts, steps, ...(omitted > 0 ? { stepsOmitted: omitted } : {}) };
@@ -224,7 +226,7 @@ export async function applyRepairPlan(
     if (counts.applied > 0) flushCaches(guild, resolved);
 
     const action = actor.source === 'command' ? 'command:bot-health:repair' : 'bot-health.repair';
-    const details = auditDetails(plan, result, actor.checkedAt);
+    const details = auditDetails(plan, result, guild.id, actor.checkedAt);
     await resolved.writeAuditLog(guild.id, action, actor.userId, details, actor.source);
     return result;
   } finally {

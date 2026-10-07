@@ -162,6 +162,17 @@ describe('xp.role_reward', () => {
     ]);
   });
 
+  test('a reward whose role was deleted is only role_missing, and never the kept reward of its level', async () => {
+    for (const rewards of [
+      [reward(6, 5, GONE_ROLE), reward(7, 5, ROLE)],
+      [reward(3, 5, ROLE), reward(8, 5, GONE_ROLE)],
+    ]) {
+      const dead = rewards.find(r => r.roleId === GONE_ROLE);
+      const findings = await run(rewards);
+      expect(findings.map(f => [f.code, f.rowId])).toEqual([['xp.role_reward.role_missing', dead?.id]]);
+    }
+  });
+
   test('fail: more than 25 rewards; pass: exactly 25', async () => {
     const many = (n: number) => Array.from({ length: n }, (_, i) => reward(i + 1, i + 1, ROLE));
     expect(codes(await run(many(26)))).toEqual(['xp.role_reward.too_many']);

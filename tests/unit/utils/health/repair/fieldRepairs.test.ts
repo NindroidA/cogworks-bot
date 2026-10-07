@@ -433,6 +433,24 @@ describe('field repairs: what each write is conditional on', () => {
     expect(only.steps).toMatchObject([{ set: { selectedSystems: ['ticket', 'bogus'] } }]);
   });
 
+  test('a level whose oldest reward lost its role keeps the live reward when every fix is applied', async () => {
+    const db = setup({
+      XPConfig: [xp()],
+      XPRoleReward: [
+        { id: 6, level: 5, roleId: GONE_ROLE },
+        { id: 7, level: 5, roleId: ROLE },
+      ],
+    });
+    const checks = [checkFor('xp.role_reward.duplicate_level')];
+    const { report, ctx } = await db.run(checks);
+    const plan = planRepairs(report, ctx);
+    expect(plan.fixes.map(fix => [fix.code, fix.rowId])).toEqual([['xp.role_reward.role_missing', 6]]);
+    const result = await applyRepairPlan(db.guild, plan, ACTOR, depsFor(db.store));
+    expect(result.results.map(r => r.outcome)).toEqual(['applied']);
+    expect(db.rows('XPRoleReward')).toMatchObject([{ id: 7, level: 5, roleId: ROLE }]);
+    expect(findingsOf((await db.run(checks)).report)).toEqual([]);
+  });
+
   test('a ticket that got its channel meanwhile stays open', async () => {
     const db = setup({ Ticket: [failedTicket()] });
     const { report, ctx } = await db.run([checkFor('ticket.open.creation_failed')]);
