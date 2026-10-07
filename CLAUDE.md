@@ -193,6 +193,7 @@ import { lazyRepo } from '../utils/database/lazyRepo';
 const ticketRepo = lazyRepo(TicketConfig);
 // Use ticketRepo like AppDataSource.getRepository(TicketConfig) — same API
 ```
+Existing modules use it at module scope; new modules shouldn't, because the cached repository breaks test isolation (see Testing).
 
 ### Interaction Helpers
 Standardized patterns for common Discord interaction flows (`src/utils/interactions/`):
@@ -226,6 +227,37 @@ BaitChannelManager and StatusManager are attached to the Discord client via `Ext
 import type { ExtendedClient } from '../types/ExtendedClient';
 const { baitChannelManager, statusManager } = client as ExtendedClient;
 ```
+
+### Health Check & Repair (`/bot-health`)
+`/bot-health check` reports what's wrong with a guild's saved settings; `/bot-health repair` fixes what it safely can. Engine: `src/utils/health/`. Command: `src/commands/handlers/botHealth/` (`target.ts` holds the owner `guild-id` lookup and the rate-limit slots). Dashboard endpoints: see **Bot health** under Internal API below.
+
+**Checks** (`health/checks/<feature>.ts`, collected in `registry.ts`; the runner never writes):
+- `defineCheck({ id, system, entities, names, isConfigured?, restPriority? }, (ctx, emit) => findings)`. `emit(name, severity, repair, at)` builds the finding `<id>.<name>`. Severity: `block` (feature broken), `degraded` (partly broken), `cosmetic` (hygiene). Repair class: `auto` (deterministic, loses nothing), `confirm` (the admin picks it in the preview), `manual` (the text says what to do).
+- `CheckContext` (`context.ts`): the runner loads each declared entity once per run with a guild-scoped `find` (new entities go in `HEALTH_ENTITIES`). `rowsOf(ctx, entity)` throws for an undeclared entity or a failed load, and the check becomes a single `<id>.error` finding. Discord REST lookups go through `ctx.rest`, one budget per run (`HEALTH_REST_BUDGET`: 4 at a time, 5 s each, 60 calls, optional per-label cap); a skipped call is listed in `report.notChecked`. `restPriority: 'low'` runs a check with only cosmetic lookups last.
+- `refs.ts` classifies a reference as `ok`, `missing`, `inaccessible` or `unknown` (5xx, 429, timeout, guild unavailable). **Only `missing` is proof**, so emit `auto`/`confirm` only on it. Roles and non-thread channels resolve from the guild cache (a miss is proof while the guild is available). An id that may be an archived thread needs `mayBeThread` plus a `ctx.rest` lookup (`checks/refHelpers.ts`: `threadStatus` and `messageStatus`, which only call Discord in deep mode). Never decide with `safeChannelFetch`, which returns null on any error (no access would read as deleted), and never use `client.channels.fetch`.
+
+**Repair pipeline** (`health/repair/`): planner → applier → store.
+- `planRepairs(report, ctx, { keys?, classes? })` (`planner.ts`) is a dry run over the rows the check loaded (`runHealthCheckWithContext` returns them). It never writes or mutates `ctx`, and returns `fixes` (the preview), `steps` (writes) and `unsupported` (with a reason). All fixes on one row merge into one step, a delete absorbs that row's sets, and a parent delete absorbs its children's steps (menu → options, memory forum → items and tags). Fixes are picked by `findingKey` (`keys.ts`: sha1 of code, target and sorted params), which stays stable across re-checks. The command re-plans the picked keys on the preview's rows; the API always re-checks first.
+- Each row step carries a `guard`: the loaded value of every column it changes, plus the columns it depends on. `applyRepairPlan` (`applier.ts`) takes the per-guild in-process lock (`lock.ts`; `RepairBusyError`; one process, no sharding, shared by the command and the API) and runs sets → deletes → inserts → commands. Right before each write, `verifyProof` (`verify.ts`) re-proves that the step's channel, role, thread or message is still `missing`: `ok` gives `skipped-not-missing`, and anything else gives `skipped-unverified` with no write. A failed step is recorded and the rest still run. If anything applied, the guild caches, bait caches and the command refresh are flushed once. Then one audit row goes to the target guild (`command:bot-health:repair` or, from the API, `bot-health.repair`).
+- `store.ts` writes only while the guard still holds. Scalar guards become one conditional UPDATE/DELETE (null → `IsNull()`; 0 rows affected → `stale` or `gone`). JSON guards, cascades and `ReactionRoleOption` (no guildId; owned through its menu) run in a transaction with `SELECT … FOR UPDATE` and `isDeepStrictEqual`. A where without `guildId`, or an empty guard, throws. Inserts are insert-ignore (`exists`).
+- Saved memory text has no other copy, so memory deletes (`memory.forum.missing`, `memory.item.thread_missing`, `memory.item.orphan`) are always `confirm`, even where the check rates them auto.
+
+**Shared cleanup patches.** `src/utils/cleanup/refPatches.ts` holds the pure per-entity patch for a deleted channel, role, message or thread (`REF_PATCHES[kind][entity](row, id)`). The delete-event cleaners (`refCleaners.ts`) and the ref repairs both apply it, so an event and a repair fix a reference the same way. Change that behaviour there, once.
+
+**Adding a check:** write it with `defineCheck` in the feature's module (a new module also goes into `CHECKS` in `registry.ts`). Add `findings["<id>.<name>"]` and `findings["<id>.error"]` to `src/lang/en/health.json`. `registry.test.ts` requires one string per code and no extras, each a full sentence; `.error` strings end "Try again later."; `/command option:` mentions must exist; and no string may promise a repair, because fix marks come from the plan. The first check for a system makes it a `system` choice: add the system to `HealthSystem`/`HEALTH_SYSTEMS` if it's new, take it off `HEALTH_SYSTEMS_NOT_CHECKED` (`systems.ts`), and give it a `command.systems` label. That changes the slash command, so regenerate the contract. Test with `makeCheckContext` and `makeFakeGuild` (`tests/helpers`).
+
+**Adding a repair:**
+- For a deleted object, reuse or add its patch in `REF_PATCHES`, then add a `ref(kind, entity, fields, { proof?, confirm?, keeps? })` entry to `REF_REPAIRS` (`refRepairs.ts`). `fields` limits which columns it may change; use `proof: 'thread'` when the id may be an archived thread.
+- For anything else, add an entry to `FIELD_REPAIRS` (`fieldRepairs.ts`): a row patch (`setTo`, `deleteRow` or `{ entity, fields, guards?, patch }`), an insert, or the `registerGuildCommands` command.
+- Either way, add the label as `repair.actions.<code>` in `health.json` (read via `repairLabel`). Then list the code in `tests/unit/utils/health/repair/coverage.test.ts`: every code a check emits as auto or confirm goes in `REPAIRABLE_TODAY` and needs an action or a `DEFERRED` entry, every action needs a label, and every label needs an action. Add a planner case, and for field repairs a round trip in `fieldRepairs.test.ts` (plan → apply on `makeRepairDb` → re-check → finding gone).
+
+**Rate limits:** `BOT_HEALTH_ACTIONS` (`rateLimiter.ts`) names the per-guild slots that the command and the internal API share: check 1/min, deep 1/10 min, repair 5/hour (a deep repair also takes the deep slot). The bot owner bypasses them in the command. A run whose check fails gets its slots back (`rateLimiter.refund`).
+
+**Not automated yet, on purpose:**
+- The `DEFERRED` codes: `*.panel.message_missing` (re-posting is a Discord action), custom-field input problems (`too_many_fields`, `field_*`), `memory.tag.duplicate` and `memory.tag.not_in_forum`.
+- Discord changes: registering commands is the only Discord action a repair takes.
+- The bait channel, which has no checks yet.
+- Still open (tracked in #94): an archive-tag backfill repair that retires `/migrate`; a `GuildPermission` cleaner in `roleDelete` (until then, the repair removes grants for deleted roles); and the dashboard health page.
 
 ## Database
 
@@ -540,7 +572,7 @@ const triggeredBy = optionalString(body, 'triggeredBy');   // for audit logs
 - Use `claimAndArchiveTicket()` (`utils/ticket/claimAndArchive`) for Discord-side ticket closes; it wraps `archiveAndCloseTicket()` (`utils/ticket/closeWorkflow`) with `claimClose`/`releaseClose`, so a failed archive reverts the status instead of stranding the ticket
 - Use `verifiedChannelDelete`/`verifiedThreadDelete` for Discord deletions
 - Use `buildErrorMessage()` for user-facing error messages
-- Use `lazyRepo()` for deferred repository access
+- Fetch repositories lazily: `AppDataSource.getRepository` inside the function in new modules (existing modules keep their module-scope `lazyRepo()`)
 - Use `MessageFlags.Ephemeral` for error/info replies
 - Record command metrics with `healthMonitor.recordCommand()`
 - Import from `src/utils/index.ts` barrel (exports all utilities)
@@ -555,6 +587,19 @@ const triggeredBy = optionalString(body, 'triggeredBy');   // for audit logs
 - Tests: `tests/unit/` — commands, contract, events, handlers, utils (plus `tests/integration/` and `tests/manual/`)
 - Imports: use `from 'bun:test'` (NOT `from '@jest/globals'` — Jest was removed in v3.1.35).
 - Mocking: prefer hand-rolled fakes / `mock.module(...)` from `bun:test`. `jest.fn()` / `jest.spyOn()` work via Bun's compatibility shim. `jest.mock()` is NOT supported — use `mock.module()` instead.
+- **Gate**: everything below must be green before a PR goes up (CI runs the same checks):
+  ```bash
+  bun install --frozen-lockfile && bun run test && bun run check && bun run build && bun run build:contract && bun run check:contract && bun run check:changelog
+  ```
+  `check:contract` passes only after the regenerated `contract/cogworks-contract.json` is committed. Don't pipe test output through `head`/`grep` in a way that hides a failing exit code.
+- **CI pins Bun 1.3.14** (`.github/workflows/ci.yml`), which may be older than your local Bun. Two differences have bitten: fake-timer callbacks read the real clock (`setSystemTime` is ignored inside them), so inject `now` into date logic instead of driving it through timers; and package `exports` maps are enforced, so don't deep-import (`typeorm/util/...`).
+- **`lazyRepo` caches the first repository it sees, across test files.** A module-scope `lazyRepo` keeps whichever fake the first suite patched into `AppDataSource.getRepository`. Suites that drive such a module share one stub per entity and swap its behaviour (`tests/helpers/sharedBotConfigRepo.ts` for BotConfig). New modules don't add a module-scope `lazyRepo`: call `AppDataSource.getRepository` inside the function, or take the repository as a parameter.
+- **`mock.module` is process-wide.** A new module shouldn't top-level import modules that other suites mock: the cache modules (`rulesCache`, `menuCache`, and `offboarding/guildCaches`, which pulls them in), `setup/commandGating` and `api/handlers/auditHelper`. Load them lazily with `await import(...)` and let tests inject fakes (see `withDefaults` in `utils/health/repair/applier.ts`).
+- **File order:** some suites fail under `bun test --randomize`, even on clean main (#62). CI's fixed order passes. Don't add new order dependencies.
+- **Lang keys:** `tests/unit/lang/keys.test.ts` fails on a missing or dead key and on `fmt()` params that don't match the string's placeholders (see Language System). The dead-key allowlist stays empty.
+
+## Releases
+Every PR bumps `package.json`'s version: patch for fixes, docs and internal work, minor for user-facing features. It also adds a `## [x.y.z] - YYYY-MM-DD` entry at the top of `CHANGELOG.md` (Keep a Changelog sections) and regenerates the contract (`bun run build:contract`, which records the bot version). `check:changelog` fails when the top entry doesn't match the version, and `check:contract` fails when the committed contract is stale. A merge to `main` deploys after CI, and the deploy posts the top changelog entry to Discord, so write it for server admins.
 
 ## Security
 
