@@ -1,7 +1,8 @@
-import { EmbedBuilder, type Guild, type TextChannel } from 'discord.js';
+import { EmbedBuilder, type Guild, Routes, type TextChannel } from 'discord.js';
 import { lang } from '../../lang';
 import type { ReactionRoleMenu } from '../../typeorm/entities/reactionRole';
 import { Colors } from '../colors';
+import { reactionRouteIdentifier } from './optionEmoji';
 
 const tl = lang.reactionRole;
 
@@ -46,9 +47,25 @@ export function buildMenuEmbed(menu: ReactionRoleMenu): EmbedBuilder {
 }
 
 /**
- * Updates the menu message embed and syncs reactions
+ * Reactions to change on the menu message. The client's reaction cache is off
+ * (`ReactionManager: 0`), so the message can't tell what is already there.
  */
-export async function updateMenuMessage(menu: ReactionRoleMenu, guild: Guild): Promise<boolean> {
+export interface MenuReactionChanges {
+  /** Option emoji the bot should react with */
+  add?: string[];
+  /** Option emoji whose bot reaction should be removed */
+  remove?: string[];
+}
+
+/**
+ * Updates the menu message embed and applies `changes` to the bot's reactions.
+ * Without `changes` it reacts with every option again (the dashboard rebuild).
+ */
+export async function updateMenuMessage(
+  menu: ReactionRoleMenu,
+  guild: Guild,
+  changes?: MenuReactionChanges,
+): Promise<boolean> {
   try {
     const channel = await guild.channels.fetch(menu.channelId);
     if (!channel?.isTextBased()) return false;
@@ -60,25 +77,14 @@ export async function updateMenuMessage(menu: ReactionRoleMenu, guild: Guild): P
     const embed = buildMenuEmbed(menu);
     await message.edit({ embeds: [embed] });
 
-    // Sync reactions: add missing
     const sorted = [...(menu.options || [])].sort((a, b) => a.sortOrder - b.sortOrder);
-    for (const option of sorted) {
-      const existing = message.reactions.cache.find(r => {
-        const emojiStr = r.emoji.id ? `<:${r.emoji.name}:${r.emoji.id}>` : r.emoji.name;
-        return emojiStr === option.emoji || r.emoji.name === option.emoji;
-      });
-      if (!existing) {
-        await message.react(option.emoji);
-      }
+    for (const emoji of changes ? (changes.add ?? []) : sorted.map(o => o.emoji)) {
+      await message.react(emoji);
     }
-
-    // Remove reactions for removed options
-    for (const [, reaction] of message.reactions.cache) {
-      const emojiStr = reaction.emoji.id ? `<:${reaction.emoji.name}:${reaction.emoji.id}>` : reaction.emoji.name || '';
-      const isBot = reaction.me;
-      if (isBot && !menu.options?.find(o => o.emoji === emojiStr || o.emoji === reaction.emoji.name)) {
-        await reaction.remove();
-      }
+    for (const emoji of changes?.remove ?? []) {
+      await guild.client.rest.delete(
+        Routes.channelMessageOwnReaction(menu.channelId, menu.messageId, reactionRouteIdentifier(emoji)),
+      );
     }
 
     return true;

@@ -38,6 +38,7 @@ import { commands } from '../../../src/commands/commandList';
 import { afterDispatch, dispatchCommand } from '../../../src/commands/commands';
 import { applicationEditModalHandler } from '../../../src/commands/handlers/application/applicationEdit';
 import { applicationPositionAutocomplete } from '../../../src/commands/handlers/application/applicationPosition';
+import { onboardingStepAutocomplete } from '../../../src/commands/handlers/onboarding/steps';
 import { handleContextMenuCommand } from '../../../src/commands/handlers/contextMenus';
 import { emailImportModalHandlerImpl } from '../../../src/commands/handlers/ticket/emailImport';
 import { typeAddModalHandlerImpl } from '../../../src/commands/handlers/ticket/typeAdd';
@@ -306,7 +307,7 @@ const GUARDS: Record<string, Guard> = {
  * route, so nobody gets suggestions. Listed so the route checks skip them on
  * purpose.
  */
-const AUTOCOMPLETE_UNROUTED = new Set(['onboarding']);
+const AUTOCOMPLETE_UNROUTED = new Set<string>();
 
 // ---------------------------------------------------------------------------
 // Registry walk
@@ -787,6 +788,10 @@ describe('autocomplete on visible commands', () => {
     for (const sub of ['remove', 'toggle', 'edit', 'fields']) {
       expect(resolveAutocompleteRoute('application', 'position', sub)?.handler).toBe(applicationPositionAutocomplete);
     }
+  });
+
+  test('the /onboarding step-remove picker reaches the step autocomplete', () => {
+    expect(resolveAutocompleteRoute('onboarding', '', 'step-remove')?.handler).toBe(onboardingStepAutocomplete);
   });
 
   test.each(

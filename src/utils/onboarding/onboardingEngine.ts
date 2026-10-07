@@ -7,9 +7,9 @@
  *
  * The public `sendOnboardingFlow` is a 4-phase orchestration:
  *   1. `loadOnboardingState` — config + completion record + DM channel
- *   2. `sendWelcomeMessage` — opening embed
- *   3. `runOnboardingSteps` — sequential per-step send + wait + persist
- *   4. `finalizeOnboarding` — completion role + closing embed
+ *   2. `sendWelcomeMessage` — opening embed (the call resolves here)
+ *   3. `runOnboardingSteps` — sequential per-step send + wait + persist (background)
+ *   4. `finalizeOnboarding` — completion role + closing embed (background)
  *
  * Each phase is independently testable; the orchestration just chains them.
  */
@@ -37,40 +37,53 @@ const tlEngine = lang.onboarding.engine;
 /** 24 hours in milliseconds */
 const COLLECTOR_TTL = 24 * 60 * 60 * 1000;
 
+export interface OnboardingFlowOptions {
+  /** Admin preview: works while disabled, shows every step, saves nothing and grants no roles. */
+  preview?: boolean;
+  /** Start again from the first step when the member already finished (resend). */
+  restart?: boolean;
+}
+
 interface OnboardingState {
   config: OnboardingConfig;
   completion: OnboardingCompletion;
   dmChannel: DMChannel;
+  preview: boolean;
 }
 
 /**
  * Phase 1: load the guild's onboarding config, ensure a completion record
  * exists for this member, and open a DM channel. Returns null if onboarding
- * is disabled, has no steps, or the user has DMs closed.
+ * is disabled (unless previewing), has no steps, or the user has DMs closed.
  */
-async function loadOnboardingState(member: GuildMember): Promise<OnboardingState | null> {
+async function loadOnboardingState(
+  member: GuildMember,
+  options: OnboardingFlowOptions,
+): Promise<OnboardingState | null> {
   const guildId = member.guild.id;
+  const preview = options.preview === true;
   const configRepo = AppDataSource.getRepository(OnboardingConfig);
   const config = await configRepo.findOneBy({ guildId });
 
-  if (!config?.enabled || !config.steps || config.steps.length === 0) {
+  if ((!config?.enabled && !preview) || !config?.steps || config.steps.length === 0) {
     return null;
   }
 
   // Upsert completion record so we track the start regardless of where the
-  // flow stops (DM closed, required step skipped, etc).
+  // flow stops (DM closed, required step skipped, etc). A preview uses an
+  // unsaved record, so the admin's stats and progress stay untouched.
   const completionRepo = AppDataSource.getRepository(OnboardingCompletion);
-  let completion = await completionRepo.findOneBy({
-    guildId,
-    userId: member.id,
-  });
+  let completion = preview ? null : await completionRepo.findOneBy({ guildId, userId: member.id });
   if (!completion) {
     completion = completionRepo.create({
       guildId,
       userId: member.id,
       completedSteps: [],
     });
-    await completionRepo.save(completion);
+    if (!preview) await completionRepo.save(completion);
+  } else if (options.restart && completion.completedAt) {
+    completion.completedSteps = [];
+    completion.completedAt = null;
   }
 
   let dmChannel: DMChannel;
@@ -81,7 +94,7 @@ async function loadOnboardingState(member: GuildMember): Promise<OnboardingState
     return null;
   }
 
-  return { config, completion, dmChannel };
+  return { config, completion, dmChannel, preview };
 }
 
 /** Phase 2: send the welcome embed. Returns true if delivered. */
@@ -115,7 +128,7 @@ async function sendWelcomeMessage(member: GuildMember, state: OnboardingState): 
  * the partial state).
  */
 async function runOnboardingSteps(member: GuildMember, state: OnboardingState): Promise<boolean> {
-  const { config, completion, dmChannel } = state;
+  const { config, completion, dmChannel, preview } = state;
   // `loadOnboardingState` guarantees config.steps is non-null + non-empty;
   // capture it as a local so TS keeps the narrowing through the loop body.
   const steps = config.steps!;
@@ -126,12 +139,12 @@ async function runOnboardingSteps(member: GuildMember, state: OnboardingState): 
     const step = steps[i];
     if (completedSteps.includes(step.id)) continue;
 
-    const success = await sendStep(dmChannel, member, step, i, steps.length);
+    const success = await sendStep(dmChannel, member, step, i, steps.length, preview);
     if (success) {
       completedSteps.push(step.id);
       completion.completedSteps = completedSteps;
       completion.lastStepAt = new Date();
-      await completionRepo.save(completion);
+      if (!preview) await completionRepo.save(completion);
     } else if (step.required) {
       enhancedLogger.debug(
         `Onboarding stopped at required step "${step.id}" for ${member.user.tag}`,
@@ -144,7 +157,7 @@ async function runOnboardingSteps(member: GuildMember, state: OnboardingState): 
 
   completion.completedSteps = completedSteps;
   completion.completedAt = new Date();
-  await completionRepo.save(completion);
+  if (!preview) await completionRepo.save(completion);
   return true;
 }
 
@@ -152,7 +165,7 @@ async function runOnboardingSteps(member: GuildMember, state: OnboardingState): 
 async function finalizeOnboarding(member: GuildMember, state: OnboardingState): Promise<void> {
   const guildId = member.guild.id;
 
-  if (state.config.completionRoleId) {
+  if (state.config.completionRoleId && !state.preview) {
     try {
       await member.roles.add(state.config.completionRoleId);
     } catch (error) {
@@ -178,22 +191,27 @@ async function finalizeOnboarding(member: GuildMember, state: OnboardingState): 
 }
 
 /**
- * Sends the full onboarding flow to a member via DM.
- * Returns true if onboarding was initiated, false if DMs are closed or no
- * steps are configured. (`true` does NOT mean every step completed — see
- * the OnboardingCompletion record for that.)
+ * Sends the onboarding flow to a member via DM. Resolves once the welcome DM
+ * is delivered: true if the flow started, false if onboarding is off, has no
+ * steps, or DMs are closed. The steps run in the background (each waits up to
+ * 24h), so a slash command can reply within its 15-minute token. (`true` does
+ * NOT mean every step completed — see the OnboardingCompletion record.)
  */
-export async function sendOnboardingFlow(member: GuildMember): Promise<boolean> {
-  const state = await loadOnboardingState(member);
+export async function sendOnboardingFlow(member: GuildMember, options: OnboardingFlowOptions = {}): Promise<boolean> {
+  const state = await loadOnboardingState(member, options);
   if (!state) return false;
 
   const welcomed = await sendWelcomeMessage(member, state);
   if (!welcomed) return false;
 
-  const allDone = await runOnboardingSteps(member, state);
-  if (!allDone) return true; // flow started; required step blocked completion
-
-  await finalizeOnboarding(member, state);
+  void runOnboardingSteps(member, state)
+    .then(allDone => (allDone ? finalizeOnboarding(member, state) : undefined))
+    .catch(error =>
+      enhancedLogger.error('Onboarding flow failed', error as Error, LogCategory.SYSTEM, {
+        guildId: member.guild.id,
+        userId: member.id,
+      }),
+    );
   return true;
 }
 
@@ -207,6 +225,7 @@ async function sendStep(
   step: OnboardingStepDef,
   stepIndex: number,
   totalSteps: number,
+  preview: boolean,
 ): Promise<boolean> {
   const embed = new EmbedBuilder()
     .setColor('#5865F2')
@@ -339,18 +358,14 @@ async function sendStep(
     return false;
   }
 
-  return await waitForStepInteraction(message, member, step);
+  return await waitForStepInteraction(message, member, preview);
 }
 
 /**
  * Waits for the user to interact with a step message.
- * Handles role assignment for role-select steps.
+ * Handles role assignment for role-select steps (skipped in a preview).
  */
-async function waitForStepInteraction(
-  message: Message,
-  member: GuildMember,
-  _step: OnboardingStepDef,
-): Promise<boolean> {
+async function waitForStepInteraction(message: Message, member: GuildMember, preview: boolean): Promise<boolean> {
   let selectedRoles: string[] = [];
 
   try {
@@ -382,7 +397,7 @@ async function waitForStepInteraction(
             }
 
             if (customId.startsWith('onboarding_confirmrole_')) {
-              if (selectedRoles.length > 0) {
+              if (!preview) {
                 for (const roleId of selectedRoles) {
                   try {
                     await member.roles.add(roleId);

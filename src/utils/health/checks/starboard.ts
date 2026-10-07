@@ -17,8 +17,8 @@ import {
 
 /**
  * One unicode emoji, loosely: a regional indicator or flag, a keycap, or a pictograph with optional
- * variation selector, skin tone and tag characters, joined by ZWJ. Accepts every RGI emoji (validateEmoji
- * rejects flags, skin tones and keycaps, #131) plus the lone regional indicators bots react with.
+ * variation selector, skin tone and tag characters, joined by ZWJ. Accepts every RGI emoji plus the lone
+ * regional indicators bots react with, like validateEmoji, but also some non-RGI sequences.
  */
 const EMOJI_PART =
   /(?:\p{Regional_Indicator}{1,2}|[0-9#*]\uFE0F?\u20E3|[\p{Extended_Pictographic}\p{Emoji_Modifier}][\uFE0E\uFE0F\p{Emoji_Modifier}\u{E0020}-\u{E007F}]*)/u

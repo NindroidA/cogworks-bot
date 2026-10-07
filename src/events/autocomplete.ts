@@ -11,6 +11,7 @@ import { scheduledEventAutocomplete } from '../commands/handlers/event/create';
 import { eventTemplateAutocomplete } from '../commands/handlers/event/template';
 import { memoryAutocomplete } from '../commands/handlers/memory';
 import { memoryTagAutocomplete } from '../commands/handlers/memory/manageTags';
+import { onboardingStepAutocomplete } from '../commands/handlers/onboarding/steps';
 import { reactionRoleMenuAutocomplete } from '../commands/handlers/reactionRole';
 import { routingRuleAutocomplete } from '../commands/handlers/ticket/routing';
 import { ticketTypeAutocomplete, ticketTypeAutocompleteWithBuiltin } from '../commands/handlers/ticket/typeToggle';
@@ -82,6 +83,8 @@ const AUTOCOMPLETE_ROUTES: Record<string, AutocompleteRoute> = {
   // /memory-setup *
   'memory-setup//tag-remove': manage('memory', memoryTagAutocomplete),
   'memory-setup//tag-edit': manage('memory', memoryTagAutocomplete),
+  // /onboarding step-remove (flagged for autocomplete, never routed until v3.16.33)
+  'onboarding//step-remove': manage('onboarding', onboardingStepAutocomplete),
   // /baitchannel detection *
   'baitchannel/detection/keywords': manage('baitchannel', handleKeywordAutocomplete),
   // /event * — template-name options (never wired until v3.14.3)

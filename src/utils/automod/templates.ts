@@ -5,7 +5,12 @@
  * Each template defines one or more AutoMod rules using Discord's native API types.
  */
 
-import { AutoModerationActionType, AutoModerationRuleEventType, AutoModerationRuleTriggerType } from 'discord.js';
+import {
+  AutoModerationActionType,
+  AutoModerationRuleEventType,
+  type AutoModerationRuleKeywordPresetType,
+  AutoModerationRuleTriggerType,
+} from 'discord.js';
 
 export interface AutoModRuleConfig {
   name: string;
@@ -16,6 +21,8 @@ export interface AutoModRuleConfig {
     regexPatterns?: string[];
     mentionTotalLimit?: number;
     mentionRaidProtectionEnabled?: boolean;
+    allowList?: string[];
+    presets?: AutoModerationRuleKeywordPresetType[];
   };
   actions: {
     type: AutoModerationActionType;
@@ -24,9 +31,13 @@ export interface AutoModRuleConfig {
       durationSeconds?: number;
       /** Custom message shown to the user */
       customMessage?: string;
+      /** Alert channel (required by Discord for an alert action) */
+      channelId?: string;
     };
   }[];
   enabled: boolean;
+  exemptRoles?: string[];
+  exemptChannels?: string[];
 }
 
 export interface AutoModTemplate {
