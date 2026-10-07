@@ -14,21 +14,23 @@
  *    see "we banned user X with suspicion=87" but had no link back to
  *    the actual Discord audit log entry.
  *
- * 2. **Detect mod-supersedes-us.** When a mod (or another bot) acts on a
- *    user a bait detection is pending on (a `pending_actions` row, or a
- *    recent bait log nothing has enforced yet), the audit entry's
- *    `executorId !== client.user.id`. Other moderation is ignored. We:
- *    - Delete the retry rows the mod's action covers (so the retry queue
- *      doesn't try to re-execute over the mod's action).
- *    - Write an `idempotency_keys` row (so any in-flight
- *      `executeBanAction` call sees the dup and short-circuits).
- *    - Mark the bait log `actionTaken='superseded-by-mod'` with
- *      `executorId=mod.id` so the dashboard surfaces what happened.
+ * 2. **Detect mod-supersedes-us.** When a mod (or another bot) bans, kicks
+ *    or times out a user (`executorId !== client.user.id`), we:
+ *    - Write an `idempotency_keys` row with the bare action, in any guild
+ *      with bait enabled (or with bait pending on the user), so an
+ *      `executeBanAction` for a post made before it, in flight or later,
+ *      sees it as covering (banExecutor's COVERED_BY) and skips.
+ *    - Only when bait is pending on the user (a `pending_actions` row, or a
+ *      recent bait log nothing has enforced yet): delete the retry rows the
+ *      mod's action covers, and mark the bait log
+ *      `actionTaken='superseded-by-mod'` with `executorId=mod.id` so the
+ *      dashboard surfaces what happened. Other moderation writes no logs.
  *
- * 3. **Track unbans.** `MEMBER_BAN_REMOVE` updates the most-recent
+ * 3. **Track unbans.** A mod's `MEMBER_BAN_REMOVE` updates the most-recent
  *    BaitChannelLog ban row for the user with `unbannedAt` + `unbannedBy`.
  *    Useful for false-positive analytics (an admin overriding a bait ban
- *    is a signal that the bait config may be too aggressive).
+ *    is a signal that the bait config may be too aggressive). The bot's own
+ *    unbans only finish a softban, so they are skipped.
  *
  * Required intent: `GuildModeration` (set in `src/index.ts` client config).
  */
@@ -36,9 +38,11 @@
 import { AuditLogEvent, type Client, Events, type GuildAuditLogsEntry } from 'discord.js';
 import { In, IsNull, MoreThanOrEqual } from 'typeorm';
 import { AppDataSource } from '../typeorm';
+import { BaitChannelConfig } from '../typeorm/entities/bait/BaitChannelConfig';
 import { BaitChannelLog } from '../typeorm/entities/bait/BaitChannelLog';
 import { IdempotencyKey } from '../typeorm/entities/bait/IdempotencyKey';
 import { PendingAction, type PendingActionType } from '../typeorm/entities/bait/PendingAction';
+import type { ExtendedClient } from '../types/ExtendedClient';
 import { IDEMPOTENCY_TTL_MS } from '../utils/baitChannel/banExecutor';
 import { ErrorCategory, ErrorSeverity, logError } from '../utils/errorHandler';
 import { enhancedLogger, LogCategory } from '../utils/monitoring/enhancedLogger';
@@ -68,12 +72,13 @@ const ENFORCEMENT_STATES = ['ban', 'kick', 'softban', 'timeout', 'queued'];
 const NON_FINAL_STATES = ['queued', 'failed', 'logged'];
 
 /**
- * Queued bait actions a mod's action makes redundant. A ban covers them all;
- * a kick covers a kick or timeout but not a ban (a ban by user ID still works
- * on a non-member); a timeout covers only a timeout.
+ * Queued bait actions a mod's action makes redundant. A ban covers them all,
+ * including the unban that finishes one of our softbans (it must not lift the
+ * mod's ban); a kick covers a kick or timeout but not a ban (a ban by user ID
+ * still works on a non-member); a timeout covers only a timeout.
  */
 const MOD_ACTION_COVERS: Record<'ban' | 'kick' | 'timeout', readonly PendingActionType[]> = {
-  ban: ['ban', 'softban', 'kick', 'timeout', 'log-only'],
+  ban: ['ban', 'softban', 'kick', 'timeout', 'log-only', 'unban'],
   kick: ['kick', 'timeout', 'log-only'],
   timeout: ['timeout'],
 };
@@ -136,14 +141,15 @@ export function registerAuditLogEntryCreateHandler(
       const isSelf = executorId === client.user?.id;
 
       if (action === 'unban') {
-        await handleUnban(guild.id, targetId, executorId, entry.id);
+        // The bot only unbans to finish a softban: that isn't a reversal.
+        if (!isSelf) await handleUnban(guild.id, targetId, executorId, entry.id);
         return;
       }
 
       if (isSelf) {
         await confirmSelfAction(guild.id, targetId, entry.id, entry.reason, retryDelays);
       } else {
-        await handleModSupersedes(guild.id, targetId, executorId, action, entry.id);
+        await handleModSupersedes(client, guild.id, targetId, executorId, action, entry.id);
       }
     } catch (error) {
       logError({
@@ -227,13 +233,56 @@ async function confirmSelfAction(
   });
 }
 
+/** The guild's bait config, from the manager's cache when the bot is running. */
+async function loadBaitConfig(client: Client, guildId: string): Promise<BaitChannelConfig | null> {
+  const manager = (client as ExtendedClient).baitChannelManager as ExtendedClient['baitChannelManager'] | undefined;
+  if (manager) return manager.getCachedConfig(guildId);
+  return AppDataSource.getRepository(BaitChannelConfig).findOne({ where: { guildId } });
+}
+
 /**
- * Mod-supersedes-us path: a non-bot executor performed the action. Acts only
- * when bait is still pending on the user; then it cancels the queued retries
- * the mod's action covers and writes the idempotency key so any in-flight
- * call sees the dup.
+ * Write the mod's idempotency key: the bare action, dated now (banExecutor
+ * reads `expiresAt - TTL` as when it was taken, and a key covers posts made
+ * before that). A second same-day action of the same kind hits
+ * UNIQUE(guildId, userId, action, dayBucket); the existing key is re-dated
+ * and re-attributed instead, or posts made between the two actions would
+ * stay uncovered. Bait keys hold `<action>:<messageId>`, so a bare key is
+ * always a mod's.
+ */
+async function claimModKey(
+  guildId: string,
+  userId: string,
+  action: 'ban' | 'kick' | 'timeout',
+  executorId: string,
+): Promise<void> {
+  const repo = AppDataSource.getRepository(IdempotencyKey);
+  const expiresAt = new Date(Date.now() + IDEMPOTENCY_TTL_MS);
+  try {
+    await repo.save(
+      repo.create({ guildId, userId, action, dayBucket: todayUtc(), executorId, testMode: false, expiresAt }),
+    );
+  } catch {
+    try {
+      await repo.update({ guildId, userId, action }, { executorId, expiresAt });
+    } catch (error) {
+      logError({
+        category: ErrorCategory.DATABASE,
+        severity: ErrorSeverity.MEDIUM,
+        message: 'Failed to record a mod action as a bait idempotency key',
+        error,
+        context: { guildId, userId, action },
+      });
+    }
+  }
+}
+
+/**
+ * Mod-supersedes-us path: a non-bot executor performed the action. Its key is
+ * claimed whenever bait could act on the user; rows and logs are touched only
+ * when bait is pending on them.
  */
 async function handleModSupersedes(
+  client: Client,
   guildId: string,
   userId: string,
   executorId: string,
@@ -241,14 +290,20 @@ async function handleModSupersedes(
   auditLogId: string,
 ): Promise<void> {
   const pendingRepo = AppDataSource.getRepository(PendingAction);
-  const idempotencyRepo = AppDataSource.getRepository(IdempotencyKey);
   const logRepo = AppDataSource.getRepository(BaitChannelLog);
 
-  // Step 0: is bait pending on this user? A live pending_actions row (grace
-  // or retry; dead-lettered rows stay for the dashboard review queue) or a
-  // recent log nothing has enforced yet. Anything else is ordinary moderation:
-  // it must not claim the idempotency key (a same-day bait action of that
-  // kind would then be skipped), cancel rows, or write bait logs.
+  // Step 1: claim the mod's key first, in any guild with bait enabled. A
+  // bait action can be in flight with no pending row (instant action, or a
+  // grace timer that already removed its row), and only this key stops it
+  // from undoing the mod's action: a softban's unban lifting the mod's ban,
+  // or a timeout shortening theirs. It covers posts made before now only.
+  const config = await loadBaitConfig(client, guildId);
+  if (config?.enabled) await claimModKey(guildId, userId, action, executorId);
+
+  // Is bait pending on this user? A live pending_actions row (grace or
+  // retry; dead-lettered rows stay for the dashboard review queue) or a
+  // recent log nothing has enforced yet. Otherwise it's ordinary
+  // moderation: no rows are deleted and no bait log is written.
   const pending = await pendingRepo.find({ where: { guildId, userId, deadAt: IsNull() } });
   const since = new Date(Date.now() - RECENT_LOG_WINDOW_MS);
   const existingLog = await logRepo.findOne({
@@ -256,32 +311,17 @@ async function handleModSupersedes(
     order: { createdAt: 'DESC' },
   });
   if (pending.length === 0 && !existingLog) return;
+  // Bait turned off since, but a row or log is still open: the retry queue
+  // still runs an unban (the rest of our softban) then, so the key is still
+  // needed.
+  if (!config?.enabled) await claimModKey(guildId, userId, action, executorId);
 
-  // Step 1: claim the idempotency key with the mod's executor ID. This
-  // prevents the retry queue / in-flight executor calls from re-executing.
-  // If the key already exists (bot already did this), skip to step 2 to
-  // verify but don't overwrite executor attribution.
-  const claim = idempotencyRepo.create({
-    guildId,
-    userId,
-    action,
-    dayBucket: todayUtc(),
-    executorId,
-    testMode: false,
-    expiresAt: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
-  });
-  try {
-    await idempotencyRepo.save(claim);
-  } catch {
-    // Duplicate-key — bot already executed. Don't overwrite.
-  }
-
-  // Step 2: delete the retry rows (attempts >= 1) the mod's action covers.
-  // The retry queue would otherwise re-execute over it (or 10026 and
-  // dead-letter). A retry it doesn't cover (a ban after a mod's timeout) is
-  // still owed. Grace rows (attempts = 0) stay with the manager: its timer
-  // re-checks current state, sees a ban as a leave, and dedupes a same-kind
-  // action on the key above.
+  // Step 2: delete the retry rows (attempts >= 1) the mod's action covers, so
+  // they end now with a superseded-by-mod log instead of spending a retry (a
+  // kicked user's timeout would otherwise run as a softban). A retry it
+  // doesn't cover (a ban after a mod's timeout) is still owed. Grace rows
+  // (attempts = 0) stay with the manager: its timer re-checks current state,
+  // sees a ban as a leave, and skips an action the key above covers.
   const covers = MOD_ACTION_COVERS[action];
   const retries = pending.filter(r => r.attempts > 0);
   const covered = retries.filter(r => covers.includes(r.action));

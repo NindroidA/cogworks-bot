@@ -11,12 +11,14 @@
  */
 
 import { afterAll, beforeAll, describe, expect, jest, test } from 'bun:test';
-import { AuditLogEvent, Events } from 'discord.js';
+import { AuditLogEvent, Events, SnowflakeUtil } from 'discord.js';
 import { registerAuditLogEntryCreateHandler } from '../../../src/events/auditLogEntryCreate';
 import { AppDataSource } from '../../../src/typeorm';
+import { BaitChannelConfig } from '../../../src/typeorm/entities/bait/BaitChannelConfig';
 import { BaitChannelLog } from '../../../src/typeorm/entities/bait/BaitChannelLog';
 import { IdempotencyKey } from '../../../src/typeorm/entities/bait/IdempotencyKey';
 import { PendingAction } from '../../../src/typeorm/entities/bait/PendingAction';
+import { executeBanAction, IDEMPOTENCY_TTL_MS } from '../../../src/utils/baitChannel/banExecutor';
 
 const GUILD = { id: 'g1' } as any;
 
@@ -62,30 +64,85 @@ function makeBaitLogRepo(existing: any) {
   };
 }
 
-function setup(opts: { baitLog?: any; botId?: string; pending?: any[]; retryDelays?: number[] } = {}) {
+const dayOf = (d: Date) => d.toISOString().slice(0, 10);
+
+/**
+ * `Repository<IdempotencyKey>` fake with the UNIQUE(guildId, userId, action,
+ * dayBucket) index: a colliding save() throws like TypeORM would. The same
+ * fake serves the real banExecutor in the in-flight tests.
+ */
+function makeIdempotencyRepo() {
+  const rows: any[] = [];
+  const matches = (row: any, where: Record<string, unknown>) => Object.entries(where).every(([k, v]) => row[k] === v);
+  return {
+    rows,
+    create: jest.fn((x: any) => x),
+    save: jest.fn(async (x: any) => {
+      const clash = rows.some(
+        r =>
+          r.guildId === x.guildId &&
+          r.userId === x.userId &&
+          r.action === x.action &&
+          dayOf(r.dayBucket) === dayOf(x.dayBucket),
+      );
+      if (clash) throw new Error('UNIQUE constraint failed (test fake)');
+      rows.push(x);
+      return x;
+    }),
+    update: jest.fn(async (where: Record<string, unknown>, patch: Record<string, unknown>) => {
+      const hit = rows.filter(r => matches(r, where));
+      for (const r of hit) Object.assign(r, patch);
+      return { affected: hit.length };
+    }),
+    find: jest.fn(async ({ where }: any) => rows.filter(r => matches(r, where))),
+    findOne: jest.fn(async ({ where }: any) => rows.find(r => matches(r, where)) ?? null),
+    delete: jest.fn(async (where: Record<string, unknown>) => {
+      for (let i = rows.length - 1; i >= 0; i--) if (matches(rows[i], where)) rows.splice(i, 1);
+      return { affected: 1 };
+    }),
+  };
+}
+
+function setup(
+  opts: {
+    baitLog?: any;
+    botId?: string;
+    pending?: any[];
+    retryDelays?: number[];
+    /** The guild's BaitChannelConfig (null: bait not set up). */
+    baitConfig?: any;
+    /** Serve the config from a running manager's cache instead of the repo. */
+    viaManager?: boolean;
+    idempotencyRepo?: ReturnType<typeof makeIdempotencyRepo>;
+  } = {},
+) {
   const baitLogRepo = makeBaitLogRepo(opts.baitLog);
   const pendingRepo = {
     find: jest.fn(async () => opts.pending ?? []),
     delete: jest.fn(async () => ({ affected: 1 })),
   };
-  const idempotencyRepo = { create: jest.fn((x: any) => x), save: jest.fn(async (x: any) => x) };
+  const idempotencyRepo = opts.idempotencyRepo ?? makeIdempotencyRepo();
+  const configRepo = { findOne: jest.fn(async () => opts.baitConfig ?? null) };
   const repoMap = new Map<unknown, unknown>([
     [BaitChannelLog, baitLogRepo],
     [PendingAction, pendingRepo],
     [IdempotencyKey, idempotencyRepo],
+    [BaitChannelConfig, configRepo],
   ]);
   (AppDataSource as unknown as { getRepository: (e: unknown) => unknown }).getRepository = (e: unknown) =>
     repoMap.get(e);
 
   let handler: ((entry: any, guild: any) => Promise<void>) | undefined;
+  const getCachedConfig = jest.fn(async () => opts.baitConfig ?? null);
   const client = {
     user: { id: opts.botId ?? 'bot' },
+    ...(opts.viaManager ? { baitChannelManager: { getCachedConfig } } : {}),
     on: (ev: unknown, cb: (entry: any, guild: any) => Promise<void>) => {
       if (ev === Events.GuildAuditLogEntryCreate) handler = cb;
     },
   } as any;
   registerAuditLogEntryCreateHandler(client, { confirmRetryDelaysMs: opts.retryDelays ?? [] });
-  return { handler: handler!, baitLogRepo, pendingRepo, idempotencyRepo };
+  return { handler: handler!, baitLogRepo, pendingRepo, idempotencyRepo, configRepo, getCachedConfig };
 }
 
 const BAIT_REASON = 'cogworks:bait score=87 ch=#trap flags=[newAccount] msgId=555 Instant action mode';
@@ -308,6 +365,95 @@ describe('auditLogEntryCreate handler', () => {
     });
   });
 
+  describe('mod keys while bait is in flight (cross-PR with the retry queue)', () => {
+    const ENABLED = { guildId: 'g1', enabled: true };
+    /** A bait post (its message ID) made `agoMs` ago. */
+    const postedAgo = (agoMs: number) => String(SnowflakeUtil.generate({ timestamp: Date.now() - agoMs }));
+    const fakeGuild = () => ({
+      id: 'g1',
+      bans: { create: jest.fn(async () => undefined), remove: jest.fn(async () => undefined) },
+    });
+    const baitSoftban = (guild: any, repo: any, eventId: string) =>
+      executeBanAction(
+        { guild, userId: 'u1', action: 'softban', eventId, reason: BAIT_REASON, executorId: 'bot', softbanDelayMs: 0 },
+        repo,
+      );
+
+    test('bait enabled, nothing pending: the key is claimed, but no rows or logs are touched', async () => {
+      const { handler, idempotencyRepo, pendingRepo, baitLogRepo } = setup({ baitConfig: ENABLED });
+      await handler(banEntry('mod-77', 'u1', 'audit-1', null), GUILD);
+      expect(idempotencyRepo.rows).toEqual([
+        expect.objectContaining({ guildId: 'g1', userId: 'u1', action: 'ban', executorId: 'mod-77', testMode: false }),
+      ]);
+      expect(pendingRepo.delete).not.toHaveBeenCalled();
+      expect(baitLogRepo.save).not.toHaveBeenCalled();
+    });
+
+    test("an in-flight bait softban for an earlier post can't lift the mod's ban", async () => {
+      const { handler, idempotencyRepo } = setup({ baitConfig: ENABLED });
+      const post = postedAgo(5_000); // posted, then the instant action was still running
+      await handler(banEntry('mod-77', 'u1', 'audit-1', null), GUILD);
+
+      const guild = fakeGuild();
+      const result = await baitSoftban(guild, idempotencyRepo, post);
+      expect(result.status).toBe('duplicate');
+      expect(guild.bans.create).not.toHaveBeenCalled();
+      expect(guild.bans.remove).not.toHaveBeenCalled();
+    });
+
+    test('the config comes from the running manager when there is one', async () => {
+      const { handler, idempotencyRepo, getCachedConfig, configRepo } = setup({
+        baitConfig: ENABLED,
+        viaManager: true,
+      });
+      await handler(timeoutEntry('mod-77'), GUILD);
+      expect(getCachedConfig).toHaveBeenCalledWith('g1');
+      expect(configRepo.findOne).not.toHaveBeenCalled();
+      expect(idempotencyRepo.rows[0].action).toBe('timeout');
+    });
+
+    test('bait disabled or not set up, nothing pending: no key', async () => {
+      for (const baitConfig of [null, { guildId: 'g1', enabled: false }]) {
+        const { handler, idempotencyRepo } = setup({ baitConfig });
+        await handler(banEntry('mod-77', 'u1', 'audit-1', null), GUILD);
+        expect(idempotencyRepo.save).not.toHaveBeenCalled();
+      }
+    });
+
+    test('a second same-day mod action of that kind re-dates the key and credits the new executor', async () => {
+      const idempotencyRepo = makeIdempotencyRepo();
+      const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+      const now = new Date();
+      idempotencyRepo.rows.push({
+        guildId: 'g1',
+        userId: 'u1',
+        action: 'ban',
+        dayBucket: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())),
+        executorId: 'mod-1',
+        testMode: false,
+        expiresAt: new Date(twoHoursAgo + IDEMPOTENCY_TTL_MS), // the first ban, 2h ago
+      });
+      const { handler } = setup({ baitConfig: ENABLED, idempotencyRepo });
+      await handler(banEntry('mod-2', 'u1', 'audit-9', null), GUILD);
+
+      expect(idempotencyRepo.rows).toHaveLength(1);
+      expect(idempotencyRepo.rows[0].executorId).toBe('mod-2');
+      expect(idempotencyRepo.rows[0].expiresAt.getTime()).toBeGreaterThan(Date.now() + IDEMPOTENCY_TTL_MS - 5_000);
+      // A post made between the two bans is covered by the second one.
+      const guild = fakeGuild();
+      expect((await baitSoftban(guild, idempotencyRepo, postedAgo(60 * 60 * 1000))).status).toBe('duplicate');
+      expect(guild.bans.create).not.toHaveBeenCalled();
+    });
+
+    test('a mod ban cancels a queued unban (the rest of our softban) and settles its log', async () => {
+      const log: any = { id: 12, actionTaken: 'queued' };
+      const { handler, pendingRepo } = setup({ baitLog: log, pending: [retryRow(4, 'unban')] });
+      await handler(banEntry('mod-77', 'u1', 'audit-1', null), GUILD);
+      expect((pendingRepo.delete.mock.calls[0][0] as any).id.value).toEqual([4]);
+      expect(log.actionTaken).toBe('superseded-by-mod');
+    });
+  });
+
   describe('unban tracking', () => {
     test('stamps unbannedAt + unbannedBy on the matching ban row', async () => {
       const log: any = { id: 11, actionTaken: 'ban', unbannedAt: null, unbannedBy: null };
@@ -316,6 +462,14 @@ describe('auditLogEntryCreate handler', () => {
       expect(log.unbannedAt).toBeInstanceOf(Date);
       expect(log.unbannedBy).toBe('mod-88');
       expect(baitLogRepo.save).toHaveBeenCalledWith(log);
+    });
+
+    test("the bot's own unban (finishing a softban) is not recorded as a reversal", async () => {
+      const log: any = { id: 11, actionTaken: 'ban', unbannedAt: null, unbannedBy: null };
+      const { handler, baitLogRepo } = setup({ baitLog: log, botId: 'bot' });
+      await handler(unbanEntry('bot'), GUILD);
+      expect(baitLogRepo.findOne).not.toHaveBeenCalled();
+      expect(log.unbannedAt).toBe(null);
     });
 
     test('no matching ban row → no save', async () => {

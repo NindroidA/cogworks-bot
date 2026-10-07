@@ -15,19 +15,31 @@ reasons or whitelists no longer break the warning, the log embed or
 
 ### Fixed
 
-- **Ordinary moderation is left alone.** The audit-log listener now acts on a
-  mod's (or another bot's) ban, kick or timeout only when bait is still pending
-  on that user: a `pending_actions` row, or a bait log from the last 5 minutes
-  that nothing has enforced yet. Before, every manual action in every server
-  wrote a `superseded-by-mod` bait log (counted as a trigger in
-  `/baitchannel stats` and the weekly summary), claimed the same-day
-  idempotency key (so a bait action of that kind later that day was skipped),
-  and deleted all of the user's pending rows.
+- **Ordinary moderation no longer writes bait logs or cancels bait rows.** The
+  audit-log listener touches rows and logs for a mod's (or another bot's) ban,
+  kick or timeout only when bait is still pending on that user: a
+  `pending_actions` row, or a bait log from the last 5 minutes that nothing has
+  enforced yet. Before, every manual action in every server wrote a
+  `superseded-by-mod` bait log (counted as a trigger in `/baitchannel stats`
+  and the weekly summary) and deleted all of the user's pending rows.
+- **A mod's action is always recorded where bait is on, so bait can't undo
+  it.** In a server with bait enabled, every mod ban, kick or timeout records
+  its idempotency key, even with nothing pending: a bait action already in
+  flight for an earlier post (an instant action, or a grace timer that already
+  removed its row) sees it and skips, so a bait softban can't lift the mod's
+  ban and a bait timeout can't shorten theirs. A second same-day mod action of
+  the same kind re-dates that key and credits the new mod, so posts made
+  between the two are covered too.
 - **A mod's action only cancels the queued retries it covers.** A ban covers
-  every action, a kick covers a kick or timeout, a timeout covers only a
-  timeout, so a queued bait ban survives a mod's 5-minute timeout.
-  Dead-lettered rows stay for the dashboard review queue, and grace-period rows
-  stay with the bait timer, which already re-checks current state when it fires.
+  every action (including the unban that finishes one of our softbans), a kick
+  covers a kick or timeout, a timeout covers only a timeout, so a queued bait
+  ban survives a mod's 5-minute timeout. Dead-lettered rows stay for the
+  dashboard review queue, and grace-period rows stay with the bait timer, which
+  already re-checks current state when it fires.
+- **The bot's own unban no longer reads as a reversal.** The unban that
+  finishes a softban was recorded as an admin lifting the user's last bait ban
+  (`unbannedAt` / `unbannedBy` on an older ban row). Only other executors'
+  unbans are recorded now.
 - **`/baitchannel stats` counted actions that are never stored.** It looked
   for `banned`, `kicked` and `timed-out`; the bot stores `ban`, `kick`,
   `softban` and `timeout`, so Banned, Kicked and Timed Out always read 0. A
