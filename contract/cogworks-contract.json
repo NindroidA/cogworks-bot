@@ -3522,6 +3522,16 @@
               "required": true,
               "max_length": 22,
               "min_length": 10
+            },
+            {
+              "channel_types": [
+                2,
+                13
+              ],
+              "name": "channel",
+              "description": "Voice or stage channel (needed for voice and stage templates)",
+              "required": false,
+              "type": 7
             }
           ]
         },
@@ -3604,6 +3614,16 @@
               "name": "pattern",
               "description": "Recurrence pattern",
               "required": true
+            },
+            {
+              "channel_types": [
+                2,
+                13
+              ],
+              "name": "channel",
+              "description": "Voice or stage channel (needed for voice and stage templates)",
+              "required": false,
+              "type": 7
             }
           ]
         }

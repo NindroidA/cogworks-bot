@@ -365,6 +365,15 @@ describe.each([
       expect(await run(archiveId, archiveRows(), guild)).toEqual([]);
     });
 
+    test('pass: a long type/position name matches its 20-char tag', async () => {
+      const long = { ...activeType, [system === 'ticket' ? 'displayName' : 'title']: 'Content Creator Application' };
+      const needed = system === 'ticket' ? ['Content Creator'] : ['Content Creator', 'Accepted', 'Rejected'];
+      const guild = {
+        channels: channels({ [ARCHIVE]: { availableTags: tags([...filler.slice(0, 20 - needed.length), ...needed]) } }),
+      };
+      expect(await run(archiveId, archiveRows(archive(), [long]), guild)).toEqual([]);
+    });
+
     test('fail: 20 tags and an active type/position has none', async () => {
       const guild = { channels: channels({ [ARCHIVE]: { availableTags: tags([...filler, 'Other']) } }) };
       const [f] = await run(archiveId, archiveRows(), guild);

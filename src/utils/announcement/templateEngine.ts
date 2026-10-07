@@ -58,7 +58,8 @@ const PLACEHOLDER_METADATA: PlaceholderInfo[] = [
   },
   {
     name: 'time_relative',
-    description: 'Discord relative timestamp (e.g., "in 2 hours")',
+    // Shown as a modal label: Discord caps labels at 45 characters.
+    description: 'Relative timestamp (e.g. "in 2 hours")',
     example: '<t:1700000000:R>',
     requiresInput: true,
   },
@@ -104,6 +105,17 @@ export function detectDynamicPlaceholders(template: AnnouncementTemplate): Place
   );
 
   return PLACEHOLDER_METADATA.filter(p => p.requiresInput && allText.includes(`{${p.name}}`));
+}
+
+/**
+ * The placeholders the send modal asks for: at most 5 (one per modal row), and
+ * a single time input when a template uses both {time} and {time_relative},
+ * since both are filled from the same value.
+ */
+export function modalPlaceholders(template: AnnouncementTemplate): PlaceholderInfo[] {
+  const found = detectDynamicPlaceholders(template);
+  const asksTime = found.some(p => p.name === 'time');
+  return found.filter(p => !(asksTime && p.name === 'time_relative')).slice(0, 5);
 }
 
 // ============================================================================
