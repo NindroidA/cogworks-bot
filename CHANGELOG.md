@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.35] - 2026-10-06
+
+Database alignment (NindroidA/cogworks-bot#41). Prod has run on migrations
+only since v2.12.10, so several column widths, defaults and indexes the
+entities declare (and dev's `synchronize` already has) never reached it. One
+new migration, `1774000014000-AlignSchemaWithEntities`, closes those gaps. It
+runs at boot, reads `information_schema` before each change, skips anything
+already in place, and never deletes rows. A change blocked by a table lock
+gives up after 60 seconds, so the start fails (and the container retries)
+instead of hanging. Still open: an empty database can't be built from
+migrations alone, because the pre-v3 tables only ever came from the old
+`synchronize` baseline, so restoring prod needs a full dump.
+
+### Fixed
+
+- **Images with long filenames never stayed on the starboard.** Their signed
+  Discord CDN URL is over 255 characters, so saving the entry failed after the
+  post, and the post was taken back down on every star.
+  `starboard_entries.attachmentUrl` is now `varchar(2048)`.
+- **Bait channel ban reason and warning message** were capped at 255
+  characters in the database while the dashboard accepts 500 and 1000.
+  `banReason` is now `varchar(512)` and `warningMessage` `varchar(1024)`;
+  charset, collation and defaults are kept.
+- **Voice and stage event templates left marked recurring** by a failed
+  `/event recurring` are reset to not recurring, so a one-off event from that
+  template can't start a repeating chain. Only templates last saved before
+  the v3.16.32 deploy are touched: until then a voice or stage template had no
+  channel and could never create an event.
+
+### Changed
+
+- **Entity-only defaults now exist in prod**: `messageId` / `channelId` on the
+  ticket, application and both archived panel config tables,
+  `announcement_config.defaultChannelId` (`''`) and
+  `bot_configs.enableGlobalStaffRole` (`0`). An insert that leaves them out
+  now behaves the same in prod as in dev.
+- **Indexes the entities declare**: `tickets (guildId, channelId)` and
+  `announcement_log (guildId)`.
+- **`announcement_config.guildId` is unique** in prod too. If any guild
+  already has two rows, the migration logs a warning and skips this step
+  instead of failing the boot; nothing is deleted.
+
 ## [3.16.34] - 2026-10-06
 
 `/bot-setup` fixes: channels it creates are visible to the right people,
