@@ -24,38 +24,6 @@
       "day": "Day for digest (0-6 for weekly = Sun-Sat, 1-28 for monthly)"
     }
   },
-  "overview": {
-    "title": "Server Overview — Today",
-    "messages": "Messages",
-    "activeMembers": "Active Members",
-    "memberCount": "Total Members",
-    "voiceMinutes": "Voice Minutes",
-    "joins": "Joins",
-    "leaves": "Leaves",
-    "peakHour": "Peak Hour",
-    "noData": "No activity data recorded yet. Analytics will start collecting once enabled."
-  },
-  "growth": {
-    "title": "Member Growth — Last {0} Days",
-    "totalMembers": "Current Members",
-    "netGrowth": "Net Growth",
-    "avgDaily": "Avg Daily Growth",
-    "joined": "Joined",
-    "left": "Left",
-    "trend": "Trend",
-    "noData": "Not enough data to show growth trends. Check back after a few days of tracking."
-  },
-  "channels": {
-    "title": "Top Channels — Last {0} Days",
-    "totalMessages": "Total Messages",
-    "noData": "No channel activity data available for this period."
-  },
-  "hours": {
-    "title": "Activity by Hour — Last {0} Days",
-    "description": "Message activity distribution across hours of the day (UTC)",
-    "peakHour": "Peak Hour",
-    "noData": "No hourly activity data available for this period."
-  },
   "setup": {
     "enabled": "Analytics have been **enabled** for this server. Data collection will begin now.",
     "disabled": "Analytics have been **disabled**. Existing data is preserved.",
@@ -64,14 +32,10 @@
     "channelSet": "Digest channel set to {0}.",
     "channelCleared": "Digest channel has been cleared. No digests will be sent.",
     "frequencySet": "Digest frequency set to **{0}** (day: {1}).",
-    "invalidDay": "Invalid day value. Use 0-6 for weekly (Sun-Sat) or 1-28 for monthly.",
     "invalidFrequency": "Invalid frequency. Choose `weekly`, `monthly`, or `both`.",
     "statusTitle": "Analytics Configuration",
     "statusEnabled": "Enabled",
     "statusDisabled": "Disabled",
-    "digestChannel": "Digest Channel",
-    "digestFrequency": "Digest Frequency",
-    "digestDay": "Digest Day",
     "notSet": "Not set",
     "error": "Failed to update analytics configuration.",
     "specifyFrequency": "Please specify a frequency using the `frequency` option.",
@@ -83,19 +47,8 @@
     "frequencyField": "Frequency",
     "digestDayField": "Digest Day"
   },
-  "digest": {
-    "weeklyTitle": "Weekly Server Digest",
-    "monthlyTitle": "Monthly Server Digest",
-    "period": "Period",
-    "messageTrend": "Message Trend",
-    "topChannels": "Top Channels",
-    "memberGrowth": "Member Growth",
-    "peakHours": "Peak Hours",
-    "footer": "Cogworks Analytics"
-  },
   "errors": {
     "notEnabled": "Analytics are not enabled for this server. An admin can enable them with `/analytics setup`.",
-    "fetchFailed": "Failed to fetch analytics data.",
-    "noPermission": "You need Administrator permission to manage analytics settings."
+    "fetchFailed": "Failed to fetch analytics data."
   }
 }

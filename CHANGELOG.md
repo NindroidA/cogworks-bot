@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.43] - 2026-10-06
+
+The English language files lose every key nothing reads
+(NindroidA/cogworks-bot#41). The key-check test's dead-key allowlist goes from
+509 entries to none, so CI now fails on any unread key. No user-visible text
+changes: only keys the code never reads are gone.
+
+### Removed
+
+- **All 509 dead keys.** 193 of `botSetup`'s 200 keys (the v2 setup-wizard
+  text; the v3 dashboard has its own), 286 across 17 other files (`xp` 47,
+  `analytics` 37, `ticket` 32, `memory` 29, `event` 28, `application` 25 and
+  smaller groups), all 29 in `console.json` and one in `main.json`. The 47
+  objects this left empty went too.
+- **`src/lang/en/console.json`**, since none of its keys were read. The file
+  and its line in `src/lang/en/index.ts` are gone.
+
+### Changed
+
+- **`main.json`'s startup log text moved into `src/index.ts`.** Its 24 read keys
+  were console output for whoever runs the bot, not text Discord users see, so
+  they're now string literals with the same wording, and the unread
+  `apiConnectFailed` went with the file.
+- CLAUDE.md says the allowlist is empty and must stay that way.
+
 ## [3.16.42] - 2026-10-06
 
 A test now checks the language keys (NindroidA/cogworks-bot#41). CI fails when

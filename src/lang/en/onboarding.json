@@ -6,7 +6,6 @@
       "disableDescrp": "Disable the onboarding flow."
     },
     "config": {
-      "descrp": "Configure onboarding settings.",
       "welcomeMessage": "Set the welcome message (supports {server} and {user} placeholders).",
       "completionRole": "Set the role granted when a member completes onboarding."
     },
@@ -36,15 +35,11 @@
     "disabled": "Onboarding flow has been **disabled**.",
     "noSteps": "Cannot enable onboarding: no steps have been configured. Add steps first with `/onboarding step-add`.",
     "alreadyEnabled": "Onboarding is already enabled.",
-    "alreadyDisabled": "Onboarding is already disabled.",
-    "notConfigured": "Onboarding is not configured yet. Use `/onboarding step-add` to add steps first."
+    "alreadyDisabled": "Onboarding is already disabled."
   },
   "config": {
     "welcomeMessage": {
-      "success": "Welcome message updated.",
-      "modalTitle": "Set Welcome Message",
-      "label": "Welcome Message",
-      "placeholder": "Welcome to {server}! We're glad to have you, {user}."
+      "success": "Welcome message updated."
     },
     "completionRole": {
       "success": "Completion role set to {0}.",
@@ -57,7 +52,6 @@
     "notFound": "Step not found. Use `/onboarding step-list` to see all steps.",
     "maxReached": "Maximum of 10 steps reached. Remove a step before adding a new one.",
     "duplicateId": "A step with that ID already exists. Choose a different title.",
-    "modalTitle": "Add Onboarding Step",
     "list": {
       "title": "Onboarding Steps",
       "empty": "No steps configured. Use `/onboarding step-add` to add steps.",
@@ -89,8 +83,7 @@
   },
   "errors": {
     "notConfigured": "Onboarding is not configured for this server.",
-    "general": "An error occurred while processing the onboarding command.",
-    "dmsClosed": "Could not DM the user. They may have DMs disabled for this server."
+    "general": "An error occurred while processing the onboarding command."
   },
   "engine": {
     "continueL": "Continue",

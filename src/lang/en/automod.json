@@ -87,8 +87,7 @@
       "title": "AutoMod Rule Created",
       "success": "AutoMod rule **{0}** has been created.",
       "error": "Failed to create AutoMod rule.",
-      "limitReached": "This server has reached the maximum of 6 AutoMod rules. Delete a rule before creating a new one.",
-      "nameRequired": "Please provide a name for the rule."
+      "limitReached": "This server has reached the maximum of 6 AutoMod rules. Delete a rule before creating a new one."
     },
     "edit": {
       "modalTitle": "Edit AutoMod Rule",
@@ -104,16 +103,12 @@
       "success": "AutoMod rule **{0}** has been deleted.",
       "error": "Failed to delete AutoMod rule.",
       "notFound": "AutoMod rule not found. It may have already been deleted.",
-      "confirmTitle": "Confirm Rule Deletion",
       "confirmMessage": "Are you sure you want to delete the AutoMod rule **{0}**? This cannot be undone."
     },
     "list": {
       "title": "AutoMod Rules",
       "empty": "No AutoMod rules configured. Use `/automod rule create` or `/automod template apply` to get started.",
       "footer": "{0}/6 rules configured",
-      "keywordFilter": "Keyword Filter",
-      "mentionSpam": "Mention Spam",
-      "spamFilter": "Spam Filter",
       "enabled": "Enabled",
       "disabled": "Disabled",
       "keywords": "Keywords: {0}",
@@ -130,16 +125,9 @@
     "error": "Failed to apply AutoMod template.",
     "notFound": "Template not found. Available templates: anti-spam, anti-phishing, family-friendly, gaming.",
     "wouldExceedLimit": "Applying this template would exceed the 6-rule limit. This template creates {0} rule(s), but you only have {1} slot(s) available. Delete some rules first.",
-    "partialSuccess": "Applied the **{0}** template partially. {1} of {2} rules created (hit 6-rule limit).",
-    "templates": {
-      "antiSpam": "Anti-Spam",
-      "antiPhishing": "Anti-Phishing",
-      "familyFriendly": "Family-Friendly",
-      "gaming": "Gaming"
-    }
+    "partialSuccess": "Applied the **{0}** template partially. {1} of {2} rules created (hit 6-rule limit)."
   },
   "backup": {
-    "title": "AutoMod Backup",
     "success": "AutoMod rules have been exported. Check your DMs for the backup file.",
     "empty": "No AutoMod rules to backup.",
     "dmFailed": "Could not send backup via DM. Please enable DMs from server members.",
@@ -150,11 +138,9 @@
     "title": "AutoMod Rules Restored",
     "success": "Successfully restored {0} AutoMod rule(s).",
     "error": "Failed to restore AutoMod rules.",
-    "noAttachment": "Please attach a JSON file containing AutoMod rules.",
     "invalidJson": "The attached file is not valid JSON. Please use a backup file created with `/automod backup`.",
     "invalidFormat": "The backup file format is invalid. Please use a backup file created with `/automod backup`.",
     "wouldExceedLimit": "Restoring would create {0} rule(s), but you only have {1} slot(s) available. Delete some rules first.",
-    "confirmTitle": "Confirm AutoMod Restore",
     "confirmMessage": "This will create {0} new AutoMod rule(s). Existing rules will NOT be deleted. Continue?",
     "confirmLabel": "Confirm Restore",
     "failedList": "{0} rule(s) could not be restored:",
@@ -205,11 +191,7 @@
   },
   "error": {
     "ruleNotFound": "AutoMod rule not found. It may have been deleted.",
-    "noPermission": "The bot needs **Manage Guild** permission to manage AutoMod rules.",
     "fetchFailed": "Failed to fetch AutoMod rules from Discord.",
     "general": "Failed to execute AutoMod command."
-  },
-  "autocomplete": {
-    "noRules": "No AutoMod rules found"
   }
 }

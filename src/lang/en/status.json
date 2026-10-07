@@ -13,31 +13,12 @@
     },
     "view": {
       "descrp": "View current bot status"
-    },
-    "history": {
-      "descrp": "View recent incident history",
-      "days": "Number of days to look back (default: 7)"
-    },
-    "subscribe": {
-      "descrp": "Subscribe a channel to status updates",
-      "channel": "Channel to receive status updates"
-    },
-    "unsubscribe": {
-      "descrp": "Unsubscribe from status updates"
-    },
-    "monitor": {
-      "descrp": "Manage external monitoring",
-      "set": {
-        "descrp": "Set external monitor URL",
-        "url": "External status page URL (e.g., UptimeRobot)"
-      }
     }
   },
   "ownerOnly": "Only the bot owner can manage status.",
   "set": {
     "success": "Status set to **{level}**.",
-    "error": "Failed to set status.",
-    "rateLimit": "Too many status changes. Please try again later."
+    "error": "Failed to set status."
   },
   "clear": {
     "success": "Status cleared. Bot is now operational.",
@@ -80,13 +61,11 @@
   "history": {
     "title": "Incident History",
     "noIncidents": "No incidents in the last {days} days.",
-    "incidentEntry": "**{level}** — {message}",
     "started": "Started",
     "resolved": "Resolved",
     "resolvedBy": "Resolved by",
     "duration": "Duration",
-    "ongoing": "Ongoing",
-    "error": "Failed to fetch incident history."
+    "ongoing": "Ongoing"
   },
   "subscribe": {
     "success": "Status updates will be posted to {channel}.",
@@ -96,7 +75,6 @@
   },
   "monitor": {
     "set": "External monitor URL set to: {url}",
-    "cleared": "External monitor URL has been cleared.",
     "invalid": "Please provide a valid URL starting with https://.",
     "error": "Failed to update monitor URL."
   },
