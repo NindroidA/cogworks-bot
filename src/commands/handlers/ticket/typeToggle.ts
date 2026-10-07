@@ -3,7 +3,7 @@ import { AppDataSource } from '../../../typeorm';
 import { CustomTicketType } from '../../../typeorm/entities/ticket/CustomTicketType';
 import {
   enhancedLogger,
-  formatLang,
+  fmt,
   guardFeatureAccess,
   handleInteractionError,
   LogCategory,
@@ -66,8 +66,8 @@ export async function typeToggleHandler(interaction: ChatInputCommandInteraction
     );
 
     const message = type.isActive
-      ? formatLang(tl.activated, type.displayName)
-      : formatLang(tl.deactivated, type.displayName);
+      ? fmt(tl.activated, { type: type.displayName })
+      : fmt(tl.deactivated, { type: type.displayName });
 
     await interaction.reply({
       content: message,

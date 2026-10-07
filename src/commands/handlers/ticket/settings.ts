@@ -6,7 +6,7 @@ import {
   Colors,
   E,
   enhancedLogger,
-  formatLang,
+  fmt,
   guardFeatureAccess,
   LogCategory,
   lang,
@@ -112,7 +112,7 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
         guildId,
         typeId,
       });
-      await replyEphemeralError(interaction, formatLang(tl.typeNotFound, typeId));
+      await replyEphemeralError(interaction, fmt(tl.typeNotFound, { typeId }));
       return;
     }
 
@@ -127,7 +127,9 @@ export async function settingsHandler(interaction: ChatInputCommandInteraction):
     const embed = new EmbedBuilder()
       .setTitle(`${E.ok} ${tl.updated}`)
       .setDescription(
-        enabled ? formatLang(tl.pingOnCreateEnabled, displayName) : formatLang(tl.pingOnCreateDisabled, displayName),
+        enabled
+          ? fmt(tl.pingOnCreateEnabled, { type: displayName })
+          : fmt(tl.pingOnCreateDisabled, { type: displayName }),
       )
       .setColor(Colors.status.success);
 

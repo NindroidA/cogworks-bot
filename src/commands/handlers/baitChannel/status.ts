@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFla
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import {
-  formatLang,
+  fmt,
   getBaitChannelIds,
   handleInteractionError,
   lang,
@@ -22,7 +22,7 @@ const WHITELIST_PREVIEW = 15;
 function mentionPreview(ids: string[], mention: (id: string) => string): string {
   const shown = ids.slice(0, WHITELIST_PREVIEW).map(mention).join(', ');
   const hidden = ids.length - WHITELIST_PREVIEW;
-  return hidden > 0 ? `${shown} ${formatLang(tl.status.whitelistMore, hidden)}` : shown;
+  return hidden > 0 ? `${shown} ${fmt(tl.status.whitelistMore, { count: hidden })}` : shown;
 }
 
 export async function statusHandler(_client: Client, interaction: ChatInputCommandInteraction) {
@@ -81,11 +81,11 @@ export async function statusHandler(_client: Client, interaction: ChatInputComma
       embed.addFields({
         name: tl.status.detectionSettings,
         value: [
-          tl.status.minAccountAge.replace('{0}', config.minAccountAgeDays.toString()),
-          tl.status.minMembership.replace('{0}', config.minMembershipMinutes.toString()),
-          tl.status.minMessages.replace('{0}', config.minMessageCount.toString()),
-          tl.status.requireVerification.replace('{0}', config.requireVerification ? tl.status.yes : tl.status.no),
-          tl.status.actionThreshold.replace('{0}', (config.instantActionThreshold ?? 90).toString()),
+          fmt(tl.status.minAccountAge, { days: config.minAccountAgeDays }),
+          fmt(tl.status.minMembership, { minutes: config.minMembershipMinutes }),
+          fmt(tl.status.minMessages, { count: config.minMessageCount }),
+          fmt(tl.status.requireVerification, { value: config.requireVerification ? tl.status.yes : tl.status.no }),
+          fmt(tl.status.actionThreshold, { threshold: config.instantActionThreshold ?? 90 }),
         ].join('\n'),
       });
     }
@@ -95,12 +95,12 @@ export async function statusHandler(_client: Client, interaction: ChatInputComma
 
       if ((config.whitelistedRoles?.length || 0) > 0) {
         const rolesList = mentionPreview(config.whitelistedRoles!, roleId => `<@&${roleId}>`);
-        whitelistInfo.push(formatLang(tl.status.whitelistRoles, rolesList));
+        whitelistInfo.push(fmt(tl.status.whitelistRoles, { roles: rolesList }));
       }
 
       if ((config.whitelistedUsers?.length || 0) > 0) {
         const usersList = mentionPreview(config.whitelistedUsers!, userId => `<@${userId}>`);
-        whitelistInfo.push(formatLang(tl.status.whitelistUsers, usersList));
+        whitelistInfo.push(fmt(tl.status.whitelistUsers, { users: usersList }));
       }
 
       embed.addFields({

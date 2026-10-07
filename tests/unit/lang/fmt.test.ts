@@ -96,6 +96,51 @@ describe('strings renamed from {0} to {name} read the same', () => {
       old => formatLang(old, (3).toString()),
       () => fmt(lang.reactionRole.validate.issuesFound, { count: 3 }),
     ],
+    [
+      'SLA Breach: Ticket #{0} in <#{1}> has been waiting **{2}** minutes for a first response (target: {3} min).',
+      old => formatLang(old, (17).toString(), '456', (95).toString(), (60).toString()),
+      () => fmt(lang.ticket.sla.breachAlert, { ticketId: 17, channelId: '456', elapsed: 95, target: 60 }),
+    ],
+    [
+      'Auto-close enabled: tickets in **{0}** status will close after **{1}** days of inactivity (warning {2}h before).',
+      old => formatLang(old, 'pending', (7).toString(), (24).toString()),
+      () => fmt(lang.ticket.workflow.autoCloseEnabled, { status: 'pending', days: 7, hours: 24 }),
+    ],
+    [
+      'Status changed to **{0}** by {1}',
+      old => formatLang(old, '🟡 Pending', '<@1>'),
+      () => fmt(lang.ticket.workflow.statusChanged, { status: '🟡 Pending', user: '<@1>' }),
+    ],
+    [
+      'Routing rule added: **{0}** tickets will be routed to **{1}**.',
+      old => formatLang(old, 'billing', 'Support'),
+      () => fmt(lang.ticket.routing.ruleAdded, { typeId: 'billing', role: 'Support' }),
+    ],
+    [
+      'Custom ticket type **{0}** created successfully!',
+      old => formatLang(old, 'Billing').replace('!', ''),
+      () => fmt(lang.ticket.customTypes.typeAdd.success, { type: 'Billing' }).replace('!', ''),
+    ],
+    [
+      '⚠️ Could not lift the softban ban on {0} in **{1}** after {2} attempts, so they are still banned. Unban them by hand (Server Settings → Bans).',
+      old => old.replace('{0}', '<@1>').replace('{1}', 'Guild').replace('{2}', String(3)),
+      () => fmt(lang.baitChannel.unbanGaveUp, { user: '<@1>', guildName: 'Guild', attempts: 3 }),
+    ],
+    [
+      'Added {0} to whitelist',
+      old => old.replace('{0}', 'User: {0}'.replace('{0}', 'ada')),
+      () => fmt(lang.baitChannel.whitelist.added, { target: fmt(lang.baitChannel.whitelist.user, { user: 'ada' }) }),
+    ],
+    [
+      '- Action Threshold: {0}/100',
+      old => old.replace('{0}', (90).toString()),
+      () => fmt(lang.baitChannel.status.actionThreshold, { threshold: 90 }),
+    ],
+    [
+      "Couldn't delete the warning banner in <#{0}>. Delete it by hand: that channel is no longer monitored.",
+      old => formatLang(old, '789'),
+      () => fmt(lang.baitChannel.multiChannel.bannerDeleteFailed, { channelId: '789' }),
+    ],
   ];
 
   test.each(cases)('%s', (old, oldCall, newCall) => {
@@ -115,6 +160,14 @@ describe('strings renamed from {0} to {name} read the same', () => {
     );
     expect(fmt(lang.status.banner.warning, { level: 'Degraded' })).toBe(
       lang.status.banner.warning.replace('{level}', 'Degraded'),
+    );
+    const ur = lang.ticket.customTypes.userRestrict;
+    expect(fmt(ur.confirmRestrict, { user: '<@1>', type: 'Billing' })).toBe(
+      ur.confirmRestrict.replace('{user}', '<@1>').replace('{type}', 'Billing'),
+    );
+    const kw = lang.baitChannel.keywords;
+    expect(fmt(kw.add.success, { keyword: 'free nitro', weight: 40 })).toBe(
+      kw.add.success.replace('{keyword}', 'free nitro').replace('{weight}', (40).toString()),
     );
   });
 });

@@ -34,7 +34,7 @@
 
 import type { Client, Guild } from 'discord.js';
 import { IsNull, LessThan, type Repository } from 'typeorm';
-import { lang } from '../../lang';
+import { fmt, lang } from '../../lang';
 import type { BaitChannelConfig } from '../../typeorm/entities/bait/BaitChannelConfig';
 import type { BaitChannelLog } from '../../typeorm/entities/bait/BaitChannelLog';
 import type { IdempotencyKey } from '../../typeorm/entities/bait/IdempotencyKey';
@@ -436,10 +436,11 @@ export class RetryQueue {
     try {
       const config = await this.loadConfig(row.guildId);
       const guild = await this.deps.client.guilds.fetch(row.guildId);
-      const text = lang.baitChannel.unbanGaveUp
-        .replace('{0}', `<@${row.userId}>`)
-        .replace('{1}', guild.name)
-        .replace('{2}', String(row.attempts));
+      const text = fmt(lang.baitChannel.unbanGaveUp, {
+        user: `<@${row.userId}>`,
+        guildName: guild.name,
+        attempts: row.attempts,
+      });
       const channel = config?.logChannelId ? await guild.channels.fetch(config.logChannelId).catch(() => null) : null;
       if (channel?.isTextBased()) await channel.send(text);
       else await (await guild.fetchOwner()).send(text);

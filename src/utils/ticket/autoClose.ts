@@ -7,14 +7,13 @@
  */
 
 import { type Client, EmbedBuilder, type GuildTextBasedChannel } from 'discord.js';
-import { lang } from '../../lang';
+import { fmt, lang } from '../../lang';
 import { ArchivedTicketConfig } from '../../typeorm/entities/ticket/ArchivedTicketConfig';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
 import { MAX } from '../constants';
 import { lazyRepo } from '../database/lazyRepo';
 import { claimClose } from '../database/statusFlip';
-import { formatLang } from '../index';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 import { appendStatusHistory } from '../workflow/workflowHelpers';
 import { claimAndArchiveTicket } from './claimAndArchive';
@@ -203,7 +202,7 @@ async function processTicket(
     await channel.send({
       embeds: [
         new EmbedBuilder()
-          .setDescription(formatLang(tl.autoCloseWarning, config.autoCloseWarningHours.toString()))
+          .setDescription(fmt(tl.autoCloseWarning, { hours: config.autoCloseWarningHours }))
           .setColor(0xffa500),
       ],
     });

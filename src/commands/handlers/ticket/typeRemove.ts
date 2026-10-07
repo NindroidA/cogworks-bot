@@ -5,7 +5,7 @@ import { UserTicketRestriction } from '../../../typeorm/entities/ticket/UserTick
 import {
   awaitConfirmation,
   enhancedLogger,
-  formatLang,
+  fmt,
   guardFeatureAccess,
   handleInteractionError,
   LogCategory,
@@ -55,7 +55,7 @@ export async function typeRemoveHandler(interaction: ChatInputCommandInteraction
     // nobody confirmed) and any other button the admin pressed, such as the
     // ticket panel, which it then overwrote.
     const result = await awaitConfirmation(interaction, {
-      message: `**${tl.confirmTitle}**\n\n${formatLang(tl.confirmMessage, ticketType.displayName)}`,
+      message: `**${tl.confirmTitle}**\n\n${fmt(tl.confirmMessage, { type: ticketType.displayName })}`,
       confirmLabel: lang.general.buttons.delete,
       confirmStyle: ButtonStyle.Danger,
       idPrefix: `tt_remove_${interaction.id}`,
@@ -67,7 +67,10 @@ export async function typeRemoveHandler(interaction: ChatInputCommandInteraction
       // Restrictions on the deleted type would otherwise linger (the restriction
       // modals only rewrite the types they show).
       await AppDataSource.getRepository(UserTicketRestriction).delete({ guildId, typeId });
-      await result.interaction.editReply({ content: formatLang(tl.success, ticketType.displayName), components: [] });
+      await result.interaction.editReply({
+        content: fmt(tl.success, { type: ticketType.displayName }),
+        components: [],
+      });
 
       enhancedLogger.info(`Ticket type deleted: ${ticketType.typeId}`, LogCategory.COMMAND_EXECUTION, {
         guildId,
