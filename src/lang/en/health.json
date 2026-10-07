@@ -77,6 +77,37 @@
       "starboard": "Starboard",
       "ticket": "Tickets",
       "xp": "XP"
+    },
+    "repair": {
+      "preview": {
+        "applyAuto": "Apply automatic fixes ({count})",
+        "applySelected": "Apply selected ({count})",
+        "auto": "Automatic fixes ({count})",
+        "autoLine": "• {label} ×{count}",
+        "cancel": "Cancel",
+        "confirm": "**Fixes to confirm ({count})**: pick the ones to apply in the menu below.",
+        "confirmLine": "`{number}.` {label}",
+        "intro": "Nothing changes until you press a button. Each fix writes only while the setting still matches what the check saw.",
+        "manual": "Left for you ({count})",
+        "manualText": "The repair can't fix these. `/bot-health check` says what to do about each one.",
+        "memories": "(deletes {count} saved memories)",
+        "memory": "(deletes 1 saved memory)",
+        "more": "…and {count} more",
+        "nothing": "There's nothing the repair can fix right now.",
+        "page": "Fixes to confirm: page {page} of {pages}",
+        "placeholder": "Pick the fixes to apply…",
+        "title": "Repair preview",
+        "titleFor": "Repair preview: {guildName}"
+      },
+      "results": {
+        "again": "Preview remaining fixes",
+        "applied": "✅ Fixed: {count}",
+        "changed": "↩️ Changed since the check, so left alone: {count}",
+        "failed": "❌ Failed: {count}",
+        "recheckFailed": "The check afterwards couldn't finish. Run `/bot-health check` to see what's left.",
+        "title": "Repair results",
+        "unverified": "❔ Couldn't confirm the channel, role or message is deleted, so left alone: {count}"
+      }
     }
   },
   "findings": {

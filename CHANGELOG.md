@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.51] - 2026-10-07
+
+Groundwork for `/bot-health repair` (NindroidA/cogworks-bot#41): the screens
+it will show, and helpers `/bot-health check` now shares with it. Nothing
+shows the new screens yet. The only change you could see is a fix in
+`/bot-health check` (below).
+
+### Added
+
+- **Repair preview and results renderer**
+  (`src/commands/handlers/botHealth/repairRender.ts`). The preview groups
+  automatic fixes as "label ×N", numbers the fixes to confirm and pages them
+  25 to a multi-select (picks are kept across pages), says how many saved
+  memories a memory-channel delete takes with it, and counts what's left for
+  the admin. The results group the applier's outcomes into fixed, changed
+  since the check, couldn't confirm deleted, and failed (with a bug link),
+  then show the fresh check's summary. Every view stays within Discord's
+  limits, tested with 200 findings.
+- **`BOT_HEALTH_REPAIR`** rate limit: 5 per hour per server, for the coming
+  command.
+- **`rateLimiter.refund(key)`** gives back one use of a key. `reset` clears
+  the whole window, which is wrong for a limit above 1: refunding one failed
+  repair would also forget the server's other repairs that hour.
+
+### Changed
+
+- `/bot-health check`'s server resolution (the owner-only `guild-id`), its
+  rate-limit slots and the cleanup when its buttons expire moved to
+  `src/commands/handlers/botHealth/target.ts`, for both subcommands to share.
+  A failed check now gives its slot back with `refund`; with a limit of 1 per
+  window that works exactly as before.
+
+### Fixed
+
+- `/bot-health check` cut long text (a finding, a system label, a title) at a
+  fixed length, which could split an emoji in half. Discord rejects a message
+  with half an emoji, so the whole report failed to show. Text is now cut on
+  whole characters.
+
 ## [3.16.50] - 2026-10-07
 
 The rest of the repair plan for `/bot-health repair`
