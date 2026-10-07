@@ -143,6 +143,7 @@ graph LR
     subgraph "Discord Events"
         MC[messageCreate]
         MD[messageDelete]
+        MDB[messageDeleteBulk]
         CD[channelDelete]
         RD[roleDelete]
         TD[threadDelete]
@@ -154,8 +155,8 @@ graph LR
     subgraph "Handlers"
         XPMsg[XP Message Handler]
         CleanMsg[Message Cleanup<br/>8 entities]
-        CleanCh[Channel Cleanup<br/>13 entities]
-        CleanRole[Role Cleanup<br/>9 entities]
+        CleanCh[Channel Cleanup<br/>15 cleaners]
+        CleanRole[Role Cleanup<br/>10 entities]
         CleanThread[Thread Cleanup<br/>MemoryItem]
         Onboard[Onboarding Join]
         GDPR[GDPR Full Purge]
@@ -166,6 +167,7 @@ graph LR
 
     MC --> XPMsg
     MD --> CleanMsg
+    MDB --> CleanMsg
     CD --> CleanCh
     RD --> CleanRole
     TD --> CleanThread
@@ -175,6 +177,8 @@ graph LR
     MRA --> RulesRx
     MRA --> RRHandler
 ```
+
+The four cleanup handlers live in `src/utils/cleanup/refCleaners.ts` (`cleanChannelRefs`, `cleanMessageRefs`, `cleanRoleRefs`, `cleanThreadRefs`), one table of per-entity cleaners per reference kind. The delete events only call them.
 
 ## Ticket Close Workflow
 

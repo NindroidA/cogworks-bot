@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.16.39] - 2026-10-06
+## [3.16.40] - 2026-10-06
 
 Language types come from the English JSON (NindroidA/cogworks-bot#41). The
 2,100-line hand-written copy of the JSON shape in `src/lang/types.ts` is gone:
@@ -27,6 +27,24 @@ edit. Internal only; every string the bot shows is unchanged.
   first being copied into a fixed object.
 - A unit test fails if a JSON file in `src/lang/en/` is not registered in the
   barrel.
+
+## [3.16.39] - 2026-10-06
+
+Internal refactor ahead of `/bot-health repair` (NindroidA/cogworks-bot#41).
+No behavior change: the bot cleans up after deleted channels, roles, messages
+and threads exactly as before.
+
+### Changed
+
+- **The delete-event cleaners moved to `src/utils/cleanup/refCleaners.ts`.**
+  The per-entity cleaner tables for channels, roles and messages move out of
+  `channelDelete`, `roleDelete` and `messageDelete` unchanged, and the
+  `threadDelete` MemoryItem cleanup becomes a one-entry thread table. The
+  events now call `cleanChannelRefs`, `cleanRoleRefs`, `cleanMessageRefs` and
+  `cleanThreadRefs`; `messageDeleteBulk` imports `cleanMessageRefs` from the
+  new module. Log text, the 10-second message cleaner timeout and the command
+  picker refresh after a channel delete are unchanged. The repair series will
+  reuse these tables, and utils code can't import from `events/`.
 
 ## [3.16.38] - 2026-10-06
 
