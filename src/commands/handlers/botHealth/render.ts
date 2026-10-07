@@ -12,7 +12,7 @@ import {
   EmbedBuilder,
   StringSelectMenuBuilder,
 } from 'discord.js';
-import { lang } from '../../../lang';
+import { fmt, lang } from '../../../lang';
 import { Colors } from '../../../utils/colors';
 import { POST_LOOKUPS } from '../../../utils/health/checks/memory';
 import { HEALTH_REST_BUDGET } from '../../../utils/health/context';
@@ -50,15 +50,6 @@ export interface RenderOptions {
   notCheckedYet?: readonly string[];
 }
 
-/** Fills `{name}` placeholders; unknown ones stay as written. */
-export function fillTemplate(template: string, params: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (match, key: string) => {
-    // typeof, not `in`: inherited keys such as `constructor` must not fill a placeholder.
-    const value: unknown = params[key];
-    return typeof value === 'string' || typeof value === 'number' ? String(value) : match;
-  });
-}
-
 const systemLabel = (system: string) => systemLabels[system] ?? system;
 
 function truncate(text: string, max: number): string {
@@ -76,7 +67,7 @@ const SEVERITY_ORDER: Record<HealthSeverity, number> = { block: 0, degraded: 1, 
  */
 export function findingField(finding: HealthFinding): APIEmbedField {
   const suffix = `\n\`${finding.code}\``;
-  const text = fillTemplate(findingStrings[finding.code] ?? finding.code, finding.params);
+  const text = fmt(findingStrings[finding.code] ?? finding.code, finding.params);
   return {
     name: truncate(tl.severity[finding.severity], 256),
     value: truncate(text, 1024 - suffix.length) + suffix,
@@ -126,7 +117,7 @@ function notCheckedText(item: string): string {
   if (NOT_CHECKED[item]) return NOT_CHECKED[item];
   if (!item.startsWith('rest:')) return item;
   const label = item.slice('rest:'.length);
-  return fillTemplate(tl.notChecked.rest, {
+  return fmt(tl.notChecked.rest, {
     label: restLabels[label] ?? label,
     max: HEALTH_REST_BUDGET.maxCalls,
     posts: POST_LOOKUPS,
@@ -136,21 +127,20 @@ function notCheckedText(item: string): string {
 export function buildSummaryEmbed(report: HealthReport, opts: RenderOptions = {}): EmbedBuilder {
   const systems = systemsOf(report);
   const time = Math.floor(Date.parse(report.checkedAt) / 1000);
-  const meta = fillTemplate(report.deep ? tl.summary.metaDeep : tl.summary.meta, { version: report.botVersion, time });
+  const meta = fmt(report.deep ? tl.summary.metaDeep : tl.summary.meta, { version: report.botVersion, time });
   const lines = [meta, ''];
   for (const [system, r] of systems) {
-    lines.push(fillTemplate(STATUS_LINE[r.status], { system: systemLabel(system), count: r.findings.length }));
+    lines.push(fmt(STATUS_LINE[r.status], { system: systemLabel(system), count: r.findings.length }));
   }
   for (const system of opts.notCheckedYet ?? []) {
-    if (!(system in report.systems))
-      lines.push(fillTemplate(tl.summary.notCheckedYet, { system: systemLabel(system) }));
+    if (!(system in report.systems)) lines.push(fmt(tl.summary.notCheckedYet, { system: systemLabel(system) }));
   }
   if (systems.length === 0 && !opts.notCheckedYet?.length) lines.push(tl.summary.noChecks);
   if (systems.some(([, r]) => r.findings.length > 0)) lines.push('', tl.summary.hint);
 
   const statuses = new Set(systems.map(([, r]) => r.status));
   const color = statuses.has('fail') ? 'error' : statuses.has('warn') ? 'warning' : 'success';
-  const title = opts.guildName ? fillTemplate(tl.summary.titleFor, { guildName: opts.guildName }) : tl.summary.title;
+  const title = opts.guildName ? fmt(tl.summary.titleFor, { guildName: opts.guildName }) : tl.summary.title;
   const embed = new EmbedBuilder()
     .setTitle(truncate(title, 256))
     .setColor(Colors.status[color])
@@ -170,7 +160,7 @@ function systemSelect(report: HealthReport, current?: string): ActionRowBuilder<
       withFindings.slice(0, 25).map(([system, result]) => ({
         label: truncate(systemLabel(system), 100),
         value: system,
-        description: fillTemplate(tl.details.findings, { count: result.findings.length }),
+        description: fmt(tl.details.findings, { count: result.findings.length }),
         default: system === current,
       })),
     );
@@ -198,10 +188,10 @@ export function renderView(report: HealthReport, view: HealthView, opts: RenderO
   const pages = paginateFindings(findings);
   const page = Math.min(Math.max(view.page, 0), pages.length - 1);
   const embed = new EmbedBuilder()
-    .setTitle(truncate(fillTemplate(tl.details.title, { system: systemLabel(view.system) }), 256))
+    .setTitle(truncate(fmt(tl.details.title, { system: systemLabel(view.system) }), 256))
     .setColor(Colors.status.info)
     .addFields(pages[page])
-    .setFooter({ text: fillTemplate(tl.details.page, { page: page + 1, pages: pages.length }) });
+    .setFooter({ text: fmt(tl.details.page, { page: page + 1, pages: pages.length }) });
   const pageButton = (target: number, label: string, emoji: string) =>
     new ButtonBuilder()
       .setCustomId(`${HEALTH_CID.page}${view.system}:${target}`)

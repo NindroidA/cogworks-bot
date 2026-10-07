@@ -1,7 +1,7 @@
 import { type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { AppDataSource } from '../../../typeorm';
 import { ArchivedApplication } from '../../../typeorm/entities/application/ArchivedApplication';
-import { enhancedLogger, guardFeatureAccess, handleInteractionError, LogCategory, lang } from '../../../utils';
+import { enhancedLogger, fmt, guardFeatureAccess, handleInteractionError, LogCategory, lang } from '../../../utils';
 
 /**
  * Delete a specific archived application by user
@@ -22,7 +22,7 @@ export async function deleteArchivedApplicationHandler(interaction: ChatInputCom
 
     if (!archivedApp) {
       await interaction.reply({
-        content: lang.dev.deleteArchivedApplication.notFound.replace('{user}', user.tag),
+        content: fmt(lang.dev.deleteArchivedApplication.notFound, { user: user.tag }),
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -47,8 +47,8 @@ export async function deleteArchivedApplicationHandler(interaction: ChatInputCom
 
     await interaction.reply({
       content: forumPostDeleted
-        ? lang.dev.deleteArchivedApplication.successWithPost.replace('{user}', user.tag)
-        : lang.dev.deleteArchivedApplication.successNoPost.replace('{user}', user.tag),
+        ? fmt(lang.dev.deleteArchivedApplication.successWithPost, { user: user.tag })
+        : fmt(lang.dev.deleteArchivedApplication.successNoPost, { user: user.tag }),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
@@ -103,9 +103,9 @@ export async function deleteAllArchivedApplicationsHandler(interaction: ChatInpu
     await interaction.editReply(
       `${lang.dev.deleteAllArchivedApplications.complete}\n\n` +
         `${lang.dev.deleteAllArchivedApplications.results}\n` +
-        `${lang.dev.deleteAllArchivedApplications.dbRecordsDeleted.replace('{count}', (result.affected || 0).toString())}\n` +
-        `${lang.dev.deleteAllArchivedApplications.forumPostsDeleted.replace('{count}', postsDeleted.toString())}\n` +
-        `${lang.dev.deleteAllArchivedApplications.forumPostsFailed.replace('{count}', postsFailed.toString())}`,
+        `${fmt(lang.dev.deleteAllArchivedApplications.dbRecordsDeleted, { count: result.affected || 0 })}\n` +
+        `${fmt(lang.dev.deleteAllArchivedApplications.forumPostsDeleted, { count: postsDeleted })}\n` +
+        `${fmt(lang.dev.deleteAllArchivedApplications.forumPostsFailed, { count: postsFailed })}`,
     );
   } catch (error) {
     await handleInteractionError(interaction, error, 'deleteAllArchivedApplicationsHandler');

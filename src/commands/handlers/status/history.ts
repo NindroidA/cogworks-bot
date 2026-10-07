@@ -2,7 +2,7 @@ import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, Message
 import { MoreThan } from 'typeorm';
 import { AppDataSource } from '../../../typeorm';
 import { StatusIncident } from '../../../typeorm/entities/status';
-import { Colors, enhancedLogger, guardOwner, handleInteractionError, LogCategory, lang } from '../../../utils';
+import { Colors, enhancedLogger, fmt, guardOwner, handleInteractionError, LogCategory, lang } from '../../../utils';
 
 const tl = lang.status;
 
@@ -23,7 +23,7 @@ export async function statusHistoryHandler(interaction: ChatInputCommandInteract
 
     if (incidents.length === 0) {
       await interaction.reply({
-        content: tl.history.noIncidents.replace('{days}', String(days)),
+        content: fmt(tl.history.noIncidents, { days }),
         flags: [MessageFlags.Ephemeral],
       });
       return;

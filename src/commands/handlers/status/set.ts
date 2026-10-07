@@ -4,7 +4,7 @@ import {
   createRateLimitKey,
   enhancedLogger,
   escapeDiscordMarkdown,
-  formatLang,
+  fmt,
   guardOwner,
   LogCategory,
   lang,
@@ -27,7 +27,7 @@ export async function statusSetHandler(
   const rateCheck = rateLimiter.check(rateLimitKey, RateLimits.BOT_SETUP);
   if (!rateCheck.allowed) {
     await interaction.reply({
-      content: formatLang(lang.errors.rateLimit, Math.ceil((rateCheck.resetIn || 0) / 60000).toString()),
+      content: fmt(lang.errors.rateLimit, { minutes: Math.ceil((rateCheck.resetIn || 0) / 60000) }),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -50,7 +50,7 @@ export async function statusSetHandler(
 
     const levelLabel = tl.levels[level] || level;
     await interaction.reply({
-      content: tl.set.success.replace('{level}', levelLabel),
+      content: fmt(tl.set.success, { level: levelLabel }),
       flags: [MessageFlags.Ephemeral],
     });
 

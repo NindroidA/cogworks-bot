@@ -2,6 +2,7 @@ import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from '
 import { ReactionRoleMenu, ReactionRoleOption } from '../../../typeorm/entities/reactionRole';
 import {
   enhancedLogger,
+  fmt,
   guardFeatureRateLimit,
   invalidateMenuCache,
   LogCategory,
@@ -67,7 +68,7 @@ export async function reactionRoleRemoveHandler(interaction: ChatInputCommandInt
     });
     const updated = !updatedMenu || (await updateMenuMessage(updatedMenu, guild, { remove: [option.emoji] }));
 
-    const success = tl.remove.success.replace('{emoji}', emoji).replace('{menu}', menu.name);
+    const success = fmt(tl.remove.success, { emoji, menu: menu.name });
     await interaction.editReply({ content: updated ? success : `${success}\n\n${tl.menu.updateFailed}` });
 
     enhancedLogger.info('Reaction role option removed', LogCategory.COMMAND_EXECUTION, {

@@ -15,7 +15,7 @@ import {
   PermissionFlagsBits,
   type TextChannel,
 } from 'discord.js';
-import { Colors, enhancedLogger, LogCategory, lang } from '../utils';
+import { Colors, enhancedLogger, fmt, LogCategory, lang } from '../utils';
 import { notifyGuildJoin } from '../utils/api/guildWebhook';
 import { registerGuildCommands } from '../utils/setup/commandGating';
 
@@ -91,7 +91,7 @@ export default {
           },
         )
         .setFooter({
-          text: tl.footer.replace('{0}', client.guilds.cache.size.toString()),
+          text: fmt(tl.footer, { count: client.guilds.cache.size }),
           iconURL: client.user?.displayAvatarURL(),
         });
 

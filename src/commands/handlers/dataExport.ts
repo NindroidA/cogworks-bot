@@ -19,8 +19,8 @@ import {
 import {
   createRateLimitKey,
   enhancedLogger,
+  fmt,
   formatBytes,
-  formatLang,
   guardAdminRateLimit,
   LogCategory,
   lang,
@@ -64,7 +64,7 @@ export async function dataExportHandler(
     // Defer reply as export may take time
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-    enhancedLogger.info(formatLang(tl.starting, guildId, interaction.user.tag), LogCategory.COMMAND_EXECUTION);
+    enhancedLogger.info(fmt(tl.starting, { guildId, user: interaction.user.tag }), LogCategory.COMMAND_EXECUTION);
 
     const exportData = await fetchAllExportData(guildId);
 
@@ -96,7 +96,7 @@ export async function dataExportHandler(
     const filename = `guild-${guildId}-export-${Date.now()}.json.gz`;
 
     enhancedLogger.info(
-      formatLang(tl.completed, totalRecords.toString(), Object.keys(exportData).length.toString()),
+      fmt(tl.completed, { records: totalRecords, tables: Object.keys(exportData).length }),
       LogCategory.COMMAND_EXECUTION,
     );
 
@@ -104,7 +104,7 @@ export async function dataExportHandler(
       // Deterministic: a retry loads and compresses every table again only to build the same
       // oversized file, so today's export stays spent.
       rateLimitKey = undefined;
-      await interaction.editReply({ content: formatLang(tl.tooLarge, formatBytes(buffer.length)) });
+      await interaction.editReply({ content: fmt(tl.tooLarge, { size: formatBytes(buffer.length) }) });
       return;
     }
 
@@ -114,7 +114,7 @@ export async function dataExportHandler(
 
       const embed = new EmbedBuilder()
         .setTitle(tl.exportTitle)
-        .setDescription(formatLang(tl.exportDescription, interaction.guild?.name || 'Unknown'))
+        .setDescription(fmt(tl.exportDescription, { guildName: interaction.guild?.name || 'Unknown' }))
         .addFields(
           {
             name: tl.totalRecords,
@@ -145,7 +145,7 @@ export async function dataExportHandler(
       });
     } catch (dmError) {
       enhancedLogger.warn(
-        formatLang(tl.dmFailedLog, interaction.user.tag, (dmError as Error).message),
+        fmt(tl.dmFailedLog, { user: interaction.user.tag, error: (dmError as Error).message }),
         LogCategory.COMMAND_EXECUTION,
       );
 

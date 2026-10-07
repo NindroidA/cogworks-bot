@@ -10,6 +10,7 @@ import { BaitKeyword } from '../../../typeorm/entities/bait/BaitKeyword';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
 import {
   awaitConfirmation,
+  fmt,
   handleInteractionError,
   lang,
   replyEphemeralError,
@@ -96,7 +97,7 @@ async function handleAdd(client: Client, interaction: ChatInputCommandInteractio
   // Check for duplicate
   const existing = await keywordRepo.findOne({ where: { guildId, keyword } });
   if (existing) {
-    await replyEphemeralError(interaction, tl.keywords.add.duplicate.replace('{keyword}', keyword));
+    await replyEphemeralError(interaction, fmt(tl.keywords.add.duplicate, { keyword }));
     return;
   }
 
@@ -117,9 +118,9 @@ async function handleAdd(client: Client, interaction: ChatInputCommandInteractio
   const embed = new EmbedBuilder()
     .setColor('#00FF00')
     .setTitle(tl.keywords.add.title)
-    .setDescription(tl.keywords.add.success.replace('{keyword}', keyword).replace('{weight}', weight.toString()))
+    .setDescription(fmt(tl.keywords.add.success, { keyword, weight }))
     .setFooter({
-      text: tl.keywords.list.footer.replace('{count}', newCount.toString()),
+      text: fmt(tl.keywords.list.footer, { count: newCount }),
     });
 
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
@@ -145,7 +146,7 @@ async function handleRemove(client: Client, interaction: ChatInputCommandInterac
   baitChannelManager?.clearKeywordCache(guildId);
 
   await interaction.reply({
-    content: tl.keywords.remove.success.replace('{keyword}', keyword),
+    content: fmt(tl.keywords.remove.success, { keyword }),
     flags: [MessageFlags.Ephemeral],
   });
 }
@@ -188,7 +189,7 @@ async function handleList(interaction: ChatInputCommandInteraction, guildId: str
   }
 
   embed.setFooter({
-    text: tl.keywords.list.footer.replace('{count}', keywords.length.toString()),
+    text: fmt(tl.keywords.list.footer, { count: keywords.length }),
   });
 
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
@@ -219,7 +220,7 @@ async function handleReset(client: Client, interaction: ChatInputCommandInteract
   baitChannelManager?.clearKeywordCache(guildId);
 
   await result.interaction.editReply({
-    content: tl.keywords.reset.success.replace('{count}', DEFAULT_KEYWORDS.length.toString()),
+    content: fmt(tl.keywords.reset.success, { count: DEFAULT_KEYWORDS.length }),
   });
 }
 

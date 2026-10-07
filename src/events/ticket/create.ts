@@ -30,7 +30,7 @@ import {
   enhancedLogger,
   escapeDiscordMarkdown,
   extractIdFromMention,
-  formatLang,
+  fmt,
   LogCategory,
   lang,
   PermissionSets,
@@ -606,7 +606,7 @@ export const submitTicketModal = async (_client: Client, interaction: ModalSubmi
 
     if (assignee) {
       await newChannel.send({
-        content: formatLang(lang.ticket.routing.autoAssigned, userMention(assignee.id)),
+        content: fmt(lang.ticket.routing.autoAssigned, { user: userMention(assignee.id) }),
         allowedMentions: { users: [assignee.id] },
       });
     }

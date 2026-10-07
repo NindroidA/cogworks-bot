@@ -2,7 +2,7 @@
   "notConfigured": "Bait channel not configured. Use `/baitchannel setup`",
   "setupFirst": "Please run `/baitchannel setup` first!",
   "specifyRoleOrUser": "Please specify a role or user!",
-  "unbanGaveUp": "⚠️ Could not lift the softban ban on {0} in **{1}** after {2} attempts, so they are still banned. Unban them by hand (Server Settings → Bans).",
+  "unbanGaveUp": "⚠️ Could not lift the softban ban on {user} in **{guildName}** after {attempts} attempts, so they are still banned. Unban them by hand (Server Settings → Bans).",
   "builder": {
     "cmdDescrp": "Configure the bait channel anti-bot system",
     "setup": {
@@ -104,15 +104,15 @@
     "smartOff": "Off",
     "logNone": "None",
     "detectionSettings": "Detection Settings",
-    "minAccountAge": "- Min Account Age: {0} days",
-    "minMembership": "- Min Membership: {0} minutes",
-    "minMessages": "- Min Messages: {0}",
-    "requireVerification": "- Require Verification: {0}",
-    "actionThreshold": "- Action Threshold: {0}/100",
+    "minAccountAge": "- Min Account Age: {days} days",
+    "minMembership": "- Min Membership: {minutes} minutes",
+    "minMessages": "- Min Messages: {count}",
+    "requireVerification": "- Require Verification: {value}",
+    "actionThreshold": "- Action Threshold: {threshold}/100",
     "whitelist": "Whitelist",
-    "whitelistRoles": "**Roles:** {0}",
-    "whitelistUsers": "**Users:** {0}",
-    "whitelistMore": "+{0} more (full list: `/baitchannel detection whitelist action:list`)",
+    "whitelistRoles": "**Roles:** {roles}",
+    "whitelistUsers": "**Users:** {users}",
+    "whitelistMore": "+{count} more (full list: `/baitchannel detection whitelist action:list`)",
     "yes": "Yes",
     "no": "No"
   },
@@ -128,7 +128,7 @@
   },
   "stats": {
     "title": "Bait Channel Statistics",
-    "description": "Statistics for the last {0} day(s)",
+    "description": "Statistics for the last {days} day(s)",
     "totalTriggers": "Total Triggers",
     "banned": "Banned",
     "kicked": "Kicked",
@@ -146,7 +146,7 @@
   },
   "override": {
     "title": "Detection Override",
-    "success": "Successfully overridden the most recent detection for {0}.",
+    "success": "Successfully overridden the most recent detection for {user}.",
     "noEntry": "No actionable detection found for this user.",
     "alreadyOverridden": "The most recent detection for this user has already been overridden.",
     "logOnlyCannotOverride": "Log-only detections cannot be overridden (no action was taken).",
@@ -154,18 +154,17 @@
     "action": "Original Action",
     "score": "Suspicion Score",
     "overriddenBy": "Overridden By",
-    "detectedAt": "Detected At",
-    "error": "Failed to override detection"
+    "detectedAt": "Detected At"
   },
   "whitelist": {
-    "added": "Added {0} to whitelist",
-    "removed": "Removed {0} from whitelist",
-    "alreadyAdded": "{0} is already whitelisted",
-    "notInList": "{0} is not in the whitelist",
+    "added": "Added {target} to whitelist",
+    "removed": "Removed {target} from whitelist",
+    "alreadyAdded": "{target} is already whitelisted",
+    "notInList": "{target} is not in the whitelist",
     "title": "Bait Channel Whitelist",
     "empty": "No roles or users are whitelisted",
-    "role": "Role: {0}",
-    "user": "User: {0}"
+    "role": "Role: {role}",
+    "user": "User: {user}"
   },
   "detection": {
     "title": "Smart Detection Updated",
@@ -177,21 +176,10 @@
     "threshold": "Action Threshold",
     "joinVelocityThreshold": "Join Velocity Threshold",
     "joinVelocityWindow": "Join Velocity Window",
-    "days": "{0} days",
-    "minutes": "{0} min",
+    "days": "{days} days",
+    "minutes": "{minutes} min",
     "yes": "Yes",
-    "no": "No",
-    "reasons": {
-      "defaultAvatar": "Default avatar (no custom avatar set)",
-      "emptyProfile": "Empty profile (no banner, no avatar)",
-      "suspiciousUsername": "Suspicious username patterns detected",
-      "noRoles": "No server roles assigned",
-      "discordInvite": "Contains Discord invite link(s)",
-      "phishingUrl": "Contains suspected phishing URL(s)",
-      "attachmentOnly": "Attachment-only message (no text)",
-      "joinBurst": "Join burst detected",
-      "coordinatedRaid": "Possible Coordinated Raid"
-    }
+    "no": "No"
   },
   "escalation": {
     "enabled": "Escalation mode enabled",
@@ -206,9 +194,7 @@
     "disabled": "DM notification before action is now **disabled**.",
     "appealSet": "Appeal Information Configured",
     "appealCleared": "Appeal information has been cleared.",
-    "appealTooLong": "Appeal text must be 500 characters or fewer.",
-    "dmTitle": "Action Taken in {guildName}",
-    "dmDescription": "Your message in a monitored channel triggered automatic detection."
+    "appealTooLong": "Appeal text must be 500 characters or fewer."
   },
   "keywords": {
     "add": {
@@ -231,27 +217,24 @@
     },
     "reset": {
       "confirm": "Are you sure you want to reset all keywords to defaults? This will delete all custom keywords.",
-      "success": "Keywords reset to defaults. {count} keywords seeded.",
-      "cancelled": "Keyword reset cancelled."
+      "success": "Keywords reset to defaults. {count} keywords seeded."
     }
   },
   "testMode": {
     "enabled": "Test mode **enabled** — detections will be logged but no ban/kick/timeout actions will be taken.",
     "disabled": "Test mode **disabled** — detections will now execute real actions.",
-    "title": "Test Mode Updated",
-    "logPrefix": "[TEST MODE] ",
-    "gracePeriodNote": "\n\n**Test Mode Active** — No real action will be taken."
+    "title": "Test Mode Updated"
   },
   "multiChannel": {
-    "added": "Added <#{0}> as a bait channel",
-    "removed": "Removed <#{0}> from bait channels",
+    "added": "Added <#{channelId}> as a bait channel",
+    "removed": "Removed <#{channelId}> from bait channels",
     "maxReached": "Maximum of 3 bait channels reached. Remove one first.",
-    "alreadyAdded": "<#{0}> is already configured as a bait channel.",
-    "notInList": "<#{0}> is not configured as a bait channel.",
+    "alreadyAdded": "<#{channelId}> is already configured as a bait channel.",
+    "notInList": "<#{channelId}> is not configured as a bait channel.",
     "mustKeepOne": "Cannot remove the last bait channel. Use `/baitchannel toggle` to disable instead.",
     "title": "Bait Channel Updated",
     "channelsLabel": "Configured Channels",
-    "bannerDeleteFailed": "Couldn't delete the warning banner in <#{0}>. Delete it by hand: that channel is no longer monitored."
+    "bannerDeleteFailed": "Couldn't delete the warning banner in <#{channelId}>. Delete it by hand: that channel is no longer monitored."
   },
   "weeklySummary": {
     "title": "Weekly Summary Settings",
@@ -278,12 +261,12 @@
     "statusActive": "🚨 Raid mode is ACTIVE",
     "statusInactive": "✅ Raid mode is inactive",
     "recentTriggers": "Recent triggers",
-    "withinWindow": "{0} within window",
+    "withinWindow": "{count} within window",
     "distinctOffenders": "Distinct offenders",
     "autoReleaseAt": "Auto-release at",
     "notConfigured": "❌ Bait channel is not configured for this guild. Run `/baitchannel setup` first.",
     "alreadyActive": "⚠️ Raid mode is already active. Use `/baitchannel raid release` first to reset.",
-    "activated": "✅ Raid mode activated. Reason: {0}",
+    "activated": "✅ Raid mode activated. Reason: {reason}",
     "released": "✅ Raid mode released. Channel permissions restored.",
     "notActive": "ℹ️ Raid mode was not active.",
     "guildUnavailable": "⚠️ Discord reports this server as unavailable right now, so raid mode was NOT released and channels are still locked. Try again in a few minutes.",

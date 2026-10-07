@@ -3,7 +3,7 @@ import { MoreThan } from 'typeorm';
 import { lang } from '../../../lang';
 import { OnboardingCompletion } from '../../../typeorm/entities/onboarding/OnboardingCompletion';
 import { OnboardingConfig } from '../../../typeorm/entities/onboarding/OnboardingConfig';
-import { formatLang, replyEphemeralError } from '../../../utils';
+import { fmt, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 // Locale-aware (Proxy fallback) — was a direct en JSON import that bypassed i18n.
@@ -92,7 +92,7 @@ export async function onboardingStatsHandler(_client: Client, interaction: ChatI
   const embed = new EmbedBuilder()
     .setColor('#5865F2')
     .setTitle(tl.stats.title)
-    .setDescription(formatLang(tl.stats.description, days.toString()))
+    .setDescription(fmt(tl.stats.description, { days }))
     .addFields(
       { name: tl.stats.totalStarted, value: `${totalStarted}`, inline: true },
       { name: tl.stats.totalCompleted, value: `${totalCompleted}`, inline: true },

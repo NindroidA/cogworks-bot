@@ -5,14 +5,7 @@
  */
 
 import { AutoModerationRuleTriggerType, type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
-import {
-  enhancedLogger,
-  formatLang,
-  handleInteractionError,
-  LogCategory,
-  lang,
-  replyEphemeralError,
-} from '../../../utils';
+import { enhancedLogger, fmt, handleInteractionError, LogCategory, lang, replyEphemeralError } from '../../../utils';
 import {
   fetchAutoModRules,
   MAX_KEYWORDS_PER_RULE,
@@ -90,7 +83,7 @@ async function handleKeywordAdd(interaction: ChatInputCommandInteraction): Promi
     }
 
     if (existingKeywords.some(k => k.toLowerCase() === keyword)) {
-      await replyEphemeralError(interaction, formatLang(tl.keyword.add.alreadyExists, keyword));
+      await replyEphemeralError(interaction, fmt(tl.keyword.add.alreadyExists, { keyword }));
       return;
     }
 
@@ -108,7 +101,7 @@ async function handleKeywordAdd(interaction: ChatInputCommandInteraction): Promi
     });
 
     await interaction.reply({
-      content: formatLang(tl.keyword.add.success, keyword, rule.name),
+      content: fmt(tl.keyword.add.success, { keyword, rule: rule.name }),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
@@ -142,7 +135,7 @@ async function handleKeywordRemove(interaction: ChatInputCommandInteraction): Pr
     const index = existingKeywords.findIndex(k => k.toLowerCase() === keyword);
 
     if (index === -1) {
-      await replyEphemeralError(interaction, formatLang(tl.keyword.remove.notFound, keyword));
+      await replyEphemeralError(interaction, fmt(tl.keyword.remove.notFound, { keyword }));
       return;
     }
 
@@ -162,7 +155,7 @@ async function handleKeywordRemove(interaction: ChatInputCommandInteraction): Pr
     });
 
     await interaction.reply({
-      content: formatLang(tl.keyword.remove.success, keyword, rule.name),
+      content: fmt(tl.keyword.remove.success, { keyword, rule: rule.name }),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
@@ -196,7 +189,7 @@ async function handleRegexAdd(interaction: ChatInputCommandInteraction): Promise
     }
 
     if (pattern.length > MAX_REGEX_LENGTH) {
-      await replyEphemeralError(interaction, formatLang(tl.regex.add.tooLong, pattern.length));
+      await replyEphemeralError(interaction, fmt(tl.regex.add.tooLong, { length: pattern.length }));
       return;
     }
 
@@ -234,7 +227,7 @@ async function handleRegexAdd(interaction: ChatInputCommandInteraction): Promise
     });
 
     await interaction.reply({
-      content: formatLang(tl.regex.add.success, pattern, rule.name),
+      content: fmt(tl.regex.add.success, { pattern, rule: rule.name }),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
@@ -284,7 +277,7 @@ async function handleRegexRemove(interaction: ChatInputCommandInteraction): Prom
     });
 
     await interaction.reply({
-      content: formatLang(tl.regex.remove.success, pattern, rule.name),
+      content: fmt(tl.regex.remove.success, { pattern, rule: rule.name }),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
@@ -348,7 +341,7 @@ async function handleExemptAdd(interaction: ChatInputCommandInteraction): Promis
     });
 
     await interaction.reply({
-      content: formatLang(tl.exempt.add.success, rule.name),
+      content: fmt(tl.exempt.add.success, { rule: rule.name }),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
@@ -408,7 +401,7 @@ async function handleExemptRemove(interaction: ChatInputCommandInteraction): Pro
     });
 
     await interaction.reply({
-      content: formatLang(tl.exempt.remove.success, rule.name),
+      content: fmt(tl.exempt.remove.success, { rule: rule.name }),
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {

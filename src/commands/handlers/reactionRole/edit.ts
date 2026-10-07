@@ -2,6 +2,7 @@ import { type CacheType, type ChatInputCommandInteraction, MessageFlags } from '
 import { ReactionRoleMenu, type ReactionRoleMode } from '../../../typeorm/entities/reactionRole';
 import {
   enhancedLogger,
+  fmt,
   guardFeatureRateLimit,
   invalidateMenuCache,
   LogCategory,
@@ -66,7 +67,7 @@ export async function reactionRoleEditHandler(interaction: ChatInputCommandInter
     // Update the Discord message (name, description and mode don't change the reactions)
     const updated = await updateMenuMessage(menu, guild, {});
 
-    const success = tl.edit.success.replace('{name}', menu.name);
+    const success = fmt(tl.edit.success, { name: menu.name });
     await interaction.editReply({ content: updated ? success : `${success}\n\n${tl.menu.updateFailed}` });
 
     enhancedLogger.info('Reaction role menu edited', LogCategory.COMMAND_EXECUTION, {

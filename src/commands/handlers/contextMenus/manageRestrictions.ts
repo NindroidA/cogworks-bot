@@ -11,6 +11,7 @@ import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
 import { UserTicketRestriction } from '../../../typeorm/entities/ticket/UserTicketRestriction';
 import {
   enhancedLogger,
+  fmt,
   guardFeatureAccess,
   handleInteractionError,
   LogCategory,
@@ -106,7 +107,7 @@ export async function manageRestrictionsHandler(interaction: UserContextMenuComm
 
     const embed = new EmbedBuilder()
       .setTitle(tl.title)
-      .setDescription(`${tl.description.replace('{user}', targetUser.toString())}\n\n${typeStatusLines.join('\n')}`)
+      .setDescription(`${fmt(tl.description, { user: targetUser.toString() })}\n\n${typeStatusLines.join('\n')}`)
       .setColor(0x5865f2)
       .setFooter({ text: tl.saved });
 

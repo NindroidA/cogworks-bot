@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.16.42] - 2026-10-06
+## [3.16.48] - 2026-10-07
 
 The planning half of `/bot-health repair` (NindroidA/cogworks-bot#41). It turns
 a health report into the changes that would fix it, as a dry run: nothing calls
@@ -40,6 +40,193 @@ before.
 - Labels for every repair under `health.repair.actions`, and a coverage test:
   every repair belongs to a check code and has a label, and every code a check
   emits as auto or confirm today has a repair or is listed for a later PR.
+
+## [3.16.47] - 2026-10-07
+
+Deletes `scripts/extractCommands.ts` and the two package scripts that ran it
+(NindroidA/cogworks-bot#41, step A8). It had been broken for a while and
+nothing used it. The bot itself doesn't change.
+
+### Removed
+
+- **`scripts/extractCommands.ts`**, and with it the `extract-commands` and
+  `docs:sync` package scripts.
+  - It read `src/lang/<file>.json`, but the strings live in `src/lang/en/`, so
+    every load failed. It then wrote a `dist/commands.json` holding only its
+    hardcoded `/migrate` entry.
+  - Even with the path fixed, it would list 11 of the bot's 38 commands, with
+    subcommands and permissions typed out by hand.
+  - CI, the docs and the dashboard never used it.
+  - `bun run build:contract` already covers what it was meant to do:
+    `contract/cogworks-contract.json` holds the real registered command JSON,
+    and `check:contract` fails CI when that file drifts.
+
+### Changed
+
+- CLAUDE.md's directory tree describes `src/lang/` as it is now: the
+  `en/*.json` strings, the derived `Language` type and `fmt()`.
+
+## [3.16.46] - 2026-10-07
+
+The last numbered `{0}` placeholders become named `{name}` ones, and
+`formatLang` is gone (NindroidA/cogworks-bot#41, step A6c, which finishes A6).
+Every lang string now takes its values through `fmt()`. Messages read the same
+as before.
+
+### Changed
+
+- **82 strings renamed from `{0}` to `{name}`:** 28 in `automod`, 24 in `xp`,
+  15 in `application` and 15 in `event`. Only the placeholder names changed;
+  the text around them didn't. `xp.config.currentLevelUpMessage` still shows
+  `{user}` and `{level}` as literal text, because they explain the admin's
+  message syntax.
+- **Their 64 `formatLang` calls and 23 `.replace('{0}', …)` chains now call
+  `fmt`.** No string in `src/lang/en` uses a numbered placeholder any more.
+- **The key-check test is stricter.**
+  - Any `.replace('{x}', …)` on a lang string fails ("use fmt()").
+  - A numbered `{0}` anywhere in `src/lang/en` fails, since nothing fills it.
+  - The `formatLang` argument check is gone along with `formatLang`.
+- CLAUDE.md and `src/lang/TRANSLATING.md` drop the "some files still use
+  `{0}`" notes. CLAUDE.md now says the test rejects `.replace('{x}', …)` and
+  numbered placeholders.
+
+### Removed
+
+- **`formatLang`** from `src/utils/index.ts`. `fmt` replaces it. The
+  old-vs-new cases in `tests/unit/lang/fmt.test.ts` now fill the old strings
+  with a frozen copy of it. They gain 9 cases for this step, including the
+  level-up message whose value contains `{user}`.
+
+### Fixed
+
+- An XP leaderboard entry, role reward, multiplier or event template reply no
+  longer garbles a name or value containing `$&`, `` $` ``, `$'` or `$$`,
+  because `fmt` inserts values exactly as given.
+
+## [3.16.45] - 2026-10-07
+
+The ticket and bait-channel strings move to named `{name}` placeholders filled
+by `fmt()` (NindroidA/cogworks-bot#41, step A6b). Messages read the same as
+before.
+
+### Changed
+
+- **73 strings renamed from `{0}` to `{name}`:** 47 in `ticket` and 26 in
+  `baitChannel`. Only the placeholder names changed; the text around them
+  didn't.
+- **Their 61 `formatLang` calls and 19 `.replace('{0}', …)` chains now call
+  `fmt`.** So do 12 `.replace('{x}', …)` chains on strings that already had
+  names (the bait-channel keyword replies and the ticket user-restriction
+  prompts).
+- **The bait-channel whitelist reply is now checked.** It filled
+  `whitelist.added`/`removed` through a local variable the key-check couldn't
+  follow; it now passes both strings to `fmt` directly, so the test checks
+  them.
+- `utils/ticket/autoClose.ts` and `slaChecker.ts` import `fmt` from `lang`
+  instead of the `utils` barrel.
+- `tests/unit/lang/fmt.test.ts` fills 9 more renamed strings both ways (main's
+  string with the old call, the new string with `fmt`) and checks 2 more named
+  strings that came off `.replace()` chains.
+
+### Fixed
+
+- A ticket type, role, keyword or user name containing `$&`, `` $` ``, `$'` or
+  `$$` no longer comes out garbled in the replies that used `.replace()`
+  chains, because `fmt` inserts values exactly as given.
+
+## [3.16.44] - 2026-10-06
+
+Language strings start moving from numbered `{0}` placeholders to named
+`{name}` ones (NindroidA/cogworks-bot#41, step A6a). A new `fmt()` helper fills
+them, and 13 feature areas now use it. Messages read the same as before.
+
+### Added
+
+- **`fmt(template, params)`** in `src/lang/fmt.ts`, exported from `lang` and
+  `utils`. It fills each `{name}` that `params` has a value for and leaves any
+  other `{x}` as written. Values go in as written: a `$` in one is never read as
+  a replacement pattern, and a value isn't filled a second time. This is the
+  `/bot-health` renderer's `fillTemplate` moved to `src/lang`, and the old copy
+  is gone.
+- **The key-check test covers `fmt` calls.** The keys of the params object
+  must match the string's `{name}` placeholders exactly, and a string passed to
+  `fmt` can't contain a numbered `{0}`. For `fmt(a ? x : y, …)` both strings
+  are checked.
+- **`tests/unit/lang/fmt.test.ts`** covers what `fmt` does. It also fills 10
+  renamed strings both ways (main's string with the old call, the new string
+  with `fmt`) and requires the same text.
+
+### Changed
+
+- **36 strings renamed from `{0}` to `{name}`** in `analytics`, `dataExport`,
+  `errors`, `general`, `import`, `memory`, `onboarding`, `reactionRole` and
+  `starboard`. Only the placeholder names changed; the text around them didn't.
+  Their 37 `formatLang` calls and 10 `.replace('{0}', …)` chains now call
+  `fmt`.
+- **36 `.replace('{x}', …)` chains on strings that already had names** now
+  call `fmt` too (`botSetup`, `dev`, `reactionRole`, `rules`, `status`), and so
+  do the 11 `fillTemplate` calls in `/bot-health`.
+- `formatLang` is marked deprecated. The ticket, bait-channel, automod, XP,
+  application and event strings still use it until the next A6 steps convert
+  them.
+- CLAUDE.md and `src/lang/TRANSLATING.md` describe the `{name}` + `fmt`
+  convention.
+
+### Fixed
+
+- A `.replace()` chain read `$&`, `` $` ``, `$'` and `$$` in a value as
+  patterns, so a role, menu or user name containing them came out garbled. A
+  value containing a later placeholder, such as a menu named `{channel}`, also
+  got filled again. `fmt` inserts each value once, exactly as given.
+
+## [3.16.43] - 2026-10-06
+
+The English language files lose every key nothing reads
+(NindroidA/cogworks-bot#41). The key-check test's dead-key allowlist goes from
+509 entries to none, so CI now fails on any unread key. No user-visible text
+changes: only keys the code never reads are gone.
+
+### Removed
+
+- **All 509 dead keys.** 193 of `botSetup`'s 200 keys (the v2 setup-wizard
+  text; the v3 dashboard has its own), 286 across 17 other files (`xp` 47,
+  `analytics` 37, `ticket` 32, `memory` 29, `event` 28, `application` 25 and
+  smaller groups), all 29 in `console.json` and one in `main.json`. The 47
+  objects this left empty went too.
+- **`src/lang/en/console.json`**, since none of its keys were read. The file
+  and its line in `src/lang/en/index.ts` are gone.
+
+### Changed
+
+- **`main.json`'s startup log text moved into `src/index.ts`.** Its 24 read keys
+  were console output for whoever runs the bot, not text Discord users see, so
+  they're now string literals with the same wording, and the unread
+  `apiConnectFailed` went with the file.
+- CLAUDE.md says the allowlist is empty and must stay that way.
+
+## [3.16.42] - 2026-10-06
+
+A test now checks the language keys (NindroidA/cogworks-bot#41). CI fails when
+code reads a key the English JSON doesn't have, when a key goes unread,
+or when a `formatLang` or `.replace()` call doesn't match the string's
+placeholders. Tests only; the bot is unchanged.
+
+### Added
+
+- **`tests/unit/lang/keys.test.ts`** parses `src/` with the TypeScript parser
+  (under a second) and follows `lang.x.y` chains, `const tl = lang.x` aliases,
+  destructuring, direct `lang/en/*.json` imports and `typeof lang.x`
+  parameters. Whatever it can't follow, such as `tl.levels[level]`, counts as
+  reading every key under it, so it can miss a dead key but never flags a live
+  one. The header comment lists the patterns it understands.
+- **`tests/unit/lang/deadKeys.allowlist.json`** lists the 509 keys nothing
+  reads today (193 in `botSetup`, all 29 in `console`), so CI starts green. An
+  entry that is read again, or deleted from the JSON, has to leave the list, so
+  it only shrinks; the next #41 steps delete or wire up these keys.
+- The placeholder check found no mismatches today: the 162 `formatLang` calls
+  and 131 `.replace()` calls on lang strings all match their templates.
+- CLAUDE.md's language section describes the test and says never to add to
+  the allowlist.
 
 ## [3.16.41] - 2026-10-06
 

@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFla
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { handleInteractionError, lang, replyEphemeralError, safeDbOperation } from '../../../utils';
+import { fmt, handleInteractionError, lang, replyEphemeralError, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
@@ -97,24 +97,23 @@ export async function whitelistHandler(client: Client, interaction: ChatInputCom
       }
 
       const target = role
-        ? tl.whitelist.role.replace('{0}', role.name)
-        : tl.whitelist.user.replace('{0}', targetUser!.tag);
-      const message = action === 'add' ? tl.whitelist.added : tl.whitelist.removed;
+        ? fmt(tl.whitelist.role, { role: role.name })
+        : fmt(tl.whitelist.user, { user: targetUser!.tag });
 
       await interaction.reply({
-        content: message.replace('{0}', target),
+        content: fmt(action === 'add' ? tl.whitelist.added : tl.whitelist.removed, { target }),
         flags: [MessageFlags.Ephemeral],
       });
     } else if (alreadyExists) {
       const target = role
-        ? tl.whitelist.role.replace('{0}', role.name)
-        : tl.whitelist.user.replace('{0}', targetUser!.tag);
-      await replyEphemeralError(interaction, tl.whitelist.alreadyAdded.replace('{0}', target));
+        ? fmt(tl.whitelist.role, { role: role.name })
+        : fmt(tl.whitelist.user, { user: targetUser!.tag });
+      await replyEphemeralError(interaction, fmt(tl.whitelist.alreadyAdded, { target }));
     } else if (notInList) {
       const target = role
-        ? tl.whitelist.role.replace('{0}', role.name)
-        : tl.whitelist.user.replace('{0}', targetUser!.tag);
-      await replyEphemeralError(interaction, tl.whitelist.notInList.replace('{0}', target));
+        ? fmt(tl.whitelist.role, { role: role.name })
+        : fmt(tl.whitelist.user, { user: targetUser!.tag });
+      await replyEphemeralError(interaction, fmt(tl.whitelist.notInList, { target }));
     }
   } catch (error) {
     await handleInteractionError(interaction, error, tl.error.updateWhitelist);

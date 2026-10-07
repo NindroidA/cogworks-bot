@@ -41,8 +41,7 @@
   "create": {
     "success": "Reaction role menu **{name}** created in {channel}!",
     "error": "Failed to create reaction role menu.",
-    "maxMenus": "This server has reached the maximum of 25 reaction role menus.",
-    "invalidMode": "Invalid mode. Choose: `normal`, `unique`, or `lock`."
+    "maxMenus": "This server has reached the maximum of 25 reaction role menus."
   },
   "add": {
     "success": "Added {emoji} → {role} to **{menu}**.",
@@ -68,8 +67,6 @@
   },
   "delete": {
     "success": "Reaction role menu **{name}** deleted.",
-    "error": "Failed to delete menu.",
-    "confirmTitle": "Delete Reaction Role Menu",
     "confirmMessage": "Are you sure you want to delete **{name}**? This will remove the menu message and all role options.",
     "messageNotDeleted": "Couldn't delete the menu message for **{name}**, so the menu was kept. Check that the bot can still see that channel, then try again."
   },
@@ -77,11 +74,7 @@
     "title": "Reaction Role Menus",
     "empty": "No reaction role menus configured in this server.",
     "error": "Failed to list reaction role menus.",
-    "menuEntry": "**{name}** — {optionCount} option(s) — Mode: {mode}",
-    "optionEntry": "{emoji} → <@&{roleId}>",
     "channelLabel": "Channel",
-    "modeLabel": "Mode",
-    "optionsLabel": "Options",
     "roleDeletedWarning": "⚠️ Role deleted"
   },
   "menu": {
@@ -101,17 +94,12 @@
     "lockModeIgnore": "Role removal ignored (lock mode)"
   },
   "errors": {
-    "menuNotFound": "Menu not found.",
-    "messageNotFound": "Could not find the menu message. It may have been deleted.",
-    "channelNotFound": "Could not find the menu channel.",
-    "noPermission": "Bot lacks permission to manage reactions or roles in that channel."
+    "menuNotFound": "Menu not found."
   },
   "validate": {
     "title": "Reaction Role Validation Report",
-    "checking": "Validating reaction role menus...",
     "allValid": "All menus are healthy! No issues found.",
-    "issuesFound": "{0} issue(s) found across your reaction role menus.",
-    "menuValid": "Menu **{name}**: All checks passed",
+    "issuesFound": "{count} issue(s) found across your reaction role menus.",
     "menuMissing": "Menu **{name}**: Message missing — the menu message was deleted from <#{channelId}>",
     "channelMissing": "Menu **{name}**: Channel missing — <#{channelId}> no longer exists",
     "roleMissing": "Menu **{name}**: Role deleted — {emoji} option references a role that no longer exists",

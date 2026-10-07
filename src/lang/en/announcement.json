@@ -4,18 +4,14 @@
   "invalidTime": "Invalid time format. Please use: YYYY-MM-DD HH:MM AM/PM (Central Time)\nExample: 2026-03-15 3:00 PM",
   "setup": {
     "cmdDescrp": "Initializes and sets up the announcement module.",
-    "mcRole": "The Minecraft role to ping in announcements",
     "announcementRole": "The role to ping in announcements",
     "defaultChannel": "Default channel for announcements",
     "success": "Announcement settings configured!",
-    "configured": "configured announcement settings for guild",
-    "error": "Error configuring announcement settings: ",
     "fail": "Failed to configure announcement settings.",
     "notConfigured": "Announcement settings not configured. Please run `/announcement-setup` first.",
     "invalidChannel": "Invalid channel specified."
   },
   "publish": {
-    "success": "Published announcement to followers in",
     "fail": "Could not public announcement: "
   },
   "success": "Announcement sent to",
@@ -40,11 +36,7 @@
     },
     "list": {
       "title": "Announcement Templates",
-      "empty": "No templates found. Run `/announcement-setup` to seed default templates, or create one with `/announcement template create`.",
-      "footer": "{count}/25 templates"
-    },
-    "preview": {
-      "title": "Template Preview"
+      "empty": "No templates found. Run `/announcement-setup` to seed default templates, or create one with `/announcement template create`."
     },
     "reset": {
       "confirm": "Are you sure you want to reset all templates? This will delete all custom templates and re-seed the defaults.",
@@ -52,8 +44,7 @@
     }
   },
   "send": {
-    "templateNotFound": "Template not found. Use `/announcement template list` to see available templates.",
-    "noTemplates": "No templates found. Run `/announcement-setup` to set up the announcement system and seed default templates."
+    "templateNotFound": "Template not found. Use `/announcement template list` to see available templates."
   },
   "templates": {
     "sendButton": "Send Announcement"

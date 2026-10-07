@@ -58,6 +58,7 @@ import {
   extractIdFromMention,
   extractModalBoolean,
   extractModalField,
+  fmt,
   getBaitChannelIds,
   LogCategory,
   lang,
@@ -462,8 +463,8 @@ async function finishForumSystem(
   }
 
   const notes: string[] = [];
-  if (!posted) notes.push(tl.panelNotPosted.replace('{channelId}', postedIn));
-  if (notRemoved.length > 0) notes.push(tl.oldPanelNotRemoved.replace('{channels}', notRemoved.join(', ')));
+  if (!posted) notes.push(fmt(tl.panelNotPosted, { channelId: postedIn }));
+  if (notRemoved.length > 0) notes.push(fmt(tl.oldPanelNotRemoved, { channels: notRemoved.join(', ') }));
   if (notes.length > 0) {
     await notify.followUp({ content: notes.join('\n'), flags: [MessageFlags.Ephemeral] }).catch(() => null);
   }
@@ -474,7 +475,7 @@ async function finishForumSystem(
 async function rollBackAutoCreate(guild: Guild, created: CreatedChannels, notify: ButtonInteraction): Promise<void> {
   const left = await deleteCreatedChannels(guild, created);
   if (left.length === 0) return;
-  const content = tl.autoCreateLeftovers.replace('{channels}', left.map(id => `<#${id}>`).join(', '));
+  const content = fmt(tl.autoCreateLeftovers, { channels: left.map(id => `<#${id}>`).join(', ') });
   await notify.followUp({ content, flags: [MessageFlags.Ephemeral] }).catch(() => null);
 }
 
@@ -1070,7 +1071,7 @@ const rulesConfig: SimpleSystemConfig<RulesData, 'rules'> = {
     ...(data.roleId ? { roleId: data.roleId } : {}),
   }),
   finalState: 'partial',
-  nextStep: saved => tl.rulesNextStep.replace('{channelId}', saved.channelId ?? ''),
+  nextStep: saved => fmt(tl.rulesNextStep, { channelId: saved.channelId ?? '' }),
 };
 
 // --- Simple system descriptor table ---

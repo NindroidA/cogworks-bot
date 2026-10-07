@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFla
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelConfig } from '../../../typeorm/entities/bait/BaitChannelConfig';
 import type { ExtendedClient } from '../../../types/ExtendedClient';
-import { handleInteractionError, lang, replyEphemeralError, safeDbOperation } from '../../../utils';
+import { fmt, handleInteractionError, lang, replyEphemeralError, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
@@ -57,12 +57,12 @@ export async function detectionHandler(client: Client, interaction: ChatInputCom
         },
         {
           name: tl.detection.minAccountAge,
-          value: tl.detection.days.replace('{0}', config.minAccountAgeDays.toString()),
+          value: fmt(tl.detection.days, { days: config.minAccountAgeDays }),
           inline: true,
         },
         {
           name: tl.detection.minMembership,
-          value: tl.detection.minutes.replace('{0}', config.minMembershipMinutes.toString()),
+          value: fmt(tl.detection.minutes, { minutes: config.minMembershipMinutes }),
           inline: true,
         },
         {

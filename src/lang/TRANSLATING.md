@@ -81,7 +81,8 @@ pick your locale, and exercise the commands you wired up.
 Some strings contain placeholders the bot substitutes at runtime. Leave these
 tokens exactly as-is; only translate the surrounding prose.
 
-- `{{name}}`, `{username}` style placeholders — always preserve verbatim.
+- `{name}` placeholders — keep each one exactly as written, but move it
+  wherever your grammar needs it.
 - Discord mentions such as `<@{userId}>`, `<#{channelId}>`, `<@&{roleId}>` —
   never translate angle brackets, ampersands, or IDs.
 - Markdown syntax (`**bold**`, `*italic*`, `` `code` ``, `>`, `-`) — preserve

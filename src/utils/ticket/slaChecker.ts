@@ -7,13 +7,12 @@
  */
 
 import { type Client, EmbedBuilder, SnowflakeUtil, type TextChannel } from 'discord.js';
-import { lang } from '../../lang';
+import { fmt, lang } from '../../lang';
 import { Ticket } from '../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../typeorm/entities/ticket/TicketConfig';
 import { isValidSnowflake } from '../api/helpers';
 import { SCHEDULER_GUARDS } from '../constants';
 import { lazyRepo } from '../database/lazyRepo';
-import { formatLang } from '../index';
 import { enhancedLogger, LogCategory } from '../monitoring/enhancedLogger';
 
 const ticketConfigRepo = lazyRepo(TicketConfig);
@@ -101,13 +100,12 @@ async function processGuildSla(client: Client, config: TicketConfig): Promise<vo
         const embed = new EmbedBuilder()
           .setTitle(tl.breachAlertTitle)
           .setDescription(
-            formatLang(
-              tl.breachAlert,
-              ticket.id.toString(),
-              ticket.channelId || 'unknown',
-              elapsedMinutes.toString(),
-              targetMinutes.toString(),
-            ),
+            fmt(tl.breachAlert, {
+              ticketId: ticket.id,
+              channelId: ticket.channelId || 'unknown',
+              elapsed: elapsedMinutes,
+              target: targetMinutes,
+            }),
           )
           .setColor(0xff0000);
         try {

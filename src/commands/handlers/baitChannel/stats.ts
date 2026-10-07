@@ -2,7 +2,7 @@ import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFla
 import { MoreThan } from 'typeorm';
 import { AppDataSource } from '../../../typeorm';
 import { BaitChannelLog } from '../../../typeorm/entities/bait/BaitChannelLog';
-import { handleInteractionError, lang, safeDbOperation } from '../../../utils';
+import { fmt, handleInteractionError, lang, safeDbOperation } from '../../../utils';
 
 const tl = lang.baitChannel;
 
@@ -76,7 +76,7 @@ export async function statsHandler(_client: Client, interaction: ChatInputComman
     const embed = new EmbedBuilder()
       .setColor('#0099FF')
       .setTitle(tl.stats.title)
-      .setDescription(tl.stats.description.replace('{0}', days.toString()))
+      .setDescription(fmt(tl.stats.description, { days }))
       .addFields(
         { name: tl.stats.totalTriggers, value: `${stats.total}`, inline: true },
         { name: tl.stats.banned, value: `${stats.banned}`, inline: true },

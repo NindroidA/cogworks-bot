@@ -21,7 +21,7 @@ import {
   createToggleHandler,
   DEFAULT_TICKET_STATUSES,
   enhancedLogger,
-  formatLang,
+  fmt,
   guardFeatureAccess,
   LogCategory,
   lang,
@@ -161,13 +161,13 @@ export async function ticketStatusHandler(
   const statusDef = findStatusById(statuses, newStatusId);
   if (!statusDef) {
     const validIds = statuses.map(s => `\`${s.id}\``).join(', ');
-    await replyEphemeralError(interaction, formatLang(tl.invalidStatus, newStatusId, validIds));
+    await replyEphemeralError(interaction, fmt(tl.invalidStatus, { status: newStatusId, valid: validIds }));
     return;
   }
 
   // Check if same
   if (currentStatus === newStatusId) {
-    await replyEphemeralError(interaction, formatLang(tl.sameStatus, statusDef.label));
+    await replyEphemeralError(interaction, fmt(tl.sameStatus, { status: statusDef.label }));
     return;
   }
 
@@ -186,7 +186,9 @@ export async function ticketStatusHandler(
 
   // Post status change embed in channel
   const embed = new EmbedBuilder()
-    .setDescription(formatLang(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`))
+    .setDescription(
+      fmt(tl.statusChanged, { status: `${statusDef.emoji} ${statusDef.label}`, user: `<@${interaction.user.id}>` }),
+    )
     .setColor(parseInt(statusDef.color.replace('#', ''), 16));
 
   await (interaction.channel as GuildTextBasedChannel)?.send({
@@ -195,7 +197,10 @@ export async function ticketStatusHandler(
 
   // Reply ephemeral
   await interaction.reply({
-    content: formatLang(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`),
+    content: fmt(tl.statusChanged, {
+      status: `${statusDef.emoji} ${statusDef.label}`,
+      user: `<@${interaction.user.id}>`,
+    }),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -285,14 +290,14 @@ export async function ticketAssignHandler(interaction: ChatInputCommandInteracti
   await ticketRepo.save(ticket);
   if (formerAssignee !== user.id) await revokeAssigneeAccess(overwriteHolder(interaction), ticket, formerAssignee);
 
-  const embed = new EmbedBuilder().setDescription(formatLang(tl.assigned, `<@${user.id}>`)).setColor(0x5865f2);
+  const embed = new EmbedBuilder().setDescription(fmt(tl.assigned, { user: `<@${user.id}>` })).setColor(0x5865f2);
 
   await (interaction.channel as GuildTextBasedChannel)?.send({
     embeds: [embed],
   });
 
   await interaction.reply({
-    content: formatLang(tl.assigned, `<@${user.id}>`),
+    content: fmt(tl.assigned, { user: `<@${user.id}>` }),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -496,13 +501,13 @@ export async function workflowAddStatusHandler(interaction: ChatInputCommandInte
 
   // Check max
   if (statuses.length >= MAX.TICKET_WORKFLOW_STATUSES) {
-    await replyEphemeralError(interaction, formatLang(tl.maxStatuses, MAX.TICKET_WORKFLOW_STATUSES));
+    await replyEphemeralError(interaction, fmt(tl.maxStatuses, { max: MAX.TICKET_WORKFLOW_STATUSES }));
     return;
   }
 
   // Check duplicate
   if (statuses.some(s => s.id === statusId)) {
-    await replyEphemeralError(interaction, formatLang(tl.statusExists, statusId));
+    await replyEphemeralError(interaction, fmt(tl.statusExists, { statusId }));
     return;
   }
 
@@ -525,7 +530,7 @@ export async function workflowAddStatusHandler(interaction: ChatInputCommandInte
   await ticketConfigRepo.save(config);
 
   await interaction.reply({
-    content: formatLang(tl.statusAdded, `${emoji} ${label}`),
+    content: fmt(tl.statusAdded, { status: `${emoji} ${label}` }),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -561,7 +566,7 @@ export async function workflowRemoveStatusHandler(interaction: ChatInputCommandI
 
   // Check if required
   if (REQUIRED_WORKFLOW_STATUSES.includes(statusId)) {
-    await replyEphemeralError(interaction, formatLang(tl.cannotRemoveRequired, statusId));
+    await replyEphemeralError(interaction, fmt(tl.cannotRemoveRequired, { status: statusId }));
     return;
   }
 
@@ -570,7 +575,7 @@ export async function workflowRemoveStatusHandler(interaction: ChatInputCommandI
 
   if (!statusDef) {
     await interaction.reply({
-      content: formatLang(tl.invalidStatus, statusId, statuses.map(s => `\`${s.id}\``).join(', ')),
+      content: fmt(tl.invalidStatus, { status: statusId, valid: statuses.map(s => `\`${s.id}\``).join(', ') }),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -585,9 +590,9 @@ export async function workflowRemoveStatusHandler(interaction: ChatInputCommandI
   config.workflowStatuses = statuses.filter(s => s.id !== statusId);
   await ticketConfigRepo.save(config);
 
-  let reply = formatLang(tl.statusRemoved, `${statusDef.emoji} ${statusDef.label}`);
+  let reply = fmt(tl.statusRemoved, { status: `${statusDef.emoji} ${statusDef.label}` });
   if (ticketsWithStatus > 0) {
-    reply += `\n${formatLang(tl.statusInUse, ticketsWithStatus.toString())}`;
+    reply += `\n${fmt(tl.statusInUse, { count: ticketsWithStatus })}`;
   }
 
   await interaction.reply({ content: reply, flags: [MessageFlags.Ephemeral] });
@@ -631,7 +636,7 @@ export async function autoCloseEnableHandler(interaction: ChatInputCommandIntera
   await ticketConfigRepo.save(config);
 
   await interaction.reply({
-    content: formatLang(tl.autoCloseEnabled, status, days.toString(), warningHours.toString()),
+    content: fmt(tl.autoCloseEnabled, { status, days, hours: warningHours }),
     flags: [MessageFlags.Ephemeral],
   });
 

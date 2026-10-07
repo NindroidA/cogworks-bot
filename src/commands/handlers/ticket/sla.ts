@@ -7,7 +7,7 @@
 import { type CacheType, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { Ticket } from '../../../typeorm/entities/ticket/Ticket';
 import { TicketConfig } from '../../../typeorm/entities/ticket/TicketConfig';
-import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory, lang, replyEphemeralError } from '../../../utils';
+import { enhancedLogger, fmt, guardFeatureAccess, LogCategory, lang, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 import { getFirstResponseMs, getTicketOpenedAt } from '../../../utils/ticket/slaChecker';
 
@@ -52,8 +52,8 @@ export async function slaEnableHandler(interaction: ChatInputCommandInteraction<
   await ticketConfigRepo.save(config);
 
   const reply = breachChannel
-    ? formatLang(tl.enabled, targetMinutes.toString(), `<#${breachChannel.id}>`)
-    : formatLang(tl.enabledNoChannel, targetMinutes.toString());
+    ? fmt(tl.enabled, { minutes: targetMinutes, channel: `<#${breachChannel.id}>` })
+    : fmt(tl.enabledNoChannel, { minutes: targetMinutes });
 
   await interaction.reply({
     content: reply,
@@ -131,7 +131,7 @@ export async function slaPerTypeHandler(interaction: ChatInputCommandInteraction
   if (minutes === null || minutes === undefined) {
     // Remove override
     if (!(typeId in perType)) {
-      await replyEphemeralError(interaction, formatLang(tl.perTypeNotFound, typeId));
+      await replyEphemeralError(interaction, fmt(tl.perTypeNotFound, { typeId }));
       return;
     }
 
@@ -140,7 +140,7 @@ export async function slaPerTypeHandler(interaction: ChatInputCommandInteraction
     await ticketConfigRepo.save(config);
 
     await interaction.reply({
-      content: formatLang(tl.perTypeRemoved, typeId, config.slaTargetMinutes.toString()),
+      content: fmt(tl.perTypeRemoved, { typeId, minutes: config.slaTargetMinutes }),
       flags: [MessageFlags.Ephemeral],
     });
   } else {
@@ -150,7 +150,7 @@ export async function slaPerTypeHandler(interaction: ChatInputCommandInteraction
     await ticketConfigRepo.save(config);
 
     await interaction.reply({
-      content: formatLang(tl.perTypeSet, typeId, minutes.toString()),
+      content: fmt(tl.perTypeSet, { typeId, minutes }),
       flags: [MessageFlags.Ephemeral],
     });
   }
@@ -208,7 +208,7 @@ export async function slaStatsHandler(interaction: ChatInputCommandInteraction<C
   const complianceRate = totalTickets > 0 ? Math.round(((totalTickets - breachedCount) / totalTickets) * 100) : 100;
 
   const embed = new EmbedBuilder()
-    .setTitle(formatLang(tl.statsTitle, days.toString()))
+    .setTitle(fmt(tl.statsTitle, { days }))
     .addFields(
       {
         name: tl.statsTotalTickets,
@@ -217,12 +217,12 @@ export async function slaStatsHandler(interaction: ChatInputCommandInteraction<C
       },
       {
         name: tl.statsAvgResponse,
-        value: respondedTickets.length > 0 ? formatLang(tl.statsMinutes, avgResponseMinutes.toString()) : 'N/A',
+        value: respondedTickets.length > 0 ? fmt(tl.statsMinutes, { minutes: avgResponseMinutes }) : 'N/A',
         inline: true,
       },
       {
         name: tl.statsComplianceRate,
-        value: formatLang(tl.statsPercent, complianceRate.toString()),
+        value: fmt(tl.statsPercent, { percent: complianceRate }),
         inline: true,
       },
       {

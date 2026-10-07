@@ -2,10 +2,7 @@
   "builder": {
     "cmdDescrp": "Manage memory system (todos, bugs, notes)",
     "add": {
-      "descrp": "Add a new memory item manually",
-      "title": "Title for the memory item",
-      "category": "Category tag for the item",
-      "status": "Status tag for the item"
+      "descrp": "Add a new memory item manually"
     },
     "capture": {
       "descrp": "Capture a message as a memory item",
@@ -41,25 +38,18 @@
     "channelNameOption": "Custom name for this memory channel",
     "title": "Memory System Setup",
     "description": "Configure the memory system for tracking bugs, features, suggestions, and notes.",
-    "selectChannel": "Select an existing forum channel or let the bot create one",
     "channelPlaceholder": "Select a forum channel",
     "createNew": "Create New Forum",
     "creatingForum": "Creating memory forum channel...",
-    "forumCreated": "Memory forum created!",
     "configSaved": "Memory system configured!",
-    "configUpdated": "Memory system updated!",
     "forumName": "memory",
     "forumTopic": "Track bugs, features, suggestions, reminders, and notes",
-    "tagsCreated": "Default tags have been created",
     "error": "Failed to set up memory system",
     "alreadyConfigured": "Memory system is already configured. Use `/memory-setup add-channel` to add more channels.",
-    "currentConfig": "Current Configuration",
     "forumChannel": "Forum Channel",
     "welcomeTitle": "Memory System",
     "welcomeDescription": "This forum is used to track bugs, features, suggestions, reminders, and notes.\n\nUse `/memory add` to create new items or `/memory capture` to capture a message from another channel.\n\nUse tags to categorize and track the status of items.",
-    "addChannel": "Add Memory Channel",
     "addChannelDescrp": "Add another memory channel to this server",
-    "removeChannel": "Remove Memory Channel",
     "removeChannelDescrp": "Remove a memory channel from this server",
     "maxChannelsReached": "Maximum of 3 memory channels reached.",
     "channelAlreadyUsed": "This forum channel is already used as a memory channel.",
@@ -104,9 +94,7 @@
     "success": "Message captured as memory item!",
     "error": "Failed to capture message",
     "invalidInput": "Please provide a valid message ID or message link.",
-    "invalidLink": "Invalid message link provided",
     "messageNotFound": "Could not find the specified message.",
-    "messageNotFoundHint": "Message not found in this channel. Use a full message link (right-click > Copy Message Link) to capture from other channels.",
     "messageDeleted": "That message no longer exists. It may have been deleted.",
     "channelNoAccess": "I don't have access to that channel.",
     "channelNoPermission": "I don't have permission to read messages in that channel.",
@@ -122,14 +110,11 @@
     "notInForum": "This command can only be used in the memory forum channel",
     "notAThread": "This command must be run inside a memory thread",
     "itemNotFound": "Could not find this memory item in the database",
-    "confirmTitle": "Update Status",
-    "confirmMessage": "Update status from **{0}** to **{1}**?",
     "noStatusTags": "No status tags configured. Run /memory-setup first.",
     "updateL": "Update",
     "cancelL": "Cancel"
   },
   "quickUpdate": {
-    "noItems": "No memory items found in this server.",
     "itemNotFound": "Memory item not found.",
     "threadNotFound": "Memory thread not found. It may have been deleted.",
     "statusSuccess": "Status updated!",
@@ -146,9 +131,6 @@
     "confirmMessage": "Are you sure you want to delete this memory item? This cannot be undone."
   },
   "tags": {
-    "title": "Memory Tags",
-    "description": "Manage tags for organizing memory items",
-    "selectAction": "Select an action",
     "categoryTags": "Category Tags",
     "statusTags": "Status Tags",
     "noTags": "No custom tags configured",
@@ -190,32 +172,31 @@
   },
   "manageTags": {
     "add": {
-      "success": "Tag **{0}** added to {1}.",
-      "limitReached": "Maximum {0} {1} tags reached. Remove one first.",
-      "duplicate": "A {0} tag named '{1}' already exists.",
+      "success": "Tag **{tag}** added to {channel}.",
+      "limitReached": "Maximum {limit} {type} tags reached. Remove one first.",
+      "duplicate": "A {type} tag named '{name}' already exists.",
       "discordLimit": "Discord forum tag limit (20) reached. Remove some tags first."
     },
     "remove": {
-      "success": "Tag **{0}** removed.",
+      "success": "Tag **{tag}** removed.",
       "isDefault": "Default tags cannot be removed. Use `/memory-setup tag-edit` to rename them instead.",
       "notFound": "Tag not found."
     },
     "edit": {
-      "success": "Tag **{0}** updated.",
+      "success": "Tag **{tag}** updated.",
       "notFound": "Tag not found.",
       "noChanges": "Provide at least one of name or emoji to update."
     },
     "list": {
       "title": "Memory Tags",
       "empty": "No tags configured for this channel.",
-      "footer": "Category: {0}/{1} | Status: {2}/{3}"
+      "footer": "Category: {categoryCount}/{categoryMax} | Status: {statusCount}/{statusMax}"
     },
     "reset": {
       "confirm": "Reset all tags to defaults? Custom tags will be removed.",
       "success": "Tags reset to defaults."
     },
     "selectChannel": "Which memory channel should this apply to?",
-    "noCustomTags": "No custom tags to remove.",
     "autocomplete": {
       "noTags": "No tags found"
     }
@@ -233,28 +214,12 @@
     "tagNewName": "New name for the tag",
     "channelOption": "Memory channel (required if multiple channels)"
   },
-  "defaultTags": {
-    "category": {
-      "bug": "Bug",
-      "feature": "Feature",
-      "suggestion": "Suggestion",
-      "reminder": "Reminder",
-      "note": "Note"
-    },
-    "status": {
-      "open": "Open",
-      "inProgress": "In Progress",
-      "onHold": "On Hold",
-      "completed": "Completed"
-    }
-  },
   "closeNotice": {
     "title": "Memory Closed",
-    "description": "This memory item has been marked as **Completed** by {0}."
+    "description": "This memory item has been marked as **Completed** by {user}."
   },
   "errors": {
     "notConfigured": "Memory system is not configured. Run /memory-setup first.",
-    "forumNotFound": "Memory forum channel not found. Please run /memory-setup again.",
-    "tagSyncFailed": "Failed to sync tags with Discord forum"
+    "forumNotFound": "Memory forum channel not found. Please run /memory-setup again."
   }
 }

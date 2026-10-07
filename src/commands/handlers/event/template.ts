@@ -20,6 +20,7 @@ import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
 import {
   awaitConfirmation,
   enhancedLogger,
+  fmt,
   guardFeatureAccess,
   LogCategory,
   lang,
@@ -178,7 +179,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction<CacheType>,
     await templateRepo.save(template);
 
     await modalInteraction.reply({
-      content: `${tl.create.success.replace('{0}', name)}\n\n**Title:** ${title}\n**Type:** ${entityType}\n**Duration:** ${defaultDurationMinutes} minutes`,
+      content: `${fmt(tl.create.success, { template: name })}\n\n**Title:** ${title}\n**Type:** ${entityType}\n**Duration:** ${defaultDurationMinutes} minutes`,
       flags: [MessageFlags.Ephemeral],
     });
 
@@ -285,7 +286,7 @@ async function handleEdit(interaction: ChatInputCommandInteraction<CacheType>, g
     await templateRepo.save(template);
 
     await modalInteraction.reply({
-      content: tl.edit.success.replace('{0}', templateName),
+      content: fmt(tl.edit.success, { template: templateName }),
       flags: [MessageFlags.Ephemeral],
     });
 
@@ -315,7 +316,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction<CacheType>,
   }
 
   const result = await awaitConfirmation(interaction, {
-    message: tl.delete.confirmMessage.replace('{0}', template.title),
+    message: fmt(tl.delete.confirmMessage, { template: template.title }),
     confirmStyle: ButtonStyle.Danger,
     timeout: 60_000,
   });
@@ -324,7 +325,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction<CacheType>,
   await templateRepo.remove(template);
 
   await result.interaction.editReply({
-    content: tl.delete.success.replace('{0}', templateName),
+    content: fmt(tl.delete.success, { template: templateName }),
   });
 
   enhancedLogger.command(`Event template '${templateName}' deleted`, interaction.user.id, guildId);
@@ -360,7 +361,7 @@ async function handleList(interaction: ChatInputCommandInteraction<CacheType>, g
   }
 
   embed.setFooter({
-    text: tl.list.footer.replace('{0}', templates.length.toString()),
+    text: fmt(tl.list.footer, { count: templates.length }),
   });
 
   await interaction.reply({
