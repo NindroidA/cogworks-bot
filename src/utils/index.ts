@@ -72,24 +72,6 @@ export function formatBytes(bytes: number): string {
 }
 
 /**
- * Formats a language template string with arguments
- * @deprecated Use `fmt(template, { name })` with `{name}` placeholders
- * (`src/lang/fmt.ts`). This goes once #41 has renamed the last `{0}` strings.
- * @param template - Template string with {0}, {1}, etc. placeholders
- * @param args - Arguments to replace placeholders with
- * @returns Formatted string
- * @example
- * formatLang("Hello {0}, you have {1} messages", "John", 5)
- * // Returns: "Hello John, you have 5 messages"
- */
-export function formatLang(template: string, ...args: (string | number)[]): string {
-  return template.replace(/\{(\d+)\}/g, (match, index) => {
-    const argIndex = parseInt(index, 10);
-    return args[argIndex] !== undefined ? String(args[argIndex]) : match;
-  });
-}
-
-/**
  * Extracts a Discord ID from a mention string or a raw snowflake.
  *
  * This is the one parser for stored role references: the raw snowflake is the

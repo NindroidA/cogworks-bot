@@ -1,6 +1,6 @@
 import type { ColorResolvable } from 'discord.js';
 import { type ChatInputCommandInteraction, type Client, EmbedBuilder, MessageFlags } from 'discord.js';
-import { lang } from '../../../lang';
+import { fmt, lang } from '../../../lang';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
 import { handleInteractionError, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
@@ -49,11 +49,12 @@ export async function leaderboardHandler(_client: Client, interaction: ChatInput
     });
 
     const entries = users.map((u, i) =>
-      xpLang.leaderboard.entry
-        .replace('{0}', String(safeOffset + i + 1))
-        .replace('{1}', u.userId)
-        .replace('{2}', String(u.level))
-        .replace('{3}', u.xp.toLocaleString()),
+      fmt(xpLang.leaderboard.entry, {
+        rank: safeOffset + i + 1,
+        userId: u.userId,
+        level: u.level,
+        xp: u.xp.toLocaleString(),
+      }),
     );
 
     const embed = new EmbedBuilder()
@@ -61,7 +62,7 @@ export async function leaderboardHandler(_client: Client, interaction: ChatInput
       .setTitle(xpLang.leaderboard.title)
       .setDescription(entries.join('\n'))
       .setFooter({
-        text: xpLang.leaderboard.footer.replace('{0}', String(safePage)).replace('{1}', String(totalPages)),
+        text: fmt(xpLang.leaderboard.footer, { page: safePage, pages: totalPages }),
       });
 
     await interaction.reply({ embeds: [embed] });

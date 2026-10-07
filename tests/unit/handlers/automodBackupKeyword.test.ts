@@ -17,7 +17,7 @@ import {
 } from 'discord.js';
 import { backupHandler } from '../../../src/commands/handlers/automod/backup';
 import { keywordHandler } from '../../../src/commands/handlers/automod/keyword';
-import { lang } from '../../../src/lang';
+import { fmt, lang } from '../../../src/lang';
 import { createAutoModRule, serializeRules } from '../../../src/utils/automod/helpers';
 
 const tl = lang.automod;
@@ -138,7 +138,7 @@ describe('/automod backup restore', () => {
     expect(options.triggerMetadata.allowList).toEqual(['badge']);
     expect(options.exemptRoles).toEqual([MOD_ROLE]);
     expect(options.exemptChannels).toEqual([]);
-    expect(embed?.description).toBe(lang.automod.restore.success.replace('{0}', '1'));
+    expect(embed?.description).toBe(fmt(lang.automod.restore.success, { count: 1 }));
   });
 
   test('names each rule that was not restored, and why', async () => {
@@ -153,8 +153,8 @@ describe('/automod backup restore', () => {
 
     // The rule whose alert channel is gone is never sent to Discord
     expect(create.mock.calls.map(c => (c[0] as { name: string }).name)).toEqual(['Kept', 'Rejected']);
-    expect(embed?.description).toContain(lang.automod.restore.success.replace('{0}', '1'));
-    expect(embed?.description).toContain(tl.restore.failedList.replace('{0}', '2'));
+    expect(embed?.description).toContain(fmt(lang.automod.restore.success, { count: 1 }));
+    expect(embed?.description).toContain(fmt(tl.restore.failedList, { count: 2 }));
     expect(embed?.description).toContain(`**Gone alert**: ${tl.restore.alertChannelMissing}`);
     expect(embed?.description).toContain('**Rejected**: Invalid Form Body');
   });

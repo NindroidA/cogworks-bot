@@ -22,7 +22,7 @@ import type { RecurringPattern } from '../../../typeorm/entities/event/EventTemp
 import { EventTemplate } from '../../../typeorm/entities/event/EventTemplate';
 import {
   enhancedLogger,
-  formatLang,
+  fmt,
   guardFeatureAccess,
   LogCategory,
   parseTimeInput,
@@ -185,9 +185,9 @@ export async function handleEventCreate(
       await createAutoReminder(guildId, scheduledEvent.id, title, startDate, config.defaultReminderMinutes);
     }
 
-    let replyContent = formatLang(tl.create.success, title);
+    let replyContent = fmt(tl.create.success, { title });
     if (config.reminderChannelId && config.defaultReminderMinutes > 0) {
-      replyContent += `\n${formatLang(tl.create.reminderSet, config.defaultReminderMinutes.toString())}`;
+      replyContent += `\n${fmt(tl.create.reminderSet, { minutes: config.defaultReminderMinutes })}`;
     }
 
     await interaction.editReply({ content: replyContent });
@@ -267,7 +267,7 @@ export async function handleFromTemplate(
     }
 
     await interaction.editReply({
-      content: formatLang(tl.fromTemplate.success, template.title),
+      content: fmt(tl.fromTemplate.success, { template: template.title }),
     });
 
     enhancedLogger.command(`Event created from template '${templateName}'`, interaction.user.id, guildId);
@@ -339,7 +339,7 @@ export async function handleEventCancel(
     await eventReminderRepo.delete({ guildId, discordEventId: eventId });
 
     await interaction.reply({
-      content: formatLang(tl.cancel.success, scheduledEvent.name),
+      content: fmt(tl.cancel.success, { event: scheduledEvent.name }),
       flags: [MessageFlags.Ephemeral],
     });
 
@@ -428,14 +428,14 @@ export async function handleRecurring(
           guildId,
         },
       );
-      await interaction.editReply({ content: formatLang(tl.recurring.partial, template.title) });
+      await interaction.editReply({ content: fmt(tl.recurring.partial, { template: template.title }) });
       return;
     }
 
     const startTimestamp = `<t:${toUnixSeconds(startDate)}:F>`;
 
     await interaction.editReply({
-      content: formatLang(tl.recurring.success, template.title, pattern, startTimestamp),
+      content: fmt(tl.recurring.success, { template: template.title, pattern, next: startTimestamp }),
     });
 
     enhancedLogger.command(`Recurring event '${template.title}' created (${pattern})`, interaction.user.id, guildId);

@@ -1,6 +1,6 @@
 import { type ChatInputCommandInteraction, type Client, MessageFlags } from 'discord.js';
 // Import lang directly to avoid needing lang/index.ts changes
-import { lang } from '../../../lang';
+import { fmt, lang } from '../../../lang';
 import { XPRoleReward } from '../../../typeorm/entities/xp/XPRoleReward';
 import { XPUser } from '../../../typeorm/entities/xp/XPUser';
 import { handleInteractionError, replyEphemeralError } from '../../../utils';
@@ -35,7 +35,7 @@ export async function rankHandler(_client: Client, interaction: ChatInputCommand
       const msg =
         targetUser.id === interaction.user.id
           ? xpLang.rank.noData
-          : xpLang.rank.noDataOther.replace('{0}', targetUser.displayName);
+          : fmt(xpLang.rank.noDataOther, { user: targetUser.displayName });
       await interaction.reply({
         content: msg,
         flags: [MessageFlags.Ephemeral],

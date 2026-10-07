@@ -5,64 +5,64 @@
     "disableSuccess": "Scheduled events system has been disabled.",
     "alreadyEnabled": "Scheduled events system is already enabled.",
     "alreadyDisabled": "Scheduled events system is already disabled.",
-    "reminderChannelSet": "Reminder channel set to {0}.",
-    "summaryChannelSet": "Summary channel set to {0}.",
-    "defaultReminderSet": "Default reminder time set to {0} minutes before events.",
+    "reminderChannelSet": "Reminder channel set to {channel}.",
+    "summaryChannelSet": "Summary channel set to {channel}.",
+    "defaultReminderSet": "Default reminder time set to {minutes} minutes before events.",
     "notConfigured": "Scheduled events are not configured. Run `/event setup enable` first.",
     "error": "Failed to update event configuration."
   },
   "create": {
-    "success": "Scheduled event **{0}** created successfully!",
+    "success": "Scheduled event **{title}** created successfully!",
     "error": "Failed to create scheduled event.",
     "invalidStart": "Invalid start time. Please use the format: YYYY-MM-DD HH:MM AM/PM (e.g., 2026-03-20 3:00 PM).",
     "startInPast": "Start time must be in the future.",
     "missingChannel": "A voice or stage channel is required for non-external events.",
-    "reminderSet": "A reminder has been set for {0} minutes before the event."
+    "reminderSet": "A reminder has been set for {minutes} minutes before the event."
   },
   "fromTemplate": {
-    "success": "Event created from template **{0}**.",
+    "success": "Event created from template **{template}**.",
     "templateNotFound": "Template not found. Use `/event template list` to see available templates.",
     "error": "Failed to create event from template."
   },
   "cancel": {
-    "success": "Event **{0}** has been cancelled.",
+    "success": "Event **{event}** has been cancelled.",
     "notFound": "Event not found or already ended.",
     "error": "Failed to cancel event."
   },
   "remind": {
-    "success": "Reminder set for {0} minutes before **{1}**.",
+    "success": "Reminder set for {minutes} minutes before **{event}**.",
     "error": "Failed to set reminder.",
     "eventNotFound": "Event not found.",
     "alreadyPast": "Cannot set a reminder for an event that has already started."
   },
   "template": {
     "create": {
-      "success": "Event template **{0}** created successfully.",
+      "success": "Event template **{template}** created successfully.",
       "limitReached": "You have reached the maximum number of event templates (25).",
       "duplicate": "A template with that name already exists.",
       "invalidName": "Template name must be lowercase, start with a letter or number, and contain only letters, numbers, and hyphens.",
       "error": "Failed to create event template."
     },
     "edit": {
-      "success": "Event template **{0}** updated successfully.",
+      "success": "Event template **{template}** updated successfully.",
       "notFound": "Template not found.",
       "error": "Failed to update event template."
     },
     "delete": {
-      "success": "Event template **{0}** deleted.",
+      "success": "Event template **{template}** deleted.",
       "notFound": "Template not found.",
-      "confirmMessage": "Are you sure you want to delete template **{0}**?"
+      "confirmMessage": "Are you sure you want to delete template **{template}**?"
     },
     "list": {
       "title": "Event Templates",
       "empty": "No event templates found. Create one with `/event template create`.",
-      "footer": "{0}/25 templates"
+      "footer": "{count}/25 templates"
     }
   },
   "recurring": {
-    "success": "Recurring event created from template **{0}** ({1}). Next occurrence: {2}.",
+    "success": "Recurring event created from template **{template}** ({pattern}). Next occurrence: {next}.",
     "templateNotFound": "Template not found. Use `/event template list` to see available templates.",
-    "partial": "⚠️ The first **{0}** event was created, but saving its recurring setting or reminder failed, so later events may not be created. Check the event in Discord before running this again: another run creates another event.",
+    "partial": "⚠️ The first **{template}** event was created, but saving its recurring setting or reminder failed, so later events may not be created. Check the event in Discord before running this again: another run creates another event.",
     "error": "Failed to create recurring event."
   },
   "builder": {
