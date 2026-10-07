@@ -46,6 +46,23 @@ describe("RateLimiter", () => {
     rateLimiter.reset("t3");
     expect(rateLimiter.check("t3", c).allowed).toBe(true);
   });
+  test("refund gives back one use, not the whole window", () => {
+    const c = { maxAttempts: 3, windowMs: 60000 };
+    for (let i = 0; i < 3; i++) rateLimiter.check("t-refund", c);
+    rateLimiter.refund("t-refund");
+    expect(rateLimiter.getRemaining("t-refund", 3)).toBe(1);
+    expect(rateLimiter.check("t-refund", c).allowed).toBe(true);
+    expect(rateLimiter.check("t-refund", c).allowed).toBe(false);
+  });
+  test("refund of the last use clears the entry; refunding an unknown key is a no-op", () => {
+    const c = { maxAttempts: 1, windowMs: 60000 };
+    rateLimiter.check("t-refund-1", c);
+    rateLimiter.refund("t-refund-1");
+    rateLimiter.refund("t-refund-1");
+    rateLimiter.refund("never-used");
+    expect(rateLimiter.getRemaining("t-refund-1", 1)).toBe(1);
+    expect(rateLimiter.check("t-refund-1", c).allowed).toBe(true);
+  });
   test("keys independent", () => {
     const c = { maxAttempts: 1, windowMs: 60000 };
     rateLimiter.check("a", c);
@@ -107,6 +124,10 @@ describe("RateLimits", () => {
   });
   test("GLOBAL_COMMAND 30/min", () => {
     expect(RateLimits.GLOBAL_COMMAND.maxAttempts).toBe(30);
+  });
+  test("BOT_HEALTH_REPAIR 5/hr", () => {
+    expect(RateLimits.BOT_HEALTH_REPAIR.maxAttempts).toBe(5);
+    expect(RateLimits.BOT_HEALTH_REPAIR.windowMs).toBe(60 * 60 * 1000);
   });
 });
 

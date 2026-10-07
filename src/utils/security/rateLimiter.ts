@@ -123,6 +123,14 @@ class RateLimiter {
     enhancedLogger.debug(`Rate limit reset for key: ${key}`, LogCategory.SYSTEM);
   }
 
+  /** Gives back one use of `key` (for an action that didn't run). Unlike `reset`, the window's other uses still count. */
+  public refund(key: string): void {
+    const entry = this.limits.get(key);
+    if (!entry) return;
+    if (entry.count <= 1) this.limits.delete(key);
+    else entry.count--;
+  }
+
   public getRemaining(key: string, maxAttempts: number): number {
     const entry = this.limits.get(key);
     if (!entry || Date.now() >= entry.resetTime) {
@@ -297,6 +305,13 @@ export const RateLimits = {
     maxAttempts: 1,
     windowMs: 10 * 60 * 1000, // 10 minutes
     message: '⏱️ A deep health check can run once every 10 minutes per server. Run a normal check in the meantime.',
+  },
+
+  // /bot-health repair, per guild; a deep repair also takes the BOT_HEALTH_DEEP slot
+  BOT_HEALTH_REPAIR: {
+    maxAttempts: 5,
+    windowMs: 60 * 60 * 1000, // 1 hour
+    message: '⏱️ A repair can run 5 times an hour per server. Please wait before running it again.',
   },
 
   // Global limits (per user across all guilds)

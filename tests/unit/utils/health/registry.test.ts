@@ -149,7 +149,9 @@ describe('lang.health.findings', () => {
   test('no string promises a repair command or a fix that nothing performs yet', () => {
     const promise =
       /bot-health repair|automatic|coming soon|\bcan be (?:removed|marked|posted|added|converted|cleared)\b/i;
-    const all = { ...strings, ...flatten(lang.health.command) };
+    // `command.repair` holds the repair preview's own strings, which only the repair renders.
+    const command = Object.entries(flatten(lang.health.command)).filter(([key]) => !key.startsWith('repair.'));
+    const all = { ...strings, ...Object.fromEntries(command) };
     expect(Object.entries(all).filter(([, text]) => promise.test(text))).toEqual([]);
   });
 

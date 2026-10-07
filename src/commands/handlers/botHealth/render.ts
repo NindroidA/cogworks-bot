@@ -52,11 +52,16 @@ export interface RenderOptions {
 
 const systemLabel = (system: string) => systemLabels[system] ?? system;
 
-function truncate(text: string, max: number): string {
+export function truncate(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
 const SEVERITY_ORDER: Record<HealthSeverity, number> = { block: 0, degraded: 1, cosmetic: 2 };
+
+/** A finding's explanation: its lang string with its params, or the code when it has none. */
+export function findingText(finding: HealthFinding): string {
+  return fmt(findingStrings[finding.code] ?? finding.code, finding.params);
+}
 
 /**
  * One embed field per finding: the severity as the name, the explanation (lang
@@ -67,10 +72,9 @@ const SEVERITY_ORDER: Record<HealthSeverity, number> = { block: 0, degraded: 1, 
  */
 export function findingField(finding: HealthFinding): APIEmbedField {
   const suffix = `\n\`${finding.code}\``;
-  const text = fmt(findingStrings[finding.code] ?? finding.code, finding.params);
   return {
     name: truncate(tl.severity[finding.severity], 256),
-    value: truncate(text, 1024 - suffix.length) + suffix,
+    value: truncate(findingText(finding), 1024 - suffix.length) + suffix,
   };
 }
 
