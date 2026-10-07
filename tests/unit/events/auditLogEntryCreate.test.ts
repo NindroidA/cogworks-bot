@@ -12,6 +12,7 @@
 
 import { afterAll, beforeAll, describe, expect, jest, test } from 'bun:test';
 import { AuditLogEvent, Events, SnowflakeUtil } from 'discord.js';
+import { FindOperator } from 'typeorm';
 import { registerAuditLogEntryCreateHandler } from '../../../src/events/auditLogEntryCreate';
 import { AppDataSource } from '../../../src/typeorm';
 import { BaitChannelConfig } from '../../../src/typeorm/entities/bait/BaitChannelConfig';
@@ -19,6 +20,7 @@ import { BaitChannelLog } from '../../../src/typeorm/entities/bait/BaitChannelLo
 import { IdempotencyKey } from '../../../src/typeorm/entities/bait/IdempotencyKey';
 import { PendingAction } from '../../../src/typeorm/entities/bait/PendingAction';
 import { executeBanAction, IDEMPOTENCY_TTL_MS } from '../../../src/utils/baitChannel/banExecutor';
+import { enhancedLogger } from '../../../src/utils/monitoring/enhancedLogger';
 
 const GUILD = { id: 'g1' } as any;
 
@@ -73,7 +75,11 @@ const dayOf = (d: Date) => d.toISOString().slice(0, 10);
  */
 function makeIdempotencyRepo() {
   const rows: any[] = [];
-  const matches = (row: any, where: Record<string, unknown>) => Object.entries(where).every(([k, v]) => row[k] === v);
+  // Equality, plus LessThan() for the forward-only re-date.
+  const matches = (row: any, where: Record<string, unknown>) =>
+    Object.entries(where).every(([k, v]) =>
+      v instanceof FindOperator ? v.type === 'lessThan' && row[k] < (v.value as any) : row[k] === v,
+    );
   return {
     rows,
     create: jest.fn((x: any) => x),
@@ -146,10 +152,27 @@ function setup(
 }
 
 const BAIT_REASON = 'cogworks:bait score=87 ch=#trap flags=[newAccount] msgId=555 Instant action mode';
+// `createdTimestamp` is when Discord wrote the entry (its snowflake time): now, unless a test delivers it late.
 const banEntry = (executorId: string, targetId = 'u1', id = 'audit-1', reason: string | null = BAIT_REASON) =>
-  ({ action: AuditLogEvent.MemberBanAdd, targetId, executorId, id, reason, changes: [] }) as any;
+  ({
+    action: AuditLogEvent.MemberBanAdd,
+    targetId,
+    executorId,
+    id,
+    reason,
+    changes: [],
+    createdTimestamp: Date.now(),
+  }) as any;
 const kickEntry = (executorId: string, targetId = 'u1', id = 'audit-4') =>
-  ({ action: AuditLogEvent.MemberKick, targetId, executorId, id, reason: null, changes: [] }) as any;
+  ({
+    action: AuditLogEvent.MemberKick,
+    targetId,
+    executorId,
+    id,
+    reason: null,
+    changes: [],
+    createdTimestamp: Date.now(),
+  }) as any;
 const unbanEntry = (executorId: string, targetId = 'u1', id = 'audit-2') =>
   ({ action: AuditLogEvent.MemberBanRemove, targetId, executorId, id, changes: [] }) as any;
 const timeoutEntry = (executorId: string, set = true, targetId = 'u1', id = 'audit-3') =>
@@ -159,6 +182,7 @@ const timeoutEntry = (executorId: string, set = true, targetId = 'u1', id = 'aud
     executorId,
     id,
     reason: BAIT_REASON,
+    createdTimestamp: Date.now(),
     changes: set
       ? [{ key: 'communication_disabled_until', new: '2026-01-01T00:00:00Z' }]
       : [{ key: 'nick', new: 'whatever' }],
@@ -443,6 +467,116 @@ describe('auditLogEntryCreate handler', () => {
       const guild = fakeGuild();
       expect((await baitSoftban(guild, idempotencyRepo, postedAgo(60 * 60 * 1000))).status).toBe('duplicate');
       expect(guild.bans.create).not.toHaveBeenCalled();
+    });
+
+    /** A bare mod key (or a legacy one) for u1 in g1 today, taken `agoMs` ago. */
+    const seedKey = (repo: ReturnType<typeof makeIdempotencyRepo>, row: Record<string, unknown>, agoMs: number) => {
+      const now = new Date();
+      const seeded = {
+        guildId: 'g1',
+        userId: 'u1',
+        action: 'ban',
+        dayBucket: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())),
+        executorId: 'mod-1',
+        testMode: false,
+        expiresAt: new Date(Date.now() - agoMs + IDEMPOTENCY_TTL_MS),
+        ...row,
+      };
+      repo.rows.push(seeded);
+      return seeded;
+    };
+    const baitKick = (repo: any, eventId: string) => {
+      const member = { kick: jest.fn(async () => undefined) };
+      return executeBanAction(
+        {
+          guild: fakeGuild() as any,
+          userId: 'u1',
+          action: 'kick',
+          eventId,
+          reason: BAIT_REASON,
+          member: member as any,
+        },
+        repo,
+      );
+    };
+
+    test('a mod kick delivered 2 minutes late is dated when it happened: a post made after it stays uncovered', async () => {
+      const { handler, idempotencyRepo } = setup({ baitConfig: ENABLED });
+      const kickedAt = Date.now() - 120_000;
+      await handler({ ...kickEntry('mod-77'), createdTimestamp: kickedAt }, GUILD);
+
+      const actedAt = idempotencyRepo.rows[0].expiresAt.getTime() - IDEMPOTENCY_TTL_MS;
+      expect(Math.abs(actedAt - kickedAt)).toBeLessThan(1_000);
+      // Posted 3 min ago (before the kick): covered. Posted 60s after the kick: not.
+      expect((await baitKick(idempotencyRepo, postedAgo(180_000))).status).toBe('duplicate');
+      expect((await baitKick(idempotencyRepo, postedAgo(60_000))).status).toBe('executed');
+    });
+
+    test('an entry stamped in the future is dated now, never later', async () => {
+      const { handler, idempotencyRepo } = setup({ baitConfig: ENABLED });
+      await handler({ ...banEntry('mod-77', 'u1', 'audit-1', null), createdTimestamp: Date.now() + 3_600_000 }, GUILD);
+      expect(idempotencyRepo.rows[0].expiresAt.getTime()).toBeLessThanOrEqual(Date.now() + IDEMPOTENCY_TTL_MS);
+    });
+
+    test('a replayed older entry never moves a later key back (and says so)', async () => {
+      const idempotencyRepo = makeIdempotencyRepo();
+      const later = seedKey(idempotencyRepo, { executorId: 'mod-1' }, 10_000);
+      const before = later.expiresAt.getTime();
+      const warn = jest.spyOn(enhancedLogger, 'warn');
+      try {
+        const { handler } = setup({ baitConfig: ENABLED, idempotencyRepo });
+        await handler(
+          { ...banEntry('mod-old', 'u1', 'audit-0', null), createdTimestamp: Date.now() - 3_600_000 },
+          GUILD,
+        );
+        expect(later.expiresAt.getTime()).toBe(before);
+        expect(later.executorId).toBe('mod-1');
+        expect(warn.mock.calls.some(c => String(c[0]).includes('not re-dated'))).toBe(true);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    test('a legacy same-day test-mode bare key is turned into a real mod key, so it covers real actions', async () => {
+      const idempotencyRepo = makeIdempotencyRepo();
+      const legacy = seedKey(idempotencyRepo, { executorId: 'bot', testMode: true }, 2 * 60 * 60 * 1000);
+      const { handler } = setup({ baitConfig: ENABLED, idempotencyRepo });
+      await handler(banEntry('mod-77', 'u1', 'audit-1', null), GUILD);
+
+      expect(legacy.testMode).toBe(false);
+      expect(legacy.executorId).toBe('mod-77');
+      const guild = fakeGuild();
+      expect((await baitSoftban(guild, idempotencyRepo, postedAgo(60 * 60 * 1000))).status).toBe('duplicate');
+      expect(guild.bans.create).not.toHaveBeenCalled();
+    });
+
+    test('after a second mod ban, a post made after it stays uncovered', async () => {
+      const idempotencyRepo = makeIdempotencyRepo();
+      seedKey(idempotencyRepo, {}, 2 * 60 * 60 * 1000); // the first ban, 2h ago
+      const { handler } = setup({ baitConfig: ENABLED, idempotencyRepo });
+      await handler({ ...banEntry('mod-2', 'u1', 'audit-9', null), createdTimestamp: Date.now() - 60_000 }, GUILD);
+
+      const guild = fakeGuild();
+      expect((await baitSoftban(guild, idempotencyRepo, postedAgo(20_000))).status).toBe('executed');
+      expect(guild.bans.create).toHaveBeenCalledTimes(1);
+    });
+
+    test("the re-date touches only that user's bare key of that kind in that guild", async () => {
+      const idempotencyRepo = makeIdempotencyRepo();
+      const twoHours = 2 * 60 * 60 * 1000;
+      const target = seedKey(idempotencyRepo, {}, twoHours);
+      const others = [
+        seedKey(idempotencyRepo, { guildId: 'g2' }, twoHours),
+        seedKey(idempotencyRepo, { userId: 'u2' }, twoHours),
+        seedKey(idempotencyRepo, { action: 'kick' }, twoHours),
+        seedKey(idempotencyRepo, { action: 'ban:1234567890123456789', executorId: 'bot' }, twoHours),
+      ];
+      const snapshot = others.map(r => ({ ...r }));
+      const { handler } = setup({ baitConfig: ENABLED, idempotencyRepo });
+      await handler(banEntry('mod-2', 'u1', 'audit-9', null), GUILD);
+
+      expect(target.executorId).toBe('mod-2');
+      others.forEach((r, i) => expect(r).toEqual(snapshot[i]));
     });
 
     test('a mod ban cancels a queued unban (the rest of our softban) and settles its log', async () => {

@@ -16,10 +16,11 @@
  *
  * 2. **Detect mod-supersedes-us.** When a mod (or another bot) bans, kicks
  *    or times out a user (`executorId !== client.user.id`), we:
- *    - Write an `idempotency_keys` row with the bare action, in any guild
- *      with bait enabled (or with bait pending on the user), so an
- *      `executeBanAction` for a post made before it, in flight or later,
- *      sees it as covering (banExecutor's COVERED_BY) and skips.
+ *    - Write an `idempotency_keys` row with the bare action, dated when the
+ *      mod acted, in any guild with bait enabled (or with bait pending on
+ *      the user): an `executeBanAction` for a post made before it that
+ *      claims after this sees it as covering (banExecutor's COVERED_BY) and
+ *      skips. One that already claimed still runs.
  *    - Only when bait is pending on the user (a `pending_actions` row, or a
  *      recent bait log nothing has enforced yet): delete the retry rows the
  *      mod's action covers, and mark the bait log
@@ -36,7 +37,7 @@
  */
 
 import { AuditLogEvent, type Client, Events, type GuildAuditLogsEntry } from 'discord.js';
-import { In, IsNull, MoreThanOrEqual } from 'typeorm';
+import { In, IsNull, LessThan, MoreThanOrEqual } from 'typeorm';
 import { AppDataSource } from '../typeorm';
 import { BaitChannelConfig } from '../typeorm/entities/bait/BaitChannelConfig';
 import { BaitChannelLog } from '../typeorm/entities/bait/BaitChannelLog';
@@ -149,7 +150,7 @@ export function registerAuditLogEntryCreateHandler(
       if (isSelf) {
         await confirmSelfAction(guild.id, targetId, entry.id, entry.reason, retryDelays);
       } else {
-        await handleModSupersedes(client, guild.id, targetId, executorId, action, entry.id);
+        await handleModSupersedes(client, guild.id, targetId, executorId, action, entry.id, entry.createdTimestamp);
       }
     } catch (error) {
       logError({
@@ -241,29 +242,44 @@ async function loadBaitConfig(client: Client, guildId: string): Promise<BaitChan
 }
 
 /**
- * Write the mod's idempotency key: the bare action, dated now (banExecutor
- * reads `expiresAt - TTL` as when it was taken, and a key covers posts made
- * before that). A second same-day action of the same kind hits
- * UNIQUE(guildId, userId, action, dayBucket); the existing key is re-dated
- * and re-attributed instead, or posts made between the two actions would
- * stay uncovered. Bait keys hold `<action>:<messageId>`, so a bare key is
- * always a mod's.
+ * Write the mod's idempotency key: the bare action, dated when the mod acted
+ * (banExecutor reads `expiresAt - TTL` as when it was taken, and a key covers
+ * posts made before that). `actedAt` is the audit entry's own time, capped at
+ * now, so a late or replayed entry never covers posts made after the action.
+ *
+ * A second same-day action of the same kind hits UNIQUE(guildId, userId,
+ * action, dayBucket); the existing key is re-dated (forward only) and
+ * re-attributed instead, or posts made between the two actions would stay
+ * uncovered. Bait keys hold `<action>:<messageId>`, so a bare key is a mod's;
+ * the patch also clears `testMode`, in case it's a legacy dry-run key written
+ * before keys were per post (a test-mode key never covers a real action).
  */
 async function claimModKey(
   guildId: string,
   userId: string,
   action: 'ban' | 'kick' | 'timeout',
   executorId: string,
+  actedAt: number,
 ): Promise<void> {
   const repo = AppDataSource.getRepository(IdempotencyKey);
-  const expiresAt = new Date(Date.now() + IDEMPOTENCY_TTL_MS);
+  const expiresAt = new Date(Math.min(Date.now(), actedAt) + IDEMPOTENCY_TTL_MS);
   try {
     await repo.save(
       repo.create({ guildId, userId, action, dayBucket: todayUtc(), executorId, testMode: false, expiresAt }),
     );
   } catch {
     try {
-      await repo.update({ guildId, userId, action }, { executorId, expiresAt });
+      const result = await repo.update(
+        { guildId, userId, action, expiresAt: LessThan(expiresAt) },
+        { executorId, expiresAt, testMode: false },
+      );
+      if (!result.affected) {
+        enhancedLogger.warn(
+          `Mod ${action} key for ${userId} in ${guildId} not re-dated (a later one exists, or the insert failed)`,
+          LogCategory.SECURITY,
+          { guildId, userId, action, executorId },
+        );
+      }
     } catch (error) {
       logError({
         category: ErrorCategory.DATABASE,
@@ -288,17 +304,20 @@ async function handleModSupersedes(
   executorId: string,
   action: 'ban' | 'kick' | 'timeout',
   auditLogId: string,
+  actedAt: number,
 ): Promise<void> {
   const pendingRepo = AppDataSource.getRepository(PendingAction);
   const logRepo = AppDataSource.getRepository(BaitChannelLog);
 
   // Step 1: claim the mod's key first, in any guild with bait enabled. A
   // bait action can be in flight with no pending row (instant action, or a
-  // grace timer that already removed its row), and only this key stops it
-  // from undoing the mod's action: a softban's unban lifting the mod's ban,
-  // or a timeout shortening theirs. It covers posts made before now only.
+  // grace timer that already removed its row); if it hasn't claimed its own
+  // key yet, this one makes it skip instead of undoing the mod's action (a
+  // softban's unban lifting the mod's ban). It narrows the window, it doesn't
+  // close it: an action that already claimed still runs. It covers posts made
+  // before the mod acted only.
   const config = await loadBaitConfig(client, guildId);
-  if (config?.enabled) await claimModKey(guildId, userId, action, executorId);
+  if (config?.enabled) await claimModKey(guildId, userId, action, executorId, actedAt);
 
   // Is bait pending on this user? A live pending_actions row (grace or
   // retry; dead-lettered rows stay for the dashboard review queue) or a
@@ -314,7 +333,7 @@ async function handleModSupersedes(
   // Bait turned off since, but a row or log is still open: the retry queue
   // still runs an unban (the rest of our softban) then, so the key is still
   // needed.
-  if (!config?.enabled) await claimModKey(guildId, userId, action, executorId);
+  if (!config?.enabled) await claimModKey(guildId, userId, action, executorId, actedAt);
 
   // Step 2: delete the retry rows (attempts >= 1) the mod's action covers, so
   // they end now with a superseded-by-mod log instead of spending a retry (a

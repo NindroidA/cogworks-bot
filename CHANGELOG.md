@@ -22,14 +22,19 @@ reasons or whitelists no longer break the warning, the log embed or
   enforced yet. Before, every manual action in every server wrote a
   `superseded-by-mod` bait log (counted as a trigger in `/baitchannel stats`
   and the weekly summary) and deleted all of the user's pending rows.
-- **A mod's action is always recorded where bait is on, so bait can't undo
-  it.** In a server with bait enabled, every mod ban, kick or timeout records
-  its idempotency key, even with nothing pending: a bait action already in
-  flight for an earlier post (an instant action, or a grace timer that already
-  removed its row) sees it and skips, so a bait softban can't lift the mod's
-  ban and a bait timeout can't shorten theirs. A second same-day mod action of
-  the same kind re-dates that key and credits the new mod, so posts made
-  between the two are covered too.
+- **Bait is much less likely to undo a mod's action.** In a server with bait
+  enabled, every mod ban, kick or timeout now records its idempotency key, even
+  with nothing pending, dated when the mod acted (the audit entry's time, so a
+  late entry doesn't cover posts made after the action). A bait action for an
+  earlier post that hasn't claimed its own key yet (an instant action, or a
+  grace timer that already removed its row) then skips: a bait softban no
+  longer lifts the mod's ban, and any mod timeout makes a bait timeout for an
+  earlier post skip. This narrows the window, it doesn't close it: a bait
+  action that already claimed still runs (a ban placed in a softban's ~500 ms
+  between its ban and unban is still lifted), and no key is written when the
+  bot can't see the audit log or can't read the bait config. A second same-day
+  mod action of the same kind moves that key forward (never back) and credits
+  the new mod, so posts made between the two are covered too.
 - **A mod's action only cancels the queued retries it covers.** A ban covers
   every action (including the unban that finishes one of our softbans), a kick
   covers a kick or timeout, a timeout covers only a timeout, so a queued bait
