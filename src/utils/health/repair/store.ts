@@ -11,7 +11,8 @@
  *   with `isDeepStrictEqual`, then writes. A cascade deletes the children
  *   first, and anything unexpected rolls the whole write back.
  *
- * Every where must carry the guild's id, or the store throws.
+ * Every where must carry the guild's id, and every set and delete a non-empty
+ * guard (and a set a non-empty set), or the store throws before writing.
  */
 import { isDeepStrictEqual } from 'node:util';
 import { type EntityTarget, IsNull, type ObjectLiteral } from 'typeorm';
@@ -63,6 +64,11 @@ function guildOf(where: Row): string {
   const { guildId } = where;
   if (typeof guildId !== 'string' || guildId === '') throw new Error('Repair writes must be scoped by guildId');
   return guildId;
+}
+
+/** An empty guard would make the write unconditional, and an empty set has nothing to write. */
+function requireValues(kind: string, values: Row): void {
+  if (Object.keys(values).length === 0) throw new Error(`Repair writes need a non-empty ${kind}`);
 }
 
 const isScalar = (value: unknown) => value === null || typeof value !== 'object';
@@ -125,6 +131,8 @@ export function createRepairStore(db: RepairDb): RepairStore {
   return {
     async set(entity, where, guard, set) {
       guildOf(where);
+      requireValues('guard', guard);
+      requireValues('set', set);
       if (!needsLock(entity, guard)) {
         return conditional(db.repo(entity), where, guard, criteria => db.repo(entity).update(criteria, set));
       }
@@ -135,6 +143,12 @@ export function createRepairStore(db: RepairDb): RepairStore {
 
     async delete(entity, where, guard, cascade) {
       const guildId = guildOf(where);
+      requireValues('guard', guard);
+      for (const child of cascade ?? []) {
+        // An owned child is only scoped through its own parent, so it may only cascade from that parent.
+        const owner = OWNED_BY[child.entity];
+        if (owner && owner.entity !== entity) throw new Error(`${child.entity} rows can't cascade from ${entity}`);
+      }
       if (!needsLock(entity, guard, cascade)) {
         return conditional(db.repo(entity), where, guard, criteria => db.repo(entity).delete(criteria));
       }

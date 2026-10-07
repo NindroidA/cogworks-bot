@@ -87,20 +87,22 @@ const DEFAULTED = [
 ] as const;
 
 async function withDefaults(deps: Partial<ApplyDeps>): Promise<ApplyDeps> {
-  if (DEFAULTED.every(name => deps[name])) return { rest: createRestFetcher(), ...deps } as ApplyDeps;
+  // An entry passed as undefined must not override its default.
+  const given = Object.fromEntries(Object.entries(deps).filter(([, dep]) => dep !== undefined)) as Partial<ApplyDeps>;
+  if (DEFAULTED.every(name => given[name])) return { rest: createRestFetcher(), ...given } as ApplyDeps;
   const [caches, gating, audit] = await Promise.all([
     import('../../offboarding/guildCaches'),
     import('../../setup/commandGating'),
     import('../../api/handlers/auditHelper'),
   ]);
   const defaults: Omit<ApplyDeps, 'rest'> = {
-    store: deps.store ?? createRepairStore(await appRepairDb()),
+    store: given.store ?? createRepairStore(await appRepairDb()),
     invalidateGuildCaches: caches.invalidateGuildCaches,
     invalidateBaitCaches: caches.invalidateBaitCaches,
     requestGuildCommandRefresh: gating.requestGuildCommandRefresh,
     writeAuditLog: audit.writeAuditLog,
   };
-  return { rest: createRestFetcher(), ...defaults, ...deps };
+  return { rest: createRestFetcher(), ...defaults, ...given };
 }
 
 function write(store: RepairStore, step: RepairStep): Promise<StoreOutcome> {
@@ -114,7 +116,6 @@ function write(store: RepairStore, step: RepairStep): Promise<StoreOutcome> {
 
 async function applyStep(guild: Guild, step: RepairStep, deps: ApplyDeps): Promise<StepResult> {
   try {
-    if (step.where.guildId !== guild.id) throw new Error(`Step is scoped to guild ${step.where.guildId}`);
     for (const proof of step.proofs) {
       const status = await verifyProof(guild, proof, deps.rest);
       if (status === 'ok') return { step, outcome: 'skipped-not-missing' };
@@ -132,16 +133,22 @@ async function applyStep(guild: Guild, step: RepairStep, deps: ApplyDeps): Promi
   }
 }
 
+/** Each flush runs on its own, so one that throws can't leave the others stale. */
 function flushCaches(guild: Guild, deps: ApplyDeps): void {
-  try {
-    deps.invalidateGuildCaches(guild.id);
-    deps.invalidateBaitCaches(guild.client, guild.id);
-    deps.requestGuildCommandRefresh(guild.id);
-  } catch (error) {
-    enhancedLogger.warn('Repair cache flush failed', LogCategory.SYSTEM, {
-      guildId: guild.id,
-      error: error instanceof Error ? error.message : String(error),
-    });
+  const flushes: [string, () => void][] = [
+    ['guild caches', () => deps.invalidateGuildCaches(guild.id)],
+    ['bait caches', () => deps.invalidateBaitCaches(guild.client, guild.id)],
+    ['command refresh', () => deps.requestGuildCommandRefresh(guild.id)],
+  ];
+  for (const [name, flush] of flushes) {
+    try {
+      flush();
+    } catch (error) {
+      enhancedLogger.warn(`Repair ${name} flush failed`, LogCategory.SYSTEM, {
+        guildId: guild.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }
 
@@ -171,8 +178,9 @@ function auditDetails(plan: RepairPlan, result: RepairResult, checkedAt: string)
 }
 
 /**
- * Applies `plan` to `guild`. Throws `RepairBusyError` while another repair of
- * the guild runs; otherwise every step gets a result, even one that fails.
+ * Applies `plan` to `guild`. Throws, before writing or auditing anything, when
+ * a step is scoped to another guild, and `RepairBusyError` while another repair
+ * of the guild runs; otherwise every step gets a result, even one that fails.
  */
 export async function applyRepairPlan(
   guild: Guild,
@@ -180,6 +188,8 @@ export async function applyRepairPlan(
   actor: RepairActor,
   deps: Partial<ApplyDeps> = {},
 ): Promise<RepairResult> {
+  const foreign = plan.steps.find(step => step.where.guildId !== guild.id);
+  if (foreign) throw new Error(`Repair plan has a step for guild ${foreign.where.guildId}, not ${guild.id}`);
   const release = tryLockGuildRepair(guild.id);
   if (!release) throw new RepairBusyError(guild.id);
   try {

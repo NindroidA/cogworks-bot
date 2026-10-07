@@ -179,11 +179,24 @@ describe('applyRepairPlan: failures', () => {
     expect(calls).toHaveLength(3);
   });
 
-  test('a step scoped to another guild fails without a write', async () => {
+  test('a plan with a step for another guild is refused before any write, flush or audit', async () => {
     const { store, calls } = fakeStore();
-    const steps = [step('set', [], { where: { guildId: OTHER, id: 1 } }), step('set', [])];
-    const result = await applyRepairPlan(guildOf(), plan(steps), ACTOR, makeDeps(store).deps);
-    expect(result.results.map(r => r.outcome)).toEqual(['failed', 'applied']);
+    const { deps, flushed, audits } = makeDeps(store);
+    const steps = [step('set', []), step('delete', [], { where: { guildId: OTHER, id: 1 } })];
+    await expect(applyRepairPlan(guildOf(), plan(steps), ACTOR, deps)).rejects.toThrow(`for guild ${OTHER}`);
+    expect([calls, flushed, audits]).toEqual([[], [], []]);
+    const release = tryLockGuildRepair(G);
+    expect(release).toBeFunction();
+    release?.();
+  });
+
+  test('a dependency passed as undefined keeps its default', async () => {
+    const guild = guildOf();
+    withThreadFetch(guild, []);
+    const { store, calls } = fakeStore();
+    const steps = [step('delete', [{ kind: 'thread', id: GONE_THREAD }], { entity: 'MemoryItem' })];
+    const result = await applyRepairPlan(guild, plan(steps), ACTOR, makeDeps(store, { rest: undefined }).deps);
+    expect(result.results.map(r => r.outcome)).toEqual(['applied']);
     expect(calls).toHaveLength(1);
   });
 });
@@ -279,15 +292,17 @@ describe('applyRepairPlan: guild lock', () => {
     release?.();
   });
 
-  test('a throwing cache flush is logged, and the audit row is still written', async () => {
-    const { store } = fakeStore();
-    const { deps, audits } = makeDeps(store, {
-      invalidateGuildCaches: () => {
-        throw new Error('cache bug');
-      },
-    });
-    const result = await applyRepairPlan(guildOf(), plan([step('set', [])]), ACTOR, deps);
-    expect(result.counts.applied).toBe(1);
-    expect(audits).toHaveLength(1);
+  test('a throwing flush is logged; the other flushes and the audit row still happen', async () => {
+    const boom = () => {
+      throw new Error('cache bug');
+    };
+    for (const name of ['invalidateGuildCaches', 'invalidateBaitCaches', 'requestGuildCommandRefresh'] as const) {
+      const { store } = fakeStore();
+      const { deps, flushed, audits } = makeDeps(store, { [name]: boom });
+      const result = await applyRepairPlan(guildOf(), plan([step('set', [])]), ACTOR, deps);
+      expect(result.counts.applied).toBe(1);
+      expect(flushed).toHaveLength(2);
+      expect(audits).toHaveLength(1);
+    }
   });
 });

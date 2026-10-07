@@ -61,6 +61,13 @@ describe('verifyProof', () => {
     expect(await verifyProof(guild, { kind: 'thread', id: GONE }, rest())).toBe('unknown');
   });
 
+  test("a channel type discord.js can't construct (fetch resolves null) is unknown, never missing", async () => {
+    const guild = guildWith();
+    (guild.channels as unknown as Record<string, unknown>).fetch = async () => null;
+    expect(await verifyProof(guild, { kind: 'thread', id: GONE }, rest())).toBe('unknown');
+    expect(await verifyProof(guild, { kind: 'message', id: GONE_MSG, channelId: GONE }, rest())).toBe('unknown');
+  });
+
   test('messages: fetched in their channel; a deleted channel took the message with it', async () => {
     const guild = guildWith();
     const fetched = withMessages(guild, TEXT, [MSG]);

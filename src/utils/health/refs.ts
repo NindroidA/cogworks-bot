@@ -58,6 +58,17 @@ export function resolveChannel(
   return resolved.status === 'missing' && opts.mayBeThread ? { status: 'unknown' } : resolved;
 }
 
+/**
+ * One guild-scoped REST lookup of a channel or thread, as the call for `RestFetcher.fetch`.
+ * discord.js resolves `null` for a channel type it can't construct, which proves nothing, so
+ * that rejects (read as `unknown`) instead of reaching the fetcher, where null means missing.
+ */
+export async function fetchGuildChannel(guild: Guild, id: string): Promise<GuildBasedChannel> {
+  const channel = await guild.channels.fetch(id, { cache: false });
+  if (!channel) throw new Error(`Channel ${id} has a type discord.js can't construct`);
+  return channel;
+}
+
 export type ChannelKind = 'text' | 'news' | 'forum' | 'category' | 'voice' | 'stage';
 
 const KIND_TYPES: Record<ChannelKind, ChannelType> = {

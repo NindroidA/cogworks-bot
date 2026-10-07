@@ -80,6 +80,31 @@ describe('RepairStore: guild scope', () => {
     expect(transactions()).toBe(0);
   });
 
+  test('an empty guard or set is refused before any write', async () => {
+    const { store, log, transactions } = makeDb({ XPConfig: [{ id: 5, guildId: G, levelUpChannelId: GONE }] });
+    const where = { guildId: G, id: 5 };
+    const guard = { levelUpChannelId: GONE };
+    await expect(store.set('XPConfig', where, {}, { levelUpChannelId: null })).rejects.toThrow('non-empty guard');
+    await expect(store.set('XPConfig', where, guard, {})).rejects.toThrow('non-empty set');
+    await expect(store.delete('XPConfig', where, {})).rejects.toThrow('non-empty guard');
+    expect(log).toEqual([]);
+    expect(transactions()).toBe(0);
+  });
+
+  test('an owned child (options) only cascades from its own parent (a menu)', async () => {
+    const { store, log, ids, transactions } = makeDb({
+      MemoryConfig: [{ id: 4, guildId: G, forumChannelId: GONE }],
+      ReactionRoleOption: [{ id: 40, menuId: 4 }],
+    });
+    const cascade = [{ entity: 'ReactionRoleOption', column: 'menuId' }] as const;
+    await expect(
+      store.delete('MemoryConfig', { guildId: G, id: 4 }, { forumChannelId: GONE }, cascade),
+    ).rejects.toThrow("can't cascade from MemoryConfig");
+    expect(log).toEqual([]);
+    expect(transactions()).toBe(0);
+    expect(ids('ReactionRoleOption')).toEqual([40]);
+  });
+
   test("another guild's row with the same id is gone, and untouched", async () => {
     const row = { id: 5, guildId: OTHER, levelUpChannelId: GONE };
     const { store } = makeDb({ XPConfig: [row] });

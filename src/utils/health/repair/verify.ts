@@ -6,7 +6,7 @@
  */
 import type { Guild, GuildBasedChannel } from 'discord.js';
 import type { RestFetcher, RestOutcome } from '../context';
-import { type RefStatus, resolveChannel, resolveRole } from '../refs';
+import { fetchGuildChannel, type RefStatus, resolveChannel, resolveRole } from '../refs';
 import type { RepairProof } from './types';
 
 export type ProofStatus = RefStatus | 'skipped';
@@ -19,7 +19,7 @@ async function lookupChannel(
 ): Promise<RestOutcome<GuildBasedChannel> | { status: 'ok'; value: GuildBasedChannel }> {
   const cached = resolveChannel(guild, id, { mayBeThread: true });
   if (cached.status === 'ok' || !guild.available) return cached;
-  return rest.fetch('repair:channel', () => guild.channels.fetch(id, { cache: false }));
+  return rest.fetch('repair:channel', () => fetchGuildChannel(guild, id));
 }
 
 /**
