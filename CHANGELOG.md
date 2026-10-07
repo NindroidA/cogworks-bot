@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.44] - 2026-10-06
+
+The writing half of `/bot-health repair` (NindroidA/cogworks-bot#41). It
+applies a repair plan to the database, but nothing calls it yet: no command
+or endpoint uses it, so the bot behaves exactly as before.
+
+### Added
+
+- **Repair applier** (`src/utils/health/repair/applier.ts`).
+  `applyRepairPlan(guild, plan, actor)` runs a plan's writes in order (column
+  changes, then deletes) under a per-guild lock, so two repairs of one server
+  never overlap; a second one gets `RepairBusyError`. Right before each write
+  it checks again that the deleted channel, role, thread or message is still
+  gone. A step whose object is back is skipped, and so is one it can't
+  confirm (server unavailable, no access, a Discord error), so nothing is
+  deleted on a guess. A step that fails is reported and the rest still run.
+  When anything changed it clears the server's cached settings once, and it
+  writes one audit row to the repaired server (at most 100 steps, long values
+  cut short).
+- **Conditional writes** (`store.ts`). Every write is scoped by the server id
+  (the store refuses one that isn't) and only lands while the row still holds
+  the values the check saw: a row someone edited since is reported as
+  changed, a row deleted since as gone. Lists and maps (such as the XP
+  ignored channels) are compared inside a transaction that locks the row; a
+  delete that takes child rows with it (a memory forum's memories and tags, a
+  reaction-role menu's options) removes them first in the same transaction,
+  and rolls everything back if the parent changed. A reaction-role option is
+  only touched through a menu of the same server.
+- `tests/helpers/fakeRepo.ts` matches `IsNull()` in criteria and has `findOne`.
+
 ## [3.16.43] - 2026-10-06
 
 The planning half of `/bot-health repair` (NindroidA/cogworks-bot#41). It turns
