@@ -401,6 +401,13 @@ export interface LangBotSetup {
     title: string;
     message: string;
   };
+  flows: {
+    panelNotPosted: string;
+    oldPanelNotRemoved: string;
+    autoCreateLeftovers: string;
+    staffRoleMissing: string;
+    rulesNextStep: string;
+  };
   logs: {
     couldNotPin: string;
     baitChannelSaved: string;

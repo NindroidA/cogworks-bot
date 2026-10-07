@@ -2,7 +2,7 @@
  * channelDelete Event Handler Unit Tests
  *
  * Verifies the v3.1.32 descriptor pattern works as intended:
- *  - All 13 entity-cleanup descriptors run for a single channel-delete event
+ *  - Every entity-cleanup descriptor runs for a single channel-delete event
  *  - Promise.allSettled semantics — one cleaner failing must not abort siblings
  *  - Failure attribution uses the descriptor's `name` field (no parallel array)
  *  - Per-entity mutation logic: nullify only the matching column(s)
@@ -13,76 +13,10 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, jest, test } from 'bun:test';
+import { makeFakeRepo } from '../../helpers/fakeRepo';
 
-// Each entity has its own fake repo. The handler does
-// `AppDataSource.getRepository(EntityClass).findOneBy(...)` etc., so we map
-// by entity NAME (function constructor name) and return the matching fake.
-interface FakeRepoState {
-  rows: Map<string, any>;
-  findOneByCalls: any[];
-  findCalls: any[];
-  saveCalls: any[];
-  removeCalls: any[];
-  countCalls: any[];
-  shouldThrowOn?: 'findOneBy' | 'find' | 'save' | 'remove' | 'count';
-}
-
-function makeFakeRepo(initialRows: any[] = []): FakeRepoState & {
-  findOneBy: (where: any) => Promise<any>;
-  find: (opts: any) => Promise<any[]>;
-  save: (entity: any) => Promise<any>;
-  remove: (entity: any) => Promise<any>;
-  count: (opts: any) => Promise<number>;
-} {
-  const state: FakeRepoState = {
-    rows: new Map(initialRows.map((r, i) => [String(r.id ?? i), r])),
-    findOneByCalls: [],
-    findCalls: [],
-    saveCalls: [],
-    removeCalls: [],
-    countCalls: [],
-  };
-  return {
-    ...state,
-    async findOneBy(where: any) {
-      state.findOneByCalls.push(where);
-      if (state.shouldThrowOn === 'findOneBy') throw new Error('boom-findOneBy');
-      // Match the first row whose fields all equal the where clause
-      for (const row of state.rows.values()) {
-        if (Object.entries(where).every(([k, v]) => (row as any)[k] === v)) return row;
-      }
-      return null;
-    },
-    async find(opts: any) {
-      state.findCalls.push(opts);
-      if (state.shouldThrowOn === 'find') throw new Error('boom-find');
-      const where = opts?.where ?? {};
-      return [...state.rows.values()].filter(row => Object.entries(where).every(([k, v]) => (row as any)[k] === v));
-    },
-    async save(entity: any) {
-      state.saveCalls.push({ ...entity });
-      if (state.shouldThrowOn === 'save') throw new Error('boom-save');
-      state.rows.set(String(entity.id ?? state.rows.size), entity);
-      return entity;
-    },
-    async remove(entity: any) {
-      state.removeCalls.push(Array.isArray(entity) ? [...entity] : { ...entity });
-      if (state.shouldThrowOn === 'remove') throw new Error('boom-remove');
-      const targets = Array.isArray(entity) ? entity : [entity];
-      for (const t of targets) state.rows.delete(String(t.id));
-      return entity;
-    },
-    async count(opts: any) {
-      state.countCalls.push(opts);
-      if (state.shouldThrowOn === 'count') throw new Error('boom-count');
-      const where = opts?.where ?? {};
-      return [...state.rows.values()].filter(row => Object.entries(where).every(([k, v]) => (row as any)[k] === v))
-        .length;
-    },
-  } as any;
-}
-
-// Registry of per-entity fakes. Keys are TypeORM entity class names.
+// Registry of per-entity fakes (tests/helpers/fakeRepo). Keys are TypeORM
+// entity class names: the handler calls AppDataSource.getRepository(Entity).
 const fakeRepos: Record<string, ReturnType<typeof makeFakeRepo>> = {};
 
 function resetFakeRepos() {
@@ -90,6 +24,10 @@ function resetFakeRepos() {
   // Pre-create a fake for every entity the handler touches so descriptor
   // lookups don't crash with "no fake registered".
   for (const name of [
+    'Ticket',
+    'Application',
+    'MemoryItem',
+    'MemoryTag',
     'TicketConfig',
     'ArchivedTicketConfig',
     'ApplicationConfig',
@@ -214,6 +152,8 @@ describe('channelDelete event handler', () => {
     // pattern: removing a descriptor entry would fail this list.
     expect(queriedEntities).toEqual(
       [
+        'Application',
+        'Ticket',
         'AnalyticsConfig',
         'AnnouncementConfig',
         'ApplicationConfig',
@@ -498,5 +438,74 @@ describe('channelDelete event handler', () => {
 
     expect(fakeRepos.XPConfig.saveCalls.length).toBe(1);
     expect(fakeRepos.XPConfig.saveCalls[0].ignoredChannels).toEqual(['chan-keep']);
+  });
+
+  test('Ticket: a ticket whose channel was deleted by hand is closed, with a history note', async () => {
+    fakeRepos.Ticket.rows.set('1', {
+      id: 1,
+      guildId: 'guild-1',
+      channelId: 'ticket-chan',
+      status: 'opened',
+      statusHistory: null,
+    });
+    fakeRepos.Ticket.rows.set('2', { id: 2, guildId: 'guild-1', channelId: 'other', status: 'opened' });
+
+    await channelDeleteHandler.execute(makeFakeChannel('ticket-chan', 'guild-1'), mockClient);
+
+    const updates = fakeRepos.Ticket.calls.update;
+    expect(updates).toHaveLength(1);
+    expect(updates[0].criteria).toEqual({ id: 1, guildId: 'guild-1', status: 'opened' });
+    expect(fakeRepos.Ticket.rows.get('1')).toMatchObject({ status: 'closed' });
+    expect(fakeRepos.Ticket.rows.get('1').statusHistory).toEqual([
+      expect.objectContaining({ status: 'closed', changedBy: 'system', note: 'channel-deleted' }),
+    ]);
+    expect(fakeRepos.Ticket.rows.get('2').status).toBe('opened');
+  });
+
+  test('Ticket: a ticket the close flow already closed is left alone', async () => {
+    fakeRepos.Ticket.rows.set('1', { id: 1, guildId: 'guild-1', channelId: 'ticket-chan', status: 'closed' });
+
+    await channelDeleteHandler.execute(makeFakeChannel('ticket-chan', 'guild-1'), mockClient);
+
+    expect(fakeRepos.Ticket.calls.update).toHaveLength(0);
+  });
+
+  test('Application: an open application whose channel was deleted is closed', async () => {
+    fakeRepos.Application.rows.set('1', {
+      id: 1,
+      guildId: 'guild-1',
+      channelId: 'app-chan',
+      status: 'opened',
+      statusHistory: [],
+    });
+
+    await channelDeleteHandler.execute(makeFakeChannel('app-chan', 'guild-1'), mockClient);
+
+    expect(fakeRepos.Application.rows.get('1').status).toBe('closed');
+  });
+
+  test('Application: an accepted or rejected decision is kept', async () => {
+    fakeRepos.Application.rows.set('1', { id: 1, guildId: 'guild-1', channelId: 'app-chan', status: 'accepted' });
+    fakeRepos.Application.rows.set('2', { id: 2, guildId: 'guild-1', channelId: 'app-chan', status: 'rejected' });
+
+    await channelDeleteHandler.execute(makeFakeChannel('app-chan', 'guild-1'), mockClient);
+
+    expect(fakeRepos.Application.calls.update).toHaveLength(0);
+    expect(fakeRepos.Application.rows.get('1').status).toBe('accepted');
+    expect(fakeRepos.Application.rows.get('2').status).toBe('rejected');
+  });
+
+  test('MemoryConfig: deleting the memory forum removes its item and tag rows with the config', async () => {
+    fakeRepos.MemoryConfig.rows.set('7', { id: 7, guildId: 'guild-1', forumChannelId: 'mem-forum' });
+    fakeRepos.MemoryItem.rows.set('1', { id: 1, guildId: 'guild-1', memoryConfigId: 7 });
+    fakeRepos.MemoryItem.rows.set('2', { id: 2, guildId: 'guild-1', memoryConfigId: 8 });
+    fakeRepos.MemoryTag.rows.set('1', { id: 1, guildId: 'guild-1', memoryConfigId: 7 });
+
+    await channelDeleteHandler.execute(makeFakeChannel('mem-forum', 'guild-1'), mockClient);
+
+    expect(fakeRepos.MemoryItem.calls.delete).toEqual([{ guildId: 'guild-1', memoryConfigId: 7 }]);
+    expect(fakeRepos.MemoryTag.calls.delete).toEqual([{ guildId: 'guild-1', memoryConfigId: 7 }]);
+    expect([...fakeRepos.MemoryItem.rows.keys()]).toEqual(['2']);
+    expect(fakeRepos.MemoryConfig.removeCalls).toHaveLength(1);
   });
 });
