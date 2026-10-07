@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.43] - 2026-10-06
+
+The planning half of `/bot-health repair` (NindroidA/cogworks-bot#41). It turns
+a health report into the changes that would fix it, as a dry run: nothing calls
+it yet, it never writes, and `/bot-health check` shows exactly what it did
+before.
+
+### Added
+
+- **Repair planner** (`src/utils/health/repair/planner.ts`).
+  `planRepairs(report, ctx)` plans from the rows the same check run loaded and
+  returns the fixes (before and after values per column, or the rows a delete
+  takes with it), the writes, and the findings it can't fix with the reason
+  (no repair yet, rows not loaded, row gone, nothing to change). Manual
+  findings are left out. Fixes on one row merge into one write, so two
+  deleted channels in the XP ignored list are both removed; a delete absorbs
+  the row's other fixes, and deleting a memory forum or a reaction-role menu
+  absorbs the fixes on its own memories or options. Every write carries the
+  values it expects to find (the applier will skip a row that changed in the
+  meantime) and the deleted object it relies on, so the applier can confirm it
+  is still gone right before writing.
+- **29 reference repairs** (`refRepairs.ts`) for findings about a deleted
+  channel, role, message or thread. Each runs the delete event's patch from
+  `refPatches.ts` on the flagged row, limited to the finding's columns, so a
+  repair fixes a reference exactly as the event would have. Deleting a memory
+  forum's settings or a memory whose post is gone always asks first, even
+  though the checks rate them automatic: saved memories have no other copy,
+  and the plan counts how many go.
+- **`findingKey`**: a short id per finding that stays the same across
+  re-checks, so a selection made in a preview can be re-planned later.
+- **`runHealthCheckWithContext`** returns the report together with the rows
+  it read; `runHealthCheck` wraps it.
+- Labels for every repair under `health.repair.actions`, and a coverage test:
+  every repair belongs to a check code and has a label, and every code a check
+  emits as auto or confirm today has a repair or is listed for a later PR.
+
 ## [3.16.42] - 2026-10-06
 
 A test now checks the language keys (NindroidA/cogworks-bot#41). CI fails when
