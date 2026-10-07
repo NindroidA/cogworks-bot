@@ -22,7 +22,7 @@ import {
   createToggleHandler,
   DEFAULT_APPLICATION_STATUSES,
   enhancedLogger,
-  formatLang,
+  fmt,
   guardFeatureAccess,
   LogCategory,
   lang,
@@ -114,19 +114,19 @@ export async function applicationStatusHandler(interaction: ChatInputCommandInte
   const newStatusId = interaction.options.getString('status', true);
   const currentStatus = mapStatus(application.status);
   if (RESERVED_STATUS_IDS.includes(newStatusId)) {
-    await replyEphemeralError(interaction, formatLang(tl.reservedStatusId, newStatusId));
+    await replyEphemeralError(interaction, fmt(tl.reservedStatusId, { statusId: newStatusId }));
     return;
   }
 
   const statusDef = findStatusById(statuses, newStatusId);
   if (!statusDef) {
     const validIds = statuses.map(s => `\`${s.id}\``).join(', ');
-    await replyEphemeralError(interaction, formatLang(tl.invalidStatus, newStatusId, validIds));
+    await replyEphemeralError(interaction, fmt(tl.invalidStatus, { status: newStatusId, valid: validIds }));
     return;
   }
 
   if (currentStatus === newStatusId) {
-    await replyEphemeralError(interaction, formatLang(tl.sameStatus, statusDef.label));
+    await replyEphemeralError(interaction, fmt(tl.sameStatus, { status: statusDef.label }));
     return;
   }
 
@@ -135,7 +135,9 @@ export async function applicationStatusHandler(interaction: ChatInputCommandInte
   await applicationRepo.save(application);
 
   const embed = new EmbedBuilder()
-    .setDescription(formatLang(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`))
+    .setDescription(
+      fmt(tl.statusChanged, { status: `${statusDef.emoji} ${statusDef.label}`, user: `<@${interaction.user.id}>` }),
+    )
     .setColor(parseInt(statusDef.color.replace('#', ''), 16));
 
   await (interaction.channel as GuildTextBasedChannel)?.send({
@@ -143,7 +145,10 @@ export async function applicationStatusHandler(interaction: ChatInputCommandInte
   });
 
   await interaction.reply({
-    content: formatLang(tl.statusChanged, `${statusDef.emoji} ${statusDef.label}`, `<@${interaction.user.id}>`),
+    content: fmt(tl.statusChanged, {
+      status: `${statusDef.emoji} ${statusDef.label}`,
+      user: `<@${interaction.user.id}>`,
+    }),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -205,7 +210,7 @@ export async function applicationNoteHandler(interaction: ChatInputCommandIntera
   await applicationRepo.save(application);
 
   await interaction.reply({
-    content: formatLang(tl.noteAdded, `<@${interaction.user.id}>`),
+    content: fmt(tl.noteAdded, { user: `<@${interaction.user.id}>` }),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -240,7 +245,7 @@ export async function applicationClaimHandler(interaction: ChatInputCommandInter
   }
 
   if (application.reviewedBy) {
-    await replyEphemeralError(interaction, formatLang(tl.alreadyClaimed, application.reviewedBy));
+    await replyEphemeralError(interaction, fmt(tl.alreadyClaimed, { userId: application.reviewedBy }));
     return;
   }
 
@@ -249,7 +254,7 @@ export async function applicationClaimHandler(interaction: ChatInputCommandInter
   await applicationRepo.save(application);
 
   const embed = new EmbedBuilder()
-    .setDescription(formatLang(tl.claimed, `<@${interaction.user.id}>`))
+    .setDescription(fmt(tl.claimed, { user: `<@${interaction.user.id}>` }))
     .setColor(0x5865f2);
 
   await (interaction.channel as GuildTextBasedChannel)?.send({
@@ -257,7 +262,7 @@ export async function applicationClaimHandler(interaction: ChatInputCommandInter
   });
 
   await interaction.reply({
-    content: formatLang(tl.claimed, `<@${interaction.user.id}>`),
+    content: fmt(tl.claimed, { user: `<@${interaction.user.id}>` }),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -334,13 +339,13 @@ export async function applicationInfoHandler(interaction: ChatInputCommandIntera
       .map(n => {
         const timestamp = toUnixSeconds(new Date(n.addedAt));
         const note = n.note.length > 150 ? `${n.note.slice(0, 149)}…` : n.note;
-        return formatLang(tlInfo.noteEntry, note, n.addedBy, timestamp.toString());
+        return fmt(tlInfo.noteEntry, { note, userId: n.addedBy, time: timestamp });
       })
       .join('\n')
       .slice(0, 1024);
 
     embed.addFields({
-      name: formatLang(tlInfo.notesTitle, application.internalNotes.length.toString()),
+      name: fmt(tlInfo.notesTitle, { count: application.internalNotes.length }),
       value: notesText,
     });
   }
@@ -490,19 +495,19 @@ export async function applicationWorkflowAddStatusHandler(interaction: ChatInput
     return;
   }
   if (RESERVED_STATUS_IDS.includes(statusId)) {
-    await replyEphemeralError(interaction, formatLang(tl.reservedStatusId, statusId));
+    await replyEphemeralError(interaction, fmt(tl.reservedStatusId, { statusId }));
     return;
   }
 
   const statuses = config.workflowStatuses || [...DEFAULT_APPLICATION_STATUSES];
 
   if (statuses.length >= MAX.APPLICATION_WORKFLOW_STATUSES) {
-    await replyEphemeralError(interaction, formatLang(tl.maxStatuses, MAX.APPLICATION_WORKFLOW_STATUSES));
+    await replyEphemeralError(interaction, fmt(tl.maxStatuses, { max: MAX.APPLICATION_WORKFLOW_STATUSES }));
     return;
   }
 
   if (statuses.some(s => s.id === statusId)) {
-    await replyEphemeralError(interaction, formatLang(tl.statusExists, statusId));
+    await replyEphemeralError(interaction, fmt(tl.statusExists, { statusId }));
     return;
   }
 
@@ -525,7 +530,7 @@ export async function applicationWorkflowAddStatusHandler(interaction: ChatInput
   await applicationConfigRepo.save(config);
 
   await interaction.reply({
-    content: formatLang(tl.statusAdded, `${emoji} ${label}`),
+    content: fmt(tl.statusAdded, { status: `${emoji} ${label}` }),
     flags: [MessageFlags.Ephemeral],
   });
 
@@ -560,7 +565,7 @@ export async function applicationWorkflowRemoveStatusHandler(interaction: ChatIn
   const statusId = interaction.options.getString('status', true);
 
   if (REQUIRED_APPLICATION_STATUSES.includes(statusId)) {
-    await replyEphemeralError(interaction, formatLang(tl.cannotRemoveRequired, statusId));
+    await replyEphemeralError(interaction, fmt(tl.cannotRemoveRequired, { status: statusId }));
     return;
   }
 
@@ -569,7 +574,7 @@ export async function applicationWorkflowRemoveStatusHandler(interaction: ChatIn
 
   if (!statusDef) {
     await interaction.reply({
-      content: formatLang(tl.invalidStatus, statusId, statuses.map(s => `\`${s.id}\``).join(', ')),
+      content: fmt(tl.invalidStatus, { status: statusId, valid: statuses.map(s => `\`${s.id}\``).join(', ') }),
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -582,9 +587,9 @@ export async function applicationWorkflowRemoveStatusHandler(interaction: ChatIn
   config.workflowStatuses = statuses.filter(s => s.id !== statusId);
   await applicationConfigRepo.save(config);
 
-  let reply = formatLang(tl.statusRemoved, `${statusDef.emoji} ${statusDef.label}`);
+  let reply = fmt(tl.statusRemoved, { status: `${statusDef.emoji} ${statusDef.label}` });
   if (applicationsWithStatus > 0) {
-    reply += `\n${formatLang(tl.statusInUse, applicationsWithStatus.toString())}`;
+    reply += `\n${fmt(tl.statusInUse, { count: applicationsWithStatus })}`;
   }
 
   await interaction.reply({ content: reply, flags: [MessageFlags.Ephemeral] });

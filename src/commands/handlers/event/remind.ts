@@ -8,7 +8,7 @@ import { type CacheType, type ChatInputCommandInteraction, type Client, MessageF
 import { lang } from '../../../lang';
 import { EventConfig } from '../../../typeorm/entities/event/EventConfig';
 import { EventReminder } from '../../../typeorm/entities/event/EventReminder';
-import { enhancedLogger, formatLang, guardFeatureAccess, LogCategory, replyEphemeralError } from '../../../utils';
+import { enhancedLogger, fmt, guardFeatureAccess, LogCategory, replyEphemeralError } from '../../../utils';
 import { lazyRepo } from '../../../utils/database/lazyRepo';
 
 // Locale-aware (Proxy fallback) — was a direct en JSON import that bypassed i18n.
@@ -73,7 +73,7 @@ export async function handleRemind(
     await eventReminderRepo.save(reminder);
 
     await interaction.reply({
-      content: formatLang(tl.success, minutesBefore.toString(), scheduledEvent.name),
+      content: fmt(tl.success, { minutes: minutesBefore, event: scheduledEvent.name }),
       flags: [MessageFlags.Ephemeral],
     });
 

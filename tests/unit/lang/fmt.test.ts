@@ -1,12 +1,19 @@
 /**
  * `fmt()`, the named-placeholder filler for lang strings (#41 step A6), and
  * proof that the strings moved from `{0}` to `{name}` read exactly as before:
- * each case fills the string as it was on main with the old call and the
- * renamed string with `fmt`, and the two must match.
+ * each case fills the string as it was before the rename with the old call and
+ * the renamed string with `fmt`, and the two must match.
  */
 import { describe, expect, test } from 'bun:test';
 import { fmt, lang } from '../../../src/lang';
-import { formatLang } from '../../../src/utils';
+
+/** `formatLang` as it was before #41 removed it, kept to fill the old `{0}` strings below. */
+function formatLang(template: string, ...args: (string | number)[]): string {
+  return template.replace(/\{(\d+)\}/g, (match, index) => {
+    const argIndex = parseInt(index, 10);
+    return args[argIndex] !== undefined ? String(args[argIndex]) : match;
+  });
+}
 
 describe('fmt', () => {
   test('fills named params and leaves unknown ones as written', () => {
@@ -42,7 +49,7 @@ describe('fmt', () => {
 });
 
 describe('strings renamed from {0} to {name} read the same', () => {
-  // [string as it was on main, the old call, the new call]
+  // [string as it was before the rename, the old call, the new call]
   const cases: [string, (old: string) => string, () => string][] = [
     [
       'Starboard has been configured! Messages with {0}+ {1} reactions will appear in {2}.',
@@ -140,6 +147,57 @@ describe('strings renamed from {0} to {name} read the same', () => {
       "Couldn't delete the warning banner in <#{0}>. Delete it by hand: that channel is no longer monitored.",
       old => formatLang(old, '789'),
       () => fmt(lang.baitChannel.multiChannel.bannerDeleteFailed, { channelId: '789' }),
+    ],
+    [
+      'Applied the **{0}** template partially. {1} of {2} rules created (hit 6-rule limit).',
+      old => formatLang(old, 'Anti-spam', 2, 4),
+      () => fmt(lang.automod.template.partialSuccess, { template: 'Anti-spam', created: 2, total: 4 }),
+    ],
+    [
+      'Restoring would create {0} rule(s), but you only have {1} slot(s) available. Delete some rules first.',
+      old => formatLang(old, 5, 1),
+      () => fmt(lang.automod.restore.wouldExceedLimit, { count: 5, available: 1 }),
+    ],
+    [
+      'automod-backup-{0}.json',
+      old => old.replace('{0}', '123'),
+      () => fmt(lang.automod.backup.fileName, { guildId: '123' }),
+    ],
+    [
+      '**#{0}** <@{1}> — Level **{2}** | **{3}** XP',
+      old =>
+        old
+          .replace('{0}', String(11))
+          .replace('{1}', '42')
+          .replace('{2}', String(7))
+          .replace('{3}', (12345).toLocaleString()),
+      () => fmt(lang.xp.leaderboard.entry, { rank: 11, userId: '42', level: 7, xp: (12345).toLocaleString() }),
+    ],
+    [
+      "Set **{0}**'s XP to **{1}** (Level {2}).",
+      old => old.replace('{0}', 'Ada').replace('{1}', (1500).toLocaleString()).replace('{2}', String(4)),
+      () => fmt(lang.xp.admin.xpSet, { user: 'Ada', xp: (1500).toLocaleString(), level: 4 }),
+    ],
+    [
+      'Current level-up message: {0}\nPlaceholders: `{user}`, `{level}`',
+      // The admin's own message keeps its {user}/{level}, and so does the syntax hint.
+      old => formatLang(old, 'GG {user}, you hit level {level}!'),
+      () => fmt(lang.xp.config.currentLevelUpMessage, { message: 'GG {user}, you hit level {level}!' }),
+    ],
+    [
+      '{0} by <@{1}> <t:{2}:R>',
+      old => formatLang(old, 'Looks good', '99', (1700000000).toString()),
+      () => fmt(lang.application.workflowInfo.noteEntry, { note: 'Looks good', userId: '99', time: 1700000000 }),
+    ],
+    [
+      'Recurring event created from template **{0}** ({1}). Next occurrence: {2}.',
+      old => formatLang(old, 'Game night', 'weekly', '<t:1700000000:F>'),
+      () => fmt(lang.event.recurring.success, { template: 'Game night', pattern: 'weekly', next: '<t:1700000000:F>' }),
+    ],
+    [
+      '{0}/25 templates',
+      old => old.replace('{0}', (3).toString()),
+      () => fmt(lang.event.template.list.footer, { count: 3 }),
     ],
   ];
 

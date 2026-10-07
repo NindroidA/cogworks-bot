@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.46] - 2026-10-07
+
+The last numbered `{0}` placeholders become named `{name}` ones, and
+`formatLang` is gone (NindroidA/cogworks-bot#41, step A6c, which finishes A6).
+Every lang string now takes its values through `fmt()`. Messages read the same
+as before.
+
+### Changed
+
+- **82 strings renamed from `{0}` to `{name}`:** 28 in `automod`, 24 in `xp`,
+  15 in `application` and 15 in `event`. Only the placeholder names changed;
+  the text around them didn't. `xp.config.currentLevelUpMessage` still shows
+  `{user}` and `{level}` as literal text, because they explain the admin's
+  message syntax.
+- **Their 64 `formatLang` calls and 23 `.replace('{0}', …)` chains now call
+  `fmt`.** No string in `src/lang/en` uses a numbered placeholder any more.
+- **The key-check test is stricter.**
+  - Any `.replace('{x}', …)` on a lang string fails ("use fmt()").
+  - A numbered `{0}` anywhere in `src/lang/en` fails, since nothing fills it.
+  - The `formatLang` argument check is gone along with `formatLang`.
+- CLAUDE.md and `src/lang/TRANSLATING.md` drop the "some files still use
+  `{0}`" notes. CLAUDE.md now says the test rejects `.replace('{x}', …)` and
+  numbered placeholders.
+
+### Removed
+
+- **`formatLang`** from `src/utils/index.ts`. `fmt` replaces it. The
+  old-vs-new cases in `tests/unit/lang/fmt.test.ts` now fill the old strings
+  with a frozen copy of it. They gain 9 cases for this step, including the
+  level-up message whose value contains `{user}`.
+
+### Fixed
+
+- An XP leaderboard entry, role reward, multiplier or event template reply no
+  longer garbles a name or value containing `$&`, `` $` ``, `$'` or `$$`,
+  because `fmt` inserts values exactly as given.
+
 ## [3.16.45] - 2026-10-07
 
 The ticket and bait-channel strings move to named `{name}` placeholders filled

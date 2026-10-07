@@ -19,7 +19,7 @@ import {
   awaitConfirmation,
   clampText,
   enhancedLogger,
-  formatLang,
+  fmt,
   handleInteractionError,
   LogCategory,
   lang,
@@ -65,7 +65,7 @@ async function handleBackup(interaction: ChatInputCommandInteraction): Promise<v
 
     const backup = serializeRules(rules, guild);
     const json = JSON.stringify(backup, null, 2);
-    const fileName = tl.backup.fileName.replace('{0}', guild.id);
+    const fileName = fmt(tl.backup.fileName, { guildId: guild.id });
 
     const attachment = new AttachmentBuilder(Buffer.from(json, 'utf-8'), {
       name: fileName,
@@ -128,7 +128,7 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
 
     if (backup.rules.length > availableSlots) {
       await interaction.editReply({
-        content: formatLang(tl.restore.wouldExceedLimit, backup.rules.length, availableSlots),
+        content: fmt(tl.restore.wouldExceedLimit, { count: backup.rules.length, available: availableSlots }),
       });
       return;
     }
@@ -137,7 +137,7 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
     // works post-deferReply since v3.14.6 (this flow escaped the v3.0.4 and
     // v3.1.34 consolidations because the helper couldn't edit a deferred reply).
     const result = await awaitConfirmation(interaction, {
-      message: formatLang(tl.restore.confirmMessage, backup.rules.length),
+      message: fmt(tl.restore.confirmMessage, { count: backup.rules.length }),
       confirmLabel: tl.restore.confirmLabel,
       confirmStyle: ButtonStyle.Primary,
       idPrefix: 'automod_restore',
@@ -205,12 +205,12 @@ async function handleRestore(interaction: ChatInputCommandInteraction): Promise<
     });
 
     const failedText = failed.length
-      ? `\n\n${formatLang(tl.restore.failedList, failed.length)}\n${failed.map(f => `- ${f}`).join('\n')}`
+      ? `\n\n${fmt(tl.restore.failedList, { count: failed.length })}\n${failed.map(f => `- ${f}`).join('\n')}`
       : '';
     const embed = new EmbedBuilder()
       .setColor(failed.length ? '#FFA500' : '#00FF00')
       .setTitle(tl.restore.title)
-      .setDescription(clampText(`${formatLang(tl.restore.success, created)}${failedText}`, 4096));
+      .setDescription(clampText(`${fmt(tl.restore.success, { count: created })}${failedText}`, 4096));
 
     await result.interaction.editReply({
       content: '',
