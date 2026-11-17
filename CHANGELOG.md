@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.17.3] - 2026-10-26
+
+A security update to the library the bot uses to talk to Discord's API
+(NindroidA/cogworks-bot#96). Nothing changes in how the bot works.
+
+### Security
+
+- **undici 6.29.0 → 6.29.1.** discord.js sends every Discord API request
+  through undici. The update fixes two denial-of-service bugs: a response
+  with too many content encodings could crash the process
+  ([GHSA-xjj6-f33q-929c](https://github.com/advisories/GHSA-xjj6-f33q-929c),
+  high), and the EventSource parser could use unbounded memory
+  ([GHSA-4qv8-2p9j-2685](https://github.com/advisories/GHSA-4qv8-2p9j-2685),
+  moderate). `bun audit` now finds no known vulnerabilities.
+
 ## [3.17.2] - 2026-10-07
 
 Documentation for the `/bot-health` work and the testing rules learned along
